@@ -1,0 +1,393 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}About Us | {{ brand_name }}{% endblock %}
+
+{% block extra_styles %}
+  {% if user.is_authenticated %}
+    <link rel="stylesheet" href="{% static 'core/css/docs.css' %}" />
+  {% endif %}
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .about-wrapper {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .landing-nav {
+      padding: 1.5rem 2rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .landing-nav-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .landing-logo {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: white;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .landing-logo .logo-icon {
+      width: 28px;
+      height: 28px;
+    }
+
+    .landing-nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 1.75rem;
+    }
+
+    .landing-link {
+      color: rgba(255, 255, 255, 0.9);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .landing-link:hover {
+      color: white;
+    }
+
+    .landing-btn-primary {
+      background: white;
+      color: #667eea;
+      padding: 0.6rem 1.25rem;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .landing-btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .about-main {
+      flex: 1;
+      background: #f8f9fa;
+    }
+
+    .about-page {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 4rem 2rem;
+    }
+
+    .about-hero {
+      text-align: center;
+      margin-bottom: 4rem;
+    }
+
+    .about-hero h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 1rem;
+    }
+
+    .about-hero .tagline {
+      font-size: 1.25rem;
+      color: #666;
+      max-width: 600px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    .about-section {
+      margin-bottom: 4rem;
+    }
+
+    .about-section h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 1.5rem;
+    }
+
+    .about-section p {
+      color: #444;
+      line-height: 1.8;
+      margin-bottom: 1rem;
+    }
+
+    .values-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.5rem;
+      margin-top: 2rem;
+    }
+
+    .value-card {
+      padding: 1.5rem;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .value-card h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .value-card h3 svg {
+      width: 20px;
+      height: 20px;
+      stroke: #667eea;
+    }
+
+    .value-card p {
+      color: #666;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    .leadership-section {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 16px;
+      padding: 3rem;
+      color: white;
+      margin-bottom: 4rem;
+    }
+
+    .leadership-section h2 {
+      color: white;
+      margin-bottom: 2rem;
+    }
+
+    .leader-card {
+      display: flex;
+      gap: 2rem;
+      align-items: flex-start;
+    }
+
+    .leader-avatar {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      object-fit: cover;
+    }
+
+    .leader-info h3 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .leader-info .title {
+      opacity: 0.8;
+      font-size: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .leader-info p {
+      opacity: 0.9;
+      line-height: 1.7;
+      margin: 0;
+    }
+
+    .contact-section {
+      text-align: center;
+      padding: 3rem;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .contact-section h2 {
+      margin-bottom: 1rem;
+    }
+
+    .contact-section > p {
+      color: #666;
+      max-width: 500px;
+      margin: 0 auto 2rem;
+    }
+
+    .contact-links {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .contact-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      background: #667eea;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    .contact-link:hover {
+      background: #5a6fd6;
+    }
+
+    .contact-link svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    {% include 'core/partials/_footer_styles.html' %}
+
+    .landing-footer {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    @media (max-width: 640px) {
+      .about-hero h1 {
+        font-size: 2rem;
+      }
+
+      .about-page {
+        padding: 2rem 1rem;
+      }
+
+      .leader-card {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+      }
+
+      .leadership-section {
+        padding: 2rem;
+      }
+
+      .landing-nav-actions {
+        gap: 1rem;
+      }
+    }
+  </style>
+{% endblock %}
+
+{% block content_body %}
+  <div class="about-wrapper">
+    {% if user.is_authenticated %}
+      {% include 'core/partials/app_nav.html' %}
+    {% else %}
+      <nav class="landing-nav">
+        <div class="landing-nav-container">
+          <a href="/" class="landing-logo">{% include 'core/partials/_logo_icon.html' %} {{ brand_name }}</a>
+          <div class="landing-nav-actions">
+            <a href="{% url 'core:dev_index' %}" class="landing-link">Developers</a>
+            <a href="/login/" class="landing-link">Log in</a>
+            <a href="/signup/" class="landing-btn-primary">Get Started</a>
+          </div>
+        </div>
+      </nav>
+    {% endif %}
+
+    <main class="about-main">
+      <div class="about-page">
+        <div class="about-hero">
+          <h1>About Hyperclast</h1>
+          <p class="tagline">Building foundational tools for teams who value simplicity, speed, and ownership of their data.</p>
+        </div>
+
+        <div class="about-section">
+          <h2>Our Mission</h2>
+          <p>
+            At Hyperclast, we believe that the best tools are the ones that get out of your way. We're building foundational software for collaboration: fast, open, and built to last.
+          </p>
+          <p>
+            Our platform combines the simplicity of plain text with the power of real-time collaboration, built on modern foundations like CRDTs for conflict-free editing and a comprehensive API that gives you full control over your data.
+          </p>
+        </div>
+
+        <div class="about-section">
+          <h2>Our Values</h2>
+          <div class="values-grid">
+            <div class="value-card">
+              <h3>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                Speed
+              </h3>
+              <p>Performance isn't a feature, it's a requirement. Every interaction should feel instant.</p>
+            </div>
+            <div class="value-card">
+              <h3>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                Privacy
+              </h3>
+              <p>Your data belongs to you. We don't sell your information or train AI models on your content.</p>
+            </div>
+            <div class="value-card">
+              <h3>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                Open Source
+              </h3>
+              <p>Our core platform is open source. Inspect the code, self-host, or contribute to make it better.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="leadership-section">
+          <div class="leader-card">
+            <img src="{% static 'core/img/profile-pic.jpg' %}" alt="Kirubakaran Athmanathan" class="leader-avatar">
+            <div class="leader-info">
+              <h3>Kirubakaran Athmanathan</h3>
+              <div class="title">Founder & CEO</div>
+              <p>
+                With over 25 years of experience building software products, Kirubakaran leads Hyperclast's mission to create foundational tools that teams actually want to use. His background spans scalable distributed systems, real-time collaboration, artificial intelligence, and enterprise software, with a consistent focus on building products that are both powerful and delightful to use.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="contact-section">
+          <h2>Get in Touch</h2>
+          <p>We're based in San Francisco and always happy to chat about collaboration, open source, or just grab a coffee.</p>
+          <div class="contact-links">
+            <a href="mailto:support@hyperclast.com" class="contact-link">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              Email Us
+            </a>
+            <a href="https://github.com/hyperclast" target="_blank" rel="noopener" class="contact-link">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+              GitHub
+            </a>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    {% include 'core/partials/_footer.html' %}
+  </div>
+
+  {% include 'core/partials/_app_nav_scripts.html' %}
+{% endblock %}

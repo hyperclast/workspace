@@ -1,0 +1,35 @@
+# Docker Compose override for E2E testing
+# Uses different ports to avoid conflicts with running dev instance
+#
+# Usage:
+#   docker compose -f docker-compose.yaml -f docker-compose.e2e.yaml -p ws-e2e --env-file .env-e2e up -d
+#
+# The port is controlled by WS_WEB_EXTERNAL_PORT and WS_WEB_INTERNAL_PORT in .env-e2e
+# The base docker-compose.yaml already uses these env vars, so we just need to set them differently.
+#
+# NOTE: We override env_file to use .env-e2e instead of .env-docker
+
+services:
+  ws-db:
+    # Use a different volume to avoid conflicts with dev database
+    volumes:
+      - ws-e2e-db-data:/var/lib/postgresql/data/pgdata
+
+  ws-web:
+    # Use test env file instead of .env-docker
+    env_file:
+      - .env-e2e
+
+  ws-rq:
+    # RQ worker also needs test env
+    env_file:
+      - .env-e2e
+
+  ws-preview:
+    # Disable preview service for E2E tests - not needed and port 9494 conflicts
+    # We use 'profiles' to exclude it from default startup
+    profiles:
+      - disabled
+
+volumes:
+  ws-e2e-db-data:

@@ -1,0 +1,17 @@
+{% extends 'core/base.html' %}
+
+{% block title %}
+  Error
+{% endblock %}
+
+{% block content_body %}
+  <h2>{% block content_error_title %}Error{% endblock %}</h2>
+
+  {% block content_error_text %}{% endblock %}
+
+  {% block content_error_cta %}
+    <div>
+      <a href="/" class="" role="button"> Back to Home </a>
+    </div>
+  {% endblock %}
+{% endblock %}

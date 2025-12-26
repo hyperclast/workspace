@@ -1,0 +1,71 @@
+{% extends 'core/docs/base.html' %}
+
+{% block docs_content %}
+  <article class="markdown-content">
+    {{ content|safe }}
+  </article>
+  <div class="floating-toc visible" id="floatingToc">
+    <button class="floating-toc-btn" id="floatingTocBtn" type="button" aria-label="Jump to section">
+      <svg class="floating-toc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="15" y2="12"/>
+        <line x1="3" y1="18" x2="18" y2="18"/>
+      </svg>
+    </button>
+    <div class="floating-toc-menu" id="floatingTocMenu"></div>
+  </div>
+{% endblock %}
+
+{% block extra_toc_scripts %}
+  <script>
+    (function() {
+      var floatingToc = document.getElementById('floatingToc');
+      var floatingBtn = document.getElementById('floatingTocBtn');
+      var floatingMenu = document.getElementById('floatingTocMenu');
+      var content = document.querySelector('.markdown-content');
+      var headings = content.querySelectorAll('h2[id]');
+
+      // Hide if not enough sections
+      if (headings.length < 4) {
+        floatingToc.style.display = 'none';
+        return;
+      }
+
+      // Build section list
+      headings.forEach(function(h, i) {
+        var link = document.createElement('a');
+        link.href = '#' + h.id;
+        link.className = 'floating-toc-item';
+        link.innerHTML = '<span class="floating-toc-num">' + (i + 1) + '</span><span class="floating-toc-text">' + h.textContent + '</span>';
+
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+          h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          history.pushState(null, null, '#' + h.id);
+          floatingToc.classList.remove('expanded');
+        });
+        floatingMenu.appendChild(link);
+      });
+
+      // Toggle menu
+      floatingBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        floatingToc.classList.toggle('expanded');
+      });
+
+      // Close on outside click
+      document.addEventListener('click', function(e) {
+        if (!floatingToc.contains(e.target)) {
+          floatingToc.classList.remove('expanded');
+        }
+      });
+
+      // Close on Escape
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          floatingToc.classList.remove('expanded');
+        }
+      });
+    })();
+  </script>
+{% endblock %}

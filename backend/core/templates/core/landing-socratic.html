@@ -1,0 +1,504 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ brand_name }} - From Idea to App Through Better Questions</title>
+    <meta name="description" content="AI-powered spec writing that asks the right questions. Collaborate with your team, refine your ideas, and see your app come to life in real-time." />
+    {% include 'core/partials/_favicon.html' %}
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      .landing-page {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+      }
+
+      .landing-nav {
+        padding: 1.5rem 2rem;
+      }
+
+      .landing-nav-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .landing-logo {
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        color: white;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .landing-logo .logo-icon {
+        width: 28px;
+        height: 28px;
+        gap: 0.5rem;
+      }
+
+      .landing-logo-icon-old {
+        font-size: 1.75rem;
+      }
+
+      .landing-nav-actions {
+        display: flex;
+        align-items: center;
+        gap: 1.75rem;
+      }
+
+      .landing-link {
+        color: rgba(255, 255, 255, 0.9);
+        text-decoration: none;
+        font-weight: 500;
+        position: relative;
+        padding-bottom: 2px;
+      }
+
+      .landing-link::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        width: 0;
+        height: 1px;
+        background: white;
+        transition: width 0.25s ease;
+      }
+
+      .landing-link:hover {
+        color: white;
+      }
+
+      .landing-link:hover::after {
+        width: 100%;
+      }
+
+      .landing-btn-primary {
+        background: white;
+        color: #667eea;
+        padding: 0.6rem 1.25rem;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: transform 0.2s, box-shadow 0.2s;
+        display: inline-block;
+      }
+
+      .landing-btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+
+      .landing-btn-secondary {
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+        padding: 0.6rem 1.25rem;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 600;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        transition: background 0.2s;
+        display: inline-block;
+      }
+
+      .landing-btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.25);
+      }
+
+      .landing-btn-large {
+        padding: 1rem 2rem;
+        font-size: 1.1rem;
+      }
+
+      .landing-hero {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 4rem 2rem;
+      }
+
+      .landing-hero-content {
+        text-align: center;
+        max-width: 800px;
+      }
+
+      .landing-hero-content h1 {
+        font-size: 3.5rem;
+        font-weight: 700;
+        line-height: 1.1;
+        margin-bottom: 1.5rem;
+        letter-spacing: -1px;
+      }
+
+      .landing-hero-subtitle {
+        font-size: 1.35rem;
+        opacity: 0.95;
+        line-height: 1.6;
+        margin-bottom: 2.5rem;
+      }
+
+      .landing-cta {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      .landing-how-it-works {
+        background: white;
+        color: #333;
+        padding: 5rem 2rem;
+      }
+
+      .landing-section-header {
+        text-align: center;
+        max-width: 700px;
+        margin: 0 auto 4rem;
+      }
+
+      .landing-section-header h2 {
+        font-size: 2.25rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        color: #1a1a1a;
+      }
+
+      .landing-section-header p {
+        font-size: 1.15rem;
+        color: #666;
+        line-height: 1.6;
+      }
+
+      .landing-steps {
+        max-width: 1000px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 3rem;
+      }
+
+      .landing-step {
+        text-align: center;
+        padding: 2rem 1.5rem;
+        background: #f8f9fa;
+        border-radius: 16px;
+        position: relative;
+      }
+
+      .landing-step-number {
+        width: 48px;
+        height: 48px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin: 0 auto 1.5rem;
+      }
+
+      .landing-step h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        color: #1a1a1a;
+      }
+
+      .landing-step p {
+        color: #666;
+        line-height: 1.6;
+      }
+
+      .landing-features {
+        background: #f8f9fa;
+        color: #333;
+        padding: 5rem 2rem;
+      }
+
+      .landing-features-grid {
+        max-width: 1000px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 3rem;
+      }
+
+      .landing-feature {
+        text-align: center;
+        padding: 1.5rem;
+      }
+
+      .landing-feature-icon {
+        margin-bottom: 1rem;
+      }
+
+      .landing-feature-icon svg {
+        width: 32px;
+        height: 32px;
+      }
+
+      .landing-feature h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        color: #1a1a1a;
+      }
+
+      .landing-feature p {
+        color: #666;
+        line-height: 1.6;
+      }
+
+      .landing-audience {
+        background: white;
+        color: #333;
+        padding: 5rem 2rem;
+      }
+
+      .landing-audience-grid {
+        max-width: 900px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 2rem;
+      }
+
+      .landing-audience-card {
+        padding: 2rem;
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+        border-radius: 12px;
+        border: 1px solid rgba(102, 126, 234, 0.1);
+      }
+
+      .landing-audience-card h3 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        color: #667eea;
+      }
+
+      .landing-audience-card p {
+        color: #666;
+        line-height: 1.6;
+        font-size: 0.95rem;
+      }
+
+      .landing-final-cta {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 5rem 2rem;
+        text-align: center;
+      }
+
+      .landing-final-cta h2 {
+        font-size: 2.25rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+      }
+
+      .landing-final-cta p {
+        font-size: 1.15rem;
+        opacity: 0.9;
+        margin-bottom: 2rem;
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      {% include 'core/partials/_footer_styles.html' %}
+
+      @media (max-width: 768px) {
+        .landing-hero-content h1 {
+          font-size: 2.5rem;
+        }
+
+        .landing-hero-subtitle {
+          font-size: 1.1rem;
+        }
+
+        .landing-section-header h2 {
+          font-size: 1.75rem;
+        }
+
+        .landing-final-cta h2 {
+          font-size: 1.75rem;
+        }
+
+        .landing-footer-content {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 1.5rem;
+        }
+
+        .landing-nav-actions {
+          gap: 1rem;
+        }
+
+        .landing-link {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="landing-page">
+      <nav class="landing-nav">
+        <div class="landing-nav-container">
+          <a href="/" class="landing-logo">
+            {% include 'core/partials/_logo_icon.html' %}
+            <span>{{ brand_name }}</span>
+          </a>
+          <div class="landing-nav-actions">
+            <a href="/login" class="landing-link">Log in</a>
+            <a href="/signup" class="landing-btn-primary">Get Started Free</a>
+          </div>
+        </div>
+      </nav>
+
+      <main class="landing-hero">
+        <div class="landing-hero-content">
+          <h1>From Idea to App<br />Through Better Questions</h1>
+          <p class="landing-hero-subtitle">
+            {{ brand_name }} helps PMs and developers write better specs together.<br />
+            AI asks the clarifying questions you'd forget to ask yourself.
+          </p>
+          <div class="landing-cta">
+            <a href="/signup" class="landing-btn-primary landing-btn-large">Start Building</a>
+            <a href="#how-it-works" class="landing-btn-secondary landing-btn-large">See How It Works</a>
+          </div>
+        </div>
+      </main>
+
+      <section id="how-it-works" class="landing-how-it-works">
+        <div class="landing-section-header">
+          <h2>The Socratic Method for Software</h2>
+          <p>Great specs come from asking the right questions. {{ brand_name }} guides you through the process, uncovering edge cases and clarifying requirements before you write a line of code.</p>
+        </div>
+
+        <div class="landing-steps">
+          <div class="landing-step">
+            <div class="landing-step-number">1</div>
+            <h3>Describe Your Idea</h3>
+            <p>Start with a rough description of what you want to build. It doesn't need to be perfect—that's what {{ brand_name }} is for.</p>
+          </div>
+          <div class="landing-step">
+            <div class="landing-step-number">2</div>
+            <h3>Answer Questions</h3>
+            <p>{{ brand_name }} asks focused, clarifying questions about user flows, edge cases, and requirements you might have missed.</p>
+          </div>
+          <div class="landing-step">
+            <div class="landing-step-number">3</div>
+            <h3>Watch It Build</h3>
+            <p>As you refine your spec, see a live preview of your app update in real-time. Iterate until it's exactly right.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="landing-features">
+        <div class="landing-section-header">
+          <h2>Why Teams Love {{ brand_name }}</h2>
+        </div>
+
+        <div class="landing-features-grid">
+          <div class="landing-feature">
+            <div class="landing-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+            </div>
+            <h3>Fewer Misunderstandings</h3>
+            <p>Clarifying questions surface assumptions early, before they become expensive bugs or rewrites.</p>
+          </div>
+          <div class="landing-feature">
+            <div class="landing-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <h3>Real-Time Collaboration</h3>
+            <p>PMs and developers work together in the same document. Everyone stays aligned as the spec evolves.</p>
+          </div>
+          <div class="landing-feature">
+            <div class="landing-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            </div>
+            <h3>Live App Preview</h3>
+            <p>See a working prototype of your app as you write the spec. Validate ideas before committing to build.</p>
+          </div>
+          <div class="landing-feature">
+            <div class="landing-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            </div>
+            <h3>Iterative Refinement</h3>
+            <p>Start vague, get specific. Each question-answer cycle adds clarity and detail to your specification.</p>
+          </div>
+          <div class="landing-feature">
+            <div class="landing-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            </div>
+            <h3>Structured Output</h3>
+            <p>Your conversation becomes a well-organized spec document. No more translating meeting notes.</p>
+          </div>
+          <div class="landing-feature">
+            <div class="landing-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+            </div>
+            <h3>Ship Faster</h3>
+            <p>Better specs mean less back-and-forth during development. Get from idea to launch quicker.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="landing-audience">
+        <div class="landing-section-header">
+          <h2>Built For</h2>
+        </div>
+
+        <div class="landing-audience-grid">
+          <div class="landing-audience-card">
+            <h3>Product Managers</h3>
+            <p>Turn stakeholder requirements into clear, actionable specs that developers actually want to read.</p>
+          </div>
+          <div class="landing-audience-card">
+            <h3>Developers</h3>
+            <p>Get the context you need upfront. No more guessing what the PM meant or discovering gaps mid-sprint.</p>
+          </div>
+          <div class="landing-audience-card">
+            <h3>Founders & Solo Builders</h3>
+            <p>Think through your product like you have a co-founder asking all the hard questions.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="landing-final-cta">
+        <h2>Ready to Build Something Great?</h2>
+        <p>Stop writing specs in isolation. Let {{ brand_name }} ask the questions that lead to better products.</p>
+        <a href="/signup" class="landing-btn-primary landing-btn-large">Get Started Free</a>
+      </section>
+
+      {% include 'core/partials/_footer.html' %}
+    </div>
+  </body>
+</html>

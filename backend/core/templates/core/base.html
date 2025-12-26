@@ -1,0 +1,28 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}Home{% endblock %} | {{ brand_name }}</title>
+    {% include 'core/partials/_favicon.html' %}
+
+    {% block meta %}{% endblock %}
+
+    <link rel="stylesheet" href="{% static 'core/css/base.css' %}" />
+    {% block extra_styles %}{% endblock %}
+  </head>
+
+  <body class="">
+    <header></header>
+
+    <nav aria-label="Primary"></nav>
+
+    <main id="main-content">{% block content_body %}{% endblock %}</main>
+
+    <footer>{% block footer %}{% endblock %}</footer>
+
+    {% block extra_scripts %}{% endblock %}
+  </body>
+</html>

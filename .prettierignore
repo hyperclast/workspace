@@ -1,0 +1,14 @@
+# Backend files that should not be formatted
+backend/**/*.html
+backend/**/*.min.js
+backend/**/*.json
+
+# Build outputs
+**/node_modules/
+**/dist/
+**/.venv/
+**/__pycache__/
+*.pyc
+
+# Git
+.git/

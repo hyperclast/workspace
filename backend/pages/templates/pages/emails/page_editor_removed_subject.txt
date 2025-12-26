@@ -1,0 +1,1 @@
+You've been removed as an editor {% if page_title %}from the Hyperclast page {{ page_title|truncatechars:50 }}{% else %}from a Hyperclast page{% endif %}

@@ -1,0 +1,1 @@
+Invitation to edit {% if page_title %}the Hyperclast page {{ page_title|truncatechars:50 }}{% else %}a Hyperclast page{% endif %}

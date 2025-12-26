@@ -1,0 +1,242 @@
+{% extends 'core/docs/base.html' %}
+
+{% block docs_content %}
+  <article class="oss-repo-page">
+    <nav class="oss-breadcrumb">
+      <a href="{% url 'core:oss_index' %}">Open Source</a>
+      <span class="separator">/</span>
+      <span>Workspace</span>
+    </nav>
+
+    <header class="oss-repo-hero">
+      <div class="oss-repo-icon">
+        <svg viewBox="0 0 90 90" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M 10,80 L 10,70 L 20,70 L 20,80 L 30,80 L 40,80 L 40,70 L 30,70 L 30,60 L 40,60 L 40,50 L 30,50 L 20,50 L 20,60 L 10,60 L 10,50 L 10,40 L 20,40 L 20,30 L 10,30 L 10,20 L 10,10 L 20,10 L 20,20 L 30,20 L 30,10 L 40,10 L 40,20 L 40,30 L 30,30 L 30,40 L 40,40 L 50,40 L 60,40 L 60,30 L 50,30 L 50,20 L 50,10 L 60,10 L 60,20 L 70,20 L 70,10 L 80,10 L 80,20 L 80,30 L 70,30 L 70,40 L 80,40 L 80,50 L 80,60 L 70,60 L 70,50 L 60,50 L 50,50 L 50,60 L 60,60 L 60,70 L 50,70 L 50,80 L 60,80 L 70,80 L 70,70 L 80,70 L 80,80"/>
+        </svg>
+      </div>
+      <h1>Workspace</h1>
+      <p class="lead">
+        A modern, collaborative workspace built with Django and Svelte.
+        Real-time editing, AI-powered search, and a clean API.
+      </p>
+      <div class="oss-repo-tags">
+        <span class="oss-tag">Python</span>
+        <span class="oss-tag">Django</span>
+        <span class="oss-tag">Svelte</span>
+        <span class="oss-tag">CodeMirror 6</span>
+        <span class="oss-tag">Yjs</span>
+        <span class="oss-tag">PostgreSQL</span>
+      </div>
+    </header>
+
+    <a href="https://github.com/hyperclast/workspace" target="_blank" rel="noopener" class="github-card github-card-prominent">
+      <div class="github-card-icon">
+        <svg height="28" width="28" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+      </div>
+      <div class="github-card-content">
+        <div class="github-card-title">hyperclast/workspace</div>
+        <div class="github-card-desc">View on GitHub, star the repo, and contribute</div>
+      </div>
+      <div class="github-card-arrow">→</div>
+    </a>
+
+    <section class="oss-section">
+      <h2>What is Workspace?</h2>
+      <p>
+        Workspace is the complete {{ brand_name }} platform — a full-stack SaaS application
+        for creating, organizing, and collaborating on text documents. Think of it as a
+        self-hostable alternative to note-taking apps, built with developer ergonomics in mind.
+      </p>
+      <div class="feature-grid">
+        <div class="feature-item">
+          <h3>📝 Rich Text Editor</h3>
+          <p>Built on CodeMirror 6 with custom extensions for sections, dates, formatting, and more.</p>
+        </div>
+        <div class="feature-item">
+          <h3>👥 Real-Time Collaboration</h3>
+          <p>Multiple users can edit the same page simultaneously using Yjs CRDTs over WebSockets.</p>
+        </div>
+        <div class="feature-item">
+          <h3>🤖 AI-Powered Answers</h3>
+          <p>RAG-based Q&A that searches your pages and generates answers using embeddings.</p>
+        </div>
+        <div class="feature-item">
+          <h3>🔌 REST API</h3>
+          <p>Full API access for automation, integrations, and building your own clients.</p>
+        </div>
+        <div class="feature-item">
+          <h3>🏢 Multi-tenant</h3>
+          <p>Organizations, projects, and fine-grained sharing at every level.</p>
+        </div>
+        <div class="feature-item">
+          <h3>🚀 Production Ready</h3>
+          <p>Not a demo — this is the actual codebase running {{ brand_name }} in production.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="oss-section">
+      <h2>Quick Start</h2>
+      <div class="code-block">
+        <pre><code class="language-bash"># Clone the repository
+git clone https://github.com/hyperclast/workspace.git
+cd workspace
+
+# Copy env template and start everything
+cp backend/.env-template backend/.env-docker
+./run-stack.sh</code></pre>
+      </div>
+      <p>
+        That's it. The script spins up PostgreSQL, Redis, the Django backend, and the Vite frontend
+        via Docker Compose. See the <a href="https://github.com/hyperclast/workspace#readme" target="_blank" rel="noopener">README</a>
+        for manual setup or production deployment.
+      </p>
+    </section>
+
+    <section class="oss-section">
+      <h2>Architecture</h2>
+      <div class="architecture-diagram">
+        <div class="arch-layer">
+          <div class="arch-label">Frontend</div>
+          <div class="arch-items">
+            <span>Svelte 5</span>
+            <span>CodeMirror 6</span>
+            <span>Yjs</span>
+            <span>Vite</span>
+          </div>
+        </div>
+        <div class="arch-arrow">↓ REST + WebSocket ↓</div>
+        <div class="arch-layer">
+          <div class="arch-label">Backend</div>
+          <div class="arch-items">
+            <span>Django 5</span>
+            <span>Django Ninja</span>
+            <span>Channels</span>
+            <span>Django-RQ</span>
+          </div>
+        </div>
+        <div class="arch-arrow">↓</div>
+        <div class="arch-layer">
+          <div class="arch-label">Data</div>
+          <div class="arch-items">
+            <span>PostgreSQL</span>
+            <span>Redis</span>
+            <span>pgvector</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="oss-section oss-faq">
+      <h2>FAQ</h2>
+
+      <div class="faq-item-open">
+        <h3>Why Elastic License 2.0?</h3>
+        <p>
+          Let's address this directly: Workspace is licensed under
+          <a href="https://www.elastic.co/licensing/elastic-license" target="_blank" rel="noopener">ELv2</a>,
+          not MIT or Apache 2.0. We know this invites criticism from some purists, and we've thought hard about it.
+        </p>
+        <p>
+          We're a tiny team building something we're proud of. ELv2 lets individuals do almost everything:
+          self-host, modify, contribute, build on top of it, learn from it. What you can't do is take our code,
+          wrap it in a managed service, and compete directly with us.
+        </p>
+        <p>
+          This isn't hypothetical. We've watched AWS and others strip-mine open source projects — taking
+          years of work from small teams, offering it as a service, contributing nothing back, and
+          sometimes even undermining the original creators. We're not interested in subsidizing that.
+        </p>
+      </div>
+
+      <div class="faq-item-open">
+        <h3>But is it really "open source"?</h3>
+        <p>
+          By the OSI definition? No. By the spirit of what most people mean when they say open source —
+          code you can read, run, modify, and learn from — yes. We could call it "source available"
+          to be pedantically correct, but that term confuses more than it clarifies.
+        </p>
+        <p>
+          Our standalone libraries like <a href="{% url 'core:oss_repo' 'firebreak' %}">Firebreak</a>
+          are Apache 2.0 with no restrictions at all. We're not allergic to permissive licenses.
+          We just think the core platform, the thing that pays our rent, deserves some protection
+          from players who won't think twice about out-resourcing us.
+        </p>
+      </div>
+
+      <div class="faq-item-open">
+        <h3>Can I self-host this?</h3>
+        <p>
+          <strong>Individuals and small teams:</strong> Yes, absolutely. Deploy it on your own infrastructure,
+          run it on a VPS, spin it up locally. The code is all there — no artificial limits, no phone-home,
+          no "enterprise features" held hostage.
+        </p>
+        <p>
+          <strong>Businesses:</strong> If you're a company using this beyond evaluation, you need a commercial license.
+          This applies whether you self-host or use our hosted version. We're optimizing for sustainability,
+          not maximizing free usage.
+        </p>
+      </div>
+
+      <div class="faq-item-open">
+        <h3>What's the difference between this and the hosted version?</h3>
+        <p>
+          Same codebase. The hosted version on {{ brand_name }} gives you managed infrastructure,
+          automatic backups, and support — so you don't have to think about ops. Self-hosting
+          means you're responsible for all of that, but you own your data and infrastructure completely.
+        </p>
+        <p>
+          Either way, businesses need a commercial license. The choice is just about who runs the servers.
+        </p>
+      </div>
+
+      <div class="faq-item-open">
+        <h3>Do I need Redis and PostgreSQL?</h3>
+        <p>
+          For kicking the tires, SQLite works fine. For production or real-time collaboration,
+          you'll want PostgreSQL and Redis. The README walks through the setup.
+        </p>
+      </div>
+
+      <div class="faq-item-open">
+        <h3>How does the AI Ask feature work?</h3>
+        <p>
+          Pages are chunked and embedded using OpenAI's embedding API. When you ask a question,
+          we find relevant chunks via vector similarity, then generate an answer using the LLM
+          with those chunks as context (RAG pattern). Bring your own API key.
+        </p>
+      </div>
+
+      <div class="faq-item-open">
+        <h3>Can I contribute?</h3>
+        <p>
+          Please do. Bug fixes, features, documentation — all welcome. Check the
+          <a href="https://github.com/hyperclast/workspace/issues" target="_blank" rel="noopener">issues</a>
+          for good starting points. We review PRs promptly.
+        </p>
+        <p>
+          By submitting a PR, you agree to our
+          <a href="https://github.com/hyperclast/workspace/blob/main/CLA.md" target="_blank" rel="noopener">Contributor License Agreement</a>.
+        </p>
+      </div>
+    </section>
+
+    <section class="oss-section oss-cta-section">
+      <h2>Get Started</h2>
+      <p>Ready to dive in? Clone the repo and start building.</p>
+      <div class="oss-cta-buttons">
+        <a href="https://github.com/hyperclast/workspace" target="_blank" rel="noopener" class="btn btn-primary">
+          <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          View on GitHub
+        </a>
+        <a href="{% url 'core:api_docs_index' %}" class="btn btn-secondary">
+          Read the API Docs
+        </a>
+      </div>
+    </section>
+  </article>
+{% endblock %}

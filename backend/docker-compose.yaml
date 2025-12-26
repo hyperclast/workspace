@@ -1,0 +1,148 @@
+services:
+  ws-db:
+    build:
+      context: .
+      dockerfile: Dockerfile-pgvector
+    restart: always
+    hostname: postgres
+    volumes:
+      - ws-db-data:/var/lib/postgresql/data/pgdata
+    env_file:
+      - .env-docker
+    environment:
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      - POSTGRES_PASSWORD=${WS_DB_PASSWORD}
+      - POSTGRES_USER=${WS_DB_USER}
+      - POSTGRES_DB=${WS_DB_NAME}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${WS_DB_USER} -d ${WS_DB_NAME}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - ws-net
+
+  ws-redis:
+    image: redis:7-alpine
+    restart: always
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ws-net
+
+  ws-frontend:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ../frontend:/app
+      # Cache node_modules for faster builds
+      - frontend-node-modules:/app/node_modules
+    command: sh -c "npm install && npm run dev"
+    restart: unless-stopped
+    networks:
+      - ws-net
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /app/dist/.vite/manifest.json"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  ws-web:
+    build:
+      context: .
+      dockerfile: Dockerfile-web
+    env_file:
+      - .env-docker
+    environment:
+      - DJANGO_SETTINGS_MODULE=backend.settings.dev
+      - WS_DB_HOST=ws-db
+      - WS_DB_PORT=5432
+      - WS_REDIS_HOST=ws-redis
+      - WS_REDIS_PORT=6379
+      - WS_LOG_FILE=/app/ws.log
+      - WS_WEB_INTERNAL_PORT=${WS_WEB_INTERNAL_PORT:-9800}
+      - WS_JOB_RUNNER=rq
+      - WS_EMAIL_BACKEND=local
+      - WS_SOCRATIC_PREVIEW_DIR=/tmp/socratic
+    ports:
+      - "${WS_WEB_EXTERNAL_PORT:-9800}:${WS_WEB_INTERNAL_PORT:-9800}"
+    volumes:
+      - ./:/app/
+      # Mount frontend dist for symlinks to resolve correctly
+      - ../frontend/dist:/frontend/dist
+      # Shared directory for socratic preview files
+      - ${SOCRATIC_PREVIEW_DIR:-./tmp/socratic}:/tmp/socratic
+    depends_on:
+      ws-db:
+        condition: service_healthy
+      ws-redis:
+        condition: service_healthy
+      ws-frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", 'curl -fsS "http://localhost:${WS_WEB_INTERNAL_PORT:-9800}/" >/dev/null']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    networks:
+      - ws-net
+
+  ws-rq:
+    build:
+      context: .
+      dockerfile: Dockerfile-rq
+    env_file:
+      - .env-docker
+    environment:
+      - DJANGO_SETTINGS_MODULE=backend.settings.dev
+      - WS_DB_HOST=ws-db
+      - WS_DB_PORT=5432
+      - WS_REDIS_HOST=ws-redis
+      - WS_REDIS_PORT=6379
+      - WS_LOG_FILE=/app/ws.log
+      - WS_JOB_RUNNER=rq
+      - WS_EMAIL_BACKEND=local
+      - WS_SOCRATIC_PREVIEW_DIR=/tmp/socratic
+    volumes:
+      - ./:/app/
+      # Mount frontend dist for symlinks to resolve correctly
+      - ../frontend/dist:/frontend/dist
+      # Shared directory for socratic preview files
+      - ${SOCRATIC_PREVIEW_DIR:-./tmp/socratic}:/tmp/socratic
+    depends_on:
+      ws-db:
+        condition: service_healthy
+      ws-redis:
+        condition: service_healthy
+      ws-web:
+        condition: service_healthy
+    entrypoint: ["/rq-entrypoint.sh"]
+    restart: always
+    networks:
+      - ws-net
+
+  ws-preview:
+    image: python:3.12-alpine
+    working_dir: /srv
+    volumes:
+      - ${SOCRATIC_PREVIEW_DIR:-./tmp/socratic}:/srv
+    command: python -m http.server 9494 --bind 0.0.0.0
+    ports:
+      - "9494:9494"
+    restart: unless-stopped
+    networks:
+      - ws-net
+
+volumes:
+  ws-db-data:
+  frontend-node-modules:
+
+networks:
+  ws-net:

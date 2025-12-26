@@ -1,0 +1,28 @@
+FROM python:3.13
+
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app/
+
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+ENV UV_PROJECT_ENVIRONMENT=/venv
+ENV VIRTUAL_ENV=/venv
+ENV PATH="/venv/bin:${PATH}"
+
+COPY pyproject.toml ./
+COPY uv.lock ./
+
+RUN /bin/bash -lc 'if [ -f uv.lock ]; then uv sync --frozen --group dev; else uv sync --group dev; fi'
+
+COPY . .
+
+ENV PYTHONPATH=/app/
+
+COPY rq-entrypoint.sh /rq-entrypoint.sh
+RUN chmod +x /rq-entrypoint.sh
+
+ENTRYPOINT ["/rq-entrypoint.sh"]

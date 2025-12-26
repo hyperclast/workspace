@@ -1,0 +1,8 @@
+.env
+logs/
+media/
+__pycache__/
+*.py[cod]
+.venv/
+node_modules/
+.git/

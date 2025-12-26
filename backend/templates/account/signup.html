@@ -1,0 +1,67 @@
+{% extends 'account/custom_base.html' %}
+
+{% block title %}
+  Sign Up
+{% endblock %}
+
+{% block content_main_title %}
+  Sign Up
+{% endblock %}
+
+{% block content_main_body %}
+
+  {% if form.non_field_errors %}
+    <div class="">
+      {% for error in form.non_field_errors %}
+        <p>{{ error }}</p>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <form method="post" action="{% url 'account_signup' %}">
+    {% csrf_token %}
+    {% if next %}
+      <input type="hidden" name="next" value="{{ next }}" />
+    {% endif %}
+
+    <div class="">
+      <label for="{{ form.email.id_for_label }}" class="">Email</label>
+      <input type="email" name="email" id="{{ form.email.id_for_label }}" class="" required {% if prepopulated_email %}value="{{ prepopulated_email }}"{% endif %} />
+      {% if form.email.errors %}
+        <p class="">{{ form.email.errors.0 }}</p>
+      {% endif %}
+    </div>
+
+    <div class="">
+      <label for="{{ form.password1.id_for_label }}" class="">Password</label>
+      <input
+        type="password"
+        name="password1"
+        id="{{ form.password1.id_for_label }}"
+        class=""
+        required
+      />
+      {% if form.password1.errors %}
+        <p class="">{{ form.password1.errors.0 }}</p>
+      {% endif %}
+    </div>
+
+    <div class="">
+      By signing up, you agree to our <a href="{% url 'core:terms' %}" class="">Terms and Conditions</a> and
+      <a href="{% url 'core:privacy' %}" class="">Privacy Policy</a>
+    </div>
+
+    <button type="submit" class="">Sign Up</button>
+  </form>
+
+  <div class="">
+    <p class="">
+      Already have an account?
+      <a href="{% url 'account_login' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="">Click here to sign in</a>
+    </p>
+  </div>
+
+  <hr class="" />
+
+  <div class="">{% include 'core/partials/google_signin.html' with nav=None %}</div>
+{% endblock %}

@@ -1,0 +1,224 @@
+{% extends 'core/docs/base.html' %}
+{% load static %}
+
+{% block docs_content %}
+  <article class="oss-repo-page">
+    <nav class="oss-breadcrumb">
+      <a href="{% url 'core:oss_index' %}">Open Source</a>
+      <span class="separator">/</span>
+      <span>Firebreak</span>
+    </nav>
+
+    <header class="oss-repo-hero">
+      <div class="oss-repo-icon oss-repo-icon-img">
+        <img src="{% static 'core/img/firebreak-logo.svg' %}" alt="Firebreak">
+      </div>
+      <h1>Firebreak</h1>
+      <p class="lead">
+        Function-level sandboxing for Python. Run untrusted code safely using
+        Firecracker microVMs with a simple decorator API.
+      </p>
+      <div class="oss-repo-tags">
+        <span class="oss-tag">Python</span>
+        <span class="oss-tag">Firecracker</span>
+        <span class="oss-tag">MicroVM</span>
+        <span class="oss-tag">Sandboxing</span>
+      </div>
+    </header>
+
+    <a href="https://github.com/hyperclast/firebreak" target="_blank" rel="noopener" class="github-card github-card-prominent">
+      <div class="github-card-icon">
+        <svg height="28" width="28" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+      </div>
+      <div class="github-card-content">
+        <div class="github-card-title">hyperclast/firebreak</div>
+        <div class="github-card-desc">View on GitHub, star the repo, and contribute</div>
+      </div>
+      <div class="github-card-arrow">→</div>
+    </a>
+
+    <section class="oss-section">
+      <h2>Why Firebreak?</h2>
+      <p>
+        Python has no built-in sandboxing. Running untrusted code — whether from users,
+        plugins, or AI — means giving it full access to your system. Firebreak fixes this
+        by executing decorated functions inside lightweight Firecracker microVMs.
+      </p>
+      <div class="highlight-box">
+        <strong>This is real isolation</strong>, enforced at the OS/VM boundary.
+        Decorators provide developer ergonomics, not security. MicroVMs provide security.
+      </div>
+    </section>
+
+    <section class="oss-section">
+      <h2>How It Works</h2>
+      <div class="code-block">
+        <pre><code class="language-python">from firebreak import firebreak
+
+@firebreak(net=False, fs="ro:/data")
+def process_untrusted_input(data: str) -> dict:
+    # This runs in an isolated microVM
+    # No network access, read-only filesystem
+    return parse_and_transform(data)
+
+# Call it like any normal function
+result = process_untrusted_input(user_data)</code></pre>
+      </div>
+      <p>
+        At import time, the decorator replaces the function with an RPC stub.
+        When called, arguments are serialized and sent to a warm microVM from a pool.
+        The result (or exception) is returned transparently.
+      </p>
+    </section>
+
+    <section class="oss-section">
+      <h2>Key Concepts</h2>
+      <div class="feature-grid">
+        <div class="feature-item">
+          <h3>🔒 Real Isolation</h3>
+          <p>
+            Functions run in Firecracker microVMs. Filesystem, network, CPU, and memory
+            are enforced at the VM boundary — not by Python tricks.
+          </p>
+        </div>
+        <div class="feature-item">
+          <h3>⚡ Warm VM Pools</h3>
+          <p>
+            VMs are pre-booted and ready. No cold start on the hot path.
+            Pools are keyed by capability profile for efficient reuse.
+          </p>
+        </div>
+        <div class="feature-item">
+          <h3>🎯 Capability Profiles</h3>
+          <p>
+            Define what each sandbox can access: <code>net=none</code>, <code>fs=ro:/data</code>,
+            <code>net=https-only</code>. Each profile gets its own VM pool.
+          </p>
+        </div>
+        <div class="feature-item">
+          <h3>📦 Simple API</h3>
+          <p>
+            Just a decorator. Functions must be top-level importable with serializable
+            inputs/outputs. No closures, no implicit state.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="oss-section">
+      <h2>Performance</h2>
+      <p>
+        This system trades raw call speed for strong isolation. That's the point.
+      </p>
+      <div class="perf-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Execution Model</th>
+              <th>Typical Overhead</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>In-process Python call</td>
+              <td>~0.1–1 µs</td>
+            </tr>
+            <tr>
+              <td>Thread/coroutine dispatch</td>
+              <td>~1–5 µs</td>
+            </tr>
+            <tr class="highlight">
+              <td><strong>Warm microVM (Firebreak)</strong></td>
+              <td><strong>~1–10 ms</strong></td>
+            </tr>
+            <tr>
+              <td>Cold microVM boot</td>
+              <td>100–500+ ms</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="perf-note">
+        Rule of thumb: if the function's own work takes <strong>&lt;1ms</strong>, sandboxing will dominate.
+        If it takes <strong>10–100+ ms</strong>, overhead is usually acceptable.
+      </p>
+    </section>
+
+    <section class="oss-section">
+      <h2>Use Cases</h2>
+      <ul class="use-case-list">
+        <li><strong>AI-generated code</strong> — Run LLM outputs safely</li>
+        <li><strong>User plugins</strong> — Let users extend your app without risk</li>
+        <li><strong>Data processing</strong> — Parse untrusted files in isolation</li>
+        <li><strong>Policy enforcement</strong> — Sandbox security-sensitive operations</li>
+        <li><strong>Multi-tenant execution</strong> — Isolate customer workloads</li>
+      </ul>
+    </section>
+
+    <section class="oss-section oss-faq">
+      <h2>FAQ</h2>
+
+      <div class="faq-item-open">
+        <h3>Do I need Firecracker installed?</h3>
+        <p>
+          Yes, Firebreak uses Firecracker microVMs for isolation. You'll need a Linux host
+          with KVM support. For development, you can run Firecracker in a VM or use our
+          provided Docker setup.
+        </p>
+      </div>
+
+      <div class="faq-item-open">
+        <h3>What about WASM or containers?</h3>
+        <p>
+          MicroVMs provide stronger isolation than containers and don't have WASM's Python
+          compatibility issues. Firecracker boots in ~125ms and has minimal overhead once warm.
+        </p>
+      </div>
+
+      <div class="faq-item-open">
+        <h3>Can functions call back to the host?</h3>
+        <p>
+          Not in v1. Functions must be self-contained. Cross-VM communication and
+          host callbacks are on the roadmap for v2.
+        </p>
+      </div>
+
+      <div class="faq-item-open">
+        <h3>What about closures and global state?</h3>
+        <p>
+          Decorated functions must be top-level importable with no closures or ambient state.
+          This is intentional — explicit boundaries make the security model clear.
+        </p>
+      </div>
+
+      <div class="faq-item-open">
+        <h3>How is serialization handled?</h3>
+        <p>
+          JSON-compatible types by default. Optional cloudpickle support for complex objects,
+          but treat pickle as code injection — never accept pickles from untrusted sources.
+        </p>
+      </div>
+    </section>
+
+    <section class="oss-section oss-cta-section">
+      <h2>Get Started</h2>
+      <p>Ready to sandbox some functions?</p>
+      <div class="code-block code-block-small">
+        <pre><code class="language-bash">pip install firebreak</code></pre>
+      </div>
+      <div class="oss-cta-buttons">
+        <a href="https://github.com/hyperclast/firebreak" target="_blank" rel="noopener" class="btn btn-primary">
+          <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          View on GitHub
+        </a>
+        <a href="https://firebreakpy.com" target="_blank" rel="noopener" class="btn btn-secondary">
+          Documentation
+        </a>
+      </div>
+    </section>
+  </article>
+{% endblock %}

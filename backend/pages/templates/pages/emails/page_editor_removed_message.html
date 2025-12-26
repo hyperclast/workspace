@@ -1,0 +1,7 @@
+{% extends 'core/emails/base.html' %}
+
+{% block content %}
+  <p>
+    You no longer have access to {% if page_title %}the Hyperclast page "{{ page_title|truncatechars:80 }}"{% else %}a Hyperclast page{% endif %}.
+  </p>
+{% endblock %}

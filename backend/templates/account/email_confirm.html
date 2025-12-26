@@ -1,0 +1,41 @@
+{% extends 'account/custom_base.html' %}
+
+{% load account %}
+
+{% block title %}
+  Confirm Email
+{% endblock %}
+
+{% block content_main_title %}
+  Confirm Email
+{% endblock %}
+
+{% block content_main_body %}
+  {% if confirmation %}
+    {% user_display confirmation.email_address.user as user_display %}
+    <form
+      id="account-email-confirm-form"
+      style="visibility: hidden"
+      method="post"
+      action="{% url 'account_confirm_email' confirmation.key %}"
+    >
+      {% csrf_token %}
+      <button type="submit">Confirm</button>
+    </form>
+  {% else %}
+    <div class="">
+      {% url 'account_email' as email_url %}
+      <p>
+        This email confirmation link has expired or is invalid.
+        <a href="{{ email_url }}">Click here to resend email confirmation</a>.
+      </p>
+    </div>
+  {% endif %}
+
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    document.getElementById('account-email-confirm-form')?.submit();
+  </script>
+{% endblock %}

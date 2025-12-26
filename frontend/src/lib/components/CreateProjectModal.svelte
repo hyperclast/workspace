@@ -1,0 +1,209 @@
+<script>
+  import Modal from './Modal.svelte';
+  import { fetchOrgs, createProject as createProjectApi } from '../../api.js';
+  import { showToast } from '../toast.js';
+  import { validateProjectName } from '../validation.js';
+
+  let {
+    open = $bindable(false),
+    oncreated = () => {},
+  } = $props();
+
+  let name = $state('');
+  let selectedOrgId = $state('');
+  let orgs = $state([]);
+  let loading = $state(false);
+  let error = $state('');
+  let inputEl = $state(null);
+
+  // Derived validation state (instant feedback)
+  let validationResult = $derived(validateProjectName(name));
+  let showValidationError = $derived(name.trim().length > 0 && !validationResult.valid);
+
+  // Load orgs when modal opens
+  $effect(() => {
+    if (open) {
+      loadOrgs();
+    } else {
+      // Reset state when closed
+      name = '';
+      selectedOrgId = '';
+      error = '';
+      loading = false;
+    }
+  });
+
+  async function loadOrgs() {
+    try {
+      orgs = await fetchOrgs();
+      if (orgs.length > 0) {
+        selectedOrgId = orgs[0].external_id;
+      }
+      // Focus input after orgs load
+      setTimeout(() => inputEl?.focus(), 50);
+    } catch (e) {
+      error = 'Failed to load organizations';
+    }
+  }
+
+  async function handleCreate() {
+    const validation = validateProjectName(name);
+    if (!validation.valid) {
+      error = validation.error;
+      return;
+    }
+
+    if (!selectedOrgId) {
+      error = 'Please select an organization';
+      return;
+    }
+
+    error = '';
+    loading = true;
+
+    try {
+      const project = await createProjectApi(selectedOrgId, name.trim(), '');
+      const selectedOrg = orgs.find(o => o.external_id === selectedOrgId);
+
+      const newProject = {
+        ...project,
+        org: {
+          external_id: selectedOrgId,
+          name: selectedOrg?.name || '',
+        },
+        pages: [],
+      };
+
+      open = false;
+      oncreated(newProject);
+      showToast('Project created successfully');
+    } catch (e) {
+      error = e.message || 'Failed to create project';
+    } finally {
+      loading = false;
+    }
+  }
+
+  function handleCancel() {
+    open = false;
+  }
+
+  function handleKeydown(e) {
+    if (e.key === 'Enter' && !loading) {
+      handleCreate();
+    }
+  }
+</script>
+
+<Modal bind:open title="New Project" size="sm">
+  <div class="modal-field">
+    <label for="project-name-input">Project name</label>
+    <input
+      bind:this={inputEl}
+      bind:value={name}
+      type="text"
+      id="project-name-input"
+      placeholder="My Project"
+      maxlength="255"
+      disabled={loading}
+      onkeydown={handleKeydown}
+      class:input-error={showValidationError}
+    />
+    {#if showValidationError}
+      <div class="field-error">{validationResult.error}</div>
+    {/if}
+  </div>
+
+  <div class="modal-field">
+    <label for="project-org-select">Organization</label>
+    <select
+      bind:value={selectedOrgId}
+      id="project-org-select"
+      disabled={loading || orgs.length === 0}
+    >
+      {#each orgs as org (org.external_id)}
+        <option value={org.external_id}>{org.name}</option>
+      {/each}
+    </select>
+  </div>
+
+  {#if error}
+    <div class="modal-error-message">{error}</div>
+  {/if}
+
+  {#snippet footer()}
+    <button class="modal-btn-secondary" onclick={handleCancel} disabled={loading}>
+      Cancel
+    </button>
+    <button
+      class="modal-btn-primary"
+      onclick={handleCreate}
+      disabled={loading || !validationResult.valid || !selectedOrgId}
+    >
+      {loading ? 'Creating...' : 'Create Project'}
+    </button>
+  {/snippet}
+</Modal>
+
+<style>
+  .modal-field {
+    margin-bottom: 1rem;
+  }
+
+  .modal-field label {
+    display: block;
+    margin-bottom: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .modal-field input,
+  .modal-field select {
+    width: 100%;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  .modal-field input:focus,
+  .modal-field select:focus {
+    outline: none;
+    border-color: #2383e2;
+    box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.1);
+  }
+
+  .modal-field input:disabled,
+  .modal-field select:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .modal-error-message {
+    padding: 0.625rem 0.75rem;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    color: #dc2626;
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+  }
+
+  .input-error {
+    border-color: #dc2626 !important;
+  }
+
+  .input-error:focus {
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1) !important;
+  }
+
+  .field-error {
+    color: #dc2626;
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+  }
+</style>

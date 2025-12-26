@@ -1,0 +1,10 @@
+{% extends 'core/emails/base.html' %}
+
+{% load account %}
+
+{% block content %}
+  <p>Please confirm your email to activate your Hyperclast account.</p>
+  <p>
+    <a href="{{ activate_url }}">Confirm Email</a>
+  </p>
+{% endblock %}

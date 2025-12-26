@@ -1,0 +1,43 @@
+default_stages: [pre-commit, pre-push]
+files: ^backend/
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v2.1.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-json
+      - id: check-yaml
+      - id: debug-statements
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: pretty-format-json
+        args: [--autofix, --no-sort-keys]
+      - id: no-commit-to-branch
+        args: [--branch, master]
+
+  - repo: https://github.com/psf/black
+    rev: 22.3.0
+    hooks:
+      - id: black
+        args: [--line-length=120]
+        language_version: python3.13
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v2.7.1
+    hooks:
+      - id: prettier
+        args:
+          - --config
+          - backend/.prettierrc.json
+          - --ignore-path
+          - backend/.prettierignore
+
+  - repo: https://github.com/rtts/djhtml
+    rev: v1.5.2
+    hooks:
+      - id: djhtml
+        entry: djhtml -i -t 2
+        files: .*/templates/.*\.html$

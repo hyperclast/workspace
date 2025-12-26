@@ -1,0 +1,19 @@
+{% extends 'core/base_error.html' %}
+
+{% block title %}
+  Invalid Invitation
+{% endblock %}
+
+{% block content_error_title %}
+  Invitation Link Invalid
+{% endblock %}
+
+{% block content_error_text %}
+  <p>{{ message }}</p>
+{% endblock %}
+
+{% block content_error_cta %}
+  <div>
+    <a href="{{ FRONTEND_URL }}" class="" role="button">Back to Home</a>
+  </div>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block extra_styles %}
+  <link rel="stylesheet" href="{% static 'core/css/auth.css' %}" />
+{% endblock %}
+
+{% block content_body %}
+  {% include 'core/partials/site_nav.html' %}
+
+  <div class="auth-container">
+    <div class="auth-box">
+      <h1 class="auth-title">{% block content_main_title %}{% endblock %}</h1>
+      {% block content_main_body %}{% endblock %}
+    </div>
+  </div>
+{% endblock %}

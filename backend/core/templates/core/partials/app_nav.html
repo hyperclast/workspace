@@ -1,0 +1,28 @@
+<nav class="app-nav">
+  <div class="app-nav-container">
+    <div class="app-nav-brand">
+      <a href="/" class="app-nav-title">{% include 'core/partials/_logo_icon.html' %} {{ brand_name }}</a>
+    </div>
+    <div class="app-nav-main">
+      <div class="app-nav-actions">
+        <div class="user-menu">
+          <button id="user-avatar" class="user-avatar" title="Account menu">
+            <span id="user-initial">{{ user_initial }}</span>
+            {% if gravatar_url %}
+              <img id="user-gravatar" src="{{ gravatar_url }}" alt="{{ user_initial }}" style="display: none;" />
+            {% endif %}
+          </button>
+          <div id="user-dropdown" class="user-dropdown">
+            <div class="user-dropdown-header">
+              <div class="user-dropdown-email">{{ user_email }}</div>
+            </div>
+            <div class="user-dropdown-menu">
+              <a href="/settings/" class="user-dropdown-item">Settings</a>
+              <button id="logout-btn" class="user-dropdown-item">Log out</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav>

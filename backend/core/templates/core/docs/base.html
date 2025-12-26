@@ -1,0 +1,542 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}
+  {{ page_title|default:"API Documentation" }}
+{% endblock %}
+
+{% block extra_styles %}
+  <link rel="stylesheet" href="{% static 'core/css/docs.css' %}" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+  <style>
+    .docs-wrapper {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    .docs-wrapper .docs-container {
+      flex: 1;
+    }
+    {% include 'core/partials/_footer_styles.html' %}
+    .landing-footer {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    /* Code block copy button */
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 6px 10px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 12px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s, background 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      z-index: 10;
+    }
+    /* For grouped code blocks, position below the language switcher */
+    .code-example-group .copy-btn {
+      top: 48px; /* Below the ~40px lang-switcher + some padding */
+    }
+    pre:hover .copy-btn,
+    .code-example-group:hover .copy-btn {
+      opacity: 1;
+    }
+    .copy-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+    }
+    .copy-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    /* Toast notification - matches app style */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .toast {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      color: white;
+      font-size: 0.9rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      pointer-events: auto;
+      animation: toastSlideIn 0.3s ease-out;
+      max-width: 360px;
+      background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+    }
+    .toast.hiding {
+      animation: toastSlideOut 0.3s ease-in forwards;
+    }
+    @keyframes toastSlideIn {
+      from { opacity: 0; transform: translateX(100%); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes toastSlideOut {
+      from { opacity: 1; transform: translateX(0); }
+      to { opacity: 0; transform: translateX(100%); }
+    }
+  </style>
+{% endblock %}
+
+{% block content_body %}
+  <div class="docs-wrapper">
+    {% if user.is_authenticated %}
+      {% with is_dev_section=True %}
+        {% include 'core/partials/app_nav.html' %}
+      {% endwith %}
+    {% else %}
+      {% with is_dev_section=True %}
+        {% include 'core/partials/site_nav.html' %}
+      {% endwith %}
+    {% endif %}
+
+    <div class="docs-container">
+      <aside class="docs-sidebar">
+        <nav class="docs-nav">
+          <a href="{% url 'core:dev_index' %}" class="docs-nav-home{% if is_dev_index %} active{% endif %}">
+            Home
+          </a>
+          <div class="docs-nav-section">
+            <h3>API Reference</h3>
+            <ul>
+              <li>
+                <a href="{% url 'core:api_docs' 'overview' %}" {% if doc_name == 'overview' %}class="active"{% endif %}>
+                  Overview
+                </a>
+              </li>
+              <li>
+                <a href="{% url 'core:api_docs' 'ask' %}" {% if doc_name == 'ask' %}class="active"{% endif %}>
+                  Ask
+                </a>
+              </li>
+              <li>
+                <a href="{% url 'core:api_docs' 'orgs' %}" {% if doc_name == 'orgs' %}class="active"{% endif %}>
+                  Organizations
+                </a>
+              </li>
+              <li>
+                <a href="{% url 'core:api_docs' 'projects' %}" {% if doc_name == 'projects' %}class="active"{% endif %}>
+                  Projects
+                </a>
+              </li>
+              <li>
+                <a href="{% url 'core:api_docs' 'pages' %}" {% if doc_name == 'pages' %}class="active"{% endif %}>
+                  Pages
+                </a>
+              </li>
+              <li>
+                <a href="{% url 'core:api_docs' 'users' %}" {% if doc_name == 'users' %}class="active"{% endif %}>
+                  Users
+                </a>
+              </li>
+            </ul>
+          </div>
+          <div class="docs-nav-section">
+            <h3>Open Source</h3>
+            <ul>
+              <li>
+                <a href="{% url 'core:oss_index' %}" {% if is_oss_index %}class="active"{% endif %}>
+                  Overview
+                </a>
+              </li>
+              <li>
+                <a href="{% url 'core:oss_repo' 'workspace' %}" {% if repo_name == 'workspace' %}class="active"{% endif %}>
+                  Workspace
+                </a>
+              </li>
+              <li>
+                <a href="{% url 'core:oss_repo' 'firebreak' %}" {% if repo_name == 'firebreak' %}class="active"{% endif %}>
+                  Firebreak
+                </a>
+              </li>
+            </ul>
+          </div>
+        </nav>
+      </aside>
+
+      <main class="docs-content">
+        {% block docs_content %}{% endblock %}
+      </main>
+    </div>
+
+    {% include 'core/partials/_footer.html' %}
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script>
+    // Replace placeholders BEFORE syntax highlighting to avoid security warnings
+    (function() {
+      var baseUrl = window.location.origin;
+      {% if access_token %}
+        var token = "{{ access_token }}";
+        var tokenPlaceholders = ["<ACCESS_TOKEN>", "<API_TOKEN>"];
+      {% endif %}
+
+      document.querySelectorAll("code").forEach(function(codeBlock) {
+        // Use textContent for safe replacement, then set it back
+        var text = codeBlock.textContent;
+        text = text.split("<BASE_URL>").join(baseUrl);
+        {% if access_token %}
+          tokenPlaceholders.forEach(function(placeholder) {
+            text = text.split(placeholder).join(token);
+          });
+        {% endif %}
+        codeBlock.textContent = text;
+      });
+    })();
+
+    // Now run syntax highlighting
+    hljs.highlightAll();
+
+    // Hide empty table header rows (from markdown tables with | | | header)
+    document.querySelectorAll('thead').forEach(function(thead) {
+      var headerCells = thead.querySelectorAll('th');
+      var allEmpty = Array.from(headerCells).every(function(th) {
+        return th.textContent.trim() === '';
+      });
+      if (allEmpty) {
+        thead.style.display = 'none';
+      }
+    });
+
+    // Transform response labels into pill format
+    (function() {
+      var content = document.querySelector('.markdown-content');
+      if (!content) return;
+
+      // Transform "**Response (XXX):**" patterns
+      content.querySelectorAll('strong').forEach(function(strong) {
+        var text = strong.textContent;
+        var match = text.match(/^(Response|Success)\s*\((\d+)\):?$/);
+        if (match) {
+          var code = match[2];
+          var pillClass = 'success';
+          if (code === '201') pillClass = 'created';
+          else if (code === '204') pillClass = 'no-content';
+          else if (code >= '400') pillClass = 'error';
+
+          var parent = strong.parentElement;
+          var nextText = '';
+
+          // Get any text after the strong tag
+          if (parent && parent.tagName === 'P') {
+            var html = parent.innerHTML;
+            var strongHtml = strong.outerHTML;
+            var afterStrong = html.split(strongHtml)[1] || '';
+            nextText = afterStrong.trim();
+          }
+
+          // Look for a preceding "### Response" heading to merge with
+          var prevEl = parent ? parent.previousElementSibling : null;
+          // Use "Response" for 204 (no content), "Sample Response" for others
+          var label = (code === '204') ? 'Response' : 'Sample Response';
+
+          if (prevEl && prevEl.tagName === 'H3' && prevEl.textContent.trim().toLowerCase() === 'response') {
+            prevEl.className = 'response-heading';
+            prevEl.innerHTML = label + ' <code class="status-pill ' + pillClass + '">' + code + '</code>';
+
+            if (nextText) {
+              var descP = document.createElement('p');
+              descP.className = 'response-desc';
+              descP.innerHTML = nextText;
+              parent.parentNode.insertBefore(descP, parent.nextSibling);
+            }
+
+            parent.parentNode.removeChild(parent);
+          } else {
+            var newEl = document.createElement('p');
+            newEl.className = (code === '204') ? 'response-line' : 'sample-response';
+            newEl.innerHTML = label + ' <code class="status-pill ' + pillClass + '">' + code + '</code>';
+            if (nextText) {
+              newEl.innerHTML += ' <span class="response-desc-inline">' + nextText + '</span>';
+            }
+            if (parent && parent.tagName === 'P') {
+              parent.parentNode.replaceChild(newEl, parent);
+            }
+          }
+        }
+      });
+
+      // Transform "**Sample request:**" to title case
+      content.querySelectorAll('strong').forEach(function(strong) {
+        if (strong.textContent.toLowerCase() === 'sample request:') {
+          strong.textContent = 'Sample Request';
+        }
+      });
+
+      // Add warning class to blockquotes that start with "Warning:"
+      content.querySelectorAll('blockquote').forEach(function(bq) {
+        var text = bq.textContent.trim();
+        if (text.startsWith('Warning:')) {
+          bq.classList.add('warning');
+        }
+      });
+    })();
+
+    // Language switcher for code examples
+    (function() {
+      var LANG_KEY = 'ws-docs-lang';
+      var mainLangs = [
+        { id: 'curl', label: 'cURL' },
+        { id: 'python', label: 'Python' },
+        { id: 'javascript', label: 'JavaScript' }
+      ];
+      var otherLangs = [
+        { id: 'ruby', label: 'Ruby' },
+        { id: 'php', label: 'PHP' },
+        { id: 'go', label: 'Go' }
+      ];
+
+      function detectLang(code) {
+        var text = code.textContent.trim();
+        var firstLine = text.split('\n')[0];
+        // Bash/curl: either starts with curl or has shell variable assignment + curl somewhere
+        if (firstLine.match(/^curl\s/) || (firstLine.match(/^[A-Z_]+=/) && text.match(/\bcurl\s/))) return 'curl';
+        if (text.match(/^import requests/m) || text.match(/^from \w+ import/m)) return 'python';
+        if (text.match(/^const |^let |^var |^await fetch/m)) return 'javascript';
+        if (text.match(/^require ['"]net\/http/m)) return 'ruby';
+          if (firstLine.match(/^<\?php/)) return 'php';
+          if (text.match(/^package main/m)) return 'go';
+          if (text.match(/^\s*\{[\s\S]*\}\s*$/)) return 'json';
+          return null;
+        }
+
+          var savedLang = localStorage.getItem(LANG_KEY) || 'curl';
+          var allDropdowns = []; // Track all dropdowns for global close
+
+          function selectLang(langId) {
+            savedLang = langId;
+            localStorage.setItem(LANG_KEY, langId);
+            document.querySelectorAll('.code-example-group').forEach(updateGroup);
+            // Close all dropdowns
+            allDropdowns.forEach(function(d) { d.classList.remove('open'); });
+          }
+
+          function updateGroup(group) {
+            var items = group.querySelectorAll('[data-lang]');
+            var langs = Array.from(items).map(function(el) { return el.getAttribute('data-lang'); });
+            var activeLang = langs.indexOf(savedLang) !== -1 ? savedLang : langs[0];
+
+            items.forEach(function(el) {
+              var isActive = el.getAttribute('data-lang') === activeLang;
+              if (el.tagName === 'BUTTON') {
+                el.classList.toggle('active', isActive);
+              } else {
+                el.classList.toggle('active', isActive);
+              }
+            });
+
+            var otherBtn = group.querySelector('.other-btn');
+            if (otherBtn) {
+              var selectedOther = otherLangs.find(function(l) { return l.id === activeLang; });
+              var label = selectedOther ? selectedOther.label : 'Other';
+              otherBtn.innerHTML = label + ' <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+              otherBtn.classList.toggle('active', !!selectedOther);
+            }
+          }
+
+          function createSwitcher(langs) {
+            var switcher = document.createElement('div');
+            switcher.className = 'lang-switcher';
+
+            mainLangs.forEach(function(lang) {
+              if (langs.indexOf(lang.id) === -1) return;
+              var btn = document.createElement('button');
+              btn.textContent = lang.label;
+              btn.setAttribute('data-lang', lang.id);
+              btn.onclick = function() { selectLang(lang.id); };
+              switcher.appendChild(btn);
+            });
+
+            var availableOthers = otherLangs.filter(function(l) { return langs.indexOf(l.id) !== -1; });
+            if (availableOthers.length > 0) {
+              var container = document.createElement('div');
+              container.className = 'other-dropdown-container';
+
+              var btn = document.createElement('button');
+              btn.className = 'other-btn';
+              btn.type = 'button';
+              btn.innerHTML = 'Other <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+
+              var dropdown = document.createElement('div');
+              dropdown.className = 'other-dropdown';
+              allDropdowns.push(dropdown);
+
+              availableOthers.forEach(function(lang) {
+                var item = document.createElement('button');
+                item.type = 'button';
+                item.textContent = lang.label;
+                item.setAttribute('data-lang', lang.id);
+                item.onclick = function(e) {
+                  e.stopPropagation();
+                  selectLang(lang.id);
+                };
+                dropdown.appendChild(item);
+              });
+
+              btn.onclick = function(e) {
+                e.stopPropagation();
+                // Close other dropdowns first
+                allDropdowns.forEach(function(d) {
+                  if (d !== dropdown) d.classList.remove('open');
+                });
+                dropdown.classList.toggle('open');
+              };
+
+              container.appendChild(btn);
+              container.appendChild(dropdown);
+              switcher.appendChild(container);
+            }
+
+            return switcher;
+          }
+
+          // Close dropdowns when clicking outside
+          document.addEventListener('click', function() {
+            allDropdowns.forEach(function(d) { d.classList.remove('open'); });
+          });
+
+          // Find and group consecutive code blocks
+          var content = document.querySelector('.markdown-content');
+          if (content) {
+            var allDivs = Array.from(content.querySelectorAll('div > pre'));
+            var processed = new Set();
+
+            allDivs.forEach(function(pre) {
+              if (processed.has(pre)) return;
+              var code = pre.querySelector('code');
+              var lang = code ? detectLang(code) : null;
+              if (!lang || lang === 'json') return;
+
+              // Find the wrapper div (pre's parent)
+              var wrapper = pre.parentElement;
+              var group = [{ wrapper: wrapper, lang: lang }];
+              processed.add(pre);
+
+              // Look for consecutive siblings
+              var next = wrapper.nextElementSibling;
+              while (next) {
+                var nextPre = next.querySelector && next.querySelector('pre');
+                if (!nextPre) break;
+                var nextCode = nextPre.querySelector('code');
+                var nextLang = nextCode ? detectLang(nextCode) : null;
+                if (!nextLang || nextLang === 'json') break;
+                if (next.tagName && next.tagName.match(/^H[1-6]$/)) break;
+
+                group.push({ wrapper: next, lang: nextLang });
+                processed.add(nextPre);
+                next = next.nextElementSibling;
+              }
+
+              if (group.length > 1) {
+                var langs = group.map(function(g) { return g.lang; });
+                var uniqueLangs = langs.filter(function(l, idx) { return langs.indexOf(l) === idx; });
+
+                if (uniqueLangs.length > 1) {
+                  var groupEl = document.createElement('div');
+                  groupEl.className = 'code-example-group';
+                  wrapper.parentNode.insertBefore(groupEl, wrapper);
+                  groupEl.appendChild(createSwitcher(uniqueLangs));
+
+                  group.forEach(function(g) {
+                    g.wrapper.setAttribute('data-lang', g.lang);
+                    groupEl.appendChild(g.wrapper);
+                  });
+
+                  updateGroup(groupEl);
+                }
+              }
+            });
+          }
+        })();
+
+        // Add copy buttons to code blocks (runs AFTER language switcher)
+        (function() {
+          var toastContainer = document.createElement('div');
+          toastContainer.className = 'toast-container';
+          document.body.appendChild(toastContainer);
+
+          function showToast(message) {
+            var toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            toastContainer.appendChild(toast);
+
+            setTimeout(function() {
+              toast.classList.add('hiding');
+              setTimeout(function() {
+                toast.remove();
+              }, 300);
+            }, 2000);
+          }
+
+          var copyIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+          var checkIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+
+          function addCopyButton(container, getTextFn) {
+            if (container.querySelector('.copy-btn')) return;
+            container.style.position = 'relative';
+
+            var btn = document.createElement('button');
+            btn.className = 'copy-btn';
+            btn.type = 'button';
+            btn.innerHTML = copyIcon + 'Copy';
+
+            btn.onclick = function(e) {
+              e.stopPropagation();
+              var text = getTextFn();
+              navigator.clipboard.writeText(text).then(function() {
+                showToast('Copied to clipboard');
+                btn.innerHTML = checkIcon + 'Copied';
+                setTimeout(function() {
+                  btn.innerHTML = copyIcon + 'Copy';
+                }, 2000);
+              });
+            };
+
+            container.appendChild(btn);
+          }
+
+          // Add to grouped code examples (language switcher groups)
+          document.querySelectorAll('.code-example-group').forEach(function(group) {
+            addCopyButton(group, function() {
+              var activeBlock = group.querySelector('[data-lang].active code');
+              return activeBlock ? activeBlock.textContent : '';
+            });
+          });
+
+          // Add to standalone pre blocks (not in groups)
+          document.querySelectorAll('pre').forEach(function(pre) {
+            if (pre.closest('.code-example-group')) return;
+            addCopyButton(pre, function() {
+              var code = pre.querySelector('code');
+              return code ? code.textContent : pre.textContent;
+            });
+          });
+        })();
+
+        </script>
+        {% block extra_toc_scripts %}{% endblock %}
+        {% include 'core/partials/_app_nav_scripts.html' %}
+{% endblock %}

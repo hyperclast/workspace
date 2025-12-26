@@ -1,0 +1,60 @@
+{% extends 'core/docs/base.html' %}
+
+{% block docs_content %}
+  <article class="dev-welcome">
+    <h1>Developer Portal</h1>
+    <p class="lead">
+      Build integrations and automate workflows with the {{ brand_name }} API.
+    </p>
+
+    <a href="{% url 'core:oss_index' %}" class="github-card">
+      <div class="github-card-icon">
+        <svg height="24" width="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="16 18 22 12 16 6"/>
+          <polyline points="8 6 2 12 8 18"/>
+        </svg>
+      </div>
+      <div class="github-card-content">
+        <div class="github-card-title">Open Source</div>
+        <div class="github-card-desc">Explore our repos and contribute</div>
+      </div>
+      <div class="github-card-arrow">→</div>
+    </a>
+
+    <section class="capability-section">
+      <h2>REST API</h2>
+      <p>Full programmatic access to your knowledge base.</p>
+      <ul>
+        <li><strong>Ask</strong> — AI-powered Q&A using RAG</li>
+        <li><strong>Pages</strong> — CRUD, sharing, collaboration</li>
+        <li><strong>Projects</strong> — Organize pages into projects</li>
+        <li><strong>Organizations</strong> — Team workspaces</li>
+      </ul>
+      <a href="{% url 'core:api_docs_index' %}" class="cta-link">View API Reference →</a>
+    </section>
+
+    <section class="capability-section">
+      <h2>Real-Time Collaboration</h2>
+      <p>Multi-user editing via WebSockets with live presence.</p>
+      <ul>
+        <li><strong>CRDT sync</strong> — Conflict-free editing with Y.js</li>
+        <li><strong>Presence</strong> — See who's editing</li>
+        <li><strong>Instant sync</strong> — Changes propagate immediately</li>
+      </ul>
+    </section>
+
+    <section class="capability-section">
+      <h2>Quick Start</h2>
+      {% if access_token %}
+        <p>Your API token is ready. Start making requests:</p>
+        <pre><code class="language-bash">curl -H "Authorization: Bearer {{ access_token }}" \
+     {{ request.scheme }}://{{ request.get_host }}/api/pages/</code></pre>
+      {% else %}
+        <p>Get your API token from <a href="/settings/#developer">Settings</a> and start making requests:</p>
+        <pre><code class="language-bash">curl -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+     {{ request.scheme }}://{{ request.get_host }}/api/pages/</code></pre>
+      {% endif %}
+      <a href="{% url 'core:api_docs' 'overview' %}" class="cta-link">Read the Overview →</a>
+    </section>
+  </article>
+{% endblock %}

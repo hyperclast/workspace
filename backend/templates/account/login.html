@@ -1,0 +1,72 @@
+{% extends 'account/custom_base.html' %}
+
+{% block title %}
+  Sign In
+{% endblock %}
+
+{% block content_main_title %}
+  Sign In
+{% endblock %}
+
+{% block content_main_body %}
+  {% if form.non_field_errors %}
+    <div class="">
+      {% for error in form.non_field_errors %}
+        <p>{{ error }}</p>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <form method="post" action="{% url 'account_login' %}">
+    {% csrf_token %} {% if next %}
+      <input type="hidden" name="next" value="{{ next }}" />
+    {% endif %}
+
+    <div class="">
+      <label for="{{ form.login.id_for_label }}" class="">Email</label>
+      <input
+        type="email"
+        name="login"
+        id="{{ form.login.id_for_label }}"
+        class=""
+        required
+        autofocus
+        {% if prepopulated_email %}value="{{ prepopulated_email }}"{% endif %}
+      />
+      {% if form.login.errors %}
+        <p class="">{{ form.login.errors.0 }}</p>
+      {% endif %}
+    </div>
+
+    <div class="">
+      <label for="{{ form.password.id_for_label }}" class="">Password</label>
+      <input
+        type="password"
+        name="password"
+        id="{{ form.password.id_for_label }}"
+        class=""
+        required
+      />
+      {% if form.password.errors %}
+        <p class="">{{ form.password.errors.0 }}</p>
+      {% endif %}
+    </div>
+
+    <button type="submit" class="">Sign In</button>
+  </form>
+
+  <div class="">
+    <p class="">
+      Forgot your password?
+      <a href="{% url 'account_reset_password' %}" class=""> Click here to reset it </a>
+    </p>
+    <p class="">
+      Don't have an account?
+      <a href="{% url 'account_signup' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class=""> Click here to sign up </a>
+    </p>
+  </div>
+
+  <hr class="" />
+
+  <div class="">{% include 'core/partials/google_signin.html' %}</div>
+{% endblock %}

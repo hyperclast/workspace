@@ -1,0 +1,73 @@
+.landing-footer {
+background: rgba(0, 0, 0, 0.15);
+padding: 3rem 2rem 3rem;
+}
+
+.landing-footer-content {
+max-width: 1200px;
+margin: 0 auto;
+display: grid;
+grid-template-columns: repeat(4, 1fr);
+gap: 2rem;
+font-size: 0.85rem;
+}
+
+.landing-footer-column h4 {
+font-size: 0.75rem;
+text-transform: uppercase;
+letter-spacing: 0.1em;
+color: white;
+opacity: 0.6;
+margin-bottom: 1rem;
+font-weight: 600;
+}
+
+.landing-footer-column p,
+.landing-footer-column a {
+color: white;
+text-decoration: none;
+opacity: 0.85;
+display: block;
+margin-bottom: 0.5rem;
+line-height: 1.5;
+}
+
+.landing-footer-column a:hover {
+opacity: 1;
+}
+
+.footer-icon {
+width: 14px;
+height: 14px;
+margin-right: 0.5rem;
+vertical-align: -2px;
+opacity: 0.7;
+}
+
+.landing-footer-column .copyright {
+font-size: 0.8rem;
+color: white;
+opacity: 0.6;
+margin-top: 1rem;
+}
+
+.landing-footer-column .address {
+font-style: normal;
+color: white;
+opacity: 0.7;
+font-size: 0.8rem;
+line-height: 1.6;
+}
+
+.landing-footer-column .coming-soon {
+color: white;
+opacity: 0.5;
+font-style: italic;
+}
+
+@media (max-width: 768px) {
+.landing-footer-content {
+grid-template-columns: repeat(2, 1fr);
+gap: 1.5rem;
+}
+}

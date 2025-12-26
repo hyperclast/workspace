@@ -1,0 +1,42 @@
+{% extends 'core/base_error.html' %}
+
+{% block title %}Unexpected Error{% endblock %}
+
+{% block content_error_title %}
+  <div class="flex items-center justify-center gap-4">
+    <div class="text-red-600">
+      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+    </div>
+    <h1 class="text-3xl font-bold text-red-600">Unexpected Error</h1>
+  </div>
+{% endblock %}
+
+{% block content_error_text %}
+  <div class="max-w-2xl mx-auto mt-6 mb-8">
+    <p class="text-xl mb-4">We apologize, but something went wrong on our end.</p>
+    <p class="mb-4">Our team has been notified and is working to resolve the issue. Please try again in a few moments.</p>
+    <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+      <p class="mb-2">If the problem persists, you can:</p>
+      <ul class="list-disc pl-4 space-y-1">
+        <li>Try refreshing the page</li>
+        <li>Check back in a few minutes</li>
+        <li>Contact our support team if the issue continues</li>
+      </ul>
+    </div>
+  </div>
+{% endblock %}
+
+{% block content_error_cta %}
+  <div class="flex gap-4 justify-center mt-8">
+    <a href="/" class="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 min-w-[200px] justify-center">
+      <i class="bi bi-house-door mr-2"></i> Return to Home
+    </a>
+    <a href="mailto:support@domain.com" class="inline-flex items-center px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200 min-w-[200px] justify-center">
+      <i class="bi bi-envelope mr-2"></i> Contact Support
+    </a>
+  </div>
+{% endblock %}

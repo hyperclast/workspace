@@ -1,0 +1,51 @@
+{% load vite %}
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ brand_name }}</title>
+    {% include 'core/partials/_favicon.html' %}
+
+    {% vite_css "src/app.js" %}
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <!-- Toolbar container - mounted by Svelte -->
+    <div id="toolbar-wrapper" style="display: none;"></div>
+
+    {% if request.user.is_authenticated %}
+      {{ request.user.email|json_script:"user-email" }}
+      {{ request.user.external_id|json_script:"user-external-id" }}
+    {% endif %}
+    {{ feature_flags|json_script:"feature-flags" }}
+    {% csrf_token %}
+
+    <script>
+      const csrfInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+      window._csrfToken = csrfInput ? csrfInput.value : '';
+
+      const userEmailEl = document.getElementById('user-email');
+      if (userEmailEl) {
+        window._userIsAuthenticated = true;
+        window._userInfo = {
+          email: JSON.parse(userEmailEl.textContent),
+        };
+        const userExternalIdEl = document.getElementById('user-external-id');
+        if (userExternalIdEl && userExternalIdEl.textContent !== 'null') {
+          window._userInfo.externalId = JSON.parse(userExternalIdEl.textContent);
+        }
+      } else {
+        window._userIsAuthenticated = false;
+        window._userInfo = null;
+      }
+
+      const featureFlagsEl = document.getElementById('feature-flags');
+      window._featureFlags = featureFlagsEl ? JSON.parse(featureFlagsEl.textContent) : {};
+    </script>
+
+    <script type="module" crossorigin src="{% vite_asset 'src/app.js' %}"></script>
+  </body>
+</html>

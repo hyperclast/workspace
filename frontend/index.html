@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Hyperclast</title>
+    <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Hyperclast" />
+    <link rel="manifest" href="/site.webmanifest" />
+  </head>
+  <body>
+    <nav>
+      <div class="nav-container">
+        <div class="nav-title">Hyperclast</div>
+        <div class="nav-actions">
+          <span id="user-email" style="margin-right: 10px; color: #666;"></span>
+          <a href="#" id="logout-btn" style="color: #333; text-decoration: none;">Logout</a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Homepage shown before note creation -->
+    <div id="homepage">
+      <div class="homepage-container">
+        <h1>Welcome to Hyperclast</h1>
+        <button id="create-note-btn" class="primary-btn">Create New Note</button>
+        <div id="error-message" class="error-message" style="display: none;"></div>
+
+        <!-- Notes list section -->
+        <div id="notes-list-container" style="margin-top: 40px;">
+          <h2>Recent Notes</h2>
+          <div id="notes-list" class="notes-list">
+            <div class="loading-message">Loading notes...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal for creating a new note -->
+    <div id="create-note-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <h2>Create New Note</h2>
+        <label for="note-title-input">Add a title for the note</label>
+        <input type="text" id="note-title-input" placeholder="Untitled" />
+        <div id="modal-error" class="error-message" style="display: none;"></div>
+        <div class="modal-actions">
+          <button id="modal-create-btn" class="primary-btn">Create</button>
+          <button id="modal-cancel-btn" class="secondary-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table creation modal -->
+    <div id="table-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <h2>Insert Table</h2>
+        <div class="table-config">
+          <label for="table-rows">Rows: <input type="number" id="table-rows" min="2" max="20" value="3" /></label>
+          <label for="table-cols">Columns: <input type="number" id="table-cols" min="2" max="10" value="3" /></label>
+          <label>
+            <input type="checkbox" id="table-header" checked />
+            Include header row
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button id="table-insert-btn" class="primary-btn">Insert</button>
+          <button id="table-cancel-btn" class="secondary-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Share modal -->
+    <div id="share-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Share Note</h2>
+          <button class="close-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <!-- Add user section -->
+          <div class="share-add-section">
+            <label for="share-email-input">Add people</label>
+            <div class="share-input-group">
+              <input
+                type="email"
+                id="share-email-input"
+                placeholder="name@example.com"
+                autocomplete="off"
+              />
+              <button id="share-add-btn" class="primary-btn">Add</button>
+            </div>
+            <div id="share-error" class="error-message" style="display: none;"></div>
+            <div id="share-success" class="success-message" style="display: none;"></div>
+          </div>
+
+          <!-- Current editors list -->
+          <div class="share-editors-section">
+            <h3>People with access</h3>
+            <div id="share-editors-list" class="editors-list">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="note-header" style="display: none;">
+      <div class="note-header-container">
+        <h1 id="note-title"></h1>
+        <div class="note-header-actions">
+          <div id="presence-indicator" class="presence-indicator" title="Users currently editing">
+            <span id="user-count">1 user editing</span>
+          </div>
+          <button id="share-btn" class="share-btn" title="Share note" style="display: none;">Share</button>
+          <button id="close-note-btn" class="close-note-btn" title="Close note">Close</button>
+        </div>
+      </div>
+    </div>
+    <!-- Presence popover (shows when hovering over presence indicator) -->
+    <div id="presence-popover" class="presence-popover" style="display: none;">
+      <div class="presence-popover-header">Users editing:</div>
+      <div id="presence-list" class="presence-list"></div>
+    </div>
+
+    <!-- Toolbar container - mounted by Svelte -->
+    <div id="toolbar-wrapper" style="display: none;"></div>
+
+    <div id="editor-container" style="display: none;">
+      <div id="editor"></div>
+    </div>
+    <footer>&copy; 2025</footer>
+    <script type="module" src="/src/app.js"></script>
+    <script type="module" src="/src/toolbar.js"></script>
+  </body>
+</html>

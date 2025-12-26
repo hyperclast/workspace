@@ -1,0 +1,299 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block extra_styles %}
+  {% if user.is_authenticated %}
+    <link rel="stylesheet" href="{% static 'core/css/docs.css' %}" />
+  {% endif %}
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .legal-page {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .landing-nav {
+      padding: 1.5rem 2rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .landing-nav-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .landing-logo {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: white;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .landing-logo .logo-icon {
+      width: 28px;
+      height: 28px;
+    }
+
+    .landing-nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 1.75rem;
+    }
+
+    .landing-link {
+      color: rgba(255, 255, 255, 0.9);
+      text-decoration: none;
+      font-weight: 500;
+      position: relative;
+      padding-bottom: 2px;
+    }
+
+    .landing-link::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      width: 0;
+      height: 1px;
+      background: white;
+      transition: width 0.25s ease;
+    }
+
+    .landing-link:hover {
+      color: white;
+    }
+
+    .landing-link:hover::after {
+      width: 100%;
+    }
+
+    .landing-btn-primary {
+      background: white;
+      color: #667eea;
+      padding: 0.6rem 1.25rem;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: transform 0.2s, box-shadow 0.2s;
+      display: inline-block;
+    }
+
+    .landing-btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .legal-main {
+      flex: 1;
+      background: #f8f9fa;
+      padding: 3rem 2rem;
+    }
+
+    .legal-container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .legal-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1.5rem;
+      border-radius: 8px;
+      overflow: hidden;
+      background: white;
+      width: fit-content;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .legal-tab {
+      padding: 0.75rem 1.5rem;
+      color: #666;
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+      border: 1px solid #e5e7eb;
+      margin: -1px;
+      background: white;
+    }
+
+    .legal-tab:first-child {
+      border-radius: 8px 0 0 8px;
+    }
+
+    .legal-tab:last-child {
+      border-radius: 0 8px 8px 0;
+    }
+
+    .legal-tab:hover {
+      color: #333;
+      background: #f9fafb;
+    }
+
+    .legal-tab.active {
+      background: #667eea;
+      color: white;
+      border-color: #667eea;
+    }
+
+    .legal-content {
+      background: white;
+      border-radius: 12px;
+      padding: 3rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .legal-content h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin: 0 0 0.5rem 0;
+      letter-spacing: -0.02em;
+    }
+
+    .legal-content .effective-date {
+      color: #666;
+      font-size: 0.9rem;
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid #eee;
+    }
+
+    .legal-content h2 {
+      font-size: 1.35rem;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin: 2rem 0 1rem 0;
+    }
+
+    .legal-content h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #333;
+      margin: 1.5rem 0 0.75rem 0;
+    }
+
+    .legal-content h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #444;
+      margin: 1.25rem 0 0.5rem 0;
+    }
+
+    .legal-content p {
+      color: #444;
+      line-height: 1.7;
+      margin-bottom: 1rem;
+    }
+
+    .legal-content ul,
+    .legal-content ol {
+      color: #444;
+      line-height: 1.7;
+      margin-bottom: 1rem;
+      padding-left: 1.5rem;
+    }
+
+    .legal-content li {
+      margin-bottom: 0.5rem;
+    }
+
+    .legal-content a {
+      color: #667eea;
+    }
+
+    .legal-content strong {
+      color: #1a1a1a;
+    }
+
+    {% include 'core/partials/_footer_styles.html' %}
+
+    .landing-footer {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    @media (max-width: 768px) {
+      .legal-main {
+        padding: 1.5rem 1rem;
+      }
+
+      .legal-content {
+        padding: 1.5rem;
+        border-radius: 8px;
+      }
+
+      .legal-content h1 {
+        font-size: 1.5rem;
+      }
+
+      .legal-tabs {
+        width: 100%;
+      }
+
+      .legal-tab {
+        flex: 1;
+        text-align: center;
+        padding: 0.75rem 1rem;
+      }
+
+      .landing-nav-actions {
+        gap: 1rem;
+      }
+    }
+  </style>
+{% endblock %}
+
+{% block content_body %}
+  <div class="legal-page">
+    {% if user.is_authenticated %}
+      {% include 'core/partials/app_nav.html' %}
+    {% else %}
+      <nav class="landing-nav">
+        <div class="landing-nav-container">
+          <a href="/" class="landing-logo">{% include 'core/partials/_logo_icon.html' %} {{ brand_name }}</a>
+          <div class="landing-nav-actions">
+            <a href="{% url 'core:dev_index' %}" class="landing-link">Developers</a>
+            <a href="/login/" class="landing-link">Log in</a>
+            <a href="/signup/" class="landing-btn-primary">Get Started</a>
+          </div>
+        </div>
+      </nav>
+    {% endif %}
+
+    <main class="legal-main">
+      <div class="legal-container">
+        <div class="legal-tabs">
+          <a href="{% url 'core:privacy' %}" class="legal-tab {% if active_tab == 'privacy' %}active{% endif %}">Privacy Policy</a>
+          <a href="{% url 'core:terms' %}" class="legal-tab {% if active_tab == 'terms' %}active{% endif %}">Terms and Conditions</a>
+        </div>
+
+        <div class="legal-content">
+          {% block legal_content %}{% endblock %}
+        </div>
+      </div>
+    </main>
+
+    {% include 'core/partials/_footer.html' %}
+  </div>
+
+  {% include 'core/partials/_app_nav_scripts.html' %}
+{% endblock %}

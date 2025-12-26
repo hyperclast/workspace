@@ -1,0 +1,14 @@
+Here are the most relevant pages with key details:
+
+{% for page in pages %}
+[title]:
+{{ page.title }}
+
+{% if page.details.content %}
+[content]:
+{{ page.details.content|truncatechars:3000 }}
+{% endif %}
+
+---
+
+{% endfor %}

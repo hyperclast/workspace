@@ -1,0 +1,46 @@
+{% if user.is_authenticated %}
+  <script>
+    (function() {
+      var userAvatar = document.getElementById("user-avatar");
+      var userDropdown = document.getElementById("user-dropdown");
+      var userInitial = document.getElementById("user-initial");
+      var userGravatar = document.getElementById("user-gravatar");
+
+      if (userGravatar) {
+        userGravatar.onload = function() {
+          userInitial.style.display = "none";
+          userGravatar.style.display = "block";
+        };
+        userGravatar.onerror = function() {
+          userGravatar.style.display = "none";
+          userInitial.style.display = "block";
+        };
+      }
+
+      if (userAvatar && userDropdown) {
+        userAvatar.addEventListener("click", function(e) {
+          e.stopPropagation();
+          userDropdown.classList.toggle("open");
+        });
+
+        document.addEventListener("click", function(e) {
+          if (!userDropdown.contains(e.target) && !userAvatar.contains(e.target)) {
+            userDropdown.classList.remove("open");
+          }
+        });
+      }
+
+      var logoutBtn = document.getElementById("logout-btn");
+      if (logoutBtn) {
+        logoutBtn.addEventListener("click", function() {
+          fetch("/api/_allauth/browser/v1/auth/session", {
+            method: "DELETE",
+            credentials: "same-origin"
+          }).finally(function() {
+            window.location.href = "/login/";
+          });
+        });
+      }
+    })();
+  </script>
+{% endif %}

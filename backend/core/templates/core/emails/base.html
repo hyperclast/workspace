@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>{% block head_title %}{{ brand_name|default:"Hyperclast" }}{% endblock %}</title>
+
+    <style>
+      /*All the styling goes here*/
+    </style>
+  </head>
+  <body>
+    <div>{% block content %}{% endblock %}</div>
+    <div>
+      <p>Best,<br />{{ brand_name|default:"Hyperclast" }} Team</p>
+    </div>
+  </body>
+</html>
