@@ -36,7 +36,7 @@ class PageManager(models.Manager):
             user=user,
             project=project,
             title="Untitled",
-            details={"content": ""},
+            details={"content": "", "filetype": "md", "schema_version": 1},
         )
 
     def get_editable_pages(self):

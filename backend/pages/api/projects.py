@@ -90,6 +90,7 @@ def serialize_project(project, include_pages=False):
             {
                 "external_id": str(page.external_id),
                 "title": page.title,
+                "filetype": page.details.get("filetype", "md") if page.details else "md",
                 "updated": page.updated,
                 "modified": page.modified,
                 "created": page.created,
@@ -491,17 +492,18 @@ def sanitize_filename(title: str) -> str:
     return sanitized or "Untitled"
 
 
-def get_unique_filename(title: str, used_names: dict) -> str:
+def get_unique_filename(title: str, filetype: str, used_names: dict) -> str:
     """Get a unique filename, adding suffix if needed."""
     base_name = sanitize_filename(title)
+    key = f"{base_name}.{filetype}"
 
-    if base_name not in used_names:
-        used_names[base_name] = 1
-        return f"{base_name}.md"
+    if key not in used_names:
+        used_names[key] = 1
+        return f"{base_name}.{filetype}"
 
     # Add suffix for duplicate
-    used_names[base_name] += 1
-    return f"{base_name} - {used_names[base_name]}.md"
+    used_names[key] += 1
+    return f"{base_name} - {used_names[key]}.{filetype}"
 
 
 @projects_router.get("/projects/{external_id}/download/")
@@ -524,17 +526,21 @@ def download_project(request: HttpRequest, external_id: str):
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for page in project.pages.all():
-            # Get unique filename
-            filename = get_unique_filename(page.title, used_names)
-
-            # Get content
+            # Get content and filetype
             content = page.details.get("content", "") if page.details else ""
+            filetype = page.details.get("filetype", "md") if page.details else "md"
 
-            # Create markdown content with title as H1
-            markdown_content = f"# {page.title}\n\n{content}"
+            # Get unique filename with appropriate extension
+            filename = get_unique_filename(page.title, filetype, used_names)
+
+            # For markdown files, prepend title as H1
+            if filetype == "md":
+                file_content = f"# {page.title}\n\n{content}"
+            else:
+                file_content = content
 
             # Add to ZIP inside project folder
-            zip_file.writestr(f"{project_folder}/{filename}", markdown_content.encode("utf-8"))
+            zip_file.writestr(f"{project_folder}/{filename}", file_content.encode("utf-8"))
 
     # Prepare response
     zip_buffer.seek(0)

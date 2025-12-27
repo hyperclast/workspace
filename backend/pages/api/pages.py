@@ -63,11 +63,14 @@ def create_page(request: HttpRequest, payload: PageIn):
         external_id=payload.project_id,
     )
 
+    default_details = {"content": "", "filetype": "md", "schema_version": 1}
+    if payload.details:
+        default_details.update(payload.details)
     page = Page.objects.create_with_owner(
         user=request.user,
         project=project,
         title=payload.title,
-        details=payload.details if payload.details else {"content": ""},
+        details=default_details,
     )
     return 201, page
 
@@ -132,21 +135,33 @@ def sanitize_filename(title: str) -> str:
 
 @pages_router.get("/{external_id}/download/")
 def download_page(request: HttpRequest, external_id: str):
-    """Download a page as a markdown file."""
+    """Download a page as a file with appropriate extension based on filetype."""
     page = get_object_or_404(
         Page.objects.get_user_editable_pages(request.user),
         external_id=external_id,
     )
 
-    # Get content from details
+    # Get content and filetype from details
     content = page.details.get("content", "") if page.details else ""
+    filetype = page.details.get("filetype", "md") if page.details else "md"
 
-    # Create markdown content with title as H1
-    markdown_content = f"# {page.title}\n\n{content}"
+    # Map filetype to content type
+    content_types = {
+        "md": "text/markdown",
+        "csv": "text/csv",
+        "txt": "text/plain",
+    }
+    content_type = content_types.get(filetype, "text/plain")
+
+    # For markdown files, prepend title as H1
+    if filetype == "md":
+        file_content = f"# {page.title}\n\n{content}"
+    else:
+        file_content = content
 
     # Sanitize filename
     filename = sanitize_filename(page.title)
 
-    response = HttpResponse(markdown_content, content_type="text/markdown; charset=utf-8")
-    response["Content-Disposition"] = f'attachment; filename="{filename}.md"'
+    response = HttpResponse(file_content, content_type=f"{content_type}; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{filename}.{filetype}"'
     return response

@@ -171,6 +171,7 @@ class ProjectPageOut(Schema):
 
     external_id: str
     title: str
+    filetype: str = "md"
     updated: datetime
     modified: datetime
     created: datetime

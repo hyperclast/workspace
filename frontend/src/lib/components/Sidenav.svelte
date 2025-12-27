@@ -26,12 +26,16 @@
 
   // Local state
   let openMenuId = $state(null);
+  let openPageMenuId = $state(null);
 
   // Derived state using getters
   let projects = $derived(getProjects());
   let activePageId = $derived(getActivePageId());
   let currentProjectId = $derived(getCurrentProjectId());
   let showOrgNames = $derived(getShowOrgNames());
+
+  // Small menu icon for pages
+  const pageMenuIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>`;
 
   function handlePageClick(pageId, projectId) {
     closeMobileSidebar();
@@ -58,10 +62,18 @@
   function handleMenuBtnClick(e, projectId) {
     e.stopPropagation();
     openMenuId = openMenuId === projectId ? null : projectId;
+    openPageMenuId = null;
+  }
+
+  function handlePageMenuBtnClick(e, pageId) {
+    e.stopPropagation();
+    openPageMenuId = openPageMenuId === pageId ? null : pageId;
+    openMenuId = null;
   }
 
   function closeAllMenus() {
     openMenuId = null;
+    openPageMenuId = null;
   }
 
   async function handleShare(e, projectId, projectName) {
@@ -143,6 +155,44 @@
     window.location.href = `${API_BASE_URL}/api/projects/${projectId}/download/`;
   }
 
+  function handlePageDownload(e, pageId) {
+    e.stopPropagation();
+    closeAllMenus();
+    window.location.href = `${API_BASE_URL}/api/pages/${pageId}/download/`;
+  }
+
+  async function handlePageDelete(e, pageId, pageTitle) {
+    e.stopPropagation();
+    closeAllMenus();
+
+    const confirmed = await confirm({
+      title: "Delete Page",
+      message: `Are you sure you want to delete "${pageTitle || 'Untitled'}"?`,
+      description: "This action cannot be undone.",
+      confirmText: "Delete Page",
+      danger: true,
+    });
+
+    if (!confirmed) return;
+
+    try {
+      const response = await csrfFetch(`${API_BASE_URL}/api/pages/${pageId}/`, {
+        method: "DELETE",
+      });
+
+      if (response.ok || response.status === 204) {
+        showToast("Page deleted successfully");
+        window.location.href = "/";
+      } else {
+        const data = await response.json().catch(() => ({}));
+        showToast(data.message || "Failed to delete page", "error");
+      }
+    } catch (error) {
+      console.error("Error deleting page:", error);
+      showToast("Network error. Please try again.", "error");
+    }
+  }
+
   function closeMobileSidebar() {
     const sidebar = document.getElementById("note-sidebar");
     const overlay = document.getElementById("sidebar-overlay");
@@ -152,7 +202,7 @@
 
   // Close menus when clicking outside
   function handleGlobalClick(e) {
-    if (!e.target.closest(".project-menu")) {
+    if (!e.target.closest(".project-menu") && !e.target.closest(".page-menu")) {
       closeAllMenus();
     }
   }
@@ -232,6 +282,32 @@
               onclick={() => handlePageClick(page.external_id, project.external_id)}
             >
               <span class="page-title">{page.title || "Untitled"}</span>
+              <span class="page-filetype">{page.filetype || "md"}</span>
+              <div class="page-menu">
+                <button
+                  class="page-menu-btn"
+                  title="Page options"
+                  onclick={(e) => handlePageMenuBtnClick(e, page.external_id)}
+                >
+                  {@html pageMenuIcon}
+                </button>
+                <div class="page-menu-dropdown" class:open={openPageMenuId === page.external_id}>
+                  <button
+                    class="page-menu-item"
+                    onclick={(e) => handlePageDownload(e, page.external_id)}
+                  >
+                    {@html downloadIcon}
+                    Download
+                  </button>
+                  <button
+                    class="page-menu-item page-menu-delete"
+                    onclick={(e) => handlePageDelete(e, page.external_id, page.title)}
+                  >
+                    {@html deleteIcon}
+                    Delete
+                  </button>
+                </div>
+              </div>
             </div>
           {/each}
           <button
