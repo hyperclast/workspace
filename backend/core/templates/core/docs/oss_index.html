@@ -12,7 +12,6 @@
     </header>
 
     <section class="oss-featured">
-      <div class="oss-badge">Start Here</div>
       <a href="{% url 'core:oss_repo' 'workspace' %}" class="oss-card oss-card-featured">
         <div class="oss-card-header">
           <div class="oss-card-icon">
@@ -68,25 +67,30 @@
           <span class="oss-card-cta">Learn more →</span>
         </a>
 
-        <div class="oss-card oss-card-coming-soon">
+        <a href="{% url 'core:oss_repo' 'filehub' %}" class="oss-card">
           <div class="oss-card-header">
-            <div class="oss-card-icon oss-card-icon-muted">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
+            <div class="oss-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
               </svg>
             </div>
             <div class="oss-card-meta">
-              <span class="oss-card-lang">Coming Soon</span>
+              <span class="oss-card-lang">Python</span>
             </div>
           </div>
-          <h3 class="oss-card-title">More to Come</h3>
+          <h3 class="oss-card-title">Filehub</h3>
           <p class="oss-card-desc">
-            We're actively working on building and releasing more useful components from our stack.
-            Follow us on GitHub to stay updated.
+            Shared file upload/download service with presigned URLs and multi-backend
+            storage. Built for multi-tenant SaaS apps.
           </p>
-        </div>
+          <div class="oss-card-features">
+            <span class="oss-feature">Presigned URLs</span>
+            <span class="oss-feature">Multi-Backend</span>
+          </div>
+          <span class="oss-card-cta">Learn more →</span>
+        </a>
       </div>
     </section>
 

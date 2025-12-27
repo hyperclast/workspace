@@ -70,7 +70,7 @@ def oss_index(request):
 
 def oss_repo(request, repo_name):
     """Render individual OSS repo pages."""
-    allowed_repos = ["workspace", "firebreak"]
+    allowed_repos = ["workspace", "firebreak", "filehub"]
     if repo_name not in allowed_repos:
         raise Http404("Repository not found")
 

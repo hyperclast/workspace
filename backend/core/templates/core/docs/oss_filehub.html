@@ -1,0 +1,446 @@
+{% extends 'core/docs/base.html' %}
+{% load static %}
+
+{% block extra_styles %}
+  {{ block.super }}
+  <style>
+    .filehub-page {
+      --fh-accent: #6366f1;
+      --fh-accent-subtle: #eef2ff;
+      --fh-text: #1f2937;
+      --fh-muted: #6b7280;
+      --fh-border: #e5e7eb;
+      --fh-bg-subtle: #f9fafb;
+    }
+
+    .filehub-page .oss-breadcrumb {
+      margin-bottom: 1.25rem;
+    }
+
+    .fh-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 1.25rem;
+      margin-bottom: 1.75rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--fh-border);
+    }
+
+    .fh-icon {
+      width: 52px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 12px;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .fh-icon svg {
+      width: 26px;
+      height: 26px;
+    }
+
+    .fh-header-content {
+      flex: 1;
+    }
+
+    .fh-header-content h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--fh-text);
+      margin: 0 0 0.35rem 0;
+      letter-spacing: -0.02em;
+    }
+
+    .fh-header-content .lead {
+      font-size: 0.95rem;
+      color: var(--fh-muted);
+      margin: 0 0 0.75rem 0;
+      line-height: 1.5;
+    }
+
+    .fh-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.375rem;
+    }
+
+    .fh-tag {
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: var(--fh-muted);
+      background: #f3f4f6;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+    }
+
+    .fh-github {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      background: #24292e;
+      border-radius: 6px;
+      color: white;
+      text-decoration: none;
+      font-size: 0.8rem;
+      font-weight: 500;
+      transition: all 0.15s;
+      flex-shrink: 0;
+      align-self: flex-start;
+    }
+
+    .fh-github:hover {
+      background: #1a1d21;
+      transform: translateY(-1px);
+    }
+
+    .fh-github svg {
+      width: 16px;
+      height: 16px;
+      opacity: 0.9;
+    }
+
+    .fh-section {
+      margin-bottom: 2rem;
+    }
+
+    .fh-section h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--fh-text);
+      margin: 0 0 0.75rem 0;
+    }
+
+    .fh-section p {
+      color: #555;
+      margin-bottom: 0.75rem;
+      font-size: 0.925rem;
+      line-height: 1.6;
+    }
+
+    .fh-callout {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      margin: 1rem 0;
+      font-size: 0.875rem;
+      color: #92400e;
+    }
+
+    .fh-callout-icon {
+      flex-shrink: 0;
+      font-size: 1rem;
+    }
+
+    .fh-code {
+      margin: 0.75rem 0 1rem;
+    }
+
+    .fh-code pre {
+      background: #1e1e1e;
+      border-radius: 6px;
+      padding: 0.875rem 1rem;
+      overflow-x: auto;
+      margin: 0;
+    }
+
+    .fh-code code {
+      font-family: "SF Mono", "Monaco", "Menlo", monospace;
+      font-size: 0.8rem;
+      color: #e5e5e5;
+      line-height: 1.5;
+    }
+
+    .fh-flow {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 1rem 0;
+      flex-wrap: wrap;
+    }
+
+    .fh-flow-step {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--fh-bg-subtle);
+      border: 1px solid var(--fh-border);
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+    }
+
+    .fh-flow-num {
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--fh-accent);
+      color: white;
+      font-size: 0.7rem;
+      font-weight: 600;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .fh-flow-label {
+      font-weight: 500;
+      color: var(--fh-text);
+    }
+
+    .fh-flow-arrow {
+      color: #d1d5db;
+      font-size: 1rem;
+    }
+
+    .fh-features {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+    }
+
+    @media (max-width: 600px) {
+      .fh-features {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .fh-feature {
+      padding: 0.875rem;
+      background: var(--fh-bg-subtle);
+      border: 1px solid var(--fh-border);
+      border-radius: 6px;
+    }
+
+    .fh-feature h3 {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--fh-text);
+      margin: 0 0 0.25rem 0;
+    }
+
+    .fh-feature p {
+      font-size: 0.8rem;
+      color: var(--fh-muted);
+      margin: 0;
+      line-height: 1.45;
+    }
+
+    .fh-faq {
+      background: var(--fh-bg-subtle);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-top: 0.75rem;
+    }
+
+    .fh-faq-item {
+      padding: 0.625rem 0;
+      border-bottom: 1px solid var(--fh-border);
+    }
+
+    .fh-faq-item:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .fh-faq-item:first-child {
+      padding-top: 0;
+    }
+
+    .fh-faq-q {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--fh-text);
+      margin: 0 0 0.25rem 0;
+    }
+
+    .fh-faq-a {
+      font-size: 0.825rem;
+      color: #555;
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    .fh-faq-a code {
+      background: white;
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      font-size: 0.75rem;
+    }
+
+    .fh-cta {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-top: 1.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--fh-border);
+    }
+
+    .fh-cta-code {
+      flex: 1;
+    }
+
+    .fh-cta-code pre {
+      background: #1e1e1e;
+      border-radius: 6px;
+      padding: 0.625rem 0.875rem;
+      margin: 0;
+    }
+
+    .fh-cta-code code {
+      font-family: "SF Mono", "Monaco", "Menlo", monospace;
+      font-size: 0.75rem;
+      color: #e5e5e5;
+    }
+
+    .fh-cta-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.625rem 1rem;
+      background: #24292e;
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 0.825rem;
+      font-weight: 600;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .fh-cta-btn:hover {
+      background: #1a1d21;
+      transform: translateY(-1px);
+    }
+
+    .fh-cta-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    @media (max-width: 600px) {
+      .fh-header {
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .fh-github {
+        align-self: flex-start;
+      }
+
+      .fh-cta {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .fh-cta-btn {
+        justify-content: center;
+      }
+    }
+  </style>
+{% endblock %}
+
+{% block docs_content %}
+  <article class="filehub-page">
+    <nav class="oss-breadcrumb">
+      <a href="{% url 'core:oss_index' %}">Open Source</a>
+      <span class="separator">/</span>
+      <span>Filehub</span>
+    </nav>
+
+    <header class="fh-header">
+      <div class="fh-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <div class="fh-header-content">
+        <h1>Filehub</h1>
+        <p class="lead">
+          Multi-tenant file service with presigned URLs and automatic replication across storage backends.
+        </p>
+        <div class="fh-tags">
+          <span class="fh-tag">Python</span>
+          <span class="fh-tag">Django</span>
+          <span class="fh-tag">S3-Compatible</span>
+          <span class="fh-tag">Cloudflare R2</span>
+        </div>
+      </div>
+      <a href="https://github.com/hyperclast/filehub" target="_blank" rel="noopener" class="fh-github">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+        hyperclast/filehub →
+      </a>
+    </header>
+
+    <section class="fh-section">
+      <h2>Features</h2>
+      <div class="fh-features">
+        <div class="fh-feature">
+          <h3>Multi-Tenant</h3>
+          <p>Multiple client apps with isolated storage. Each app authenticates with its own API key.</p>
+        </div>
+        <div class="fh-feature">
+          <h3>Presigned URLs</h3>
+          <p>Direct client-to-storage uploads and downloads. No proxy overhead.</p>
+        </div>
+        <div class="fh-feature">
+          <h3>Multiple Backends</h3>
+          <p>Cloudflare R2 and local filesystem included. Pluggable for other S3-compatible providers.</p>
+        </div>
+        <div class="fh-feature">
+          <h3>Auto Replication</h3>
+          <p>Files automatically replicate across all configured storage backends via background jobs.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="fh-section">
+      <h2>FAQ</h2>
+      <div class="fh-faq">
+        <div class="fh-faq-item">
+          <p class="fh-faq-q">What storage backends are supported?</p>
+          <p class="fh-faq-a">We're starting with Cloudflare R2 and local filesystem. We plan to support all the main cloud file storage services, with your help.</p>
+        </div>
+        <div class="fh-faq-item">
+          <p class="fh-faq-q">How does replication work?</p>
+          <p class="fh-faq-a">When a file is finalized, background jobs (django-rq) replicate the blob to all other configured backends asynchronously.</p>
+        </div>
+        <div class="fh-faq-item">
+          <p class="fh-faq-q">How is authentication handled?</p>
+          <p class="fh-faq-a">Apps use <code>Authorization: Bearer</code> header. User identity via <code>X-FileHub-UserId</code> header for scoped operations.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="oss-section oss-cta-section">
+      <h2>Get Started</h2>
+      <p>Ready to add file uploads to your app?</p>
+      <div class="code-block code-block-small">
+        <pre><code class="language-bash">git clone https://github.com/hyperclast/filehub</code></pre>
+      </div>
+      <div class="oss-cta-buttons">
+        <a href="https://github.com/hyperclast/filehub" target="_blank" rel="noopener" class="btn btn-primary">
+          <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          View on GitHub
+        </a>
+      </div>
+    </section>
+  </article>
+{% endblock %}

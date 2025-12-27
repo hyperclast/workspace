@@ -6,7 +6,7 @@
 {% endblock %}
 
 {% block extra_styles %}
-  <link rel="stylesheet" href="{% static 'core/css/docs.css' %}" />
+  <link rel="stylesheet" href="{% static 'core/css/docs.css' %}?v={{ deployment_id }}" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
   <style>
     .docs-wrapper {
@@ -166,6 +166,11 @@
               <li>
                 <a href="{% url 'core:oss_repo' 'firebreak' %}" {% if repo_name == 'firebreak' %}class="active"{% endif %}>
                   Firebreak
+                </a>
+              </li>
+              <li>
+                <a href="{% url 'core:oss_repo' 'filehub' %}" {% if repo_name == 'filehub' %}class="active"{% endif %}>
+                  Filehub
                 </a>
               </li>
             </ul>

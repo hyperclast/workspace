@@ -5,7 +5,7 @@
 
 {% block extra_styles %}
   {% if user.is_authenticated %}
-    <link rel="stylesheet" href="{% static 'core/css/docs.css' %}" />
+    <link rel="stylesheet" href="{% static 'core/css/docs.css' %}?v={{ deployment_id }}" />
   {% endif %}
   <style>
     * {

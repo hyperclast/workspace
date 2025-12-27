@@ -6,7 +6,7 @@
 {% endblock %}
 
 {% block extra_styles %}
-  <link rel="stylesheet" href="{% static 'core/css/auth.css' %}" />
+  <link rel="stylesheet" href="{% static 'core/css/auth.css' %}?v={{ deployment_id }}" />
 {% endblock %}
 
 {% block content_body %}
