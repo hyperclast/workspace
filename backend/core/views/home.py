@@ -21,7 +21,7 @@ def get_feature_flags():
 
 
 def homepage(request):
-    """Serves the homepage - landing for unauthenticated, redirect to first page for authenticated."""
+    """Serves the homepage - landing for unauthenticated, redirect for authenticated."""
     if not request.user.is_authenticated:
         landing_template = getattr(settings, "LANDING_TEMPLATE", "core/landing.html")
         return render(request, landing_template)
@@ -30,7 +30,7 @@ def homepage(request):
     if first_page:
         return redirect("core:page", page_id=first_page.external_id)
 
-    return spa(request)
+    return redirect("core:welcome")
 
 
 def spa(request, **kwargs):

@@ -1,12 +1,11 @@
 """
-Permission checking functions for three-tier access control.
+Permission checking functions for two-tier access control.
 
-Three-tier access model:
+Two-tier access model:
 - Tier 1 (Org): User is member of the page's project's org
 - Tier 2 (Project): User is a project editor
-- Tier 3 (Page): User is in the page's editors list
 
-Access is granted if ANY tier condition is true (additive/union model).
+Access is granted if EITHER tier condition is true (additive/union model).
 """
 
 from users.models import OrgMember
@@ -51,31 +50,23 @@ def user_can_access_project(user, project):
 
 def user_can_access_page(user, page):
     """
-    Check if user can access page via org membership, project editor, OR direct sharing.
+    Check if user can access page via org membership OR project editor.
 
-    Three-tier access check:
+    Two-tier access check:
     - Tier 1: User is member of page's project's org
     - Tier 2: User is a project editor
-    - Tier 3: User is in page's editors
 
     Args:
         user: User instance
         page: Page instance
 
     Returns:
-        bool: True if user has access via any of the three tiers
+        bool: True if user has access via either tier
     """
-    # Tier 1: Org membership (if page has a project)
-    if page.project:
-        if page.project.org and user_can_access_org(user, page.project.org):
-            return True
+    if not page.project:
+        return False
 
-        # Tier 2: Project editor
-        if page.project.editors.filter(id=user.id).exists():
-            return True
-
-    # Tier 3: Explicit page editor
-    return page.editors.filter(id=user.id).exists()
+    return user_can_access_project(user, page.project)
 
 
 def user_can_modify_page(user, page):
@@ -96,16 +87,16 @@ def user_can_modify_page(user, page):
 
 def user_can_share_page(user, page):
     """
-    Check if user can add/remove editors.
+    Check if user can share the page.
 
-    Preserves current behavior: Any editor can share pages.
+    Users with project access can share pages.
 
     Args:
         user: User instance
         page: Page instance
 
     Returns:
-        bool: True if user can access the page (any editor can share)
+        bool: True if user can access the page's project
     """
     return user_can_access_page(user, page)
 
@@ -200,25 +191,22 @@ def get_page_access_source(user, page):
         str or None: One of:
             - "org": Access via org membership only
             - "project": Access via project editor only
-            - "direct": Access via page editors only
-            - Combinations like "org+project", "org+direct", "project+direct", "org+project+direct"
+            - "org+project": Access via both
             - None: No access
     """
+    if not page.project:
+        return None
+
     access_sources = []
 
     # Check org access
-    if page.project and page.project.org:
+    if page.project.org:
         if user_can_access_org(user, page.project.org):
             access_sources.append("org")
 
     # Check project editor access
-    if page.project:
-        if page.project.editors.filter(id=user.id).exists():
-            access_sources.append("project")
-
-    # Check direct page editor access
-    if page.editors.filter(id=user.id).exists():
-        access_sources.append("direct")
+    if page.project.editors.filter(id=user.id).exists():
+        access_sources.append("project")
 
     if not access_sources:
         return None

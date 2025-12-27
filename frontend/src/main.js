@@ -20,7 +20,7 @@ import { decorateLinks, linkClickHandler } from "./decorateLinks.js";
 import { linkAutocomplete } from "./linkAutocomplete.js";
 import { findSectionFold } from "./findSectionFold.js";
 import { setupUserAvatar } from "./gravatar.js";
-import { confirm, prompt, sharePage, shareProject, createProjectModal } from "./lib/modal.js";
+import { confirm, prompt, shareProject, createProjectModal } from "./lib/modal.js";
 import { showToast } from "./lib/toast.js";
 import { markdownTableExtension, generateTable, insertTable, formatTable, findTables } from "./markdownTable.js";
 import { setupPresenceUI } from "./presence.js";
@@ -114,7 +114,6 @@ function renderAppHTML() {
                     </svg>
                   </button>
                   <div id="actions-dropdown" class="actions-dropdown" style="display: none;">
-                    <button id="share-page-btn" class="actions-dropdown-item">Share this page</button>
                     <button id="share-project-btn" class="actions-dropdown-item">Share this project</button>
                     <div class="actions-dropdown-divider"></div>
                     <button id="download-page-btn" class="actions-dropdown-item">Download page</button>
@@ -766,6 +765,12 @@ function initializeEditor(pageContent = "", additionalExtensions = []) {
   // Expose view for debugging
   window.editorView = view;
 
+  // Position cursor at end of document and focus editor
+  view.dispatch({
+    selection: { anchor: view.state.doc.length },
+  });
+  view.focus();
+
   return view;
 }
 
@@ -820,7 +825,6 @@ function setupNoteActions() {
   const actionsBtn = document.getElementById("actions-btn");
   const actionsDropdown = document.getElementById("actions-dropdown");
   const deleteNoteBtn = document.getElementById("delete-note-btn");
-  const sharePageBtn = document.getElementById("share-page-btn");
   const shareProjectBtn = document.getElementById("share-project-btn");
   const downloadPageBtn = document.getElementById("download-page-btn");
 
@@ -834,17 +838,6 @@ function setupNoteActions() {
   document.addEventListener("click", () => {
     actionsDropdown.style.display = "none";
   });
-
-  if (sharePageBtn) {
-    sharePageBtn.addEventListener("click", () => {
-      actionsDropdown.style.display = "none";
-      if (!currentPage) return;
-      sharePage({
-        pageId: currentPage.external_id,
-        pageTitle: currentPage.title,
-      });
-    });
-  }
 
   if (shareProjectBtn) {
     shareProjectBtn.addEventListener("click", () => {

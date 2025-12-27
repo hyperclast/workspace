@@ -259,20 +259,6 @@ class TestPageDownloadAPI(BaseAuthenticatedViewTestCase):
 
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
-    def test_page_editor_can_download_shared_page(self):
-        """Test that page editors can download pages shared with them."""
-        # Create page in another org
-        other_org = OrgFactory()
-        other_project = ProjectFactory(org=other_org)
-        page = PageFactory(project=other_project)
-
-        # Add user as page editor
-        page.editors.add(self.user)
-
-        response = self.send_download_request(page.external_id)
-
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-
 
 class TestProjectDownloadAPI(BaseAuthenticatedViewTestCase):
     """Test GET /api/projects/{external_id}/download/ endpoint."""

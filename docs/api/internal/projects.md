@@ -6,7 +6,6 @@ Projects use a three-tier access control model:
 
 - **Tier 1 (Org)**: User is a member of the project's organization
 - **Tier 2 (Project)**: User is a project editor (directly added to project.editors)
-- **Tier 3 (Page)**: User is a page editor (for page-level operations)
 
 Access is granted if ANY tier condition is true (additive/union model).
 

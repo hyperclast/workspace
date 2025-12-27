@@ -95,10 +95,20 @@ describe("router - navigate function", () => {
     expect(pushStateSpy).toHaveBeenCalledWith({}, "", "/settings/");
   });
 
-  test("navigate does not add trailing slash to root path", () => {
+  test("navigate to root does full page navigation (not SPA route)", () => {
+    const hrefSetter = vi.fn();
+    Object.defineProperty(window, "location", {
+      value: { href: "" },
+      writable: true,
+    });
+    Object.defineProperty(window.location, "href", {
+      set: hrefSetter,
+    });
+
     navigate("/");
 
-    expect(pushStateSpy).toHaveBeenCalledWith({}, "", "/");
+    expect(hrefSetter).toHaveBeenCalledWith("/");
+    expect(pushStateSpy).not.toHaveBeenCalled();
   });
 
   test("navigate normalizes all route paths", () => {

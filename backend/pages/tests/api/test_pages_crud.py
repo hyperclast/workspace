@@ -350,29 +350,6 @@ class TestOrgMemberAccessAPI(BaseAuthenticatedViewTestCase):
         # Page should still exist
         self.assertTrue(Page.objects.filter(external_id=page.external_id).exists())
 
-    def test_org_member_can_list_editors_of_org_page(self):
-        """Test that org members can list editors of org pages."""
-        page = PageFactory(project=self.project, creator=self.org_admin)
-
-        response = self.send_api_request(url=f"/api/pages/{page.external_id}/editors/", method="get")
-
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertIn("items", response.json())
-
-    def test_org_member_can_add_editor_to_org_page(self):
-        """Test that org members can add editors to org pages."""
-        page = PageFactory(project=self.project, creator=self.org_admin)
-        new_editor = UserFactory(email="neweditor@example.com")
-
-        response = self.send_api_request(
-            url=f"/api/pages/{page.external_id}/editors/",
-            method="post",
-            data={"email": new_editor.email},
-        )
-
-        self.assertEqual(response.status_code, HTTPStatus.CREATED)
-        self.assertTrue(page.editors.filter(id=new_editor.id).exists())
-
     def test_non_org_member_cannot_access_org_page(self):
         """Test that non-org members cannot access org pages."""
         # Create page in org project
@@ -387,25 +364,6 @@ class TestOrgMemberAccessAPI(BaseAuthenticatedViewTestCase):
         response = self.send_api_request(url=f"/api/pages/{page.external_id}/", method="get")
 
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
-
-    def test_external_user_can_access_shared_page(self):
-        """Test that external users can access pages when explicitly shared."""
-        page = PageFactory(project=self.project, creator=self.org_admin)
-
-        # Create and login as external user
-        external_user = UserFactory()
-        self.client.force_login(external_user)
-
-        # Should not have access initially
-        response = self.send_api_request(url=f"/api/pages/{page.external_id}/", method="get")
-        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
-
-        # Add as editor
-        page.editors.add(external_user)
-
-        # Now should have access
-        response = self.send_api_request(url=f"/api/pages/{page.external_id}/", method="get")
-        self.assertEqual(response.status_code, HTTPStatus.OK)
 
     def test_creator_can_still_update_and_delete_own_page(self):
         """Test that page creator can update and delete their own pages."""
@@ -525,29 +483,6 @@ class TestProjectEditorAccessAPI(BaseAuthenticatedViewTestCase):
         self.assertEqual(response.status_code, HTTPStatus.NO_CONTENT)
         page.refresh_from_db()
         self.assertTrue(page.is_deleted)
-
-    def test_project_editor_can_list_editors_of_project_page(self):
-        """Test that project editors can list editors of pages in their project."""
-        page = PageFactory(project=self.project, creator=self.org_member)
-
-        response = self.send_api_request(url=f"/api/pages/{page.external_id}/editors/", method="get")
-
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertIn("items", response.json())
-
-    def test_project_editor_can_add_editor_to_project_page(self):
-        """Test that project editors can add editors to pages in their project."""
-        page = PageFactory(project=self.project, creator=self.org_member)
-        new_editor = UserFactory(email="neweditor@example.com")
-
-        response = self.send_api_request(
-            url=f"/api/pages/{page.external_id}/editors/",
-            method="post",
-            data={"email": new_editor.email},
-        )
-
-        self.assertEqual(response.status_code, HTTPStatus.CREATED)
-        self.assertTrue(page.editors.filter(id=new_editor.id).exists())
 
     def test_project_editor_cannot_access_pages_in_other_projects(self):
         """Test that project editors cannot access pages in other projects."""

@@ -409,19 +409,28 @@ class PageYjsConsumer(BaseYjsConsumer):
     async def access_revoked(self, event):
         """
         Handle access revocation message from the channel layer.
-        If this user's access was revoked, send a message and close the connection.
+        Re-check if user still has access (they might have project-level access even after
+        losing org membership). Only close if they truly lost all access.
         """
         revoked_user_id = event.get("user_id")
 
         if self.user_id and self.user_id == revoked_user_id:
-            log_info(f"Access revoked for user {self.user_id}, closing WebSocket")
+            # Re-check if user still has access via other means (e.g., project editor)
+            page_external_id = self.room_name.replace("page_", "")
+            still_has_access = await can_access_page(self.user_id, page_external_id)
 
-            # Send a custom message to the client before closing
-            # This is a text message, not binary Yjs protocol
-            await self.send(text_data='{"type":"access_revoked","message":"Your access to this page has been revoked"}')
+            if not still_has_access:
+                log_info(f"Access revoked for user {self.user_id}, closing WebSocket")
 
-            # Close the connection with a custom code
-            await self.close(code=4001)  # Custom close code for access revocation
+                # Send a custom message to the client before closing
+                await self.send(
+                    text_data='{"type":"access_revoked","message":"Your access to this page has been revoked"}'
+                )
+
+                # Close the connection with a custom code
+                await self.close(code=4001)  # Custom close code for access revocation
+            else:
+                log_debug(f"User {self.user_id} still has access via other means, not closing")
 
     async def links_updated(self, event):
         """

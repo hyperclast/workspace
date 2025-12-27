@@ -19,12 +19,26 @@ class TestHomepageAuthenticated(BaseAuthenticatedViewTestCase):
 
     url_name = "core:home"
 
-    def test_authenticated_user_gets_spa(self):
-        """Authenticated user should get SPA template."""
+    def test_authenticated_user_without_pages_redirects_to_welcome(self):
+        """Authenticated user without pages should redirect to welcome page."""
         response = self.client.get("/")
 
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertTemplateUsed(response, "core/spa.html")
+        self.assertRedirects(response, "/welcome/")
+
+    def test_authenticated_user_with_pages_redirects_to_first_page(self):
+        """Authenticated user with pages should redirect to first page."""
+        from pages.tests.factories import PageFactory, ProjectFactory
+        from users.tests.factories import OrgFactory
+
+        org = OrgFactory()
+        org.members.add(self.user)
+        project = ProjectFactory(org=org, creator=self.user)
+        page = PageFactory(project=project, creator=self.user)
+        page.editors.add(self.user)
+
+        response = self.client.get("/")
+
+        self.assertRedirects(response, f"/pages/{page.external_id}/")
 
 
 class TestSPARoutes(BaseViewTestCase):

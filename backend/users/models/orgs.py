@@ -21,17 +21,15 @@ class OrgManager(models.Manager):
         Returns:
             Tuple of (Org, is_admin: bool) where is_admin indicates if user is admin
         """
-        from users.utils import extract_domain_from_email, extract_org_name_from_domain
+        from users.utils import compute_org_name_for_email, extract_domain_from_email
 
         email = user.email
         domain = extract_domain_from_email(email)
 
         if domain:
-            # Company email - try to find existing org
             existing_org = self.filter(domain=domain).first()
 
             if existing_org:
-                # Add user as member (not admin - admin is first user)
                 OrgMember.objects.create(
                     org=existing_org,
                     user=user,
@@ -39,8 +37,7 @@ class OrgManager(models.Manager):
                 )
                 return existing_org, False
             else:
-                # First user with this domain - create org and make them admin
-                org_name = extract_org_name_from_domain(domain)
+                org_name = compute_org_name_for_email(email)
                 org = self.create(name=org_name, domain=domain)
                 OrgMember.objects.create(
                     org=org,
@@ -49,9 +46,7 @@ class OrgManager(models.Manager):
                 )
                 return org, True
         else:
-            # Personal email - create personal org with null domain
-            username = email.split("@")[0] if "@" in email else "user"
-            org_name = f"{username}"
+            org_name = compute_org_name_for_email(email)
             org = self.create(name=org_name, domain=None)
             OrgMember.objects.create(
                 org=org,

@@ -53,7 +53,7 @@ ws://localhost:9800/ws/pages/{page_id}/
 
 **Permission Check:**
 
-The backend validates that the user is an editor of the page (owner or shared editor) before accepting the WebSocket connection. See [Pages API - Get page editors](./pages.md#get-note-editors) for details on editor management.
+The backend validates that the user has access to the page via org membership or as project editor before accepting the WebSocket connection.
 
 ### Connection Lifecycle
 
@@ -104,7 +104,7 @@ Sent when a user's edit access to the page is removed.
 
 Custom close codes used by the server:
 
-- `4001` - Access revoked (user removed as editor)
+- `4001` - Access revoked (user removed from org/project)
 - `4003` - Unauthorized (failed authentication or permission check)
 
 Standard WebSocket close codes also apply:
@@ -114,11 +114,11 @@ Standard WebSocket close codes also apply:
 
 ## Access Revocation
 
-When a user is removed as an editor of a page via the REST API, all active WebSocket connections for that user are notified in real-time.
+When a user loses access to a page (removed from org or project), active WebSocket connections for that user are notified.
 
 ### Flow
 
-1. REST API endpoint removes user from `page.editors` ([Remove page editor](./pages.md#remove-note-editor))
+1. User is removed from org membership or project editors
 2. Backend sends message to Django Channels layer: `note_{uuid}.access_revoked`
 3. All WebSocket consumers in that room receive the message
 4. Each consumer checks if the revocation applies to their user
@@ -161,7 +161,7 @@ When a user is removed as an editor of a page via the REST API, all active WebSo
 
 **3. Permissions** (`backend/collab/permissions.py`)
 
-- `can_access_page()` - Async function that checks if user is in `page.editors`
+- `can_access_page()` - Async function that checks if user has access via org/project
 
 **4. Routing** (`backend/collab/routing.py`)
 
@@ -200,6 +200,6 @@ Dependencies:
 
 ## Related Documentation
 
-- [Pages API](./pages.md) - REST API for note CRUD and editor management
+- [Pages API](./pages.md) - REST API for page CRUD operations
 - [Authentication API](./auth.md) - Session-based authentication
 - [Overview](./overview.md) - General API conventions

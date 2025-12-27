@@ -2,15 +2,12 @@
   import ConfirmModal from './ConfirmModal.svelte';
   import PromptModal from './PromptModal.svelte';
   import ShareProjectModal from './ShareProjectModal.svelte';
-  import SharePageModal from './SharePageModal.svelte';
   import CreateProjectModal from './CreateProjectModal.svelte';
-  import { getConfirmState, getPromptState, getShareProjectState, getSharePageState, getCreateProjectState } from '../stores/modal.svelte.js';
+  import { getConfirmState, getPromptState, getShareProjectState, getCreateProjectState } from '../stores/modal.svelte.js';
 
-  // Get reactive state references directly (not $derived, which would be read-only)
   const confirmState = getConfirmState();
   const promptState = getPromptState();
   const shareProjectState = getShareProjectState();
-  const sharePageState = getSharePageState();
   const createProjectState = getCreateProjectState();
 </script>
 
@@ -45,12 +42,6 @@
   bind:open={shareProjectState.open}
   projectId={shareProjectState.projectId}
   projectName={shareProjectState.projectName}
-/>
-
-<SharePageModal
-  bind:open={sharePageState.open}
-  pageId={sharePageState.pageId}
-  pageTitle={sharePageState.pageTitle}
 />
 
 <CreateProjectModal

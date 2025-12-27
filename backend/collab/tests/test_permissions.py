@@ -1,4 +1,4 @@
-"""Tests for collab permission checking (three-tier access model)."""
+"""Tests for collab permission checking (two-tier access model)."""
 
 from asgiref.sync import async_to_sync
 from django.test import TestCase
@@ -9,7 +9,7 @@ from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory
 
 
 class TestCanAccessPage(TestCase):
-    """Test can_access_page function for three-tier access model."""
+    """Test can_access_page function for two-tier access model."""
 
     def setUp(self):
         """Set up test fixtures."""
@@ -32,15 +32,6 @@ class TestCanAccessPage(TestCase):
         self.project.editors.add(project_editor)
 
         result = async_to_sync(can_access_page)(project_editor, self.page.external_id)
-
-        self.assertTrue(result)
-
-    def test_page_editor_can_access_page(self):
-        """Tier 3: Page editor can access page."""
-        page_editor = UserFactory()
-        self.page.editors.add(page_editor)
-
-        result = async_to_sync(can_access_page)(page_editor, self.page.external_id)
 
         self.assertTrue(result)
 

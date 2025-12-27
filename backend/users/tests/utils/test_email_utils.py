@@ -1,7 +1,9 @@
 from django.test import TestCase
 
-from users.models import PersonalEmailDomain
+from users.models import Org, PersonalEmailDomain
+from users.tests.factories import UserFactory
 from users.utils import (
+    compute_org_name_for_email,
     extract_domain_from_email,
     extract_org_name_from_domain,
     is_personal_email,
@@ -333,3 +335,71 @@ class TestPersonalEmailDomainModel(TestCase):
         # Should have the entry that was added
         self.assertTrue(PersonalEmailDomain.objects.filter(substring="bulk-test-1").exists())
         self.assertTrue(PersonalEmailDomain.objects.filter(substring="bulk-test-2").exists())
+
+
+class TestComputeOrgNameForEmail(TestCase):
+    """Test compute_org_name_for_email() function."""
+
+    @classmethod
+    def setUpTestData(cls):
+        PersonalEmailDomain.objects.get_or_create(substring="gmail")
+        PersonalEmailDomain.objects.get_or_create(substring="yahoo")
+        PersonalEmailDomain.objects.get_or_create(substring="hotmail")
+
+    def test_personal_email_returns_local_part(self):
+        result = compute_org_name_for_email("john@gmail.com")
+
+        self.assertEqual(result, "john")
+
+    def test_personal_email_with_dots_returns_local_part(self):
+        result = compute_org_name_for_email("john.smith@gmail.com")
+
+        self.assertEqual(result, "john.smith")
+
+    def test_personal_email_yahoo(self):
+        result = compute_org_name_for_email("jane@yahoo.com")
+
+        self.assertEqual(result, "jane")
+
+    def test_personal_email_hotmail(self):
+        result = compute_org_name_for_email("user123@hotmail.com")
+
+        self.assertEqual(result, "user123")
+
+    def test_company_email_returns_lowercase_domain(self):
+        result = compute_org_name_for_email("john@acme.com")
+
+        self.assertEqual(result, "acme")
+
+    def test_company_email_with_subdomain(self):
+        result = compute_org_name_for_email("john@mail.company.com")
+
+        self.assertEqual(result, "company")
+
+    def test_company_email_non_com_tld(self):
+        result = compute_org_name_for_email("john@startup.io")
+
+        self.assertEqual(result, "startup")
+
+    def test_company_email_country_code_tld(self):
+        result = compute_org_name_for_email("john@company.co.uk")
+
+        self.assertEqual(result, "company")
+
+    def test_matches_org_manager_for_personal_email(self):
+        """Ensure function output matches what OrgManager.get_or_create_org_for_user creates."""
+        user = UserFactory(email="testuser@gmail.com")
+
+        computed_name = compute_org_name_for_email(user.email)
+        org, _ = Org.objects.get_or_create_org_for_user(user)
+
+        self.assertEqual(computed_name, org.name)
+
+    def test_matches_org_manager_for_company_email(self):
+        """Ensure function output matches what OrgManager.get_or_create_org_for_user creates."""
+        user = UserFactory(email="john@newcompany.com")
+
+        computed_name = compute_org_name_for_email(user.email)
+        org, _ = Org.objects.get_or_create_org_for_user(user)
+
+        self.assertEqual(computed_name, org.name)

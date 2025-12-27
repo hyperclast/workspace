@@ -176,126 +176,24 @@ class TestSignup(BaseViewTestCase):
         # Verify the error is about password length
         self.assertTrue(any("password" in str(error).lower() for error in payload["errors"]))
 
-    def test_signup_company_email_creates_org_project_page(self):
-        """Test signup with company email creates org, project, and default page."""
+    def test_signup_creates_user_only(self):
+        """Test signup creates user but NOT org/project/page (handled by onboarding)."""
         email = "alice@acme.com"
         password = "testpass1234"
 
         response = self.send_signup_request(email, password)
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
-        # Verify user was created
         from django.contrib.auth import get_user_model
 
         User = get_user_model()
         user = User.objects.get(email=email)
 
-        # Check org was created with domain
-        self.assertEqual(user.orgs.count(), 1)
-        org = user.orgs.first()
-        self.assertEqual(org.domain, "acme.com")
-        self.assertEqual(org.name, "acme")
+        # User should have no org (created during onboarding)
+        self.assertEqual(user.orgs.count(), 0)
 
-        # Check user is admin
-        membership = OrgMember.objects.get(org=org, user=user)
-        self.assertEqual(membership.role, "admin")
-
-        # Check project was created
-        self.assertEqual(org.projects.count(), 1)
-        project = org.projects.first()
-        self.assertEqual(project.name, f"First Project")
-        self.assertEqual(project.creator, user)
-
-        # Check page was created
-        self.assertEqual(project.pages.count(), 1)
-        page = project.pages.first()
-        self.assertEqual(page.title, "Untitled")
-        self.assertTrue(page.editors.filter(id=user.id).exists())
-
-    def test_signup_second_company_email_joins_existing_org(self):
-        """Test second user with same domain joins existing org as member."""
-        # First user creates org
-        email1 = "alice@secondtest.com"
-        password = "testpass1234"
-        response1 = self.send_signup_request(email1, password)
-        self.assertEqual(response1.status_code, HTTPStatus.OK)
-
-        from django.contrib.auth import get_user_model
-
-        User = get_user_model()
-        alice = User.objects.get(email=email1)
-        org = alice.orgs.first()
-
-        # Logout alice's session before creating bob
-        self.client.logout()
-
-        # Second user joins existing org
-        email2 = "bob@secondtest.com"
-        response2 = self.send_signup_request(email2, password)
-        self.assertEqual(response2.status_code, HTTPStatus.OK)
-
-        bob = User.objects.get(email=email2)
-
-        # Bob should be in same org
-        self.assertEqual(bob.orgs.count(), 1)
-        self.assertEqual(bob.orgs.first(), org)
-
-        # Bob should be member, not admin
-        membership = OrgMember.objects.get(org=org, user=bob)
-        self.assertEqual(membership.role, "member")
-
-        # Bob should have his own project
-        bob_projects = Project.objects.filter(creator=bob)
-        self.assertEqual(bob_projects.count(), 1)
-
-    def test_signup_personal_email_creates_personal_org(self):
-        """Test signup with personal email creates org with null domain."""
-        email = "user@gmail.com"
-        password = "testpass1234"
-
-        response = self.send_signup_request(email, password)
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-
-        from django.contrib.auth import get_user_model
-
-        User = get_user_model()
-        user = User.objects.get(email=email)
-
-        # Check org was created without domain
-        self.assertEqual(user.orgs.count(), 1)
-        org = user.orgs.first()
-        self.assertIsNone(org.domain)
-        self.assertEqual(org.name, "user")
-
-        # User should be admin of personal org
-        membership = OrgMember.objects.get(org=org, user=user)
-        self.assertEqual(membership.role, "admin")
-
-    def test_signup_different_personal_emails_get_separate_orgs(self):
-        """Test each personal email user gets their own org."""
-        email1 = "personaluser1@gmail.com"
-        email2 = "personaluser2@yahoo.com"
-        password = "testpass1234"
-
-        response1 = self.send_signup_request(email1, password)
-        self.assertEqual(response1.status_code, HTTPStatus.OK)
-
-        # Logout first user before creating second
-        self.client.logout()
-
-        response2 = self.send_signup_request(email2, password)
-        self.assertEqual(response2.status_code, HTTPStatus.OK)
-
-        from django.contrib.auth import get_user_model
-
-        User = get_user_model()
-        user1 = User.objects.get(email=email1)
-        user2 = User.objects.get(email=email2)
-
-        # Each should have their own org
-        self.assertNotEqual(user1.orgs.first(), user2.orgs.first())
-        self.assertIsNone(user1.orgs.first().domain)
-        self.assertIsNone(user2.orgs.first().domain)
+        # No projects or pages
+        self.assertEqual(Project.objects.filter(creator=user).count(), 0)
 
 
 class TestPasswordReset(BaseViewTestCase):

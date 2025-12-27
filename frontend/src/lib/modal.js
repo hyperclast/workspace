@@ -4,7 +4,6 @@ import {
   openConfirm as _openConfirm,
   openPrompt as _openPrompt,
   openShareProject as _openShareProject,
-  openSharePage as _openSharePage,
   openCreateProject as _openCreateProject,
 } from './stores/modal.svelte.js';
 
@@ -64,17 +63,6 @@ export async function prompt(options) {
 export function shareProject(options) {
   initModals();
   _openShareProject(options);
-}
-
-/**
- * Show a share page modal
- * @param {Object} options
- * @param {string} options.pageId - Page external ID
- * @param {string} options.pageTitle - Page title to display
- */
-export function sharePage(options) {
-  initModals();
-  _openSharePage(options);
 }
 
 /**

@@ -1,5 +1,7 @@
 from typing import List
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
@@ -9,6 +11,7 @@ from ninja.responses import Response
 from backend.utils import log_info
 from core.authentication import session_auth, token_auth
 from core.throttling import AddMemberBurstThrottle, AddMemberDailyThrottle
+from pages.models import Page
 from users.models import Org, OrgMember
 from users.schemas import (
     OrgIn,
@@ -23,6 +26,38 @@ User = get_user_model()
 
 
 orgs_router = Router(auth=[token_auth, session_auth])
+
+
+def notify_org_access_revoked(org: Org, user_id: int):
+    """
+    Send WebSocket messages to notify a user that their org access has been revoked.
+    This will cause the user's editor to close for all pages in all projects in the org,
+    unless they have project-level access.
+    """
+    try:
+        channel_layer = get_channel_layer()
+        if not channel_layer:
+            return
+
+        # Get all pages in this org's projects that the user might be connected to
+        pages = Page.objects.filter(
+            project__org=org,
+            project__is_deleted=False,
+            is_deleted=False,
+        ).values_list("external_id", flat=True)
+
+        for page_external_id in pages:
+            room_name = f"page_{page_external_id}"
+            async_to_sync(channel_layer.group_send)(
+                room_name,
+                {
+                    "type": "access_revoked",
+                    "user_id": user_id,
+                },
+            )
+    except Exception:
+        # Channel layer not available (e.g., in tests) - gracefully ignore
+        pass
 
 
 # ========================================
@@ -184,7 +219,10 @@ def remove_org_member(request: HttpRequest, external_id: str, user_external_id: 
 
     log_info(f"User {request.user.email} removed {user_to_remove.email} from org {org.external_id}")
 
-    # TODO: Revoke WebSocket access for pages the user no longer has access to
+    # Revoke WebSocket access for pages in this org
+    # Note: If user has project-level access, the WebSocket consumer will re-check
+    # and only kick them if they truly lost all access
+    notify_org_access_revoked(org, user_to_remove.id)
 
     return 204, None
 

@@ -1,7 +1,9 @@
 """
 Access control for collaborative editing.
-Validates user permissions using three-tier access control.
+Validates user permissions using two-tier access control.
 """
+
+from typing import Union
 
 from asgiref.sync import sync_to_async
 from django.contrib.auth import get_user_model
@@ -12,22 +14,34 @@ from pages.models import Page
 User = get_user_model()
 
 
-async def can_access_page(user: User, page_uuid: str) -> bool:  # type: ignore
+async def can_access_page(user_or_id: Union[User, int], page_uuid: str) -> bool:  # type: ignore
     """
-    Check if user can access the page via org membership, project editor, OR page editors.
+    Check if user can access the page via org membership or project editor.
 
-    Three-tier access:
+    Two-tier access:
     - Tier 1: User is member of page's project's org
     - Tier 2: User is a project editor
-    - Tier 3: User is in page's editors
 
     Args:
-        user: User instance
+        user_or_id: User instance or user ID (int)
         page_uuid: External ID of the page
 
     Returns:
         bool: True if user has access via any tier
     """
+    # Handle both User object and user_id (int)
+    if isinstance(user_or_id, int):
+        try:
+            user = await User.objects.filter(id=user_or_id).afirst()
+            if not user:
+                log_warning(f"User with id {user_or_id} not found")
+                return False
+        except Exception as e:
+            log_error(f"Error fetching user {user_or_id}: {e}")
+            return False
+    else:
+        user = user_or_id
+
     log_debug(
         f"Checking access - User: {getattr(user, 'email', 'anonymous')}, "
         f"Page: {page_uuid}, Authenticated: {getattr(user, 'is_authenticated', False)}"

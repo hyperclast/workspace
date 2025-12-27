@@ -95,27 +95,6 @@ export function closeShareProject() {
   shareProjectState.open = false;
 }
 
-let sharePageState = $state({
-  open: false,
-  pageId: '',
-  pageTitle: '',
-});
-
-export function getSharePageState() {
-  return sharePageState;
-}
-
-export function openSharePage(options) {
-  // Mutate existing object instead of reassigning
-  sharePageState.pageId = options.pageId || '';
-  sharePageState.pageTitle = options.pageTitle || '';
-  sharePageState.open = true;
-}
-
-export function closeSharePage() {
-  sharePageState.open = false;
-}
-
 let createProjectState = $state({
   open: false,
   oncreated: () => {},

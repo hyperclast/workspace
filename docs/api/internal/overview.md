@@ -269,8 +269,8 @@ fetch('/api/pages/?limit=10&offset=0');
 // Get next 10 pages
 fetch('/api/pages/?limit=10&offset=10');
 
-// Get first 25 editors for a note
-fetch('/api/pages/abc123/editors/?limit=25&offset=0');
+// Get links for a page
+fetch('/api/pages/abc123/links/');
 
 // Use default pagination (100 items)
 fetch('/api/pages/');
@@ -305,5 +305,5 @@ while (true) {
 
 - [**Ask API**](./ask.md) - AI-powered question answering about your pages using RAG
 - [**Authentication API**](./auth.md) - Login, signup, logout, and password reset (django-allauth headless)
-- [**Pages API**](./pages.md) - Create, read, update, and delete pages; manage page editors and invitations
+- [**Pages API**](./pages.md) - Create, read, update, and delete pages; manage page links
 - [**Users API**](./users.md) - User information and settings management

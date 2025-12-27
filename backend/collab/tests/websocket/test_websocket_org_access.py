@@ -1,7 +1,7 @@
 """
-Tests for WebSocket two-tier access control (org-level + page-level).
+Tests for WebSocket two-tier access control (org-level + project-level).
 
-Tests that org members can access pages in org projects via WebSocket connections.
+Tests that org members and project editors can access pages via WebSocket connections.
 """
 
 from asgiref.sync import sync_to_async
@@ -16,7 +16,7 @@ from users.tests.factories import OrgFactory, OrgMemberFactory
 User = get_user_model()
 
 
-class TestWebSocketOrgAccess(TransactionTestCase):
+class TestWebSocketTwoTierAccess(TransactionTestCase):
     """Test two-tier access control for WebSocket connections."""
 
     async def test_org_member_can_join_org_page(self):
@@ -33,7 +33,7 @@ class TestWebSocketOrgAccess(TransactionTestCase):
         project = await sync_to_async(ProjectFactory.create)(org=org, creator=admin)
         page = await sync_to_async(PageFactory.create)(project=project, creator=admin)
 
-        # Org member (not page editor) connects
+        # Org member connects
         communicator = WebsocketCommunicator(
             application,
             f"/ws/pages/{page.external_id}/",
@@ -92,8 +92,8 @@ class TestWebSocketOrgAccess(TransactionTestCase):
         connected, _ = await communicator.connect()
         self.assertFalse(connected, "External user should not be able to connect to org page")
 
-    async def test_external_user_can_join_shared_org_page(self):
-        """Test that external users can connect when explicitly shared."""
+    async def test_project_editor_can_join_page(self):
+        """Test that project editors can connect to pages in shared projects."""
         # Create org with member
         org = await sync_to_async(OrgFactory.create)()
         member = await sync_to_async(UserFactory.create)()
@@ -105,8 +105,8 @@ class TestWebSocketOrgAccess(TransactionTestCase):
         project = await sync_to_async(ProjectFactory.create)(org=org, creator=member)
         page = await sync_to_async(PageFactory.create)(project=project, creator=member)
 
-        # Share page with external user
-        await sync_to_async(page.editors.add)(external_user)
+        # Add external user as project editor
+        await sync_to_async(project.editors.add)(external_user)
 
         # External user connects
         communicator = WebsocketCommunicator(
@@ -116,68 +116,7 @@ class TestWebSocketOrgAccess(TransactionTestCase):
         communicator.scope["user"] = external_user
 
         connected, _ = await communicator.connect()
-        self.assertTrue(connected, "External user should be able to connect to shared page")
-
-        await communicator.disconnect()
-
-    async def test_org_member_keeps_access_after_removed_as_editor(self):
-        """Test that org members retain access even if removed as page editor."""
-        # Create org with member
-        org = await sync_to_async(OrgFactory.create)()
-        admin = await sync_to_async(UserFactory.create)()
-        member = await sync_to_async(UserFactory.create)()
-
-        await sync_to_async(OrgMemberFactory.create)(org=org, user=admin, role="admin")
-        await sync_to_async(OrgMemberFactory.create)(org=org, user=member, role="member")
-
-        # Create project and page
-        project = await sync_to_async(ProjectFactory.create)(org=org, creator=admin)
-        page = await sync_to_async(PageFactory.create)(project=project, creator=admin)
-
-        # Add member as explicit editor
-        await sync_to_async(page.editors.add)(member)
-
-        # Remove member as editor
-        await sync_to_async(page.editors.remove)(member)
-
-        # Member should still be able to connect (via org access)
-        communicator = WebsocketCommunicator(
-            application,
-            f"/ws/pages/{page.external_id}/",
-        )
-        communicator.scope["user"] = member
-
-        connected, _ = await communicator.connect()
-        self.assertTrue(
-            connected, "Org member should retain access via org membership after being removed as page editor"
-        )
-
-        await communicator.disconnect()
-
-    async def test_user_with_both_access_types_can_join(self):
-        """Test that user with both org and page-level access can connect."""
-        # Create org with member
-        org = await sync_to_async(OrgFactory.create)()
-        member = await sync_to_async(UserFactory.create)()
-
-        await sync_to_async(OrgMemberFactory.create)(org=org, user=member, role="member")
-
-        # Create project and page
-        project = await sync_to_async(ProjectFactory.create)(org=org, creator=member)
-        page = await sync_to_async(PageFactory.create)(project=project, creator=member)
-
-        # Also add as explicit editor (dual access)
-        await sync_to_async(page.editors.add)(member)
-
-        # Member connects (has both org and page access)
-        communicator = WebsocketCommunicator(
-            application,
-            f"/ws/pages/{page.external_id}/",
-        )
-        communicator.scope["user"] = member
-
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected, "User with both access types should be able to connect")
+        self.assertTrue(connected, "Project editor should be able to connect to project page")
 
         await communicator.disconnect()
 
@@ -219,59 +158,29 @@ class TestWebSocketOrgAccess(TransactionTestCase):
         await comm1.disconnect()
         await comm2.disconnect()
 
-    async def test_page_without_project_uses_editor_only_access(self):
-        """Test that pages without projects fall back to editor-only access."""
+    async def test_user_with_both_access_types_can_join(self):
+        """Test that user with both org and project-level access can connect."""
         # Create org with member
         org = await sync_to_async(OrgFactory.create)()
         member = await sync_to_async(UserFactory.create)()
-        external_user = await sync_to_async(UserFactory.create)()
 
         await sync_to_async(OrgMemberFactory.create)(org=org, user=member, role="member")
 
-        # Create orphan page (no project)
-        page = await sync_to_async(PageFactory.create)(project=None, creator=member)
-        await sync_to_async(page.editors.add)(external_user)
+        # Create project and page
+        project = await sync_to_async(ProjectFactory.create)(org=org, creator=member)
+        page = await sync_to_async(PageFactory.create)(project=project, creator=member)
 
-        # Org member has NO access (no project = no org access)
-        comm_member = WebsocketCommunicator(
+        # Also add as project editor (dual access)
+        await sync_to_async(project.editors.add)(member)
+
+        # Member connects (has both org and project access)
+        communicator = WebsocketCommunicator(
             application,
             f"/ws/pages/{page.external_id}/",
         )
-        comm_member.scope["user"] = member
+        communicator.scope["user"] = member
 
-        # External editor has access
-        comm_external = WebsocketCommunicator(
-            application,
-            f"/ws/pages/{page.external_id}/",
-        )
-        comm_external.scope["user"] = external_user
+        connected, _ = await communicator.connect()
+        self.assertTrue(connected, "User with both access types should be able to connect")
 
-        # Note: Member is the creator, so they should still have access via editors
-        # Let's adjust this - create page with different creator
-        creator = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(project=None, creator=creator)
-        await sync_to_async(page.editors.add)(external_user)
-
-        # Now test - org member has NO access
-        comm_member = WebsocketCommunicator(
-            application,
-            f"/ws/pages/{page.external_id}/",
-        )
-        comm_member.scope["user"] = member
-
-        connected_member, _ = await comm_member.connect()
-        self.assertFalse(
-            connected_member, "Org member should NOT have access to orphan page (no project = no org access)"
-        )
-
-        # External editor has access
-        comm_external = WebsocketCommunicator(
-            application,
-            f"/ws/pages/{page.external_id}/",
-        )
-        comm_external.scope["user"] = external_user
-
-        connected_external, _ = await comm_external.connect()
-        self.assertTrue(connected_external, "External editor should have access to orphan page")
-
-        await comm_external.disconnect()
+        await communicator.disconnect()
