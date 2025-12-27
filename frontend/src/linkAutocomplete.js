@@ -100,7 +100,14 @@ async function linkCompletionSource(context) {
         return {
           label: page.title || "Untitled",
           detail: "internal link",
-          apply: `/pages/${page.external_id}/`,
+          apply: (view, completion, from, to) => {
+            const url = `/pages/${page.external_id}/`;
+            const insertText = url + ') ';
+            view.dispatch({
+              changes: { from, to, insert: insertText },
+              selection: { anchor: from + insertText.length },
+            });
+          },
           type: "link",
         };
       } else {
@@ -108,7 +115,7 @@ async function linkCompletionSource(context) {
           label: page.title || "Untitled",
           detail: "internal link",
           apply: (view, completion, from, to) => {
-            const fullLink = `[${page.title}](/pages/${page.external_id}/)`;
+            const fullLink = `[${page.title}](/pages/${page.external_id}/) `;
             const linkStart = from - 1;
             view.dispatch({
               changes: { from: linkStart, to, insert: fullLink },
@@ -132,5 +139,5 @@ export const linkAutocomplete = autocompletion({
   override: [linkCompletionSource],
   activateOnTyping: true,
   maxRenderedOptions: 10,
-  icons: false,
+  icons: true,
 });

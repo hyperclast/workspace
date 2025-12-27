@@ -151,7 +151,8 @@
     lastSyncTime = now;
 
     try {
-      const result = await syncPageLinks(currentPageId);
+      const content = window.editorView?.state?.doc?.toString() || "";
+      const result = await syncPageLinks(currentPageId, content);
       if (result.synced) {
         serverOutgoingLinks = result.outgoing || [];
         incomingLinks = result.incoming || [];

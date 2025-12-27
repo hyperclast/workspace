@@ -7,23 +7,23 @@ import { getFeatureFlags } from "../../config.js";
 const TAB_STORAGE_KEY = "ws-sidebar-tab";
 const COLLAPSED_STORAGE_KEY = "ws-sidebar-collapsed";
 
-// Build initial tabs list based on feature flags
+// Build initial tabs list based on feature flags (alphabetical order)
 function getInitialTabs() {
-  const baseTabs = [
+  const tabs = [
     { id: "ask", label: "Ask" },
-    { id: "links", label: "Ref" },
   ];
   const flags = getFeatureFlags();
   if (flags.devSidebar) {
-    baseTabs.push({ id: "dev", label: "Dev" });
+    tabs.push({ id: "dev", label: "Dev" });
   }
-  return baseTabs;
+  tabs.push({ id: "links", label: "Ref" });
+  return tabs;
 }
 
 // Reactive state
 let isOpen = $state(false);
 let isCollapsed = $state(localStorage.getItem(COLLAPSED_STORAGE_KEY) === "true");
-let activeTab = $state(localStorage.getItem(TAB_STORAGE_KEY) || "ask");
+let activeTab = $state(localStorage.getItem(TAB_STORAGE_KEY) || "links");
 let currentPageId = $state(null);
 
 // Available tabs (can be extended by private features)

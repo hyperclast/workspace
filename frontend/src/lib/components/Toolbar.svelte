@@ -19,10 +19,16 @@
   } from "lucide-static";
   import { openSidebar, setActiveTab } from "../stores/sidebar.svelte.js";
   import { toggleCheckbox } from "../../decorateFormatting.js";
+  import LinkModal from "./LinkModal.svelte";
 
   let { editorView = $bindable(null), tableUtils = null } = $props();
 
   let headingMenuOpen = $state(false);
+  let linkModalOpen = $state(false);
+  let linkModalInitialTitle = $state('');
+  let linkModalInitialUrl = $state('');
+  let linkInsertPosition = $state({ from: 0, to: 0 });
+  let linkEditMode = $state(false);
 
   function toggleFormat(marker) {
     if (!editorView) return;
@@ -268,27 +274,73 @@
     editorView.focus();
   }
 
+  function findLinkAtCursor(state, pos) {
+    const line = state.doc.lineAt(pos);
+    const lineText = line.text;
+    const linkRegex = /\[([^\]]*)\]\(([^)]*)\)/g;
+    let match;
+    while ((match = linkRegex.exec(lineText)) !== null) {
+      const linkStart = line.from + match.index;
+      const linkEnd = linkStart + match[0].length;
+      if (pos >= linkStart && pos <= linkEnd) {
+        return {
+          from: linkStart,
+          to: linkEnd,
+          title: match[1],
+          url: match[2],
+        };
+      }
+    }
+    return null;
+  }
+
   function insertLink() {
     if (!editorView) return;
     const { state } = editorView;
     const { from, to } = state.selection.main;
     const selectedText = state.sliceDoc(from, to);
 
-    if (selectedText) {
-      const linkMarkdown = `[${selectedText}]()`;
-      const urlStart = from + selectedText.length + 3;
-      editorView.dispatch({
-        changes: { from, to, insert: linkMarkdown },
-        selection: { anchor: urlStart },
-      });
-    } else {
-      const linkMarkdown = "[]()";
-      editorView.dispatch({
-        changes: { from, insert: linkMarkdown },
-        selection: { anchor: from + 1 },
-      });
+    const existingLink = findLinkAtCursor(state, from);
+    if (existingLink) {
+      linkModalInitialTitle = existingLink.title;
+      linkModalInitialUrl = existingLink.url;
+      linkInsertPosition = { from: existingLink.from, to: existingLink.to };
+      linkEditMode = true;
+      linkModalOpen = true;
+      return;
     }
+
+    if (selectedText && /^\[.*\]\(.*\)$/.test(selectedText)) {
+      const match = selectedText.match(/^\[([^\]]*)\]\(([^)]*)\)$/);
+      if (match) {
+        linkModalInitialTitle = match[1];
+        linkModalInitialUrl = match[2];
+        linkInsertPosition = { from, to };
+        linkEditMode = true;
+        linkModalOpen = true;
+        return;
+      }
+    }
+
+    linkModalInitialTitle = selectedText || '';
+    linkModalInitialUrl = '';
+    linkInsertPosition = { from, to };
+    linkEditMode = false;
+    linkModalOpen = true;
+  }
+
+  function handleLinkInsert({ url, title }) {
+    if (!editorView) return;
+    const { from, to } = linkInsertPosition;
+    const linkMarkdown = linkEditMode ? `[${title}](${url})` : `[${title}](${url}) `;
+    editorView.dispatch({
+      changes: { from, to, insert: linkMarkdown },
+      selection: { anchor: from + linkMarkdown.length },
+    });
     editorView.focus();
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("editorEnterPressed"));
+    }, 50);
   }
 </script>
 
@@ -377,6 +429,13 @@
     </div>
   </div>
 </div>
+
+<LinkModal
+  bind:open={linkModalOpen}
+  initialTitle={linkModalInitialTitle}
+  initialUrl={linkModalInitialUrl}
+  oninsert={handleLinkInsert}
+/>
 
 <style>
   .toolbar-wrapper {

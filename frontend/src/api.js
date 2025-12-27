@@ -126,16 +126,16 @@ export async function fetchPageLinks(externalId) {
 }
 
 /**
- * Trigger immediate link sync for a page.
+ * Trigger immediate link sync with the provided content.
  * @param {string} externalId - External ID of the page
- * @param {string} contentHash - Optional content hash to skip if unchanged
+ * @param {string} content - Current editor content to sync links from
  * @returns {Promise<{synced: boolean, outgoing: Array, incoming: Array}>}
  */
-export async function syncPageLinks(externalId, contentHash = null) {
+export async function syncPageLinks(externalId, content = null) {
   const response = await csrfFetch(`${API_BASE}/pages/${externalId}/links/sync/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content_hash: contentHash }),
+    body: JSON.stringify({ content }),
   });
   if (!response.ok) {
     throw new Error(`Failed to sync page links: ${response.statusText}`);

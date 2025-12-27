@@ -92,12 +92,12 @@ export function createCollaborationObjects(pageExternalId, userEmail = "Anonymou
     // Fallback timeout - resolve but indicate sync didn't complete
     setTimeout(() => {
       if (!syncResolved) {
-        console.warn("Sync timeout after 2s - provider.synced=" + provider.synced);
+        console.warn("Sync timeout after 5s - provider.synced=" + provider.synced);
         syncResolved = true;
         provider.off("sync", onSync);
         resolve({ synced: false, ytextHasContent: ytext.length > 0 });
       }
-    }, 2000);
+    }, 5000);
   });
 
   // Listen to awareness changes (who joined/left)
@@ -169,6 +169,24 @@ export function destroyCollaboration(collabObjects) {
     ydoc.destroy();
     console.log("Yjs document destroyed");
   }
+}
+
+/**
+ * Setup a beforeunload handler to cleanly close the WebSocket.
+ * This gives the server time to process pending writes.
+ */
+export function setupUnloadHandler(collabObjects) {
+  if (!collabObjects) return () => {};
+
+  const handler = () => {
+    const { provider } = collabObjects;
+    if (provider?.ws?.readyState === WebSocket.OPEN) {
+      provider.ws.close(1000, "Page unloading");
+    }
+  };
+
+  window.addEventListener("beforeunload", handler);
+  return () => window.removeEventListener("beforeunload", handler);
 }
 
 /**

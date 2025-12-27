@@ -303,8 +303,8 @@ CHANNEL_LAYERS = {
 
 ASGI_APPLICATION = "backend.asgi.application"
 
-CRDT_SNAPSHOT_INTERVAL_SECONDS = 60
-CRDT_SNAPSHOT_AFTER_EDIT_COUNT = 100
+CRDT_SNAPSHOT_INTERVAL_SECONDS = 15  # Reduced from 60 for faster persistence
+CRDT_SNAPSHOT_AFTER_EDIT_COUNT = 50  # Reduced from 100 for faster persistence
 
 # WebSocket rate limiting (prevents DoS from rapid reconnection loops)
 WS_RATE_LIMIT_CONNECTIONS = 30  # Max connections per window

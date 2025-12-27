@@ -29,7 +29,7 @@ class PageLinksOut(Schema):
 
 
 class SyncLinksIn(Schema):
-    content_hash: Optional[str] = None
+    content: Optional[str] = None
 
 
 class SyncLinksOut(Schema):
@@ -76,7 +76,7 @@ def get_page_links(request: HttpRequest, external_id: str):
 @links_router.post("/{external_id}/links/sync/", response=SyncLinksOut)
 def sync_page_links(request: HttpRequest, external_id: str, payload: SyncLinksIn):
     """
-    Trigger immediate link sync from the latest snapshot.
+    Trigger immediate link sync using provided content.
     Called by frontend when user presses Enter or after significant edits.
     Returns the updated link lists.
     """
@@ -86,23 +86,24 @@ def sync_page_links(request: HttpRequest, external_id: str, payload: SyncLinksIn
     )
 
     room_id = f"page_{external_id}"
+    synced = False
 
-    try:
-        snapshot = YSnapshot.objects.get(room_id=room_id)
-        content = snapshot.content or ""
-
-        stored_hash = page.details.get("content_hash", "")
-        if payload.content_hash and payload.content_hash == stored_hash:
-            log_info("Skipping link sync - content hash unchanged for %s", external_id)
-        else:
-            PageLink.objects.sync_links_for_page(page, content)
-            log_info("Immediate link sync completed for %s", external_id)
-            broadcast_links_updated(room_id, external_id)
-
+    if payload.content is not None:
+        PageLink.objects.sync_links_for_page(page, payload.content)
+        log_info("Immediate link sync completed for %s (from request content)", external_id)
+        broadcast_links_updated(room_id, external_id)
         synced = True
-    except YSnapshot.DoesNotExist:
-        log_info("No snapshot found for %s, skipping link sync", external_id)
-        synced = False
+    else:
+        try:
+            snapshot = YSnapshot.objects.get(room_id=room_id)
+            content = snapshot.content or ""
+            PageLink.objects.sync_links_for_page(page, content)
+            log_info("Immediate link sync completed for %s (from snapshot)", external_id)
+            broadcast_links_updated(room_id, external_id)
+            synced = True
+        except YSnapshot.DoesNotExist:
+            log_info("No snapshot found for %s, skipping link sync", external_id)
+            synced = False
 
     outgoing = [
         LinkItem(

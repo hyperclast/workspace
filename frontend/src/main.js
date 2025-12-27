@@ -1,4 +1,4 @@
-import { defaultKeymap } from "@codemirror/commands";
+import { defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import {
     foldGutter,
@@ -10,7 +10,7 @@ import { EditorView, keymap } from "@codemirror/view";
 import { createPage as createPageApi, deletePage as deletePageApi, fetchPage as fetchPageApi, fetchProjectsWithPages } from "./api.js";
 import { getSession, logout } from "./auth.js";
 import { clickToEndPlugin } from "./clickToEndPlugin.js";
-import { createCollaborationObjects, destroyCollaboration } from "./collaboration.js";
+import { createCollaborationObjects, destroyCollaboration, setupUnloadHandler } from "./collaboration.js";
 import { API_BASE_URL, getBrandName } from "./config.js";
 import { csrfFetch } from "./csrf.js";
 import { decorateDates, setupDateClickHandler } from "./decorateDates.js";
@@ -247,6 +247,9 @@ let currentUser = null;
 // Store presence UI cleanup function
 let cleanupPresenceUI = null;
 
+// Store unload handler cleanup function
+let cleanupUnloadHandler = null;
+
 // Store projects list for sidebar (with nested pages)
 let cachedProjects = [];
 
@@ -477,6 +480,7 @@ async function loadPage(page) {
   initializeEditor(collabObjects.ytext.toString(), [collabObjects.extension]);
 
   cleanupPresenceUI = setupPresenceUI(collabObjects.awareness);
+  cleanupUnloadHandler = setupUnloadHandler(collabObjects);
   updateSidenavActive(currentPage.external_id);
 }
 
@@ -501,6 +505,11 @@ window.getCurrentPage = () => currentPage;
  * Cleanup page state without navigating (used when switching pages).
  */
 function cleanupCurrentPage() {
+  if (cleanupUnloadHandler) {
+    cleanupUnloadHandler();
+    cleanupUnloadHandler = null;
+  }
+
   if (cleanupPresenceUI) {
     cleanupPresenceUI();
     cleanupPresenceUI = null;
@@ -741,6 +750,7 @@ function initializeEditor(pageContent = "", additionalExtensions = []) {
     foldGutter(),
     foldService.of(findSectionFold),
     keymap.of(defaultKeymap),
+    keymap.of([indentWithTab]),
     clickToEndPlugin,
     contentChangeNotifier,
     enterKeyTrigger,
@@ -1027,17 +1037,8 @@ async function startApp() {
     openCreatePageDialog(projectId);
   });
 
-  setProjectDeletedHandler(async (deletedProjectId) => {
-    cachedProjects = cachedProjects.filter(p => p.external_id !== deletedProjectId);
-
-    if (currentPage && currentProjectId === deletedProjectId) {
-      closePage();
-      if (cachedProjects.length > 0 && cachedProjects[0].pages?.length > 0) {
-        await loadPage(cachedProjects[0].pages[0]);
-      }
-    }
-
-    renderSidenav(cachedProjects, currentPage?.external_id);
+  setProjectDeletedHandler(() => {
+    window.location.href = "/";
   });
 
   setProjectRenamedHandler((projectId, newName) => {

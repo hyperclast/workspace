@@ -41,29 +41,24 @@ export const decorateLinks = ViewPlugin.fromClass(
       const builder = [];
       const { state } = view;
       const text = state.doc.toString();
-      
+
       const cursorPos = state.selection.main.head;
-      const cursorLine = state.doc.lineAt(cursorPos).number;
 
       for (const match of text.matchAll(MARKDOWN_LINK_REGEX)) {
         const start = match.index;
         const end = start + match[0].length;
         const linkText = match[1];
         const url = match[2];
-        
-        const matchLine = state.doc.lineAt(start).number;
-        const cursorOnLine = cursorLine === matchLine;
-        
+
+        const cursorInLink = cursorPos >= start && cursorPos <= end;
+
         const isInternal = INTERNAL_LINK_PATTERN.test(url);
-        
+
         const bracketStart = start;
         const textStart = start + 1;
         const textEnd = textStart + linkText.length;
-        const bracketEnd = textEnd + 1;
-        const urlStart = bracketEnd + 1;
-        const urlEnd = end - 1;
 
-        if (!cursorOnLine) {
+        if (!cursorInLink) {
           builder.push(
             Decoration.replace({ widget: new LinkWidget(isInternal, url) }).range(bracketStart, textStart)
           );
@@ -75,9 +70,9 @@ export const decorateLinks = ViewPlugin.fromClass(
 
         const linkClass = isInternal ? "format-link format-link-internal" : "format-link format-link-external";
         builder.push(
-          Decoration.mark({ 
+          Decoration.mark({
             class: linkClass,
-            attributes: { 
+            attributes: {
               "data-url": url,
               "data-internal": isInternal ? "true" : "false"
             }
@@ -96,7 +91,7 @@ export const decorateLinks = ViewPlugin.fromClass(
 export const linkClickHandler = EditorView.domEventHandlers({
   click(event, view) {
     const target = event.target;
-    
+
     if (target.classList.contains("format-link") || target.closest(".format-link")) {
       const linkEl = target.classList.contains("format-link") ? target : target.closest(".format-link");
       const url = linkEl.dataset.url;
@@ -106,7 +101,7 @@ export const linkClickHandler = EditorView.domEventHandlers({
 
       if (event.metaKey || event.ctrlKey) {
         event.preventDefault();
-        
+
         if (isInternal) {
           const pageIdMatch = url.match(INTERNAL_LINK_PATTERN);
           if (pageIdMatch) {
@@ -123,4 +118,3 @@ export const linkClickHandler = EditorView.domEventHandlers({
     return false;
   },
 });
-

@@ -43,6 +43,7 @@ class PageYjsConsumer(BaseYjsConsumer):
         self.snapshot_task = None  # asyncio task handle for periodic snapshots
         self.has_unsaved_changes = False  # Flag for dirty tracking
         self.updates_since_snapshot = 0  # Counter for update-based snapshot trigger
+        self.pending_writes = set()  # Track in-flight write tasks to await on disconnect
 
     # -----------------------------
     # Helpers
@@ -222,9 +223,11 @@ class PageYjsConsumer(BaseYjsConsumer):
 
                 log_debug("Doc transaction: %s bytes", len(update_bytes))
 
-                # Persist asynchronously
+                # Persist asynchronously but track the task for cleanup
                 if getattr(self, "ystore", None):
-                    asyncio.create_task(self.ystore.write(update_bytes))
+                    task = asyncio.create_task(self.ystore.write(update_bytes))
+                    self.pending_writes.add(task)
+                    task.add_done_callback(self.pending_writes.discard)
                     log_debug("Persistence task scheduled")
 
                 # Mark document as having unsaved changes
@@ -345,7 +348,7 @@ class PageYjsConsumer(BaseYjsConsumer):
 
     async def disconnect(self, close_code):
         """
-        On disconnect, cancel periodic snapshot timer, take final snapshot (if needed), and close the pool.
+        On disconnect, wait for pending writes, cancel periodic snapshot timer, take final snapshot (if needed), and close the pool.
         """
         # Restore request ID context for disconnect logging
         if hasattr(self, "request_id"):
@@ -358,6 +361,20 @@ class PageYjsConsumer(BaseYjsConsumer):
             self.user_id,
         )
         try:
+            # Wait for all pending write tasks to complete (with timeout)
+            if self.pending_writes:
+                pending_count = len(self.pending_writes)
+                log_info(
+                    "Waiting for %s pending writes to complete for %s",
+                    pending_count,
+                    getattr(self, "room_name", "unknown"),
+                )
+                try:
+                    await asyncio.wait_for(asyncio.gather(*self.pending_writes, return_exceptions=True), timeout=5.0)
+                    log_info("All pending writes completed for %s", getattr(self, "room_name", "unknown"))
+                except asyncio.TimeoutError:
+                    log_warning("Timeout waiting for pending writes for %s", getattr(self, "room_name", "unknown"))
+
             # Cancel periodic snapshot task if running
             if self.snapshot_task and not self.snapshot_task.done():
                 self.snapshot_task.cancel()

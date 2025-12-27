@@ -275,11 +275,11 @@ class SyncPageLinksAPITests(TestCase):
         )
         self.client.force_login(self.user)
 
-    def test_sync_page_links_no_snapshot(self):
-        """Sync endpoint returns synced=False when no snapshot exists."""
+    def test_sync_page_links_no_content_no_snapshot(self):
+        """Sync endpoint returns synced=False when no content and no snapshot exists."""
         response = self.client.post(
             f"/api/pages/{self.page1.external_id}/links/sync/",
-            data={"content_hash": None},
+            data={"content": None},
             content_type="application/json",
         )
 
@@ -288,6 +288,45 @@ class SyncPageLinksAPITests(TestCase):
         self.assertEqual(data["synced"], False)
         self.assertEqual(data["outgoing"], [])
         self.assertEqual(data["incoming"], [])
+
+    def test_sync_page_links_with_content(self):
+        """Sync endpoint creates links from provided content."""
+        content = f"Check out [Page 2](/pages/{self.page2.external_id}/)"
+        response = self.client.post(
+            f"/api/pages/{self.page1.external_id}/links/sync/",
+            data={"content": content},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["synced"], True)
+        self.assertEqual(len(data["outgoing"]), 1)
+        self.assertEqual(data["outgoing"][0]["external_id"], self.page2.external_id)
+        self.assertEqual(data["outgoing"][0]["link_text"], "Page 2")
+
+    def test_sync_page_links_updates_existing_links(self):
+        """Sync endpoint updates links when content changes."""
+        content1 = f"Check out [Page 2](/pages/{self.page2.external_id}/)"
+        self.client.post(
+            f"/api/pages/{self.page1.external_id}/links/sync/",
+            data={"content": content1},
+            content_type="application/json",
+        )
+        self.assertEqual(PageLink.objects.count(), 1)
+
+        content2 = "No links anymore"
+        response = self.client.post(
+            f"/api/pages/{self.page1.external_id}/links/sync/",
+            data={"content": content2},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["synced"], True)
+        self.assertEqual(data["outgoing"], [])
+        self.assertEqual(PageLink.objects.count(), 0)
 
     def test_sync_page_links_requires_auth(self):
         """Sync endpoint requires authentication."""
