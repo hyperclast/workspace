@@ -5,7 +5,7 @@ The duplication issue was a FRONTEND problem where:
 1. Client times out waiting for WebSocket sync
 2. Client inserts REST API content into local ytext
 3. WebSocket eventually connects and syncs
-4. CRDT merges both (different operation IDs) → duplication
+4. CRDT merges both (different operation IDs) -> duplication
 
 The fix is on the frontend: don't insert content locally before sync completes.
 If sync times out, editor starts empty and shows content when sync succeeds.
@@ -25,7 +25,7 @@ from pycrdt import Doc, Text
 
 from backend.asgi import application
 from collab.models import YSnapshot, YUpdate
-from pages.tests.factories import PageFactory, UserFactory
+from collab.tests import create_page_with_access, create_user_with_org_and_project
 
 
 class TestContentDuplication(TransactionTestCase):
@@ -42,8 +42,8 @@ class TestContentDuplication(TransactionTestCase):
         3. Client sends back the same state (no changes)
         4. Content should NOT be duplicated
         """
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
         room_name = f"page_{page.external_id}"
 
         original_content = "Hello World\n\nThis is a test."
@@ -117,8 +117,8 @@ class TestContentDuplication(TransactionTestCase):
 
         This test verifies the actual behavior.
         """
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
         room_name = f"page_{page.external_id}"
 
         original = "Hi"
@@ -174,8 +174,8 @@ class TestContentDuplication(TransactionTestCase):
         Test that multiple clients connecting and disconnecting
         without making edits doesn't corrupt the content.
         """
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
         room_name = f"page_{page.external_id}"
 
         original = "Original content that should not change"
@@ -217,8 +217,8 @@ class TestContentDuplication(TransactionTestCase):
         Test that the YSnapshot.content property correctly extracts
         text from the Yjs document.
         """
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
         room_name = f"page_{page.external_id}"
 
         # Create document with specific content
@@ -242,8 +242,8 @@ class TestContentDuplication(TransactionTestCase):
         Test that server content is preserved when a client connects,
         receives the state, and disconnects without making changes.
         """
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
         room_name = f"page_{page.external_id}"
 
         original_content = "Server content"

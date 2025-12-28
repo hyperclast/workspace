@@ -5,13 +5,13 @@ These tests verify that the ystore.write() and ystore.upsert_snapshot() methods
 are called (or not called) at the appropriate times, without actually writing to
 the database.
 
-NOTE: The consumer now skips saving empty/minimal snapshots (≤2 bytes) to prevent
+NOTE: The consumer now skips saving empty/minimal snapshots (<=2 bytes) to prevent
 corrupted 0x0000 snapshots that cause client reconnection loops. Tests that expect
 upsert_snapshot() to be called must ensure the document has real content.
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 from asgiref.sync import sync_to_async
 from channels.testing import WebsocketCommunicator
@@ -19,7 +19,12 @@ from django.test import TransactionTestCase
 from pycrdt import Doc, Text
 
 from backend.asgi import application
-from pages.tests.factories import PageFactory, UserFactory
+from collab.tests import (
+    add_project_editor,
+    create_page_with_access,
+    create_user_with_org_and_project,
+)
+from users.tests.factories import UserFactory
 
 
 class AsyncIteratorMock:
@@ -137,8 +142,8 @@ class TestWebSocketUpdatePersistenceMocked(TransactionTestCase):
         mock_ystore_instance = create_mock_ystore()
         MockYStore.return_value = mock_ystore_instance
 
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
 
         comm = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
         comm.scope["user"] = user
@@ -167,9 +172,9 @@ class TestWebSocketUpdatePersistenceMocked(TransactionTestCase):
         mock_ystore_instance = create_mock_ystore()
         MockYStore.return_value = mock_ystore_instance
 
-        owner = await sync_to_async(UserFactory.create)()
+        owner, org, project = await create_user_with_org_and_project()
         unauthorized_user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=owner)
+        page = await create_page_with_access(owner, org, project)
 
         comm = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
         comm.scope["user"] = unauthorized_user
@@ -198,7 +203,7 @@ class TestWebSocketSnapshotPersistence(TransactionTestCase):
         Test that upsert_snapshot() is called when a client disconnects
         AND the document has content.
 
-        Note: Empty documents (≤2 bytes) are intentionally skipped to prevent
+        Note: Empty documents (<=2 bytes) are intentionally skipped to prevent
         corrupted 0x0000 snapshots that cause client reconnection loops.
         """
         # Setup fake ystore with initial content
@@ -208,8 +213,8 @@ class TestWebSocketSnapshotPersistence(TransactionTestCase):
         mock_ystore_instance.get_max_update_id.return_value = 5
         MockYStore.return_value = mock_ystore_instance
 
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
 
         comm = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
         comm.scope["user"] = user
@@ -243,8 +248,8 @@ class TestWebSocketSnapshotPersistence(TransactionTestCase):
         mock_ystore_instance = create_mock_ystore()
         MockYStore.return_value = mock_ystore_instance
 
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
 
         comm = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
         comm.scope["user"] = user
@@ -275,9 +280,9 @@ class TestWebSocketSnapshotPersistence(TransactionTestCase):
         mock_ystore_instance = create_mock_ystore()
         MockYStore.return_value = mock_ystore_instance
 
-        owner = await sync_to_async(UserFactory.create)()
+        owner, org, project = await create_user_with_org_and_project()
         unauthorized_user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=owner)
+        page = await create_page_with_access(owner, org, project)
 
         comm = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
         comm.scope["user"] = unauthorized_user
@@ -308,8 +313,8 @@ class TestWebSocketSnapshotPersistence(TransactionTestCase):
         mock_ystore_instance.get_max_update_id.return_value = 5
         MockYStore.return_value = mock_ystore_instance
 
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
 
         comm = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
         comm.scope["user"] = user
@@ -352,8 +357,8 @@ class TestWebSocketSnapshotPersistence(TransactionTestCase):
         mock_ystore_instance.get_max_update_id.return_value = 3
         MockYStore.return_value = mock_ystore_instance
 
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
 
         # Connect first client
         comm1 = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")

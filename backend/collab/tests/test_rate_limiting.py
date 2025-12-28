@@ -14,7 +14,12 @@ from django.test import TransactionTestCase, override_settings
 
 from backend.asgi import application
 from collab.consumers import WS_CLOSE_RATE_LIMITED
-from pages.tests.factories import PageFactory, UserFactory
+from collab.tests import (
+    add_project_editor,
+    create_page_with_access,
+    create_user_with_org_and_project,
+)
+from users.tests.factories import UserFactory
 
 
 class TestWebSocketRateLimiting(TransactionTestCase):
@@ -28,9 +33,9 @@ class TestWebSocketRateLimiting(TransactionTestCase):
 
     async def _create_test_fixtures(self):
         """Create a user and page for testing."""
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
-        return user, page
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
+        return user, org, project, page
 
     async def _connect_websocket(self, user, page):
         """
@@ -47,7 +52,7 @@ class TestWebSocketRateLimiting(TransactionTestCase):
     @override_settings(WS_RATE_LIMIT_CONNECTIONS=5, WS_RATE_LIMIT_WINDOW_SECONDS=60)
     async def test_connections_within_limit_are_accepted(self):
         """Connections within the rate limit should be accepted."""
-        user, page = await self._create_test_fixtures()
+        user, org, project, page = await self._create_test_fixtures()
 
         connections = []
         try:
@@ -71,7 +76,7 @@ class TestWebSocketRateLimiting(TransactionTestCase):
     @override_settings(WS_RATE_LIMIT_CONNECTIONS=3, WS_RATE_LIMIT_WINDOW_SECONDS=60)
     async def test_connections_exceeding_limit_are_rejected(self):
         """Connections exceeding the rate limit should be rejected with 4029."""
-        user, page = await self._create_test_fixtures()
+        user, org, project, page = await self._create_test_fixtures()
 
         connections = []
         try:
@@ -101,7 +106,7 @@ class TestWebSocketRateLimiting(TransactionTestCase):
     @override_settings(WS_RATE_LIMIT_CONNECTIONS=2, WS_RATE_LIMIT_WINDOW_SECONDS=1)
     async def test_rate_limit_resets_after_window(self):
         """Rate limit should reset after the time window expires."""
-        user, page = await self._create_test_fixtures()
+        user, org, project, page = await self._create_test_fixtures()
 
         connections = []
         try:
@@ -134,11 +139,10 @@ class TestWebSocketRateLimiting(TransactionTestCase):
     @override_settings(WS_RATE_LIMIT_CONNECTIONS=2, WS_RATE_LIMIT_WINDOW_SECONDS=60)
     async def test_rate_limit_is_per_user(self):
         """Each user should have their own rate limit."""
-        user1, page1 = await self._create_test_fixtures()
+        user1, org, project, page1 = await self._create_test_fixtures()
         user2 = await sync_to_async(UserFactory.create)()
         # Give user2 access to page1
-        page1_obj = await sync_to_async(lambda: page1)()
-        await sync_to_async(page1_obj.editors.add)(user2)
+        await add_project_editor(project, user2)
 
         connections = []
         try:
@@ -170,7 +174,7 @@ class TestWebSocketRateLimiting(TransactionTestCase):
         Simulate the bug scenario: rapid connect/disconnect cycles.
         After hitting the limit, further connections should be rejected.
         """
-        user, page = await self._create_test_fixtures()
+        user, org, project, page = await self._create_test_fixtures()
 
         accepted_count = 0
         rejected_count = 0
@@ -211,7 +215,7 @@ class TestRateLimitCacheKey(TransactionTestCase):
         """Authenticated users should be rate limited by user ID."""
         from collab.consumers import PageYjsConsumer
 
-        user = await sync_to_async(UserFactory.create)()
+        user, org, project = await create_user_with_org_and_project()
 
         consumer = PageYjsConsumer()
         consumer.scope = {"user": user, "client": ("192.168.1.1", 12345)}

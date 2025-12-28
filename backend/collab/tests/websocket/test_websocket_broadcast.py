@@ -2,6 +2,7 @@
 Tests for WebSocket update broadcasting functionality.
 
 Tests that CRDT updates are properly broadcast to all connected clients.
+Uses two-tier access model: Tier 1 (org membership) or Tier 2 (project editor).
 """
 
 from asgiref.sync import sync_to_async
@@ -10,7 +11,12 @@ from django.test import TransactionTestCase
 from pycrdt import Doc, Text
 
 from backend.asgi import application
-from pages.tests.factories import PageFactory, UserFactory
+from collab.tests import (
+    add_project_editor,
+    create_page_with_access,
+    create_user_with_org_and_project,
+)
+from users.tests.factories import UserFactory
 
 
 class TestWebSocketBroadcast(TransactionTestCase):
@@ -18,11 +24,13 @@ class TestWebSocketBroadcast(TransactionTestCase):
 
     async def test_update_broadcast_to_other_client(self):
         """Test that an update from one client is broadcast to other clients."""
-        # Create users and shared page
-        owner = await sync_to_async(UserFactory.create)()
+        # Create owner with org/project and page
+        owner, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(owner, org, project)
+
+        # Create project editor (Tier 2 access)
         editor = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=owner)
-        await sync_to_async(page.editors.add)(editor)
+        await add_project_editor(project, editor)
 
         # Connect two clients
         comm1 = WebsocketCommunicator(
@@ -63,8 +71,8 @@ class TestWebSocketBroadcast(TransactionTestCase):
 
     async def test_update_not_echoed_to_sender(self):
         """Test that updates are not echoed back to the sender (pycrdt-websocket behavior)."""
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
 
         comm = WebsocketCommunicator(
             application,
@@ -94,14 +102,15 @@ class TestWebSocketBroadcast(TransactionTestCase):
 
     async def test_broadcast_to_multiple_clients(self):
         """Test that updates are broadcast to all connected clients except sender."""
-        # Create 3 users, all with access
-        user1 = await sync_to_async(UserFactory.create)()
+        # Create owner with org/project
+        user1, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user1, org, project)
+
+        # Create two more users with project editor access
         user2 = await sync_to_async(UserFactory.create)()
         user3 = await sync_to_async(UserFactory.create)()
-
-        page = await sync_to_async(PageFactory.create)(creator=user1)
-        await sync_to_async(page.editors.add)(user2)
-        await sync_to_async(page.editors.add)(user3)
+        await add_project_editor(project, user2)
+        await add_project_editor(project, user3)
 
         # Connect all three clients
         comm1 = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
@@ -149,10 +158,11 @@ class TestWebSocketBroadcast(TransactionTestCase):
 
     async def test_large_update_broadcast(self):
         """Test that large updates are successfully broadcast."""
-        owner = await sync_to_async(UserFactory.create)()
+        owner, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(owner, org, project)
+
         editor = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=owner)
-        await sync_to_async(page.editors.add)(editor)
+        await add_project_editor(project, editor)
 
         comm1 = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
         comm1.scope["user"] = owner
@@ -186,10 +196,11 @@ class TestWebSocketBroadcast(TransactionTestCase):
 
     async def test_rapid_updates_broadcast(self):
         """Test that rapid sequential updates are all broadcast."""
-        owner = await sync_to_async(UserFactory.create)()
+        owner, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(owner, org, project)
+
         editor = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=owner)
-        await sync_to_async(page.editors.add)(editor)
+        await add_project_editor(project, editor)
 
         comm1 = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
         comm1.scope["user"] = owner
@@ -229,10 +240,11 @@ class TestWebSocketBroadcast(TransactionTestCase):
 
     async def test_client_disconnect_stops_receiving_broadcasts(self):
         """Test that disconnected clients no longer receive broadcasts."""
-        user1 = await sync_to_async(UserFactory.create)()
+        user1, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user1, org, project)
+
         user2 = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user1)
-        await sync_to_async(page.editors.add)(user2)
+        await add_project_editor(project, user2)
 
         comm1 = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
         comm1.scope["user"] = user1

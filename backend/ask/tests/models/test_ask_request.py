@@ -8,8 +8,8 @@ from litellm.exceptions import APIError
 from ask.constants import AIProvider, AskRequestError, AskRequestStatus
 from ask.models import AskRequest
 from ask.tests.factories import AskRequestFactory, PageEmbeddingFactory
-from pages.tests.factories import PageFactory
-from users.tests.factories import UserFactory
+from pages.tests.factories import PageFactory, ProjectFactory
+from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory
 
 
 class TestAskRequestModel(TestCase):
@@ -63,8 +63,15 @@ class TestAskRequestProcessQuery(TestCase):
     """Test the AskRequest.objects.process_query() method."""
 
     def setUp(self):
-        """Set up test fixtures."""
+        """Set up test fixtures with proper two-tier access."""
+        # Create org and add user as member
+        self.org = OrgFactory()
         self.user = UserFactory()
+        OrgMemberFactory(org=self.org, user=self.user)
+
+        # Create project in org for pages
+        self.project = ProjectFactory(org=self.org, creator=self.user)
+
         self.mock_response = {
             "choices": [{"message": {"content": "This is the answer to your question."}}],
             "model": "gpt-4",
@@ -77,8 +84,8 @@ class TestAskRequestProcessQuery(TestCase):
     def test_process_query_with_mentions(self, mock_parse_mentions, mock_build_messages, mock_create_completion):
         """Test process_query with explicit mentions - should skip embedding computation."""
         # Setup
-        page1 = PageFactory(creator=self.user, title="Page 1", details={"content": "Content 1"})
-        page2 = PageFactory(creator=self.user, title="Page 2", details={"content": "Content 2"})
+        page1 = PageFactory(project=self.project, creator=self.user, title="Page 1", details={"content": "Content 1"})
+        page2 = PageFactory(project=self.project, creator=self.user, title="Page 2", details={"content": "Content 2"})
 
         mock_parse_mentions.return_value = ("What is in these pages?", [str(page1.external_id), str(page2.external_id)])
         mock_build_messages.return_value = [{"role": "user", "content": "test"}]
@@ -120,8 +127,12 @@ class TestAskRequestProcessQuery(TestCase):
     ):
         """Test process_query without mentions - should use similarity search."""
         # Setup
-        page1 = PageFactory(creator=self.user, title="Relevant Page", details={"content": "Relevant content"})
-        page2 = PageFactory(creator=self.user, title="Other Page", details={"content": "Other content"})
+        page1 = PageFactory(
+            project=self.project, creator=self.user, title="Relevant Page", details={"content": "Relevant content"}
+        )
+        page2 = PageFactory(
+            project=self.project, creator=self.user, title="Other Page", details={"content": "Other content"}
+        )
 
         # Create embeddings for similarity search
         embedding1 = PageEmbeddingFactory(page=page1, embedding=[0.1] * 1536)
@@ -221,7 +232,9 @@ class TestAskRequestProcessQuery(TestCase):
         limit = settings.ASK_EMBEDDINGS_MAX_PAGES
         page_ids = []
         for i in range(limit + 5):
-            page = PageFactory(creator=self.user, title=f"Page {i}", details={"content": f"Content {i}"})
+            page = PageFactory(
+                project=self.project, creator=self.user, title=f"Page {i}", details={"content": f"Content {i}"}
+            )
             page_ids.append(str(page.external_id))
 
         mock_parse_mentions.return_value = ("What is in all these pages?", page_ids)
@@ -250,7 +263,9 @@ class TestAskRequestProcessQuery(TestCase):
     ):
         """Test process_query handles LiteLLM APIError and marks request as failed with api_error."""
         # Setup
-        page = PageFactory(creator=self.user, title="Test Page", details={"content": "Test content"})
+        page = PageFactory(
+            project=self.project, creator=self.user, title="Test Page", details={"content": "Test content"}
+        )
 
         mock_parse_mentions.return_value = ("What is this?", [str(page.external_id)])
         mock_build_messages.return_value = [{"role": "user", "content": "test"}]
@@ -278,7 +293,9 @@ class TestAskRequestProcessQuery(TestCase):
     ):
         """Test process_query handles unexpected exceptions and marks request as failed with unexpected error."""
         # Setup
-        page = PageFactory(creator=self.user, title="Test Page", details={"content": "Test content"})
+        page = PageFactory(
+            project=self.project, creator=self.user, title="Test Page", details={"content": "Test content"}
+        )
 
         mock_parse_mentions.return_value = ("What is this?", [str(page.external_id)])
         mock_build_messages.return_value = [{"role": "user", "content": "test"}]
@@ -303,8 +320,12 @@ class TestAskRequestProcessQuery(TestCase):
     ):
         """Test that process_query stores results with page information."""
         # Setup
-        page1 = PageFactory(creator=self.user, title="First Page", details={"content": "First content"})
-        page2 = PageFactory(creator=self.user, title="Second Page", details={"content": "Second content"})
+        page1 = PageFactory(
+            project=self.project, creator=self.user, title="First Page", details={"content": "First content"}
+        )
+        page2 = PageFactory(
+            project=self.project, creator=self.user, title="Second Page", details={"content": "Second content"}
+        )
 
         mock_parse_mentions.return_value = ("What is in these?", [str(page1.external_id), str(page2.external_id)])
         mock_build_messages.return_value = [{"role": "user", "content": "test"}]
@@ -346,10 +367,18 @@ class TestAskRequestProcessQuery(TestCase):
         self, mock_parse_mentions, mock_compute_embedding, mock_build_messages, mock_create_completion
     ):
         """Test that process_query only uses pages belonging to the user."""
-        # Setup
+        # Setup - create another user with their own org/project
+        other_org = OrgFactory()
         other_user = UserFactory()
-        user_page = PageFactory(creator=self.user, title="User Page", details={"content": "User content"})
-        other_page = PageFactory(creator=other_user, title="Other Page", details={"content": "Other content"})
+        OrgMemberFactory(org=other_org, user=other_user)
+        other_project = ProjectFactory(org=other_org, creator=other_user)
+
+        user_page = PageFactory(
+            project=self.project, creator=self.user, title="User Page", details={"content": "User content"}
+        )
+        other_page = PageFactory(
+            project=other_project, creator=other_user, title="Other Page", details={"content": "Other content"}
+        )
 
         # Create embeddings
         user_embedding = PageEmbeddingFactory(page=user_page, embedding=[0.1] * 1536)
@@ -389,9 +418,9 @@ class TestAskRequestProcessQuery(TestCase):
     ):
         """Test process_query with page_ids parameter - should use provided page_ids."""
         # Setup
-        page1 = PageFactory(creator=self.user, title="Page 1", details={"content": "Content 1"})
-        page2 = PageFactory(creator=self.user, title="Page 2", details={"content": "Content 2"})
-        page3 = PageFactory(creator=self.user, title="Page 3", details={"content": "Content 3"})
+        page1 = PageFactory(project=self.project, creator=self.user, title="Page 1", details={"content": "Content 1"})
+        page2 = PageFactory(project=self.project, creator=self.user, title="Page 2", details={"content": "Content 2"})
+        page3 = PageFactory(project=self.project, creator=self.user, title="Page 3", details={"content": "Content 3"})
 
         mock_parse_mentions.return_value = ("What is in these pages?", [])
         mock_build_messages.return_value = [{"role": "user", "content": "test"}]
@@ -423,9 +452,9 @@ class TestAskRequestProcessQuery(TestCase):
     ):
         """Test process_query merges page_ids and mentions with proper prioritization."""
         # Setup
-        page1 = PageFactory(creator=self.user, title="Page 1", details={"content": "Content 1"})
-        page2 = PageFactory(creator=self.user, title="Page 2", details={"content": "Content 2"})
-        page3 = PageFactory(creator=self.user, title="Page 3", details={"content": "Content 3"})
+        page1 = PageFactory(project=self.project, creator=self.user, title="Page 1", details={"content": "Content 1"})
+        page2 = PageFactory(project=self.project, creator=self.user, title="Page 2", details={"content": "Content 2"})
+        page3 = PageFactory(project=self.project, creator=self.user, title="Page 3", details={"content": "Content 3"})
 
         # page_ids has page1, mentions has page2 and page3
         mock_parse_mentions.return_value = (
@@ -465,12 +494,16 @@ class TestAskRequestProcessQuery(TestCase):
 
         # Create 2 pages for page_ids (priority)
         for i in range(2):
-            page = PageFactory(creator=self.user, title=f"Priority {i}", details={"content": f"Content {i}"})
+            page = PageFactory(
+                project=self.project, creator=self.user, title=f"Priority {i}", details={"content": f"Content {i}"}
+            )
             priority_pages.append(page)
 
         # Create limit pages for mentions
         for i in range(limit):
-            page = PageFactory(creator=self.user, title=f"Mention {i}", details={"content": f"Content {i}"})
+            page = PageFactory(
+                project=self.project, creator=self.user, title=f"Mention {i}", details={"content": f"Content {i}"}
+            )
             mention_pages.append(page)
 
         # Pass 2 priority pages and limit mentions (total = limit + 2)
@@ -510,8 +543,8 @@ class TestAskRequestProcessQuery(TestCase):
     ):
         """Test that duplicate page_ids between page_ids and mentions are deduplicated."""
         # Setup
-        page1 = PageFactory(creator=self.user, title="Page 1", details={"content": "Content 1"})
-        page2 = PageFactory(creator=self.user, title="Page 2", details={"content": "Content 2"})
+        page1 = PageFactory(project=self.project, creator=self.user, title="Page 1", details={"content": "Content 1"})
+        page2 = PageFactory(project=self.project, creator=self.user, title="Page 2", details={"content": "Content 2"})
 
         # Both page_ids and mentions have page1 (should be deduplicated)
         mock_parse_mentions.return_value = (
@@ -546,7 +579,7 @@ class TestAskRequestProcessQuery(TestCase):
     ):
         """Test that providing page_ids skips the embedding computation and similarity search."""
         # Setup
-        page1 = PageFactory(creator=self.user, title="Page 1", details={"content": "Content 1"})
+        page1 = PageFactory(project=self.project, creator=self.user, title="Page 1", details={"content": "Content 1"})
 
         mock_parse_mentions.return_value = ("What is this?", [])
         mock_build_messages.return_value = [{"role": "user", "content": "test"}]

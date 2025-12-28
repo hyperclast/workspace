@@ -2,6 +2,7 @@
 Tests for WebSocket document joining functionality.
 
 Tests that clients can successfully connect to and join collaborative editing sessions.
+Uses two-tier access model: Tier 1 (org membership) or Tier 2 (project editor).
 """
 
 from asgiref.sync import sync_to_async
@@ -11,7 +12,8 @@ from django.contrib.auth.models import AnonymousUser
 from django.test import TransactionTestCase
 
 from backend.asgi import application
-from pages.tests.factories import PageFactory, UserFactory
+from pages.tests.factories import PageFactory, ProjectFactory
+from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory
 
 User = get_user_model()
 
@@ -19,11 +21,19 @@ User = get_user_model()
 class TestWebSocketJoin(TransactionTestCase):
     """Test clients joining collaborative editing sessions."""
 
+    async def _create_user_with_org_and_project(self):
+        """Helper to create a user with org membership and project."""
+        org = await sync_to_async(OrgFactory.create)()
+        user = await sync_to_async(UserFactory.create)()
+        await sync_to_async(OrgMemberFactory.create)(org=org, user=user)
+        project = await sync_to_async(ProjectFactory.create)(org=org, creator=user)
+        return user, org, project
+
     async def test_owner_can_join_own_page(self):
         """Test that page owner can successfully connect to WebSocket."""
-        # Create user and page
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        # Create user with org/project and page
+        user, org, project = await self._create_user_with_org_and_project()
+        page = await sync_to_async(PageFactory.create)(project=project, creator=user)
 
         # Create WebSocket communicator
         communicator = WebsocketCommunicator(
@@ -40,14 +50,14 @@ class TestWebSocketJoin(TransactionTestCase):
         await communicator.disconnect()
 
     async def test_editor_can_join_shared_page(self):
-        """Test that an editor can connect to a page shared with them."""
-        # Create owner and page
-        owner = await sync_to_async(UserFactory.create)()
-        editor = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=owner)
+        """Test that a project editor can connect to a page in that project."""
+        # Create owner with org/project and page
+        owner, org, project = await self._create_user_with_org_and_project()
+        page = await sync_to_async(PageFactory.create)(project=project, creator=owner)
 
-        # Share page with editor
-        await sync_to_async(page.editors.add)(editor)
+        # Create project editor (not in org, but has project-level access)
+        editor = await sync_to_async(UserFactory.create)()
+        await sync_to_async(project.editors.add)(editor)
 
         # Editor connects
         communicator = WebsocketCommunicator(
@@ -57,16 +67,18 @@ class TestWebSocketJoin(TransactionTestCase):
         communicator.scope["user"] = editor
 
         connected, _ = await communicator.connect()
-        self.assertTrue(connected, "Editor should be able to connect to shared page")
+        self.assertTrue(connected, "Project editor should be able to connect to page")
 
         await communicator.disconnect()
 
     async def test_unauthorized_user_cannot_join(self):
         """Test that a user without access cannot connect."""
-        # Create page and unauthorized user
-        owner = await sync_to_async(UserFactory.create)()
+        # Create page with owner who has org access
+        owner, org, project = await self._create_user_with_org_and_project()
+        page = await sync_to_async(PageFactory.create)(project=project, creator=owner)
+
+        # Unauthorized user (not in org, not project editor)
         unauthorized_user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=owner)
 
         # Unauthorized user tries to connect
         communicator = WebsocketCommunicator(
@@ -81,8 +93,8 @@ class TestWebSocketJoin(TransactionTestCase):
     async def test_unauthenticated_user_cannot_join(self):
         """Test that an unauthenticated user cannot connect."""
         # Create page
-        owner = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=owner)
+        owner, org, project = await self._create_user_with_org_and_project()
+        page = await sync_to_async(PageFactory.create)(project=project, creator=owner)
 
         # Unauthenticated user tries to connect
         communicator = WebsocketCommunicator(
@@ -111,11 +123,13 @@ class TestWebSocketJoin(TransactionTestCase):
 
     async def test_multiple_clients_can_join_same_page(self):
         """Test that multiple clients can connect to the same page simultaneously."""
-        # Create owner and page
-        owner = await sync_to_async(UserFactory.create)()
+        # Create owner with org/project and page
+        owner, org, project = await self._create_user_with_org_and_project()
+        page = await sync_to_async(PageFactory.create)(project=project, creator=owner)
+
+        # Create project editor
         editor = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=owner)
-        await sync_to_async(page.editors.add)(editor)
+        await sync_to_async(project.editors.add)(editor)
 
         # Create two communicators
         comm1 = WebsocketCommunicator(
@@ -143,8 +157,8 @@ class TestWebSocketJoin(TransactionTestCase):
 
     async def test_same_user_can_have_multiple_connections(self):
         """Test that the same user can have multiple WebSocket connections (e.g., multiple browser tabs)."""
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await self._create_user_with_org_and_project()
+        page = await sync_to_async(PageFactory.create)(project=project, creator=user)
 
         # Create two communicators for same user
         comm1 = WebsocketCommunicator(
@@ -172,9 +186,11 @@ class TestWebSocketJoin(TransactionTestCase):
 
     async def test_connection_rejected_with_proper_close_code(self):
         """Test that unauthorized connections are rejected with proper WebSocket close code."""
-        owner = await sync_to_async(UserFactory.create)()
+        owner, org, project = await self._create_user_with_org_and_project()
+        page = await sync_to_async(PageFactory.create)(project=project, creator=owner)
+
+        # Unauthorized user (not in org, not project editor)
         unauthorized_user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=owner)
 
         communicator = WebsocketCommunicator(
             application,

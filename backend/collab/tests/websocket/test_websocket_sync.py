@@ -15,7 +15,12 @@ from pycrdt import Doc, Text
 
 from backend.asgi import application
 from collab.models import YSnapshot, YUpdate
-from pages.tests.factories import PageFactory, UserFactory
+from collab.tests import (
+    add_project_editor,
+    create_page_with_access,
+    create_user_with_org_and_project,
+)
+from users.tests.factories import UserFactory
 
 
 class TestWebSocketSync(TransactionTestCase):
@@ -24,8 +29,8 @@ class TestWebSocketSync(TransactionTestCase):
     async def test_new_client_receives_existing_state(self):
         """Test that a new client connecting receives the current document state."""
         # Client 1 connects and makes edits
-        user1 = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user1)
+        user1, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user1, org, project)
 
         comm1 = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
         comm1.scope["user"] = user1
@@ -47,7 +52,7 @@ class TestWebSocketSync(TransactionTestCase):
 
         # Client 2 connects to same page
         user2 = await sync_to_async(UserFactory.create)()
-        await sync_to_async(page.editors.add)(user2)
+        await add_project_editor(project, user2)
 
         comm2 = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
         comm2.scope["user"] = user2
@@ -69,10 +74,10 @@ class TestWebSocketSync(TransactionTestCase):
 
     async def test_concurrent_edits_converge(self):
         """Test that concurrent edits from multiple clients converge to same state."""
-        user1 = await sync_to_async(UserFactory.create)()
+        user1, org, project = await create_user_with_org_and_project()
         user2 = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user1)
-        await sync_to_async(page.editors.add)(user2)
+        page = await create_page_with_access(user1, org, project)
+        await add_project_editor(project, user2)
 
         comm1 = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
         comm1.scope["user"] = user1
@@ -104,9 +109,6 @@ class TestWebSocketSync(TransactionTestCase):
         # In real CRDT, both will converge to same final state
         # (order might vary but both will have both strings)
 
-        # This is a simplified test - full convergence testing
-        # would require applying received updates and checking state
-
         await asyncio.sleep(1)  # Allow time for convergence
 
         await comm1.disconnect()
@@ -114,8 +116,8 @@ class TestWebSocketSync(TransactionTestCase):
 
     async def test_updates_persisted_to_database(self):
         """Test that updates are persisted to the y_updates table and snapshot is created on disconnect."""
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
         room_name = f"page_{page.external_id}"
 
         # Create initial updates directly in the database
@@ -168,8 +170,8 @@ class TestWebSocketSync(TransactionTestCase):
         Test that the retrieved page is built from all previous edits.
         This tests the current behavior (loading all updates).
         """
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
         room_name = f"page_{page.external_id}"
 
         # Create a series of edits
@@ -224,8 +226,8 @@ class TestWebSocketSync(TransactionTestCase):
 
     async def test_reconnection_after_disconnect(self):
         """Test that a client can reconnect and sync state after disconnecting."""
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
 
         # First connection
         comm1 = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
@@ -265,10 +267,10 @@ class TestWebSocketSync(TransactionTestCase):
 
     async def test_offline_edits_sync_on_reconnect(self):
         """Test that edits made while offline are synced when reconnecting."""
-        user1 = await sync_to_async(UserFactory.create)()
+        user1, org, project = await create_user_with_org_and_project()
         user2 = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user1)
-        await sync_to_async(page.editors.add)(user2)
+        page = await create_page_with_access(user1, org, project)
+        await add_project_editor(project, user2)
 
         # Both clients connect
         comm1 = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
@@ -315,11 +317,11 @@ class TestWebSocketSync(TransactionTestCase):
         """
         Test that a snapshot is written when a client disconnects.
 
-        Note: Empty documents (≤2 bytes) are intentionally skipped to prevent
+        Note: Empty documents (<=2 bytes) are intentionally skipped to prevent
         corrupted 0x0000 snapshots that cause client reconnection loops.
         """
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
         room_name = f"page_{page.external_id}"
 
         # Create initial content in YUpdate table so consumer hydrates with content
@@ -355,8 +357,8 @@ class TestWebSocketSync(TransactionTestCase):
         Test that document is correctly loaded from snapshot + incremental updates.
         This tests the OPTIMIZED behavior.
         """
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
         room_name = f"page_{page.external_id}"
 
         # Step 1: Create a document with many edits and persist all updates
@@ -442,9 +444,9 @@ class TestWebSocketSync(TransactionTestCase):
         Measure performance difference between loading all updates vs snapshot + incremental.
         This is a documentation test to demonstrate the optimization.
         """
-        user = await sync_to_async(UserFactory.create)()
-        page1 = await sync_to_async(PageFactory.create)(creator=user)
-        page2 = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page1 = await create_page_with_access(user, org, project)
+        page2 = await create_page_with_access(user, org, project)
 
         room1 = f"page_{page1.external_id}"  # Will use all updates (no snapshot)
         room2 = f"page_{page2.external_id}"  # Will use snapshot + incremental
@@ -529,8 +531,8 @@ class TestWebSocketSync(TransactionTestCase):
         Verify that loading from snapshot + incremental produces the same state
         as loading all updates.
         """
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
         room_name = f"page_{page.external_id}"
 
         # Create a document with content
@@ -599,8 +601,8 @@ class TestWebSocketSync(TransactionTestCase):
 
     async def test_updates_cleaned_up_after_snapshot(self):
         """Test that old y_updates are deleted after snapshot creation."""
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
         room_name = f"page_{page.external_id}"
 
         # Create many updates
@@ -639,8 +641,8 @@ class TestWebSocketSync(TransactionTestCase):
 
     async def test_incremental_updates_preserved_after_snapshot(self):
         """Test that updates created AFTER a snapshot are preserved until next snapshot."""
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
         room_name = f"page_{page.external_id}"
 
         doc = Doc()
@@ -710,8 +712,8 @@ class TestWebSocketSync(TransactionTestCase):
            snapshot OR from disconnect snapshot logic)
         3. Old updates are cleaned up after snapshot creation
         """
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
         room_name = f"page_{page.external_id}"
 
         # Pre-populate database with some updates (simulating prior editing session)
@@ -752,8 +754,8 @@ class TestWebSocketSync(TransactionTestCase):
 
     async def test_no_snapshot_on_disconnect_when_no_changes(self):
         """Test that no snapshot is created on disconnect when there are no changes since last snapshot."""
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
         room_name = f"page_{page.external_id}"
 
         # Pre-populate database with updates and create a snapshot
@@ -823,8 +825,8 @@ class TestWebSocketSync(TransactionTestCase):
         verifying that the snapshot mechanism works with the edit counter in place,
         rather than trying to simulate exact protocol messages.
         """
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
         room_name = f"page_{page.external_id}"
 
         # Pre-populate database with updates that will be loaded on connect

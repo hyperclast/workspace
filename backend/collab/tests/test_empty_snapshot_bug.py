@@ -39,7 +39,7 @@ ROOT CAUSE HYPOTHESIS:
 4. Empty doc returns 0x0000 (2 bytes)
 5. Next connection: make_ydoc() tries to apply_update(0x0000)
 6. This either fails or creates invalid state
-7. Connection drops, client reconnects → infinite loop
+7. Connection drops, client reconnects -> infinite loop
 """
 
 import asyncio
@@ -52,7 +52,7 @@ from pycrdt import Doc, Text
 
 from backend.asgi import application
 from collab.models import YSnapshot
-from pages.tests.factories import PageFactory, UserFactory
+from collab.tests import create_page_with_access, create_user_with_org_and_project
 
 
 # ============================================================================
@@ -317,8 +317,8 @@ class TestWebSocketWithCorruptedSnapshot(TransactionTestCase):
         Expected behavior (after fix): Connection should handle gracefully.
         """
         # Step 1: Create a user and page
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
 
         room_id = f"page_{page.external_id}"
 
@@ -385,8 +385,8 @@ class TestWebSocketWithCorruptedSnapshot(TransactionTestCase):
         Control test: WebSocket connection with valid snapshot works correctly.
         """
         # Step 1: Create a user and page
-        user = await sync_to_async(UserFactory.create)()
-        page = await sync_to_async(PageFactory.create)(creator=user)
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project)
 
         room_id = f"page_{page.external_id}"
 
