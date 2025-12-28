@@ -46,6 +46,7 @@ function renderAppHTML() {
       </div>
       <div class="nav-main">
         <div class="nav-actions">
+          <a href="/settings/" class="nav-link">Settings</a>
           <div class="user-menu">
             <button id="user-avatar" class="user-avatar" title="Account menu">
               <span id="user-initial"></span>

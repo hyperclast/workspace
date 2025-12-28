@@ -36,7 +36,10 @@ export async function csrfFetch(url, options = {}) {
   const isMutatingRequest = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
 
   // Clone options to avoid mutating the original
-  const enhancedOptions = { ...options };
+  const enhancedOptions = {
+    ...options,
+    credentials: "same-origin",
+  };
 
   // Add CSRF token header for mutating requests
   if (isMutatingRequest) {

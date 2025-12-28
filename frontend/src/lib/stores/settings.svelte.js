@@ -151,7 +151,7 @@ export async function regenerateToken() {
 
 export async function logout() {
   try {
-    await csrfFetch(`${API_BASE_URL}/api/_allauth/browser/v1/auth/session`, {
+    await csrfFetch(`${API_BASE_URL}/api/browser/v1/auth/session`, {
       method: "DELETE",
     });
   } catch (error) {

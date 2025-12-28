@@ -7,14 +7,19 @@
       var userGravatar = document.getElementById("user-gravatar");
 
       if (userGravatar) {
-        userGravatar.onload = function() {
+        if (userGravatar.complete && userGravatar.naturalHeight > 0) {
           userInitial.style.display = "none";
           userGravatar.style.display = "block";
-        };
-        userGravatar.onerror = function() {
-          userGravatar.style.display = "none";
-          userInitial.style.display = "block";
-        };
+        } else {
+          userGravatar.onload = function() {
+            userInitial.style.display = "none";
+            userGravatar.style.display = "block";
+          };
+          userGravatar.onerror = function() {
+            userGravatar.style.display = "none";
+            userInitial.style.display = "block";
+          };
+        }
       }
 
       if (userAvatar && userDropdown) {
@@ -33,7 +38,7 @@
       var logoutBtn = document.getElementById("logout-btn");
       if (logoutBtn) {
         logoutBtn.addEventListener("click", function() {
-          fetch("/api/_allauth/browser/v1/auth/session", {
+          fetch("/api/browser/v1/auth/session", {
             method: "DELETE",
             credentials: "same-origin"
           }).finally(function() {

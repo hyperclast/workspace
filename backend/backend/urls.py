@@ -18,6 +18,11 @@ urlpatterns = [
     path("", include(("core.urls", "core"), namespace="core")),
 ]
 
+try:
+    urlpatterns.insert(0, path("", include("private.urls")))
+except ImportError:
+    pass
+
 
 if settings.RUNTIME_ENV == "dev":
     from debug_toolbar.toolbar import debug_toolbar_urls

@@ -1,0 +1,118 @@
+<style>
+  .app-nav {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 0.75rem 2rem;
+  }
+  .app-nav-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .app-nav-brand {
+    display: flex;
+    align-items: center;
+  }
+  .app-nav-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: white;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .app-nav-title .logo-icon {
+    width: 28px;
+    height: 28px;
+  }
+  .app-nav-main {
+    display: flex;
+    align-items: center;
+  }
+  .app-nav-actions {
+    display: flex;
+    align-items: center;
+  }
+  .app-nav .user-menu {
+    position: relative;
+  }
+  .app-nav .user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    padding: 0;
+  }
+  .app-nav .user-avatar:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+  }
+  .app-nav .user-avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .app-nav .user-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 0.5rem;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    min-width: 180px;
+    z-index: 1000;
+    display: none;
+  }
+  .app-nav .user-dropdown.open {
+    display: block;
+  }
+  .app-nav .user-dropdown-header {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .app-nav .user-dropdown-email {
+    font-size: 0.85rem;
+    color: #374151;
+    font-weight: 500;
+  }
+  .app-nav .user-dropdown-menu {
+    padding: 0.5rem;
+  }
+  .app-nav .user-dropdown-item {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    background: none;
+    text-align: left;
+    font-size: 0.85rem;
+    color: #374151;
+    text-decoration: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+  }
+  .app-nav .user-dropdown-item:hover {
+    background: #f1f5f9;
+  }
+  @media (max-width: 768px) {
+    .app-nav {
+      padding: 0.75rem 1rem;
+    }
+  }
+</style>

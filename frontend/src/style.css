@@ -105,6 +105,170 @@ nav {
   color: var(--text-primary);
 }
 
+/* Nav link with underline animation */
+.nav-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-weight: 500;
+  position: relative;
+  padding-bottom: 2px;
+}
+
+.nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 0;
+  height: 1px;
+  background: var(--text-primary);
+  transition: width 0.25s ease;
+}
+
+.nav-link:hover {
+  color: var(--text-primary);
+}
+
+.nav-link:hover::after {
+  width: 100%;
+}
+
+.nav-link-active {
+  color: var(--text-primary);
+}
+
+.nav-link-active::after {
+  width: 100%;
+}
+
+/* App Navigation (purple gradient - for settings, pricing, etc.) */
+.app-nav {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 0.75rem 2rem;
+  flex: 0 0 auto;
+  display: block;
+  border-bottom: none;
+}
+.app-nav-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.app-nav-brand {
+  display: flex;
+  align-items: center;
+}
+.app-nav-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: white;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.app-nav-title .logo-icon {
+  width: 28px;
+  height: 28px;
+}
+.app-nav-main {
+  display: flex;
+  align-items: center;
+}
+.app-nav-actions {
+  display: flex;
+  align-items: center;
+}
+.app-nav .user-menu {
+  position: relative;
+}
+.app-nav .user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+}
+.app-nav .user-avatar:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+.app-nav .user-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.app-nav .user-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  min-width: 180px;
+  z-index: 1000;
+  display: none;
+}
+.app-nav .user-dropdown.open {
+  display: block;
+}
+.app-nav .user-dropdown-header {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+.app-nav .user-dropdown-email {
+  font-size: 0.85rem;
+  color: #374151;
+  font-weight: 500;
+}
+.app-nav .user-dropdown-menu {
+  padding: 0.5rem;
+}
+.app-nav .user-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 0.85rem;
+  color: #374151;
+  text-decoration: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.app-nav .user-dropdown-item:hover {
+  background: #f1f5f9;
+}
+.app-nav .nav-current {
+  color: #9ca3af;
+  cursor: default;
+}
+.app-nav .nav-current:hover {
+  background: transparent;
+}
+@media (max-width: 768px) {
+  .app-nav {
+    padding: 0.75rem 1rem;
+  }
+}
+
 /* User avatar and dropdown */
 .user-menu {
   position: relative;
@@ -3199,6 +3363,61 @@ body.sidebar-resizing .chat-sidebar {
   line-height: 1.5;
 }
 
+.settings-profile-picture {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.profile-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #e9e9e8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-initial {
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.profile-picture-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.profile-picture-hint {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.profile-picture-hint a {
+  color: var(--accent-color, #667eea);
+  text-decoration: none;
+}
+
+.profile-picture-hint a:hover {
+  text-decoration: underline;
+}
+
 .settings-field {
   margin-bottom: 1rem;
 }
@@ -3281,6 +3500,31 @@ body.sidebar-resizing .chat-sidebar {
 .settings-edit-btn:hover {
   background: rgba(102, 126, 234, 0.1);
   color: #667eea;
+}
+
+.settings-logout-section {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  margin-top: 1rem;
+}
+
+.settings-logout-btn {
+  background: rgba(220, 38, 38, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  color: #b91c1c;
+  padding: 0.6rem 1.25rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.settings-logout-btn:hover {
+  border-color: #dc2626;
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.15);
 }
 
 .token-display-group {
