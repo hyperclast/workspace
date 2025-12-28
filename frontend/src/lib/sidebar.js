@@ -25,15 +25,16 @@ let mounted = false;
  * Initialize the sidebar by mounting the Svelte component.
  */
 export function initSidebar() {
-  if (mounted) return;
-
   const container = document.getElementById("sidebar-root");
   if (!container) {
     console.error("[Sidebar] Container #sidebar-root not found");
     return;
   }
 
-  // Clear any existing content
+  // Check if already mounted and DOM element has content
+  if (mounted && container.children.length > 0) return;
+
+  // Clear any existing content and (re)mount
   container.innerHTML = "";
 
   // Mount the Svelte component

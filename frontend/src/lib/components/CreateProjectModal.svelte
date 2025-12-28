@@ -4,6 +4,18 @@
   import { showToast } from '../toast.js';
   import { validateProjectName } from '../validation.js';
 
+  function getTodayDateTimeString() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    let hours = now.getHours();
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'pm' : 'am';
+    hours = hours % 12 || 12;
+    return `${year}-${month}-${day} ${hours}h${minutes}${ampm}`;
+  }
+
   let {
     open = $bindable(false),
     oncreated = () => {},
@@ -23,6 +35,7 @@
   // Load orgs when modal opens
   $effect(() => {
     if (open) {
+      name = `Project ${getTodayDateTimeString()}`;
       loadOrgs();
     } else {
       // Reset state when closed
@@ -39,8 +52,11 @@
       if (orgs.length > 0) {
         selectedOrgId = orgs[0].external_id;
       }
-      // Focus input after orgs load
-      setTimeout(() => inputEl?.focus(), 50);
+      // Focus and select input after orgs load
+      setTimeout(() => {
+        inputEl?.focus();
+        inputEl?.select();
+      }, 50);
     } catch (e) {
       error = 'Failed to load organizations';
     }
@@ -116,15 +132,20 @@
 
   <div class="modal-field">
     <label for="project-org-select">Organization</label>
-    <select
-      bind:value={selectedOrgId}
-      id="project-org-select"
-      disabled={loading || orgs.length === 0}
-    >
-      {#each orgs as org (org.external_id)}
-        <option value={org.external_id}>{org.name}</option>
-      {/each}
-    </select>
+    <div class="select-wrapper">
+      <select
+        bind:value={selectedOrgId}
+        id="project-org-select"
+        disabled={loading || orgs.length === 0}
+      >
+        {#each orgs as org (org.external_id)}
+          <option value={org.external_id}>{org.name}</option>
+        {/each}
+      </select>
+      <svg class="select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+    </div>
   </div>
 
   {#if error}
@@ -168,6 +189,31 @@
     background: var(--bg-primary);
     color: var(--text-primary);
     transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  .select-wrapper {
+    position: relative;
+  }
+
+  .select-wrapper select {
+    appearance: none;
+    padding-right: 2.5rem;
+    cursor: pointer;
+  }
+
+  .select-chevron {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    color: var(--text-secondary, #666);
+    pointer-events: none;
+  }
+
+  .select-wrapper select:disabled + .select-chevron {
+    opacity: 0.5;
   }
 
   .modal-field input:focus,

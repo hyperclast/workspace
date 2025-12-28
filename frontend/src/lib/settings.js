@@ -10,8 +10,9 @@ let mounted = false;
  * Initialize the settings page by mounting the Svelte component.
  */
 export default async function initSettingsPage() {
-  // Prevent re-mounting if already initialized (e.g., from hash changes)
-  if (mounted && document.getElementById("settings-page-root")) {
+  // Check if already mounted and DOM element exists with content
+  const existingRoot = document.getElementById("settings-page-root");
+  if (mounted && existingRoot && existingRoot.children.length > 0) {
     console.log("[Settings] Already mounted, skipping re-initialization");
     return;
   }

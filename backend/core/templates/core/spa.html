@@ -19,6 +19,7 @@
     {% if request.user.is_authenticated %}
       {{ request.user.email|json_script:"user-email" }}
       {{ request.user.external_id|json_script:"user-external-id" }}
+      {{ request.user.username|json_script:"user-username" }}
     {% endif %}
     {{ feature_flags|json_script:"feature-flags" }}
     {% csrf_token %}
@@ -36,6 +37,10 @@
         const userExternalIdEl = document.getElementById('user-external-id');
         if (userExternalIdEl && userExternalIdEl.textContent !== 'null') {
           window._userInfo.externalId = JSON.parse(userExternalIdEl.textContent);
+        }
+        const userUsernameEl = document.getElementById('user-username');
+        if (userUsernameEl && userUsernameEl.textContent !== 'null') {
+          window._userInfo.username = JSON.parse(userUsernameEl.textContent);
         }
       } else {
         window._userIsAuthenticated = false;

@@ -21,19 +21,19 @@ let mounted = false;
  * Initialize the sidenav by mounting the Svelte component.
  */
 function initSidenav() {
-  if (mounted) return;
-  mounted = true;
-
   const container = document.getElementById("sidebar-list");
   if (!container) {
     console.error("Sidenav container #sidebar-list not found");
     return;
   }
 
-  // Clear any existing content
-  container.innerHTML = "";
+  // Check if already mounted and DOM element has content
+  if (mounted && container.children.length > 0) return;
 
+  // Clear any existing content and (re)mount
+  container.innerHTML = "";
   mount(Sidenav, { target: container });
+  mounted = true;
 }
 
 /**

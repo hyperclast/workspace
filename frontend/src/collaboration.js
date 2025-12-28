@@ -11,10 +11,10 @@ import { WS_HOST } from "./config.js";
  * Create collaboration objects for a page.
  * This should be called BEFORE creating the editor view.
  * @param {string} pageExternalId - The page's external_id (used as room identifier)
- * @param {string} userEmail - Email of the authenticated user
+ * @param {string} displayName - Display name for the user (username or email)
  * @returns {Object} - { ydoc, provider, ytext, awareness, extension, syncPromise } for use in editor
  */
-export function createCollaborationObjects(pageExternalId, userEmail = "Anonymous") {
+export function createCollaborationObjects(pageExternalId, displayName = "Anonymous") {
   // Create a new Yjs document
   const ydoc = new Y.Doc();
 
@@ -38,7 +38,7 @@ export function createCollaborationObjects(pageExternalId, userEmail = "Anonymou
 
   // Set local user info
   awareness.setLocalStateField("user", {
-    name: userEmail,
+    name: displayName,
     color: getRandomColor(),
   });
 

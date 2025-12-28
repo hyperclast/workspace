@@ -10,14 +10,21 @@ import {
 let mounted = false;
 
 export function initModals() {
-  if (mounted) return;
-  mounted = true;
+  // Check if container already exists on body
+  let container = document.getElementById('svelte-modal-root');
+  if (mounted && container) return;
 
-  const container = document.createElement('div');
-  container.id = 'svelte-modal-root';
-  document.body.appendChild(container);
+  // Create container if it doesn't exist
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'svelte-modal-root';
+    document.body.appendChild(container);
+  } else {
+    container.innerHTML = '';
+  }
 
   mount(GlobalConfirm, { target: container });
+  mounted = true;
 }
 
 /**

@@ -11,9 +11,8 @@ import { createPage as createPageApi, deletePage as deletePageApi, fetchPage as 
 import { getSession, logout } from "./auth.js";
 import { clickToEndPlugin } from "./clickToEndPlugin.js";
 import { createCollaborationObjects, destroyCollaboration, setupUnloadHandler } from "./collaboration.js";
-import { API_BASE_URL, getBrandName } from "./config.js";
+import { API_BASE_URL, getBrandName, getUserInfo } from "./config.js";
 import { csrfFetch } from "./csrf.js";
-import { decorateDates, setupDateClickHandler } from "./decorateDates.js";
 import { decorateEmails } from "./decorateEmails.js";
 import { decorateFormatting, listKeymap, checkboxClickHandler, blockquoteKeymap } from "./decorateFormatting.js";
 import { decorateLinks, linkClickHandler } from "./decorateLinks.js";
@@ -95,7 +94,7 @@ function renderAppHTML() {
                 <span class="breadcrumb-sep">/</span>
                 <span id="breadcrumb-project" class="breadcrumb-item"></span>
                 <span class="breadcrumb-sep">/</span>
-                <span id="breadcrumb-page" class="breadcrumb-item breadcrumb-page"></span>
+                <span id="breadcrumb-page" class="breadcrumb-item breadcrumb-page"></span><span id="breadcrumb-filetype" class="breadcrumb-filetype"></span>
               </nav>
               <div class="breadcrumb-actions">
                 <div id="presence-indicator" class="presence-indicator" title="Users currently editing">
@@ -269,7 +268,7 @@ Object.defineProperty(window, '_currentProjectId', {
 /**
  * Update the page title and page heading.
  */
-function setPageTitle(title) {
+function setPageTitle(title, filetype = "md") {
   document.title = `${title} - ${getBrandName()}`;
   const titleInput = document.getElementById("note-title-input");
   if (titleInput) {
@@ -278,6 +277,10 @@ function setPageTitle(title) {
   const breadcrumbPage = document.getElementById("breadcrumb-page");
   if (breadcrumbPage) {
     breadcrumbPage.textContent = title || "Untitled";
+  }
+  const breadcrumbFiletype = document.getElementById("breadcrumb-filetype");
+  if (breadcrumbFiletype) {
+    breadcrumbFiletype.textContent = filetype || "md";
   }
 }
 
@@ -376,6 +379,8 @@ function setupTitleEditing() {
 
   titleInput.addEventListener("focus", () => {
     lastSavedTitle = titleInput.value;
+    // Select all text so user can type over
+    setTimeout(() => titleInput.select(), 0);
   });
 
   titleInput.addEventListener("input", () => {
@@ -444,7 +449,7 @@ async function loadPage(page) {
 
   localStorage.setItem("ws-last-page", page.external_id);
 
-  setPageTitle(page.title);
+  setPageTitle(page.title, page.details?.filetype || "md");
   updateBreadcrumb(currentProjectId);
   setCurrentPageId(page.external_id);
   notifyPageChange(page.external_id);
@@ -458,9 +463,12 @@ async function loadPage(page) {
   const content = page.details?.content || "";
 
   // Setup collaboration and wait for initial sync (with timeout fallback)
+  // Use getUserInfo() which has username from Django template (session API doesn't include it)
+  const userInfo = getUserInfo();
+  const displayName = userInfo.user?.username || currentUser?.email || "Anonymous";
   collabObjects = createCollaborationObjects(
     currentPage.external_id,
-    currentUser?.email || "Anonymous"
+    displayName
   );
 
   // Wait for sync to see if server has content
@@ -500,6 +508,14 @@ function findProjectIdForPage(pageExternalId) {
  * Expose current page for debugging and future features.
  */
 window.getCurrentPage = () => currentPage;
+
+/**
+ * Check if collaboration is synced (for testing).
+ * Returns true if WebSocket provider is connected and synced.
+ */
+window.isCollabSynced = () => {
+  return collabObjects?.provider?.synced === true;
+};
 
 /**
  * Cleanup page state without navigating (used when switching pages).
@@ -609,8 +625,10 @@ function formatDate(dateString) {
 
 /**
  * Open an existing page by external_id.
+ * @param {string} external_id - The page's external_id
+ * @param {boolean} skipPushState - If true, don't push to history (used for popstate handling)
  */
-async function openPage(external_id) {
+async function openPage(external_id, skipPushState = false) {
   if (cachedProjects.length === 0) {
     cachedProjects = await fetchProjects();
   }
@@ -626,7 +644,10 @@ async function openPage(external_id) {
 
   await loadPage(page);
 
-  window.history.pushState({}, '', `/pages/${external_id}/`);
+  // Only push state if this is a programmatic navigation, not browser back/forward
+  if (!skipPushState) {
+    window.history.pushState({}, '', `/pages/${external_id}/`);
+  }
 }
 
 /**
@@ -702,7 +723,7 @@ function initializeEditor(pageContent = "", additionalExtensions = []) {
             const titleInput = document.getElementById("note-title-input");
             if (titleInput) {
               titleInput.focus();
-              titleInput.setSelectionRange(titleInput.value.length, titleInput.value.length);
+              // Text will be selected by the focus handler
               return true;
             }
           }
@@ -742,7 +763,6 @@ function initializeEditor(pageContent = "", additionalExtensions = []) {
     blockquoteKeymap,
     checkboxClickHandler,
     decorateFormatting,
-    decorateDates,
     decorateEmails,
     decorateLinks,
     linkClickHandler,
@@ -770,7 +790,6 @@ function initializeEditor(pageContent = "", additionalExtensions = []) {
 
   window.tableUtils = { generateTable, insertTable, formatTable, findTables };
   setupToolbar(view);
-  setupDateClickHandler();
 
   // Expose view for debugging
   window.editorView = view;
@@ -782,6 +801,21 @@ function initializeEditor(pageContent = "", additionalExtensions = []) {
   view.focus();
 
   return view;
+}
+
+/**
+ * Get today's date and time in a friendly format like "2025-12-27 9h30am".
+ */
+function getTodayDateTimeString() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  let hours = now.getHours();
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'pm' : 'am';
+  hours = hours % 12 || 12;
+  return `${year}-${month}-${day} ${hours}h${minutes}${ampm}`;
 }
 
 /**
@@ -797,7 +831,7 @@ async function openCreatePageDialog(projectId) {
     title: "New Page",
     label: "Page title",
     placeholder: "Untitled",
-    value: "",
+    value: getTodayDateTimeString(),
     confirmText: "Create Page",
     maxlength: 100,
     required: false,
@@ -915,9 +949,20 @@ function setupCreateProjectButton() {
   const newProjectBtn = document.getElementById("sidebar-new-project-btn");
   newProjectBtn?.addEventListener("click", () => {
     createProjectModal({
-      oncreated: (newProject) => {
+      oncreated: async (newProject) => {
+        // Create a default page under the new project
+        const result = await createPage(newProject.external_id, "Untitled");
+        if (result.success && result.page) {
+          newProject.pages = [result.page];
+        }
+
         cachedProjects.unshift(newProject);
-        renderSidenav(cachedProjects, currentPage?.external_id);
+        renderSidenav(cachedProjects, result.page?.external_id);
+
+        // Navigate to the new page
+        if (result.page) {
+          window.location.href = `/pages/${result.page.external_id}/`;
+        }
       },
     });
   });
@@ -932,7 +977,8 @@ async function initializePageView() {
   const pageIdFromUrl = getPageIdFromPath();
 
   if (pageIdFromUrl) {
-    await openPage(pageIdFromUrl);
+    // URL already has page ID - don't push state (handles popstate and direct navigation)
+    await openPage(pageIdFromUrl, true);
     return;
   }
 

@@ -1595,15 +1595,23 @@ body.sidebar-resizing .chat-sidebar {
 
 /* Page title in breadcrumb - takes remaining space and truncates */
 .breadcrumb-item.breadcrumb-page {
-  flex: 1;
+  flex: none;
   min-width: 0;
   max-width: none;
-  display: block;
+  display: inline;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 500;
   color: var(--text-primary);
+}
+
+.breadcrumb-filetype {
+  font-size: 1em;
+  color: var(--text-tertiary, #999);
+  opacity: 0.4;
+  margin-left: 4px;
+  vertical-align: baseline;
 }
 
 .breadcrumb-item:first-child {
@@ -1994,18 +2002,6 @@ body.sidebar-resizing .chat-sidebar {
 
 .link-icon-external {
   color: #2383e2;
-}
-
-.hyper-date {
-  cursor: pointer;
-  background-color: rgba(35, 131, 226, 0.1);
-  border-radius: 3px;
-  padding: 2px 4px;
-  color: #2383e2;
-}
-
-.hyper-date:hover {
-  background-color: rgba(35, 131, 226, 0.2);
 }
 
 .email-highlight {
