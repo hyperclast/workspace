@@ -241,10 +241,13 @@ LOG_FILE = config("WS_LOG_FILE", default="/var/log/gunicorn/ws.log")
 LOG_LEVEL = config("WS_LOG_LEVEL", default="INFO")
 
 # Stripe
-STRIPE_API_PUBLIC_KEY = config("WS_STRIPE_API_PUBLIC_KEY", default=None)
+STRIPE_API_PUBLISHABLE_KEY = config("WS_STRIPE_API_PUBLISHABLE_KEY", default=None)
 STRIPE_API_SECRET_KEY = config("WS_STRIPE_API_SECRET_KEY", default=None)
 STRIPE_ENDPOINT_SECRET = config("WS_STRIPE_ENDPOINT_SECRET", default=None)
 STRIPE_PRO_PRICE_ID = config("WS_STRIPE_PRO_PRICE_ID", default=None)
+BILLING_ADMIN_EMAILS = config(
+    "WS_BILLING_ADMIN_EMAILS", default="", cast=lambda v: [e.strip() for e in v.split(",") if e.strip()]
+)
 
 
 # Redis

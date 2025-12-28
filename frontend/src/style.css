@@ -105,6 +105,26 @@ nav {
   color: var(--text-primary);
 }
 
+/* Upgrade pill for free tier users */
+.nav-actions .upgrade-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  text-decoration: none;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.nav-actions .upgrade-pill:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  color: #fff;
+}
+
 /* Nav link with underline animation */
 .nav-link {
   color: var(--text-secondary);
@@ -1689,7 +1709,9 @@ body.sidebar-resizing .chat-sidebar {
 
 /* Note title input - now inside editor-container */
 .note-title-area {
-  margin-bottom: 0.5rem;
+  width: 100%;
+  max-width: var(--max-content-width);
+  margin: 0 auto 0.5rem auto;
 }
 
 .note-title-input {
@@ -3860,7 +3882,61 @@ body.sidebar-resizing .chat-sidebar {
   background: rgba(102, 126, 234, 0.1);
   padding: 0.125rem 0.375rem;
   border-radius: 4px;
+}
+
+.org-billing-link {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 500;
   font-size: 0.8rem;
+}
+
+.org-billing-link:hover {
+  text-decoration: underline;
+}
+
+.org-plan-badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.org-plan-free {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.org-plan-pro {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.org-billing-actions {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.org-billing-btn {
+  display: inline-block;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #667eea;
+  border-radius: 6px;
+  background: white;
+  color: #667eea;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.org-billing-btn:hover {
+  background: #667eea;
+  color: white;
 }
 
 .org-personal-badge {

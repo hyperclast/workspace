@@ -68,7 +68,9 @@ def notify_org_access_revoked(org: Org, user_id: int):
 @orgs_router.get("/", response=List[OrgOut])
 def list_orgs(request: HttpRequest):
     """List all organizations the user is a member of."""
-    return Org.objects.filter(members=request.user)
+    from django.db.models import Prefetch
+
+    return Org.objects.filter(members=request.user).select_related("billing")
 
 
 @orgs_router.get("/{external_id}/", response=OrgOut)

@@ -10,11 +10,9 @@ from core.authentication import session_auth, token_auth
 from users.schemas import (
     AccessTokenResponse,
     CurrentUserSchema,
-    StripeCheckoutSchema,
     UpdateSettingsSchema,
     UpdateUserSchema,
 )
-from users.subscription import create_checkout_session_id
 
 
 def get_email_verified(user) -> bool:
@@ -108,32 +106,6 @@ def regenerate_access_token(request: HttpRequest):
     request.user.profile.access_token = token_urlsafe()
     request.user.profile.save(update_fields=["access_token", "modified"])
     return {"access_token": request.user.profile.access_token}
-
-
-@users_router.post("/stripe/checkout/")
-def create_stripe_checkout_session_id(request, payload: StripeCheckoutSchema):
-    user = request.user
-    if not user.is_authenticated:
-        return Response(
-            {"message": "Unauthorized"},
-            status=401,
-        )
-
-    try:
-        plan = payload.plan
-        session_id = create_checkout_session_id(request, plan)
-
-        return {
-            "message": "ok",
-            "session_id": session_id,
-        }
-
-    except Exception as e:
-        log_error("Error handling Stripe checkout for %s: %s", user, e)
-        return Response(
-            {"message": "Unexpected error"},
-            status=400,
-        )
 
 
 @users_router.patch("/settings/")

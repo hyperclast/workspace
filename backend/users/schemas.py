@@ -24,8 +24,15 @@ class OrgOut(Schema):
     external_id: str
     name: str
     domain: Optional[str] = None
+    is_pro: bool = False
     created: datetime
     modified: datetime
+
+    @staticmethod
+    def resolve_is_pro(obj):
+        if hasattr(obj, "billing"):
+            return obj.billing.is_pro
+        return False
 
     class Config:
         from_attributes = True
@@ -60,10 +67,6 @@ class OrgMemberList(Schema):
     """Wrapper for org members list."""
 
     data: List[OrgMemberOut]
-
-
-class StripeCheckoutSchema(Schema):
-    plan: str
 
 
 class UpdateSettingsSchema(Schema):

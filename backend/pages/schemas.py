@@ -161,6 +161,7 @@ class ProjectOrgOut(Schema):
     external_id: str
     name: str
     domain: Optional[str] = None
+    is_pro: bool = False
 
     class Config:
         from_attributes = True

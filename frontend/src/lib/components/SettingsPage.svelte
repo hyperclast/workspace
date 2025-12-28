@@ -1,6 +1,6 @@
 <script>
   import { onMount } from "svelte";
-  import { getBrandName, isPrivateFeatureEnabled } from "../../config.js";
+  import { getBrandName, isPrivateFeatureEnabled, getCsrfToken } from "../../config.js";
   import { setupUserAvatar, getGravatarUrl } from "../../gravatar.js";
   import { prompt, confirm } from "../modal.js";
   import { showToast } from "../toast.js";
@@ -17,6 +17,7 @@
 
   const brandName = getBrandName();
   const pricingEnabled = isPrivateFeatureEnabled("pricing");
+  const billingEnabled = isPrivateFeatureEnabled("billing");
 
   // Get reactive state object
   const data = getState();
@@ -347,7 +348,7 @@
           <div class="settings-profile-picture">
             <div class="profile-avatar">
               {#if gravatarLoaded && gravatarUrl}
-                <img src={gravatarUrl} alt="Profile picture" />
+                <img src={gravatarUrl} alt="" />
               {:else}
                 <span class="profile-initial">{data.user?.email?.charAt(0).toUpperCase() || "?"}</span>
               {/if}
@@ -486,6 +487,29 @@
                       <span class="org-detail-label">Joined</span>
                       <span class="org-detail-value">{formatDate(org.joinedAt)}</span>
                     </div>
+                    {#if billingEnabled}
+                      <div class="org-detail org-billing-detail">
+                        <span class="org-detail-label">Plan</span>
+                        <span class="org-detail-value">
+                          {#if org.is_pro}
+                            <span class="org-plan-badge org-plan-pro">Pro</span>
+                          {:else}
+                            <span class="org-plan-badge org-plan-free">Free</span>
+                          {/if}
+                        </span>
+                      </div>
+                      <div class="org-billing-actions">
+                        {#if org.is_pro}
+                          <form action="/billing/portal/" method="POST" style="display: inline;">
+                            <input type="hidden" name="csrfmiddlewaretoken" value={getCsrfToken()} />
+                            <input type="hidden" name="org_id" value={org.external_id} />
+                            <button type="submit" class="org-billing-btn">Manage Billing</button>
+                          </form>
+                        {:else}
+                          <a href="/pricing/#hosted" class="org-billing-link">Upgrade to Pro</a>
+                        {/if}
+                      </div>
+                    {/if}
                   </div>
                 </div>
               {/each}

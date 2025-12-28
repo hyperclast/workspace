@@ -1,11 +1,12 @@
 {% extends 'core/base.html' %}
-{% load static %}
+{% load static vite %}
 
 {% block title %}
   Welcome to {{ feature_flags.brandName|default:"Hyperclast" }}
 {% endblock %}
 
 {% block extra_styles %}
+  {% vite_prefetch "src/app.js" %}
   <link rel="stylesheet" href="{% static 'core/css/auth.css' %}?v={{ deployment_id }}" />
 {% endblock %}
 

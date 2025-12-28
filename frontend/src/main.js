@@ -46,6 +46,7 @@ function renderAppHTML() {
       </div>
       <div class="nav-main">
         <div class="nav-actions">
+          <a href="/pricing/" id="upgrade-pill" class="upgrade-pill" style="display: none;">Upgrade</a>
           <a href="/settings/" class="nav-link">Settings</a>
           <div class="user-menu">
             <button id="user-avatar" class="user-avatar" title="Account menu">
@@ -1119,6 +1120,13 @@ async function startApp() {
 
   // Initialize page view (open last page or create one)
   await initializePageView();
+
+  // Show upgrade pill if user has any free (non-Pro) orgs
+  const hasFreePlan = cachedProjects.some(p => !p.org?.is_pro);
+  const upgradePill = document.getElementById("upgrade-pill");
+  if (upgradePill && hasFreePlan) {
+    upgradePill.style.display = "inline-flex";
+  }
 }
 
 /**

@@ -5,7 +5,7 @@ from django.shortcuts import reverse
 from django.utils.html import format_html
 
 from .forms import ProfileAdminForm
-from .models import Org, OrgMember, Profile
+from .models import Org, OrgMember, Profile, StripeLog
 
 
 class OrgMemberInline(admin.TabularInline):
@@ -63,10 +63,33 @@ class UserAdmin(BaseUserAdmin):
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
     form = ProfileAdminForm
+    list_display = ["user", "tz", "created"]
+    search_fields = ["user__email"]
+    readonly_fields = ["created", "modified", "access_token"]
 
-    def get_form(self, request, obj=None, **kwargs):
-        form = super().get_form(request, obj, **kwargs)
-        if form:
-            form.base_fields["stripe_subscription_id"].required = False
-            form.base_fields["stripe_customer_id"].required = False
-        return form
+
+@admin.register(StripeLog)
+class StripeLogAdmin(admin.ModelAdmin):
+    list_display = ["event", "email", "user", "created"]
+    list_filter = ["event", "created"]
+    search_fields = ["event", "email", "user__email"]
+    readonly_fields = ["event", "email", "user", "payload_pretty", "created", "modified"]
+    exclude = ["payload"]
+    date_hierarchy = "created"
+    ordering = ["-created"]
+
+    @admin.display(description="Payload")
+    def payload_pretty(self, obj):
+        import json
+
+        formatted = json.dumps(obj.payload, indent=2, sort_keys=True)
+        return format_html('<pre style="margin:0; white-space:pre-wrap; word-wrap:break-word;">{}</pre>', formatted)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
