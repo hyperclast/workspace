@@ -142,7 +142,6 @@ services:
 
 volumes:
   ws-db-data:
-    name: hyperclast-shared-db-data
   frontend-node-modules:
 
 networks:
