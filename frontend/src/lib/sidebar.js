@@ -98,7 +98,15 @@ function setupSidebarResize() {
   setupRightSidebarResize();
 }
 
-function createResizeHandler(sidebar, handle, storageKey, minWidth, maxWidth, defaultWidth, getDelta) {
+function createResizeHandler(
+  sidebar,
+  handle,
+  storageKey,
+  minWidth,
+  maxWidth,
+  defaultWidth,
+  getDelta
+) {
   const savedWidth = localStorage.getItem(storageKey);
   if (savedWidth) {
     sidebar.style.width = `${savedWidth}px`;

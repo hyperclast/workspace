@@ -156,11 +156,13 @@ Returned when the ask feature is disabled via the `ASK_FEATURE_ENABLED` setting.
 The ask endpoint processes queries using a Retrieval-Augmented Generation (RAG) pipeline:
 
 1. **Note Selection** (in priority order):
+
    - **Explicit page_ids**: If `page_ids` is provided, these pages are used first
    - **Mention parsing**: Extracts `@[title](id)` mentions from the query
    - **Similarity search**: If no pages are explicitly specified, uses vector similarity to find relevant pages
 
 2. **Priority and Merging**:
+
    - `page_ids` parameter takes highest priority
    - Mentions from query text are added next
    - Duplicates are automatically removed

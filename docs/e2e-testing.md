@@ -12,11 +12,11 @@ npx playwright install chromium
 
 ## Quick Reference
 
-| Test | Command |
-|------|---------|
-| WebSocket stability | `npm run test:websocket` |
-| Page load time | `npm run test:load-time` |
-| All E2E tests | `npm run test:e2e` |
+| Test                          | Command                          |
+| ----------------------------- | -------------------------------- |
+| WebSocket stability           | `npm run test:websocket`         |
+| Page load time                | `npm run test:load-time`         |
+| All E2E tests                 | `npm run test:e2e`               |
 | Headed mode (visible browser) | Add `-- --headed` to any command |
 
 ## Testing Approaches
@@ -84,16 +84,19 @@ This starts a **completely separate** Docker Compose stack that won't interfere 
 **File**: `frontend/tests/e2e/websocket-stability.spec.js`
 
 Monitors WebSocket connections to detect reconnection loops. A healthy connection should:
+
 - Connect once
 - Stay connected for the session duration
 - NOT repeatedly connect/disconnect
 
 **What it checks**:
+
 - Number of WebSocket connections over a 10-30 second period
 - Connection/disconnection patterns
 - Sync completion
 
 **Failure indicates**:
+
 - Proxy/load balancer issues
 - y-websocket/pycrdt-websocket protocol mismatch
 - Server-side WebSocket timeout too short
@@ -114,6 +117,7 @@ npm run test:websocket -- --headed
 Measures how long it takes from page load to content appearing in the editor.
 
 **Thresholds**:
+
 - ✅ Acceptable: < 1 second
 - ⚠️ Warning: 1-3 seconds
 - ❌ Failure: > 3 seconds
@@ -124,15 +128,15 @@ npm run test:load-time
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `TEST_BASE_URL` | URL of the app to test | `http://localhost:9800` |
-| `TEST_EMAIL` | Use existing account email | (creates new user) |
-| `TEST_PASSWORD` | Use existing account password | (creates new user) |
-| `TEST_PAGE_ID` | Test a specific page | (uses any available page) |
-| `E2E_KEEP_STACK` | Don't tear down test stack | `0` |
-| `E2E_NO_BUILD` | Skip Docker image builds | `0` |
-| `E2E_HEADED` | Run with visible browser | `0` |
+| Variable         | Description                   | Default                   |
+| ---------------- | ----------------------------- | ------------------------- |
+| `TEST_BASE_URL`  | URL of the app to test        | `http://localhost:9800`   |
+| `TEST_EMAIL`     | Use existing account email    | (creates new user)        |
+| `TEST_PASSWORD`  | Use existing account password | (creates new user)        |
+| `TEST_PAGE_ID`   | Test a specific page          | (uses any available page) |
+| `E2E_KEEP_STACK` | Don't tear down test stack    | `0`                       |
+| `E2E_NO_BUILD`   | Skip Docker image builds      | `0`                       |
+| `E2E_HEADED`     | Run with visible browser      | `0`                       |
 
 ## Test Stack Architecture
 
@@ -148,6 +152,7 @@ Your Dev Stack (ws-*)          Test Stack (ws-e2e-*)
 ```
 
 The test stack uses:
+
 - `backend/docker-compose.e2e.yaml` - Port overrides
 - `backend/.env-e2e` - Separate environment (auto-created)
 
@@ -158,11 +163,13 @@ The test stack uses:
 If the WebSocket stability test fails with a reconnection loop:
 
 1. **Check Docker logs**:
+
    ```bash
    docker compose -p ws-e2e logs ws-web --tail=100
    ```
 
 2. **Common causes**:
+
    - Cloudflare/nginx WebSocket timeout too short
    - y-websocket library version mismatch
    - Server closing connections prematurely
@@ -208,10 +215,11 @@ For CI pipelines, use the dedicated test stack:
   run: |
     ./scripts/run-e2e-tests.sh
   env:
-    E2E_NO_BUILD: 0  # Build images in CI
+    E2E_NO_BUILD: 0 # Build images in CI
 ```
 
 The script handles:
+
 - Starting the stack
 - Waiting for health checks
 - Running migrations

@@ -6,6 +6,7 @@ personal use, evaluation, and internal experimentation.
 Commercial use of this software requires a paid commercial license.
 
 Commercial licenses are required for:
+
 - Use by businesses beyond individual or evaluation use
 - Use by organizations with more than 5 employees
 - Any production or revenue-generating use

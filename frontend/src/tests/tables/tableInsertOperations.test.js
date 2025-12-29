@@ -50,7 +50,7 @@ function calculateColumnWidths(table) {
 function simulateInsertRowBelow(view) {
   const tables = view.state.field(tablesField);
   const pos = view.state.selection.main.head;
-  const table = tables.find(t => pos >= t.from && pos <= t.to);
+  const table = tables.find((t) => pos >= t.from && pos <= t.to);
   if (!table) return false;
 
   const found = findCellAtPosInTable(table, pos);
@@ -63,7 +63,7 @@ function simulateInsertRowBelow(view) {
   let targetRowIndexAfterInsert;
 
   if (row.type === "header" || row.type === "separator") {
-    const separatorRow = table.rows.find(r => r.type === "separator");
+    const separatorRow = table.rows.find((r) => r.type === "separator");
     if (!separatorRow) return false;
     insertAfterRow = separatorRow;
     targetRowIndexAfterInsert = table.rows.indexOf(separatorRow) + 1;
@@ -72,7 +72,7 @@ function simulateInsertRowBelow(view) {
   }
 
   const colWidths = calculateColumnWidths(table);
-  const newRowCells = colWidths.map(w => " ".repeat(w));
+  const newRowCells = colWidths.map((w) => " ".repeat(w));
   const newRowText = "| " + newRowCells.join(" | ") + " |";
 
   view.dispatch({
@@ -85,7 +85,7 @@ function simulateInsertRowBelow(view) {
 function simulateInsertColumnRight(view) {
   const tables = view.state.field(tablesField);
   const pos = view.state.selection.main.head;
-  const table = tables.find(t => pos >= t.from && pos <= t.to);
+  const table = tables.find((t) => pos >= t.from && pos <= t.to);
   if (!table) return false;
 
   const found = findCellAtPosInTable(table, pos);
@@ -95,7 +95,7 @@ function simulateInsertColumnRight(view) {
   const changes = [];
 
   for (const row of table.rows) {
-    const cells = row.cells.map(c => c.content);
+    const cells = row.cells.map((c) => c.content);
     const newContent = row.type === "separator" ? "---" : "";
     cells.splice(colIndex + 1, 0, newContent);
 
@@ -188,7 +188,7 @@ describe("insertColumnRight - separator integrity", () => {
     expect(separatorLine).not.toContain("Header");
     expect(separatorLine).not.toContain("Data");
 
-    const pipeCounts = lines.map(line => (line.match(/\|/g) || []).length);
+    const pipeCounts = lines.map((line) => (line.match(/\|/g) || []).length);
     expect(new Set(pipeCounts).size).toBe(1);
   });
 });
@@ -206,7 +206,7 @@ describe("cursor positioning after operations", () => {
 
     const result = simulateInsertRowBelow(view);
 
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 50));
 
     const newTable = view.state.field(tablesField)[0];
     if (newTable && result.targetRowIndexAfterInsert < newTable.rows.length) {
@@ -216,7 +216,7 @@ describe("cursor positioning after operations", () => {
       }
     }
 
-    await new Promise(r => setTimeout(r, 10));
+    await new Promise((r) => setTimeout(r, 10));
 
     const finalCursor = getCursorPos(view);
     const doc = getDocText(view);

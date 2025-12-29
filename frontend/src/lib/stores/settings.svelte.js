@@ -90,9 +90,7 @@ export async function updateOrgName(orgId, newName) {
     });
 
     if (response.ok) {
-      orgs = orgs.map((org) =>
-        org.external_id === orgId ? { ...org, name: newName } : org
-      );
+      orgs = orgs.map((org) => (org.external_id === orgId ? { ...org, name: newName } : org));
       return { success: true };
     } else {
       const data = await response.json();
@@ -115,9 +113,7 @@ export async function addOrgMember(orgId, email) {
       const data = await response.json();
       // Update member count
       orgs = orgs.map((org) =>
-        org.external_id === orgId
-          ? { ...org, memberCount: org.memberCount + 1 }
-          : org
+        org.external_id === orgId ? { ...org, memberCount: org.memberCount + 1 } : org
       );
       return { success: true, data };
     } else if (response.status === 429) {
@@ -163,9 +159,17 @@ export async function logout() {
 // Export reactive state directly for Svelte components
 export function getState() {
   return {
-    get user() { return user; },
-    get orgs() { return orgs; },
-    get loading() { return loading; },
-    get error() { return error; },
+    get user() {
+      return user;
+    },
+    get orgs() {
+      return orgs;
+    },
+    get loading() {
+      return loading;
+    },
+    get error() {
+      return error;
+    },
   };
 }

@@ -199,13 +199,13 @@ See [Overview](./overview.md)
 
 ```javascript
 // From the SPA Settings page
-const response = await csrfFetch('/api/users/me/token/regenerate/', {
-  method: 'POST',
+const response = await csrfFetch("/api/users/me/token/regenerate/", {
+  method: "POST",
 });
 
 if (response.ok) {
   const data = await response.json();
-  console.log('New token:', data.access_token);
+  console.log("New token:", data.access_token);
   // Update UI to show new token
 }
 ```

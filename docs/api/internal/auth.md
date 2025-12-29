@@ -364,6 +364,7 @@ X-CSRFToken: YOUR_CSRF_TOKEN
 Reset a user's password using a reset token.
 
 This is a two-step process:
+
 1. Validate the reset key with a GET request
 2. Submit the new password with a POST request
 
@@ -517,11 +518,11 @@ X-Password-Reset-Key: RESET_KEY_FROM_EMAIL
 
 ```javascript
 // Step 1: Validate reset key
-const validateResponse = await fetch('/api/browser/v1/auth/password/reset', {
-  method: 'GET',
-  credentials: 'same-origin',
+const validateResponse = await fetch("/api/browser/v1/auth/password/reset", {
+  method: "GET",
+  credentials: "same-origin",
   headers: {
-    'X-Password-Reset-Key': resetKey,
+    "X-Password-Reset-Key": resetKey,
   },
 });
 
@@ -534,13 +535,13 @@ if (!validateResponse.ok) {
 await validateResponse.json();
 
 // Step 2: Submit new password
-const response = await fetch('/api/browser/v1/auth/password/reset', {
-  method: 'POST',
-  credentials: 'same-origin',
+const response = await fetch("/api/browser/v1/auth/password/reset", {
+  method: "POST",
+  credentials: "same-origin",
   headers: {
-    'Content-Type': 'application/json',
-    'X-CSRFToken': getCsrfToken(),
-    'X-Password-Reset-Key': resetKey,
+    "Content-Type": "application/json",
+    "X-CSRFToken": getCsrfToken(),
+    "X-Password-Reset-Key": resetKey,
   },
   body: JSON.stringify({
     key: resetKey,
@@ -551,6 +552,6 @@ const response = await fetch('/api/browser/v1/auth/password/reset', {
 // Check for success (both 200 and 401 indicate successful reset)
 if (response.ok || response.status === 401) {
   // Redirect to login
-  window.location.href = '/login';
+  window.location.href = "/login";
 }
 ```

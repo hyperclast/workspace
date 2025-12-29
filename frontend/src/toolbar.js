@@ -34,7 +34,7 @@ export function setupToolbar(editorView) {
     props: {
       editorView: editorView,
       tableUtils: window.tableUtils || null,
-    }
+    },
   });
 
   console.log("[Toolbar] Svelte component mounted");

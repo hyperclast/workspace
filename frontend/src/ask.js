@@ -13,7 +13,7 @@ import { csrfFetch } from "./csrf.js";
 export class AskError extends Error {
   constructor(code, message, status) {
     super(message);
-    this.name = 'AskError';
+    this.name = "AskError";
     this.code = code;
     this.status = status;
   }
@@ -29,11 +29,11 @@ export class AskError extends Error {
  */
 export async function askQuestion(query, pageIds = []) {
   const response = await csrfFetch(`${API_BASE_URL}/api/ask/`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
-    credentials: 'include', // Include session cookie
+    credentials: "include", // Include session cookie
     body: JSON.stringify({
       query: query,
       page_ids: pageIds,
@@ -42,11 +42,7 @@ export async function askQuestion(query, pageIds = []) {
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new AskError(
-      errorData.error,
-      errorData.message,
-      response.status
-    );
+    throw new AskError(errorData.error, errorData.message, response.status);
   }
 
   return response.json();
@@ -62,19 +58,19 @@ export async function askQuestion(query, pageIds = []) {
 export async function autocompletePages(searchQuery) {
   const params = new URLSearchParams();
   if (searchQuery) {
-    params.append('q', searchQuery);
+    params.append("q", searchQuery);
   }
 
   const response = await csrfFetch(`${API_BASE_URL}/api/pages/autocomplete/?${params.toString()}`, {
-    method: 'GET',
+    method: "GET",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
-    credentials: 'include',
+    credentials: "include",
   });
 
   if (!response.ok) {
-    throw new Error('Failed to fetch autocomplete suggestions');
+    throw new Error("Failed to fetch autocomplete suggestions");
   }
 
   return response.json();

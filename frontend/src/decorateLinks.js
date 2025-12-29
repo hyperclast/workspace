@@ -16,7 +16,9 @@ class LinkWidget extends WidgetType {
 
   toDOM() {
     const icon = document.createElement("span");
-    icon.className = this.isInternal ? "link-icon link-icon-internal" : "link-icon link-icon-external";
+    icon.className = this.isInternal
+      ? "link-icon link-icon-internal"
+      : "link-icon link-icon-external";
     icon.textContent = this.isInternal ? "📄" : "🔗";
     icon.style.fontSize = "0.85em";
     icon.style.marginRight = "2px";
@@ -60,22 +62,25 @@ export const decorateLinks = ViewPlugin.fromClass(
 
         if (!cursorInLink) {
           builder.push(
-            Decoration.replace({ widget: new LinkWidget(isInternal, url) }).range(bracketStart, textStart)
+            Decoration.replace({ widget: new LinkWidget(isInternal, url) }).range(
+              bracketStart,
+              textStart
+            )
           );
 
-          builder.push(
-            Decoration.replace({}).range(textEnd, end)
-          );
+          builder.push(Decoration.replace({}).range(textEnd, end));
         }
 
-        const linkClass = isInternal ? "format-link format-link-internal" : "format-link format-link-external";
+        const linkClass = isInternal
+          ? "format-link format-link-internal"
+          : "format-link format-link-external";
         builder.push(
           Decoration.mark({
             class: linkClass,
             attributes: {
               "data-url": url,
-              "data-internal": isInternal ? "true" : "false"
-            }
+              "data-internal": isInternal ? "true" : "false",
+            },
           }).range(textStart, textEnd)
         );
       }
@@ -93,7 +98,9 @@ export const linkClickHandler = EditorView.domEventHandlers({
     const target = event.target;
 
     if (target.classList.contains("format-link") || target.closest(".format-link")) {
-      const linkEl = target.classList.contains("format-link") ? target : target.closest(".format-link");
+      const linkEl = target.classList.contains("format-link")
+        ? target
+        : target.closest(".format-link");
       const url = linkEl.dataset.url;
       const isInternal = linkEl.dataset.internal === "true";
 

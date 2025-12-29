@@ -28,4 +28,3 @@ export function setupUserAvatar(email, avatarElement, initialElement) {
 
   img.src = gravatarUrl;
 }
-

@@ -7,25 +7,20 @@
  * - Full: Thorough testing (larger datasets, strict thresholds) via PERF_FULL=1
  */
 
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
-import { EditorState } from '@codemirror/state';
-import { EditorView } from '@codemirror/view';
-import * as Y from 'yjs';
-import { yCollab } from 'y-codemirror.next';
-import {
-  getConfig,
-  runPerfTest,
-  measureTime,
-  calculateOverhead,
-} from './helpers/perf-utils.js';
-import { createYjsDoc, generateLines } from './helpers/fixtures.js';
+import { describe, test, expect, beforeEach, afterEach } from "vitest";
+import { EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
+import * as Y from "yjs";
+import { yCollab } from "y-codemirror.next";
+import { getConfig, runPerfTest, measureTime, calculateOverhead } from "./helpers/perf-utils.js";
+import { createYjsDoc, generateLines } from "./helpers/fixtures.js";
 
-describe('[PERF] CodeMirror ↔ Yjs Binding', () => {
+describe("[PERF] CodeMirror ↔ Yjs Binding", () => {
   let ydoc, ytext, view;
 
   beforeEach(() => {
     ydoc = new Y.Doc();
-    ytext = ydoc.getText('codemirror');
+    ytext = ydoc.getText("codemirror");
   });
 
   afterEach(() => {
@@ -35,7 +30,7 @@ describe('[PERF] CodeMirror ↔ Yjs Binding', () => {
     }
   });
 
-  test('[PERF] initialize editor on large document', async () => {
+  test("[PERF] initialize editor on large document", async () => {
     const numLines = getConfig(1000, 5000);
     const threshold = getConfig(1000, 500); // Default: 1s, Full: 500ms
 
@@ -45,7 +40,7 @@ describe('[PERF] CodeMirror ↔ Yjs Binding', () => {
 
     // Measure time to initialize CodeMirror with Yjs binding
     const { duration } = await runPerfTest(
-      'initialize editor on large document',
+      "initialize editor on large document",
       () => {
         const state = EditorState.create({
           doc: content, // Start with content directly
@@ -54,7 +49,7 @@ describe('[PERF] CodeMirror ↔ Yjs Binding', () => {
 
         view = new EditorView({
           state,
-          parent: document.createElement('div'),
+          parent: document.createElement("div"),
         });
       },
       threshold,
@@ -71,12 +66,12 @@ describe('[PERF] CodeMirror ↔ Yjs Binding', () => {
     expect(view.state.doc.lines).toBe(numLines);
   });
 
-  test('[PERF] Yjs update to editor state reflection', async () => {
+  test("[PERF] Yjs update to editor state reflection", async () => {
     const insertLines = getConfig(50, 100);
     const threshold = getConfig(200, 100); // Default: 200ms, Full: 100ms
 
     // Initialize editor with small document
-    const initialContent = 'Initial content\n';
+    const initialContent = "Initial content\n";
     ytext.insert(0, initialContent);
 
     const state = EditorState.create({
@@ -86,14 +81,14 @@ describe('[PERF] CodeMirror ↔ Yjs Binding', () => {
 
     view = new EditorView({
       state,
-      parent: document.createElement('div'),
+      parent: document.createElement("div"),
     });
 
     // Measure time for Yjs update to reflect in editor
     const insertContent = generateLines(insertLines, { lineLength: 70 });
 
     const { duration } = await runPerfTest(
-      'Yjs update to editor state reflection',
+      "Yjs update to editor state reflection",
       () => {
         // Apply update to Yjs document
         ytext.insert(ytext.length, insertContent);
@@ -114,7 +109,7 @@ describe('[PERF] CodeMirror ↔ Yjs Binding', () => {
     expect(view.state.doc.length).toBeGreaterThan(initialContent.length);
   });
 
-  test('[PERF] common user actions', async () => {
+  test("[PERF] common user actions", async () => {
     const blockSize = getConfig(20, 50);
     const singleLineThreshold = getConfig(50, 30);
     const blockThreshold = getConfig(100, 50);
@@ -130,13 +125,13 @@ describe('[PERF] CodeMirror ↔ Yjs Binding', () => {
 
     view = new EditorView({
       state,
-      parent: document.createElement('div'),
+      parent: document.createElement("div"),
     });
 
     // Action 1: Insert single line
     const { duration: singleLineTime } = await measureTime(() => {
       view.dispatch({
-        changes: { from: 0, insert: 'New line\n' },
+        changes: { from: 0, insert: "New line\n" },
       });
     });
 
@@ -144,7 +139,9 @@ describe('[PERF] CodeMirror ↔ Yjs Binding', () => {
 
     if (singleLineTime > singleLineThreshold * 2) {
       console.warn(
-        `⚠️  Insert single line (${singleLineTime.toFixed(2)}ms) > 2x threshold (${singleLineThreshold}ms)`
+        `⚠️  Insert single line (${singleLineTime.toFixed(
+          2
+        )}ms) > 2x threshold (${singleLineThreshold}ms)`
       );
     }
     expect(singleLineTime).toBeLessThan(singleLineThreshold * 3);
@@ -160,9 +157,7 @@ describe('[PERF] CodeMirror ↔ Yjs Binding', () => {
       });
     });
 
-    console.log(
-      `[PERF] Insert ${blockSize} lines: ${blockInsertTime.toFixed(2)}ms`
-    );
+    console.log(`[PERF] Insert ${blockSize} lines: ${blockInsertTime.toFixed(2)}ms`);
 
     if (blockInsertTime > blockThreshold * 2) {
       console.warn(
@@ -191,7 +186,7 @@ describe('[PERF] CodeMirror ↔ Yjs Binding', () => {
     expect(deleteTime).toBeLessThan(deleteThreshold * 3);
   });
 
-  test('[PERF] Yjs binding overhead', async () => {
+  test("[PERF] Yjs binding overhead", async () => {
     const numOperations = getConfig(100, 500);
     const content = generateLines(50, { lineLength: 80 });
 
@@ -203,13 +198,13 @@ describe('[PERF] CodeMirror ↔ Yjs Binding', () => {
 
     const baselineView = new EditorView({
       state: baselineState,
-      parent: document.createElement('div'),
+      parent: document.createElement("div"),
     });
 
     const { duration: baselineDuration } = await measureTime(() => {
       for (let i = 0; i < numOperations; i++) {
         baselineView.dispatch({
-          changes: { from: 0, insert: 'x' },
+          changes: { from: 0, insert: "x" },
         });
       }
     });
@@ -224,26 +219,24 @@ describe('[PERF] CodeMirror ↔ Yjs Binding', () => {
     ytext.insert(0, content);
 
     const yjsState = EditorState.create({
-      doc: '',
+      doc: "",
       extensions: [yCollab(ytext)],
     });
 
     view = new EditorView({
       state: yjsState,
-      parent: document.createElement('div'),
+      parent: document.createElement("div"),
     });
 
     const { duration: yjsDuration } = await measureTime(() => {
       for (let i = 0; i < numOperations; i++) {
         view.dispatch({
-          changes: { from: 0, insert: 'x' },
+          changes: { from: 0, insert: "x" },
         });
       }
     });
 
-    console.log(
-      `[PERF] With Yjs binding: ${yjsDuration.toFixed(2)}ms for ${numOperations} ops`
-    );
+    console.log(`[PERF] With Yjs binding: ${yjsDuration.toFixed(2)}ms for ${numOperations} ops`);
 
     // Calculate overhead
     const overhead = calculateOverhead(yjsDuration, baselineDuration);
@@ -251,9 +244,7 @@ describe('[PERF] CodeMirror ↔ Yjs Binding', () => {
 
     // Warn if overhead > 30%
     if (overhead > 30) {
-      console.warn(
-        `⚠️  Yjs binding overhead (${overhead.toFixed(2)}%) > 30%`
-      );
+      console.warn(`⚠️  Yjs binding overhead (${overhead.toFixed(2)}%) > 30%`);
     }
 
     // Fail if overhead > 50%

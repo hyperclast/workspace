@@ -57,15 +57,15 @@ Some text after`;
     });
 
     // Wait a tick for the formatting to be applied
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     // The table should now be formatted with aligned columns
     const newDoc = view.state.doc.toString();
 
     // Check that columns are aligned (Name and Alice should have same width)
     const lines = newDoc.split("\n");
-    const headerLine = lines.find(l => l.includes("Name"));
-    const dataLine = lines.find(l => l.includes("Alice"));
+    const headerLine = lines.find((l) => l.includes("Name"));
+    const dataLine = lines.find((l) => l.includes("Alice"));
 
     // Both lines should have the same structure with aligned pipes
     expect(headerLine).toContain("| Name  |");
@@ -99,7 +99,7 @@ Some text after`;
       selection: { anchor: alicePos },
     });
 
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     // Content should be unchanged (no formatting triggered)
     expect(view.state.doc.toString()).toBe(originalDoc);
@@ -134,7 +134,7 @@ End`;
       selection: { anchor: endPos },
     });
 
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     const newDoc = view.state.doc.toString();
 
@@ -142,7 +142,7 @@ End`;
     expect(newDoc).toContain("Very Long Header");
     // The short values should be padded
     const lines = newDoc.split("\n");
-    const dataLine = lines.find(l => l.includes("Short"));
+    const dataLine = lines.find((l) => l.includes("Short"));
     expect(dataLine).toMatch(/Short\s+\|/);
   });
 });

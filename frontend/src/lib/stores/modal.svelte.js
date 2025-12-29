@@ -1,10 +1,10 @@
 let confirmState = $state({
   open: false,
-  title: 'Confirm',
-  message: '',
-  description: '',
-  confirmText: 'Confirm',
-  cancelText: 'Cancel',
+  title: "Confirm",
+  message: "",
+  description: "",
+  confirmText: "Confirm",
+  cancelText: "Cancel",
   danger: false,
   onconfirm: () => {},
   oncancel: () => {},
@@ -17,11 +17,11 @@ export function getConfirmState() {
 export function openConfirm(options) {
   return new Promise((resolve) => {
     // Mutate existing object instead of reassigning
-    confirmState.title = options.title || 'Confirm';
-    confirmState.message = options.message || '';
-    confirmState.description = options.description || '';
-    confirmState.confirmText = options.confirmText || 'Confirm';
-    confirmState.cancelText = options.cancelText || 'Cancel';
+    confirmState.title = options.title || "Confirm";
+    confirmState.message = options.message || "";
+    confirmState.description = options.description || "";
+    confirmState.confirmText = options.confirmText || "Confirm";
+    confirmState.cancelText = options.cancelText || "Cancel";
     confirmState.danger = options.danger || false;
     confirmState.onconfirm = () => resolve(true);
     confirmState.oncancel = () => resolve(false);
@@ -35,12 +35,12 @@ export function closeConfirm() {
 
 let promptState = $state({
   open: false,
-  title: 'Enter value',
-  label: '',
-  placeholder: '',
-  value: '',
-  confirmText: 'Save',
-  cancelText: 'Cancel',
+  title: "Enter value",
+  label: "",
+  placeholder: "",
+  value: "",
+  confirmText: "Save",
+  cancelText: "Cancel",
   maxlength: 255,
   required: true,
   validate: null,
@@ -55,12 +55,12 @@ export function getPromptState() {
 export function openPrompt(options) {
   return new Promise((resolve) => {
     // Mutate existing object instead of reassigning
-    promptState.title = options.title || 'Enter value';
-    promptState.label = options.label || '';
-    promptState.placeholder = options.placeholder || '';
-    promptState.value = options.value || '';
-    promptState.confirmText = options.confirmText || 'Save';
-    promptState.cancelText = options.cancelText || 'Cancel';
+    promptState.title = options.title || "Enter value";
+    promptState.label = options.label || "";
+    promptState.placeholder = options.placeholder || "";
+    promptState.value = options.value || "";
+    promptState.confirmText = options.confirmText || "Save";
+    promptState.cancelText = options.cancelText || "Cancel";
     promptState.maxlength = options.maxlength || 255;
     promptState.required = options.required !== false;
     promptState.validate = options.validate || null;
@@ -76,8 +76,8 @@ export function closePrompt() {
 
 let shareProjectState = $state({
   open: false,
-  projectId: '',
-  projectName: '',
+  projectId: "",
+  projectName: "",
 });
 
 export function getShareProjectState() {
@@ -86,8 +86,8 @@ export function getShareProjectState() {
 
 export function openShareProject(options) {
   // Mutate existing object instead of reassigning
-  shareProjectState.projectId = options.projectId || '';
-  shareProjectState.projectName = options.projectName || '';
+  shareProjectState.projectId = options.projectId || "";
+  shareProjectState.projectName = options.projectName || "";
   shareProjectState.open = true;
 }
 

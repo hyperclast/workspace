@@ -8,7 +8,7 @@
 /**
  * Check if we're running in full performance test mode
  */
-export const isFullMode = () => process.env.PERF_FULL === '1';
+export const isFullMode = () => process.env.PERF_FULL === "1";
 
 /**
  * Get configuration value based on mode
@@ -40,8 +40,8 @@ export const measureTime = async (fn) => {
  * @param {Object} metadata - Additional metadata to log
  */
 export const logPerf = (testName, duration, threshold, metadata = {}) => {
-  const mode = isFullMode() ? 'FULL' : 'DEFAULT';
-  const status = duration > threshold * 2 ? '⚠️  SLOW' : duration > threshold ? '⚠️  WARN' : '✓';
+  const mode = isFullMode() ? "FULL" : "DEFAULT";
+  const status = duration > threshold * 2 ? "⚠️  SLOW" : duration > threshold ? "⚠️  WARN" : "✓";
 
   console.log(`[PERF] ${status} ${testName}`);
   console.log(`  Duration: ${duration.toFixed(2)}ms`);
@@ -63,15 +63,17 @@ export const assertPerf = (duration, threshold, message) => {
   const failThreshold = threshold * 3; // Fail only if 3x slower
 
   if (duration > threshold * 2) {
-    console.warn(`⚠️  PERF WARNING: ${message} - ${duration.toFixed(2)}ms (threshold: ${threshold}ms)`);
+    console.warn(
+      `⚠️  PERF WARNING: ${message} - ${duration.toFixed(2)}ms (threshold: ${threshold}ms)`
+    );
   }
 
   if (duration > failThreshold) {
     throw new Error(
       `Performance assertion failed: ${message}\n` +
-      `Duration: ${duration.toFixed(2)}ms\n` +
-      `Threshold: ${threshold}ms\n` +
-      `Fail threshold: ${failThreshold}ms (3x)`
+        `Duration: ${duration.toFixed(2)}ms\n` +
+        `Threshold: ${threshold}ms\n` +
+        `Fail threshold: ${failThreshold}ms (3x)`
     );
   }
 };
@@ -112,7 +114,7 @@ export const measureSize = (data) => {
   if (data instanceof ArrayBuffer) {
     return data.byteLength;
   }
-  if (typeof data === 'string') {
+  if (typeof data === "string") {
     return new TextEncoder().encode(data).length;
   }
   return 0;

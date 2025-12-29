@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderList, updateActiveItem, setNavigateHandler, setNewPageHandler } from "../../sidenav/list.js";
+import {
+  renderList,
+  updateActiveItem,
+  setNavigateHandler,
+  setNewPageHandler,
+} from "../../sidenav/list.js";
 
 describe("Project List Rendering", () => {
   beforeEach(() => {
@@ -174,8 +179,14 @@ describe("updateActiveItem", () => {
   it("updates active state correctly", () => {
     updateActiveItem("page3");
 
-    expect(document.querySelector('[data-external-id="page1"]').classList.contains("active")).toBe(false);
-    expect(document.querySelector('[data-external-id="page2"]').classList.contains("active")).toBe(false);
-    expect(document.querySelector('[data-external-id="page3"]').classList.contains("active")).toBe(true);
+    expect(document.querySelector('[data-external-id="page1"]').classList.contains("active")).toBe(
+      false
+    );
+    expect(document.querySelector('[data-external-id="page2"]').classList.contains("active")).toBe(
+      false
+    );
+    expect(document.querySelector('[data-external-id="page3"]').classList.contains("active")).toBe(
+      true
+    );
   });
 });

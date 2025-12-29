@@ -133,15 +133,16 @@ services:
     working_dir: /srv
     volumes:
       - ${SOCRATIC_PREVIEW_DIR:-./tmp/socratic}:/srv
-    command: python -m http.server 9494 --bind 0.0.0.0
+    command: python -m http.server ${WS_PREVIEW_PORT:-9494} --bind 0.0.0.0
     ports:
-      - "9494:9494"
+      - "${WS_PREVIEW_PORT:-9494}:${WS_PREVIEW_PORT:-9494}"
     restart: unless-stopped
     networks:
       - ws-net
 
 volumes:
   ws-db-data:
+    name: hyperclast-shared-db-data
   frontend-node-modules:
 
 networks:

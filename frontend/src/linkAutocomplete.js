@@ -8,7 +8,9 @@ let cachedPages = null;
 let lastQuery = "";
 
 async function fetchAutocompletePages(query) {
-  const response = await csrfFetch(`${API_BASE}/pages/autocomplete/?q=${encodeURIComponent(query)}`);
+  const response = await csrfFetch(
+    `${API_BASE}/pages/autocomplete/?q=${encodeURIComponent(query)}`
+  );
   if (!response.ok) {
     throw new Error("Failed to fetch pages for autocomplete");
   }
@@ -68,9 +70,7 @@ async function linkCompletionSource(context) {
     return null;
   }
 
-  const query = linkContext.type === "url"
-    ? linkContext.linkText
-    : linkContext.currentText;
+  const query = linkContext.type === "url" ? linkContext.linkText : linkContext.currentText;
 
   if (query !== lastQuery || !cachedPages) {
     lastQuery = query;
@@ -94,15 +94,15 @@ async function linkCompletionSource(context) {
   const currentPageId = window.getCurrentPage?.()?.external_id;
 
   const options = cachedPages
-    .filter(page => page.external_id !== currentPageId)
-    .map(page => {
+    .filter((page) => page.external_id !== currentPageId)
+    .map((page) => {
       if (linkContext.type === "url") {
         return {
           label: page.title || "Untitled",
           detail: "internal link",
           apply: (view, completion, from, to) => {
             const url = `/pages/${page.external_id}/`;
-            const insertText = url + ') ';
+            const insertText = url + ") ";
             view.dispatch({
               changes: { from, to, insert: insertText },
               selection: { anchor: from + insertText.length },

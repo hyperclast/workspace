@@ -218,9 +218,7 @@ describe("csrfFetch", () => {
     await csrfFetch("/api/test", { method: "POST" });
 
     // Should log a warning
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining("CSRF token not found")
-    );
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("CSRF token not found"));
 
     // Should still make the request (without the header)
     expect(fetchSpy).toHaveBeenCalled();

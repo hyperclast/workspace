@@ -4,7 +4,7 @@ const INTERNAL_LINK_REGEX = /\[([^\]]+)\]\(\/pages\/([a-zA-Z0-9]+)\/?[^)]*\)/g;
 
 function extractInternalLinksFromContent(content, currentPageId = null) {
   const linksList = [];
-  const regex = new RegExp(INTERNAL_LINK_REGEX.source, 'g');
+  const regex = new RegExp(INTERNAL_LINK_REGEX.source, "g");
   let match;
   while ((match = regex.exec(content)) !== null) {
     const linkText = match[1];
@@ -57,7 +57,7 @@ describe("Internal Link Parsing", () => {
     const links = extractInternalLinksFromContent(content);
 
     expect(links).toHaveLength(3);
-    expect(links.map(l => l.external_id)).toEqual(["page1", "page2", "page3"]);
+    expect(links.map((l) => l.external_id)).toEqual(["page1", "page2", "page3"]);
   });
 
   it("handles links without trailing slash", () => {

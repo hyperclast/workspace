@@ -4,7 +4,13 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { markdownTableExtension, tablesField, findTables, handleArrowUp, handleArrowDown } from "../../markdownTable.js";
+import {
+  markdownTableExtension,
+  tablesField,
+  findTables,
+  handleArrowUp,
+  handleArrowDown,
+} from "../../markdownTable.js";
 
 describe("Table arrow key navigation guardrails", () => {
   let view;
@@ -48,7 +54,7 @@ describe("Table arrow key navigation guardrails", () => {
     const downEvent = new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true });
     view.contentDOM.dispatchEvent(downEvent);
 
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     // Cursor should be in "Bob" cell, not outside the table
     const newPos = view.state.selection.main.head;
@@ -81,7 +87,7 @@ describe("Table arrow key navigation guardrails", () => {
     const upEvent = new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true });
     view.contentDOM.dispatchEvent(upEvent);
 
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     // Cursor should be in header row "Name" cell, not above table
     const newPos = view.state.selection.main.head;
@@ -205,7 +211,7 @@ describe("Table live auto-formatting", () => {
       selection: { anchor: xPos + 4 },
     });
 
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     // The table should be reformatted with aligned columns
     const newDoc = view.state.doc.toString();

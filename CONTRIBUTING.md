@@ -20,6 +20,7 @@ See the [README](README.md) for detailed setup instructions.
 - By submitting a pull request, you agree to the Contributor License Agreement (CLA) in [`CLA.md`](CLA.md).
 
 By contributing, you confirm that:
+
 - you have the right to submit the work,
 - you agree to license your contribution under the project's license,
 - and you grant the project the rights described in the CLA.

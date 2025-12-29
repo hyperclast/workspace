@@ -81,7 +81,9 @@ describe("API Service", () => {
         statusText: "Bad Request",
       });
 
-      await expect(createProject("org1", "New Project")).rejects.toThrow("Failed to create project");
+      await expect(createProject("org1", "New Project")).rejects.toThrow(
+        "Failed to create project"
+      );
     });
   });
 
@@ -166,7 +168,9 @@ describe("API Service", () => {
         statusText: "Internal Server Error",
       });
 
-      await expect(fetchPage("page1")).rejects.toThrow("Failed to fetch page: Internal Server Error");
+      await expect(fetchPage("page1")).rejects.toThrow(
+        "Failed to fetch page: Internal Server Error"
+      );
     });
   });
 

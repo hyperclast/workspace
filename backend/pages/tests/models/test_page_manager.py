@@ -118,6 +118,22 @@ class TestPageManagerTwoTierAccess(TestCase):
         self.assertEqual(accessible_pages.count(), 1)
         self.assertEqual(accessible_pages.filter(id=page.id).count(), 1)
 
+    def test_get_single_page_with_dual_access_does_not_raise_multiple_objects(self):
+        """Test that .get() works when user has both org and project-level access.
+
+        Regression test: When a user is both an org member AND a project editor,
+        the OR query could return duplicate rows. Using .get() on such a queryset
+        would raise MultipleObjectsReturned, causing 500 errors.
+        """
+        page = PageFactory(project=self.project, creator=self.org_admin)
+
+        self.project.editors.add(self.org_member)
+
+        accessible_pages = Page.objects.get_user_editable_pages(self.org_member)
+        fetched_page = accessible_pages.get(external_id=page.external_id)
+
+        self.assertEqual(fetched_page.id, page.id)
+
     def test_mixed_access_multiple_projects(self):
         """Test complex scenario with mixed org and project-level access."""
         page1 = PageFactory(project=self.project, creator=self.org_admin, title="Org Page")

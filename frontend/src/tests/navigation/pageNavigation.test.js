@@ -23,11 +23,11 @@ describe("Page Navigation", () => {
     originalWindow = global.window;
     global.window = {
       history: {
-        pushState: vi.fn((state, title, url) => historyStates.push({ type: 'push', url })),
-        replaceState: vi.fn((state, title, url) => historyStates.push({ type: 'replace', url })),
+        pushState: vi.fn((state, title, url) => historyStates.push({ type: "push", url })),
+        replaceState: vi.fn((state, title, url) => historyStates.push({ type: "replace", url })),
       },
       location: {
-        pathname: '/pages/test123/',
+        pathname: "/pages/test123/",
       },
     };
   });
@@ -132,7 +132,11 @@ describe("Page Navigation", () => {
     it("skips projects with undefined pages", async () => {
       const mockProjects = [
         { external_id: "proj1", name: "Project 1" }, // no pages property
-        { external_id: "proj2", name: "Project 2", pages: [{ external_id: "page2", title: "Page 2" }] },
+        {
+          external_id: "proj2",
+          name: "Project 2",
+          pages: [{ external_id: "page2", title: "Page 2" }],
+        },
       ];
 
       fetchProjectsWithPages.mockResolvedValue(mockProjects);
@@ -153,24 +157,24 @@ describe("Page Navigation", () => {
 
   describe("URL handling", () => {
     it("uses replaceState to avoid polluting history on redirect", () => {
-      window.history.replaceState({}, '', '/pages/newpage123/');
+      window.history.replaceState({}, "", "/pages/newpage123/");
 
-      expect(window.history.replaceState).toHaveBeenCalledWith({}, '', '/pages/newpage123/');
-      expect(historyStates).toContainEqual({ type: 'replace', url: '/pages/newpage123/' });
+      expect(window.history.replaceState).toHaveBeenCalledWith({}, "", "/pages/newpage123/");
+      expect(historyStates).toContainEqual({ type: "replace", url: "/pages/newpage123/" });
     });
 
     it("uses pushState for normal navigation", () => {
-      window.history.pushState({}, '', '/pages/page456/');
+      window.history.pushState({}, "", "/pages/page456/");
 
-      expect(window.history.pushState).toHaveBeenCalledWith({}, '', '/pages/page456/');
-      expect(historyStates).toContainEqual({ type: 'push', url: '/pages/page456/' });
+      expect(window.history.pushState).toHaveBeenCalledWith({}, "", "/pages/page456/");
+      expect(historyStates).toContainEqual({ type: "push", url: "/pages/page456/" });
     });
 
     it("redirects to root when no pages available", () => {
-      window.history.replaceState({}, '', '/');
+      window.history.replaceState({}, "", "/");
 
-      expect(window.history.replaceState).toHaveBeenCalledWith({}, '', '/');
-      expect(historyStates).toContainEqual({ type: 'replace', url: '/' });
+      expect(window.history.replaceState).toHaveBeenCalledWith({}, "", "/");
+      expect(historyStates).toContainEqual({ type: "replace", url: "/" });
     });
   });
 

@@ -7,25 +7,19 @@
  * - Full: Thorough testing (5k lines, strict thresholds) via PERF_FULL=1
  */
 
-import { describe, test, expect } from 'vitest';
-import * as Y from 'yjs';
-import {
-  getConfig,
-  runPerfTest,
-  logPerf,
-  measureSize,
-  formatBytes,
-} from './helpers/perf-utils.js';
+import { describe, test, expect } from "vitest";
+import * as Y from "yjs";
+import { getConfig, runPerfTest, logPerf, measureSize, formatBytes } from "./helpers/perf-utils.js";
 import {
   createYjsDoc,
   generateUpdates,
   applyUpdates,
   createMultipleYjsDocs,
   simulateConcurrentEdits,
-} from './helpers/fixtures.js';
+} from "./helpers/fixtures.js";
 
-describe('[PERF] Yjs CRDT Micro-benchmarks', () => {
-  test('[PERF] apply large batch of updates', async () => {
+describe("[PERF] Yjs CRDT Micro-benchmarks", () => {
+  test("[PERF] apply large batch of updates", async () => {
     // Configuration based on mode
     const numLines = getConfig(1000, 5000); // Default: 1k, Full: 5k
     const numUpdates = 100;
@@ -40,7 +34,7 @@ describe('[PERF] Yjs CRDT Micro-benchmarks', () => {
 
     // Measure time to apply all updates
     const { duration } = await runPerfTest(
-      'apply large batch of updates',
+      "apply large batch of updates",
       () => {
         applyUpdates(targetDoc, updates);
       },
@@ -49,25 +43,23 @@ describe('[PERF] Yjs CRDT Micro-benchmarks', () => {
         metadata: {
           numLines,
           numUpdates,
-          totalUpdateSize: formatBytes(
-            updates.reduce((sum, u) => sum + u.length, 0)
-          ),
+          totalUpdateSize: formatBytes(updates.reduce((sum, u) => sum + u.length, 0)),
         },
       }
     );
 
     // Verify the document was properly reconstructed
-    const targetText = targetDoc.getText('codemirror');
+    const targetText = targetDoc.getText("codemirror");
     expect(targetText.length).toBeGreaterThan(0);
   });
 
-  test('[PERF] generate updates for large document', async () => {
+  test("[PERF] generate updates for large document", async () => {
     const numLines = getConfig(1000, 5000);
     const threshold = getConfig(200, 500);
 
     // Measure time to create doc and generate update
     const { duration, result } = await runPerfTest(
-      'generate updates for large document',
+      "generate updates for large document",
       () => {
         const doc = createYjsDoc(numLines);
         const update = Y.encodeStateAsUpdate(doc);
@@ -98,10 +90,10 @@ describe('[PERF] Yjs CRDT Micro-benchmarks', () => {
     expect(updateSize).toBeLessThan(maxSize * 3);
 
     // Verify doc was created
-    expect(doc.getText('codemirror').length).toBeGreaterThan(0);
+    expect(doc.getText("codemirror").length).toBeGreaterThan(0);
   });
 
-  test('[PERF] resolve concurrent edits', async () => {
+  test("[PERF] resolve concurrent edits", async () => {
     const numDocs = 3;
     const editsPerDoc = getConfig(100, 500); // Default: 100, Full: 500
     const threshold = getConfig(100, 1000); // Default: 100ms, Full: 1000ms (more edits = more time)
@@ -111,7 +103,7 @@ describe('[PERF] Yjs CRDT Micro-benchmarks', () => {
 
     // Measure time for concurrent edits to converge
     const { duration, result } = await runPerfTest(
-      'resolve concurrent edits',
+      "resolve concurrent edits",
       () => {
         return simulateConcurrentEdits(docs, editsPerDoc);
       },
@@ -130,17 +122,17 @@ describe('[PERF] Yjs CRDT Micro-benchmarks', () => {
     expect(result.totalUpdates).toBe(numDocs * editsPerDoc);
 
     // All docs should have identical content
-    const texts = docs.map(doc => doc.getText('codemirror').toString());
+    const texts = docs.map((doc) => doc.getText("codemirror").toString());
     expect(texts[0]).toBe(texts[1]);
     expect(texts[1]).toBe(texts[2]);
   });
 
-  test('[PERF] update size for typical operations', () => {
+  test("[PERF] update size for typical operations", () => {
     const doc = new Y.Doc();
-    const text = doc.getText('codemirror');
+    const text = doc.getText("codemirror");
 
     // Baseline: Insert initial content
-    text.insert(0, 'Hello World\n'.repeat(10));
+    text.insert(0, "Hello World\n".repeat(10));
     const baselineUpdate = Y.encodeStateAsUpdate(doc);
     const baselineSize = measureSize(baselineUpdate);
 
@@ -149,8 +141,8 @@ describe('[PERF] Yjs CRDT Micro-benchmarks', () => {
     // Operation 1: Insert single line
     const doc1 = new Y.Doc();
     Y.applyUpdate(doc1, baselineUpdate);
-    const text1 = doc1.getText('codemirror');
-    text1.insert(0, 'New line\n');
+    const text1 = doc1.getText("codemirror");
+    text1.insert(0, "New line\n");
     const insertLineUpdate = Y.encodeStateAsUpdate(doc1);
     const insertLineSize = measureSize(insertLineUpdate) - baselineSize;
 
@@ -159,7 +151,7 @@ describe('[PERF] Yjs CRDT Micro-benchmarks', () => {
     // Operation 2: Delete line
     const doc2 = new Y.Doc();
     Y.applyUpdate(doc2, baselineUpdate);
-    const text2 = doc2.getText('codemirror');
+    const text2 = doc2.getText("codemirror");
     text2.delete(0, 12); // Delete one "Hello World\n"
     const deleteLineUpdate = Y.encodeStateAsUpdate(doc2);
     const deleteLineSize = measureSize(deleteLineUpdate) - baselineSize;
@@ -169,8 +161,8 @@ describe('[PERF] Yjs CRDT Micro-benchmarks', () => {
     // Operation 3: Insert block
     const doc3 = new Y.Doc();
     Y.applyUpdate(doc3, baselineUpdate);
-    const text3 = doc3.getText('codemirror');
-    text3.insert(0, 'Block line\n'.repeat(20));
+    const text3 = doc3.getText("codemirror");
+    text3.insert(0, "Block line\n".repeat(20));
     const insertBlockUpdate = Y.encodeStateAsUpdate(doc3);
     const insertBlockSize = measureSize(insertBlockUpdate) - baselineSize;
 
@@ -183,21 +175,15 @@ describe('[PERF] Yjs CRDT Micro-benchmarks', () => {
     const expectedInsertBlock = 1000; // ~1 KB
 
     if (insertLineSize > expectedInsertLine * 2) {
-      console.warn(
-        `⚠️  Insert line size (${formatBytes(insertLineSize)}) > 2x expected`
-      );
+      console.warn(`⚠️  Insert line size (${formatBytes(insertLineSize)}) > 2x expected`);
     }
 
     if (deleteLineSize > expectedDeleteLine * 2) {
-      console.warn(
-        `⚠️  Delete line size (${formatBytes(deleteLineSize)}) > 2x expected`
-      );
+      console.warn(`⚠️  Delete line size (${formatBytes(deleteLineSize)}) > 2x expected`);
     }
 
     if (insertBlockSize > expectedInsertBlock * 2) {
-      console.warn(
-        `⚠️  Insert block size (${formatBytes(insertBlockSize)}) > 2x expected`
-      );
+      console.warn(`⚠️  Insert block size (${formatBytes(insertBlockSize)}) > 2x expected`);
     }
 
     // Hard limits: fail if dramatically oversized (10x for size tests)

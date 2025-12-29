@@ -28,19 +28,22 @@ describe("Editor Visibility", () => {
 
   test("editor content has visible text color", () => {
     // Create a simple theme
-    const simpleTheme = EditorView.theme({
-      "&": {
-        color: "black",
-        backgroundColor: "white"
+    const simpleTheme = EditorView.theme(
+      {
+        "&": {
+          color: "black",
+          backgroundColor: "white",
+        },
+        ".cm-content": {
+          caretColor: "black",
+          color: "black",
+        },
+        ".cm-line": {
+          color: "black",
+        },
       },
-      ".cm-content": {
-        caretColor: "black",
-        color: "black"
-      },
-      ".cm-line": {
-        color: "black"
-      }
-    }, { dark: false });
+      { dark: false }
+    );
 
     view = new EditorView({
       parent: container,
@@ -74,10 +77,13 @@ describe("Editor Visibility", () => {
   });
 
   test("editor content is not hidden via display:none", () => {
-    const simpleTheme = EditorView.theme({
-      ".cm-content": { color: "black" },
-      ".cm-line": { color: "black" }
-    }, { dark: false });
+    const simpleTheme = EditorView.theme(
+      {
+        ".cm-content": { color: "black" },
+        ".cm-line": { color: "black" },
+      },
+      { dark: false }
+    );
 
     view = new EditorView({
       parent: container,
@@ -98,10 +104,13 @@ describe("Editor Visibility", () => {
   });
 
   test("editor content is not hidden via visibility:hidden", () => {
-    const simpleTheme = EditorView.theme({
-      ".cm-content": { color: "black" },
-      ".cm-line": { color: "black" }
-    }, { dark: false });
+    const simpleTheme = EditorView.theme(
+      {
+        ".cm-content": { color: "black" },
+        ".cm-line": { color: "black" },
+      },
+      { dark: false }
+    );
 
     view = new EditorView({
       parent: container,
@@ -122,10 +131,13 @@ describe("Editor Visibility", () => {
   });
 
   test("editor content has non-zero opacity", () => {
-    const simpleTheme = EditorView.theme({
-      ".cm-content": { color: "black" },
-      ".cm-line": { color: "black" }
-    }, { dark: false });
+    const simpleTheme = EditorView.theme(
+      {
+        ".cm-content": { color: "black" },
+        ".cm-line": { color: "black" },
+      },
+      { dark: false }
+    );
 
     view = new EditorView({
       parent: container,
@@ -150,10 +162,13 @@ describe("Editor Visibility", () => {
   });
 
   test("editor has non-zero dimensions", () => {
-    const simpleTheme = EditorView.theme({
-      ".cm-content": { color: "black" },
-      ".cm-line": { color: "black" }
-    }, { dark: false });
+    const simpleTheme = EditorView.theme(
+      {
+        ".cm-content": { color: "black" },
+        ".cm-line": { color: "black" },
+      },
+      { dark: false }
+    );
 
     view = new EditorView({
       parent: container,
@@ -179,10 +194,13 @@ describe("Editor Visibility", () => {
   });
 
   test("editor lines are positioned on-screen", () => {
-    const simpleTheme = EditorView.theme({
-      ".cm-content": { color: "black" },
-      ".cm-line": { color: "black" }
-    }, { dark: false });
+    const simpleTheme = EditorView.theme(
+      {
+        ".cm-content": { color: "black" },
+        ".cm-line": { color: "black" },
+      },
+      { dark: false }
+    );
 
     view = new EditorView({
       parent: container,
@@ -201,18 +219,21 @@ describe("Editor Visibility", () => {
   });
 
   test("text color contrasts with background", () => {
-    const simpleTheme = EditorView.theme({
-      "&": {
-        color: "black",
-        backgroundColor: "white"
+    const simpleTheme = EditorView.theme(
+      {
+        "&": {
+          color: "black",
+          backgroundColor: "white",
+        },
+        ".cm-content": {
+          color: "black",
+        },
+        ".cm-line": {
+          color: "black",
+        },
       },
-      ".cm-content": {
-        color: "black"
-      },
-      ".cm-line": {
-        color: "black"
-      }
-    }, { dark: false });
+      { dark: false }
+    );
 
     view = new EditorView({
       parent: container,
@@ -241,12 +262,15 @@ describe("Editor Visibility", () => {
   });
 
   test("cursor is visible", () => {
-    const simpleTheme = EditorView.theme({
-      ".cm-cursor": {
-        borderLeftColor: "black",
-        borderLeftWidth: "2px"
-      }
-    }, { dark: false });
+    const simpleTheme = EditorView.theme(
+      {
+        ".cm-cursor": {
+          borderLeftColor: "black",
+          borderLeftWidth: "2px",
+        },
+      },
+      { dark: false }
+    );
 
     view = new EditorView({
       parent: container,

@@ -108,6 +108,7 @@ Custom close codes used by the server:
 - `4003` - Unauthorized (failed authentication or permission check)
 
 Standard WebSocket close codes also apply:
+
 - `1000` - Normal closure
 - `1001` - Going away (server shutdown, browser navigation)
 - `1006` - Abnormal closure (connection lost)
@@ -170,6 +171,7 @@ When a user loses access to a page (removed from org or project), active WebSock
 ### Database Schema
 
 **y_updates table:**
+
 ```sql
 id BIGINT PRIMARY KEY AUTO INCREMENT
 room_id VARCHAR(255)  -- "page_{uuid}"
@@ -178,6 +180,7 @@ timestamp TIMESTAMPTZ
 ```
 
 **y_snapshots table:**
+
 ```sql
 room_id VARCHAR(255) PRIMARY KEY  -- "page_{uuid}"
 snapshot BYTEA                    -- Binary CRDT snapshot
@@ -190,10 +193,12 @@ timestamp TIMESTAMPTZ
 **File:** `frontend/src/collaboration.js`
 
 Key exports:
+
 - `createCollaborationObjects()` - Creates Yjs doc, WebSocket provider, and CodeMirror extension
 - `destroyCollaboration()` - Cleanup function
 
 Dependencies:
+
 - `yjs` - CRDT implementation
 - `y-websocket` - WebSocket sync provider
 - `y-codemirror.next` - CodeMirror 6 integration

@@ -1,30 +1,54 @@
 import { defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import {
-    foldGutter,
-    foldService
-} from "@codemirror/language";
+import { foldGutter, foldService } from "@codemirror/language";
 import { EditorState, Prec } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 
-import { createPage as createPageApi, deletePage as deletePageApi, fetchPage as fetchPageApi, fetchProjectsWithPages } from "./api.js";
+import {
+  createPage as createPageApi,
+  deletePage as deletePageApi,
+  fetchPage as fetchPageApi,
+  fetchProjectsWithPages,
+} from "./api.js";
 import { getSession, logout } from "./auth.js";
 import { clickToEndPlugin } from "./clickToEndPlugin.js";
-import { createCollaborationObjects, destroyCollaboration, setupUnloadHandler } from "./collaboration.js";
+import {
+  createCollaborationObjects,
+  destroyCollaboration,
+  setupUnloadHandler,
+} from "./collaboration.js";
 import { API_BASE_URL, getBrandName, getUserInfo } from "./config.js";
 import { csrfFetch } from "./csrf.js";
 import { decorateEmails } from "./decorateEmails.js";
-import { decorateFormatting, listKeymap, checkboxClickHandler, blockquoteKeymap } from "./decorateFormatting.js";
+import {
+  decorateFormatting,
+  listKeymap,
+  checkboxClickHandler,
+  blockquoteKeymap,
+} from "./decorateFormatting.js";
 import { decorateLinks, linkClickHandler } from "./decorateLinks.js";
 import { linkAutocomplete } from "./linkAutocomplete.js";
 import { findSectionFold } from "./findSectionFold.js";
 import { setupUserAvatar } from "./gravatar.js";
 import { confirm, prompt, shareProject, createProjectModal } from "./lib/modal.js";
 import { showToast } from "./lib/toast.js";
-import { markdownTableExtension, generateTable, insertTable, formatTable, findTables } from "./markdownTable.js";
+import {
+  markdownTableExtension,
+  generateTable,
+  insertTable,
+  formatTable,
+  findTables,
+} from "./markdownTable.js";
 import { setupPresenceUI } from "./presence.js";
 import { setCurrentPageId, notifyPageChange, setupSidebar } from "./lib/sidebar.js";
-import { renderSidenav, setNavigateCallback, setProjectDeletedHandler, setProjectRenamedHandler, setupSidenav, updateSidenavActive } from "./lib/sidenav.js";
+import {
+  renderSidenav,
+  setNavigateCallback,
+  setProjectDeletedHandler,
+  setProjectRenamedHandler,
+  setupSidenav,
+  updateSidenavActive,
+} from "./lib/sidenav.js";
 import { setupToolbar } from "./toolbar.js";
 import { getPageIdFromPath } from "./router.js";
 
@@ -258,13 +282,13 @@ let cachedProjects = [];
 let currentProjectId = null;
 
 // Expose cachedProjects for the Dev tab
-Object.defineProperty(window, '_cachedProjects', {
-  get: () => cachedProjects
+Object.defineProperty(window, "_cachedProjects", {
+  get: () => cachedProjects,
 });
 
 // Expose currentProjectId for the Dev tab
-Object.defineProperty(window, '_currentProjectId', {
-  get: () => currentProjectId
+Object.defineProperty(window, "_currentProjectId", {
+  get: () => currentProjectId,
 });
 
 /**
@@ -334,7 +358,7 @@ async function updatePageTitle(external_id, newTitle) {
     // Update cached projects - find the page in the nested structure
     for (let i = 0; i < cachedProjects.length; i++) {
       const project = cachedProjects[i];
-      const pageIndex = project.pages?.findIndex(p => p.external_id === external_id);
+      const pageIndex = project.pages?.findIndex((p) => p.external_id === external_id);
       if (pageIndex !== -1) {
         // Create new page object to trigger reactivity
         const updatedPage = { ...project.pages[pageIndex], title: newTitle };
@@ -468,10 +492,7 @@ async function loadPage(page) {
   // Use getUserInfo() which has username from Django template (session API doesn't include it)
   const userInfo = getUserInfo();
   const displayName = userInfo.user?.username || currentUser?.email || "Anonymous";
-  collabObjects = createCollaborationObjects(
-    currentPage.external_id,
-    displayName
-  );
+  collabObjects = createCollaborationObjects(currentPage.external_id, displayName);
 
   // Wait for sync to see if server has content
   const syncResult = await collabObjects.syncPromise;
@@ -499,7 +520,7 @@ async function loadPage(page) {
  */
 function findProjectIdForPage(pageExternalId) {
   for (const project of cachedProjects) {
-    if (project.pages?.some(p => p.external_id === pageExternalId)) {
+    if (project.pages?.some((p) => p.external_id === pageExternalId)) {
       return project.external_id;
     }
   }
@@ -582,9 +603,9 @@ async function closePage() {
 
   // Try to find another page in the same project first
   let nextPage = null;
-  const sameProject = cachedProjects.find(p => p.external_id === closedProjectId);
+  const sameProject = cachedProjects.find((p) => p.external_id === closedProjectId);
   if (sameProject?.pages) {
-    nextPage = sameProject.pages.find(p => p.external_id !== closedPageId);
+    nextPage = sameProject.pages.find((p) => p.external_id !== closedPageId);
   }
 
   // If no page in same project, find any page
@@ -617,13 +638,14 @@ function formatDate(dateString) {
   const diffDays = Math.floor(diffMs / 86400000);
 
   if (diffMins < 1) return "Just now";
-  if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
-  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+  if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
 
   return date.toLocaleDateString();
 }
 
+const failedPageIds = new Set();
 
 /**
  * Open an existing page by external_id.
@@ -631,6 +653,11 @@ function formatDate(dateString) {
  * @param {boolean} skipPushState - If true, don't push to history (used for popstate handling)
  */
 async function openPage(external_id, skipPushState = false) {
+  if (failedPageIds.has(external_id)) {
+    console.warn(`Skipping page ${external_id} - previously failed to load`);
+    return;
+  }
+
   if (cachedProjects.length === 0) {
     cachedProjects = await fetchProjects();
   }
@@ -639,6 +666,7 @@ async function openPage(external_id, skipPushState = false) {
   const page = await fetchPage(external_id);
 
   if (!page || page.error) {
+    failedPageIds.add(external_id);
     showError(page?.error || "Page not found");
     await redirectToFirstAvailablePage();
     return;
@@ -648,7 +676,7 @@ async function openPage(external_id, skipPushState = false) {
 
   // Only push state if this is a programmatic navigation, not browser back/forward
   if (!skipPushState) {
-    window.history.pushState({}, '', `/pages/${external_id}/`);
+    window.history.pushState({}, "", `/pages/${external_id}/`);
   }
 }
 
@@ -662,14 +690,16 @@ async function redirectToFirstAvailablePage() {
 
   for (const project of cachedProjects) {
     if (project.pages && project.pages.length > 0) {
-      const firstPage = project.pages[0];
-      window.history.replaceState({}, '', `/pages/${firstPage.external_id}/`);
-      await openPage(firstPage.external_id);
-      return;
+      const availablePage = project.pages.find((p) => !failedPageIds.has(p.external_id));
+      if (availablePage) {
+        window.history.replaceState({}, "", `/pages/${availablePage.external_id}/`);
+        await openPage(availablePage.external_id);
+        return;
+      }
     }
   }
 
-  window.history.replaceState({}, '', '/');
+  window.history.replaceState({}, "", "/");
   renderSidenav(cachedProjects, null);
 }
 
@@ -686,33 +716,36 @@ function showError(message) {
 function initializeEditor(pageContent = "", additionalExtensions = []) {
   // Create a simple theme to ensure text is visible
   // Using EditorView.theme() instead of baseTheme() to override any defaults
-  const simpleTheme = EditorView.theme({
-    "&": {
-      color: "black",
-      backgroundColor: "white"
+  const simpleTheme = EditorView.theme(
+    {
+      "&": {
+        color: "black",
+        backgroundColor: "white",
+      },
+      ".cm-content": {
+        caretColor: "black",
+        color: "black",
+      },
+      ".cm-line": {
+        color: "black",
+      },
+      "&.cm-focused .cm-cursor": {
+        borderLeftColor: "black",
+        borderLeftWidth: "2px",
+      },
+      ".cm-cursor": {
+        borderLeftColor: "black",
+        borderLeftWidth: "2px",
+      },
+      "&.cm-focused .cm-selectionBackground, ::selection": {
+        backgroundColor: "#6fa8dc",
+      },
+      ".cm-selectionBackground": {
+        backgroundColor: "#b3d7ff",
+      },
     },
-    ".cm-content": {
-      caretColor: "black",
-      color: "black"
-    },
-    ".cm-line": {
-      color: "black"
-    },
-    "&.cm-focused .cm-cursor": {
-      borderLeftColor: "black",
-      borderLeftWidth: "2px"
-    },
-    ".cm-cursor": {
-      borderLeftColor: "black",
-      borderLeftWidth: "2px"
-    },
-    "&.cm-focused .cm-selectionBackground, ::selection": {
-      backgroundColor: "#6fa8dc"
-    },
-    ".cm-selectionBackground": {
-      backgroundColor: "#b3d7ff"
-    }
-  }, { dark: false });
+    { dark: false }
+  );
 
   const titleNavigationKeymap = Prec.high(
     keymap.of([
@@ -746,13 +779,15 @@ function initializeEditor(pageContent = "", additionalExtensions = []) {
     }
   });
 
-  const enterKeyTrigger = keymap.of([{
-    key: "Enter",
-    run: () => {
-      window.dispatchEvent(new CustomEvent("editorEnterPressed"));
-      return false;
-    }
-  }]);
+  const enterKeyTrigger = keymap.of([
+    {
+      key: "Enter",
+      run: () => {
+        window.dispatchEvent(new CustomEvent("editorEnterPressed"));
+        return false;
+      },
+    },
+  ]);
 
   // Build the base extensions
   const baseExtensions = [
@@ -785,7 +820,7 @@ function initializeEditor(pageContent = "", additionalExtensions = []) {
   const view = new EditorView({
     parent: document.getElementById("editor"),
     state: EditorState.create({
-      doc: pageContent || "",  // Use empty string if no content provided
+      doc: pageContent || "", // Use empty string if no content provided
       extensions: allExtensions,
     }),
   });
@@ -811,11 +846,11 @@ function initializeEditor(pageContent = "", additionalExtensions = []) {
 function getTodayDateTimeString() {
   const now = new Date();
   const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
   let hours = now.getHours();
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-  const ampm = hours >= 12 ? 'pm' : 'am';
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  const ampm = hours >= 12 ? "pm" : "am";
   hours = hours % 12 || 12;
   return `${year}-${month}-${day} ${hours}h${minutes}${ampm}`;
 }
@@ -849,7 +884,7 @@ async function openCreatePageDialog(projectId) {
       closePageWithoutNavigate();
     }
 
-    const project = cachedProjects.find(p => p.external_id === projectId);
+    const project = cachedProjects.find((p) => p.external_id === projectId);
     if (project) {
       if (!project.pages) project.pages = [];
       project.pages.unshift(result.page);
@@ -857,7 +892,7 @@ async function openCreatePageDialog(projectId) {
 
     renderSidenav(cachedProjects, result.page.external_id);
     await loadPage(result.page);
-    window.history.pushState({}, '', `/pages/${result.page.external_id}/`);
+    window.history.pushState({}, "", `/pages/${result.page.external_id}/`);
   } else {
     console.error("Failed to create page:", result.error);
     showToast("Failed to create page", "error");
@@ -923,7 +958,8 @@ async function openDeleteModal() {
   const confirmed = await confirm({
     title: "Delete Page",
     message: `Are you sure you want to delete "${currentPage.title}"?`,
-    description: "This will permanently delete the page and all its collaboration data. This action cannot be undone.",
+    description:
+      "This will permanently delete the page and all its collaboration data. This action cannot be undone.",
     confirmText: "Delete Page",
     danger: true,
   });
@@ -935,7 +971,7 @@ async function openDeleteModal() {
   if (result.success) {
     for (const project of cachedProjects) {
       if (project.pages) {
-        project.pages = project.pages.filter(p => p.external_id !== currentPage.external_id);
+        project.pages = project.pages.filter((p) => p.external_id !== currentPage.external_id);
       }
     }
     await closePage();
@@ -989,7 +1025,7 @@ async function initializePageView() {
     // Check if the last page exists in any project
     let foundPage = false;
     for (const project of cachedProjects) {
-      if (project.pages?.some(p => p.external_id === lastPageId)) {
+      if (project.pages?.some((p) => p.external_id === lastPageId)) {
         foundPage = true;
         break;
       }
@@ -1091,7 +1127,7 @@ async function startApp() {
 
   setProjectRenamedHandler((projectId, newName) => {
     // Update cachedProjects
-    const project = cachedProjects.find(p => p.external_id === projectId);
+    const project = cachedProjects.find((p) => p.external_id === projectId);
     if (project) {
       project.name = newName;
     }
@@ -1122,7 +1158,7 @@ async function startApp() {
   await initializePageView();
 
   // Show upgrade pill if user has any free (non-Pro) orgs
-  const hasFreePlan = cachedProjects.some(p => !p.org?.is_pro);
+  const hasFreePlan = cachedProjects.some((p) => !p.org?.is_pro);
   const upgradePill = document.getElementById("upgrade-pill");
   if (upgradePill && hasFreePlan) {
     upgradePill.style.display = "inline-flex";

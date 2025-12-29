@@ -9,9 +9,7 @@ const COLLAPSED_STORAGE_KEY = "ws-sidebar-collapsed";
 
 // Build initial tabs list based on feature flags (alphabetical order)
 function getInitialTabs() {
-  const tabs = [
-    { id: "ask", label: "Ask" },
-  ];
+  const tabs = [{ id: "ask", label: "Ask" }];
   const flags = getFeatureFlags();
   if (flags.devSidebar) {
     tabs.push({ id: "dev", label: "Dev" });
@@ -71,7 +69,7 @@ export function setActiveTab(tabId) {
 
 export function registerTab(tab) {
   // Add tab if not already present
-  if (!tabs.some(t => t.id === tab.id)) {
+  if (!tabs.some((t) => t.id === tab.id)) {
     tabs = [...tabs, tab];
   }
 }
@@ -90,7 +88,7 @@ export function registerPageChangeHandler(handler) {
 
 export function notifyPageChange(pageId) {
   currentPageId = pageId;
-  pageChangeHandlers.forEach(handler => handler(pageId));
+  pageChangeHandlers.forEach((handler) => handler(pageId));
 }
 
 export function setCurrentPageId(pageId) {
@@ -100,18 +98,28 @@ export function setCurrentPageId(pageId) {
 // Get state for components
 export function getState() {
   return {
-    get isOpen() { return isOpen; },
-    get isCollapsed() { return isCollapsed; },
-    get activeTab() { return activeTab; },
-    get currentPageId() { return currentPageId; },
-    get tabs() { return tabs; },
+    get isOpen() {
+      return isOpen;
+    },
+    get isCollapsed() {
+      return isCollapsed;
+    },
+    get activeTab() {
+      return activeTab;
+    },
+    get currentPageId() {
+      return currentPageId;
+    },
+    get tabs() {
+      return tabs;
+    },
   };
 }
 
 // Initialize - restore saved tab
 export function initSidebarState() {
   const savedTab = localStorage.getItem(TAB_STORAGE_KEY);
-  if (savedTab && tabs.some(t => t.id === savedTab)) {
+  if (savedTab && tabs.some((t) => t.id === savedTab)) {
     activeTab = savedTab;
   }
 }

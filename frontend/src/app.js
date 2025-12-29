@@ -6,13 +6,13 @@
  */
 
 // Import global styles - must be in entry point so CSS is always available
-import './style.css';
+import "./style.css";
 
-import { router } from './router.js';
+import { router } from "./router.js";
 
 // Initialize the router when the DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', router);
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", router);
 } else {
   router();
 }

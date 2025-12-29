@@ -53,13 +53,16 @@ class PageManager(models.Manager):
         Access is granted if EITHER condition is true.
         Excludes pages from soft-deleted projects.
         """
-        qs = (
+        page_ids = (
             self.get_editable_pages()
             .filter(project__is_deleted=False)
-            .filter(
-                Q(project__org__members=user) | Q(project__editors=user)  # Tier 1: Org access  # Tier 2: Project access
-            )
+            .filter(Q(project__org__members=user) | Q(project__editors=user))
+            .values_list("id", flat=True)
             .distinct()
+        )
+        qs = (
+            self.get_editable_pages()
+            .filter(id__in=page_ids)
             .annotate(
                 is_owner=Case(
                     When(creator_id=user.id, then=Value(True)),

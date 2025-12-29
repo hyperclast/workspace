@@ -177,9 +177,7 @@ describe("search UI - setupSearchUI", () => {
     view.dispatch({ changes: { from: 0, to: 0, insert: "" } });
 
     // Should have an active highlight
-    const activeHighlights = view.dom.querySelectorAll(
-      ".search-highlight-active"
-    );
+    const activeHighlights = view.dom.querySelectorAll(".search-highlight-active");
     expect(activeHighlights.length).toBeGreaterThan(0);
   });
 
@@ -194,9 +192,7 @@ describe("search UI - setupSearchUI", () => {
     view.dispatch({ changes: { from: 0, to: 0, insert: "" } });
 
     // Should have an active highlight
-    const activeHighlights = view.dom.querySelectorAll(
-      ".search-highlight-active"
-    );
+    const activeHighlights = view.dom.querySelectorAll(".search-highlight-active");
     expect(activeHighlights.length).toBeGreaterThan(0);
   });
 
@@ -214,9 +210,7 @@ describe("search UI - setupSearchUI", () => {
     view.dispatch({ changes: { from: 0, to: 0, insert: "" } });
 
     // Should still have active highlight after wrapping
-    const activeHighlights = view.dom.querySelectorAll(
-      ".search-highlight-active"
-    );
+    const activeHighlights = view.dom.querySelectorAll(".search-highlight-active");
     expect(activeHighlights.length).toBe(1);
   });
 
@@ -230,9 +224,7 @@ describe("search UI - setupSearchUI", () => {
     searchPrev.click();
     view.dispatch({ changes: { from: 0, to: 0, insert: "" } });
 
-    const activeHighlights = view.dom.querySelectorAll(
-      ".search-highlight-active"
-    );
+    const activeHighlights = view.dom.querySelectorAll(".search-highlight-active");
     expect(activeHighlights.length).toBe(1);
   });
 

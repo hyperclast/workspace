@@ -9,7 +9,9 @@
 export const API_BASE_URL = "";
 
 // WebSocket URL for collaboration - derive from current location
-export const WS_BASE_URL = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`;
+export const WS_BASE_URL = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${
+  window.location.host
+}`;
 
 // Extract host for WebSocket (without protocol)
 export const WS_HOST = WS_BASE_URL.replace(/^wss?:\/\//, "");

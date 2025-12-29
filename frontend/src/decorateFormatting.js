@@ -139,9 +139,7 @@ export const decorateFormatting = ViewPlugin.fromClass(
         const hrMatch = line.text.match(HR_REGEX);
         if (hrMatch) {
           if (!cursorOnLine) {
-            builder.push(
-              Decoration.replace({ widget: new HrWidget() }).range(line.from, line.to)
-            );
+            builder.push(Decoration.replace({ widget: new HrWidget() }).range(line.from, line.to));
           }
           continue;
         }
@@ -225,14 +223,10 @@ export const decorateFormatting = ViewPlugin.fromClass(
           const quoteStart = line.from + indent;
 
           if (!cursorOnLine) {
-            builder.push(
-              Decoration.replace({}).range(quoteStart, quoteStart + 2)
-            );
+            builder.push(Decoration.replace({}).range(quoteStart, quoteStart + 2));
           }
 
-          builder.push(
-            Decoration.line({ class: "format-blockquote" }).range(line.from)
-          );
+          builder.push(Decoration.line({ class: "format-blockquote" }).range(line.from));
           continue;
         }
       }
@@ -247,19 +241,13 @@ export const decorateFormatting = ViewPlugin.fromClass(
         const cursorOnLine = cursorLine === matchLine;
 
         if (!cursorOnLine) {
-          builder.push(
-            Decoration.replace({}).range(start, innerStart)
-          );
+          builder.push(Decoration.replace({}).range(start, innerStart));
         }
 
-        builder.push(
-          Decoration.mark({ class: "format-bold" }).range(innerStart, innerEnd)
-        );
+        builder.push(Decoration.mark({ class: "format-bold" }).range(innerStart, innerEnd));
 
         if (!cursorOnLine) {
-          builder.push(
-            Decoration.replace({}).range(innerEnd, end)
-          );
+          builder.push(Decoration.replace({}).range(innerEnd, end));
         }
       }
 
@@ -273,19 +261,13 @@ export const decorateFormatting = ViewPlugin.fromClass(
         const cursorOnLine = cursorLine === matchLine;
 
         if (!cursorOnLine) {
-          builder.push(
-            Decoration.replace({}).range(start, innerStart)
-          );
+          builder.push(Decoration.replace({}).range(start, innerStart));
         }
 
-        builder.push(
-          Decoration.mark({ class: "format-underline" }).range(innerStart, innerEnd)
-        );
+        builder.push(Decoration.mark({ class: "format-underline" }).range(innerStart, innerEnd));
 
         if (!cursorOnLine) {
-          builder.push(
-            Decoration.replace({}).range(innerEnd, end)
-          );
+          builder.push(Decoration.replace({}).range(innerEnd, end));
         }
       }
 
@@ -305,9 +287,7 @@ export const decorateFormatting = ViewPlugin.fromClass(
           builder.push(Decoration.replace({}).range(start, innerStart));
         }
 
-        builder.push(
-          Decoration.mark({ class: "format-inline-code" }).range(innerStart, innerEnd)
-        );
+        builder.push(Decoration.mark({ class: "format-inline-code" }).range(innerStart, innerEnd));
 
         if (!cursorOnLine) {
           builder.push(Decoration.replace({}).range(innerEnd, end));

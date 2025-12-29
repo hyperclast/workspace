@@ -28,5 +28,5 @@ export const decorateEmails = ViewPlugin.fromClass(
   },
   {
     decorations: (v) => v.decorations,
-  },
+  }
 );

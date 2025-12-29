@@ -1,0 +1,15 @@
+#!/bin/bash
+# Pre-push hook that runs pre-commit on ALL files
+# This ensures the entire codebase is formatted before pushing
+
+set -e
+
+# Add common paths where uv/tools are installed
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+cd "$(git rev-parse --show-toplevel)/backend"
+
+echo "Running pre-commit on all files..."
+SKIP=no-commit-to-branch uv run pre-commit run --all-files
+
+echo "✓ All checks passed"

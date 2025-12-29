@@ -189,9 +189,7 @@ export function findTables(state) {
           });
 
           // Extract alignments
-          currentTable.alignments = sepCells.map((cell) =>
-            parseAlignment(cell.content)
-          );
+          currentTable.alignments = sepCells.map((cell) => parseAlignment(cell.content));
 
           currentTable.to = nextLine.to;
           currentTable.endLine = lineNum + 1;
@@ -343,9 +341,7 @@ function buildDecorations(state) {
         const i = pipePositions[j];
         const isOuter = j === 0 || j === pipePositions.length - 1;
         const pipeClass = isOuter ? "cm-table-pipe cm-table-pipe-outer" : "cm-table-pipe";
-        decorations.push(
-          Decoration.mark({ class: pipeClass }).range(pos + i, pos + i + 1)
-        );
+        decorations.push(Decoration.mark({ class: pipeClass }).range(pos + i, pos + i + 1));
       }
 
       if (row.type === "separator") {
@@ -440,7 +436,7 @@ const tableAutoFormat = ViewPlugin.fromClass(
       this.pendingFormat = setTimeout(() => {
         this.pendingFormat = null;
         const tables = view.state.field(tablesField);
-        const table = tables.find(t => t.from === tableFrom);
+        const table = tables.find((t) => t.from === tableFrom);
         if (table) {
           formatTable(view, table);
         }
@@ -949,7 +945,7 @@ function insertRowBelow(view) {
   let targetRowIndexAfterInsert;
 
   if (row.type === "header" || row.type === "separator") {
-    const separatorRow = table.rows.find(r => r.type === "separator");
+    const separatorRow = table.rows.find((r) => r.type === "separator");
     if (!separatorRow) return false;
     insertAfterRow = separatorRow;
     targetRowIndexAfterInsert = table.rows.indexOf(separatorRow) + 1;
@@ -958,7 +954,7 @@ function insertRowBelow(view) {
   }
 
   const colWidths = calculateColumnWidths(table);
-  const newRowCells = colWidths.map(w => " ".repeat(w));
+  const newRowCells = colWidths.map((w) => " ".repeat(w));
   const newRowText = "| " + newRowCells.join(" | ") + " |";
 
   const insertPos = insertAfterRow.to;
@@ -987,7 +983,7 @@ function insertRowAbove(view) {
   if (row.type === "header" || row.type === "separator") return false;
 
   const colWidths = calculateColumnWidths(table);
-  const newRowCells = colWidths.map(w => " ".repeat(w));
+  const newRowCells = colWidths.map((w) => " ".repeat(w));
   const newRowText = "| " + newRowCells.join(" | ") + " |";
 
   const firstCellStart = row.from + 2;
@@ -1016,7 +1012,7 @@ function insertColumnRight(view) {
   let cursorOffset = 0;
 
   for (const row of table.rows) {
-    const cells = row.cells.map(c => c.content);
+    const cells = row.cells.map((c) => c.content);
     const newContent = row.type === "separator" ? "---" : "";
     cells.splice(colIndex + 1, 0, newContent);
 
@@ -1038,7 +1034,7 @@ function insertColumnRight(view) {
   });
 
   setTimeout(() => {
-    const newTable = view.state.field(tablesField).find(t => Math.abs(t.from - table.from) < 100);
+    const newTable = view.state.field(tablesField).find((t) => Math.abs(t.from - table.from) < 100);
     if (newTable) formatTable(view, newTable);
   }, 0);
 
@@ -1061,7 +1057,7 @@ function insertColumnLeft(view) {
   let cursorOffset = 0;
 
   for (const row of table.rows) {
-    const cells = row.cells.map(c => c.content);
+    const cells = row.cells.map((c) => c.content);
     const newContent = row.type === "separator" ? "---" : "";
     cells.splice(colIndex, 0, newContent);
 
@@ -1083,7 +1079,7 @@ function insertColumnLeft(view) {
   });
 
   setTimeout(() => {
-    const newTable = view.state.field(tablesField).find(t => Math.abs(t.from - table.from) < 100);
+    const newTable = view.state.field(tablesField).find((t) => Math.abs(t.from - table.from) < 100);
     if (newTable) formatTable(view, newTable);
   }, 0);
 
@@ -1103,7 +1099,7 @@ function deleteRow(view) {
   const { row, rowIndex } = found;
   if (row.type === "header" || row.type === "separator") return false;
 
-  const dataRows = table.rows.filter(r => r.type === "data");
+  const dataRows = table.rows.filter((r) => r.type === "data");
   if (dataRows.length <= 1) return false;
 
   const lineStart = row.from;
@@ -1160,11 +1156,15 @@ function deleteColumn(view) {
   view.dispatch({ changes });
 
   setTimeout(() => {
-    const updatedTable = view.state.field(tablesField).find(t => Math.abs(t.from - table.from) < 100);
+    const updatedTable = view.state
+      .field(tablesField)
+      .find((t) => Math.abs(t.from - table.from) < 100);
     if (updatedTable) {
       formatTable(view, updatedTable);
       setTimeout(() => {
-        const finalTable = view.state.field(tablesField).find(t => Math.abs(t.from - table.from) < 100);
+        const finalTable = view.state
+          .field(tablesField)
+          .find((t) => Math.abs(t.from - table.from) < 100);
         if (finalTable && rowIndex < finalTable.rows.length) {
           const targetRow = finalTable.rows[rowIndex];
           const targetColIndex = Math.min(colIndex, targetRow.cells.length - 1);
@@ -1307,7 +1307,8 @@ export function formatTable(view, table, preserveSelection = null) {
     };
 
     if (preserveSelection) {
-      const { anchorRow, anchorCol, anchorOffset, headRow, headCol, headOffset } = preserveSelection;
+      const { anchorRow, anchorCol, anchorOffset, headRow, headCol, headOffset } =
+        preserveSelection;
 
       const newLines = newText.split("\n");
       let newAnchor = table.from;
@@ -1394,10 +1395,7 @@ export function insertTable(view, rows = 2, cols = 2) {
   const needsNewlineBefore = line.text.trim().length > 0;
   const needsNewlineAfter = pos < doc.length;
 
-  const insert =
-    (needsNewlineBefore ? "\n\n" : "") +
-    tableText +
-    (needsNewlineAfter ? "\n" : "");
+  const insert = (needsNewlineBefore ? "\n\n" : "") + tableText + (needsNewlineAfter ? "\n" : "");
 
   const headerStart = pos + (needsNewlineBefore ? 2 : 0) + 2;
   const headerEnd = headerStart + "Header 1".length;
@@ -1523,7 +1521,7 @@ function showTableContextMenu(view, x, y, table, cellInfo) {
   menu.style.top = `${y}px`;
 
   const isHeaderOrSep = cellInfo.row.type === "header" || cellInfo.row.type === "separator";
-  const isSingleDataRow = table.rows.filter(r => r.type === "data").length <= 1;
+  const isSingleDataRow = table.rows.filter((r) => r.type === "data").length <= 1;
   const isSingleColumn = table.alignments.length <= 1;
 
   if (isHeaderOrSep) {
@@ -1627,7 +1625,14 @@ export const markdownTableExtension = [
 export { tableAutoFormat, tableContextMenu, tableDecorations, tableKeymap, tablesField };
 
 // Export handlers for testing
-    export { handleArrowDown, handleArrowUp };
+export { handleArrowDown, handleArrowUp };
 
 // Export row/column operations for external use
-    export { deleteColumn, deleteRow, insertColumnLeft, insertColumnRight, insertRowAbove, insertRowBelow };
+export {
+  deleteColumn,
+  deleteRow,
+  insertColumnLeft,
+  insertColumnRight,
+  insertRowAbove,
+  insertRowBelow,
+};

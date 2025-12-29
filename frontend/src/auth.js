@@ -76,7 +76,7 @@ export async function login(email, password) {
     if (!response.ok || !data.meta?.is_authenticated) {
       // Extract error messages from response
       const errors = data.errors || [];
-      const errorMessage = errors.map(e => e.message).join(". ") || "Login failed";
+      const errorMessage = errors.map((e) => e.message).join(". ") || "Login failed";
       return { success: false, error: errorMessage };
     }
 
@@ -112,7 +112,7 @@ export async function signup(email, password) {
     if (!response.ok || !data.meta?.is_authenticated) {
       // Extract error messages from response
       const errors = data.errors || [];
-      const errorMessage = errors.map(e => e.message).join(". ") || "Signup failed";
+      const errorMessage = errors.map((e) => e.message).join(". ") || "Signup failed";
       return { success: false, error: errorMessage };
     }
 

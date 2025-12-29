@@ -8,12 +8,12 @@
 
 // SPA route definitions - only these paths are handled client-side
 const routes = {
-  '/login/': () => import('./loginPage.js'),
-  '/signup/': () => import('./signupPage.js'),
-  '/invitation/': () => import('./invitationPage.js'),
-  '/reset-password/': () => import('./resetPasswordPage.js'),
-  '/forgot-password/': () => import('./forgotPasswordPage.js'),
-  '/settings/': () => import('./settingsPage.js'),
+  "/login/": () => import("./loginPage.js"),
+  "/signup/": () => import("./signupPage.js"),
+  "/invitation/": () => import("./invitationPage.js"),
+  "/reset-password/": () => import("./resetPasswordPage.js"),
+  "/forgot-password/": () => import("./forgotPasswordPage.js"),
+  "/settings/": () => import("./settingsPage.js"),
 };
 
 /**
@@ -28,8 +28,8 @@ export function getPageIdFromPath(path = window.location.pathname) {
  * Normalize a path by ensuring it has a trailing slash (except for root)
  */
 function normalizePath(path) {
-  if (path !== '/' && !path.endsWith('/')) {
-    return path + '/';
+  if (path !== "/" && !path.endsWith("/")) {
+    return path + "/";
   }
   return path;
 }
@@ -41,8 +41,8 @@ function normalizePath(path) {
  */
 function isSpaRoute(path) {
   const normalizedPath = normalizePath(path);
-  if (normalizedPath === '/') return false;
-  return normalizedPath.startsWith('/pages/') || normalizedPath in routes;
+  if (normalizedPath === "/") return false;
+  return normalizedPath.startsWith("/pages/") || normalizedPath in routes;
 }
 
 /**
@@ -52,9 +52,9 @@ export async function router() {
   const path = normalizePath(window.location.pathname);
 
   // /pages/<id>/ pattern - load main app
-  if (path.startsWith('/pages/')) {
-    const module = await import('./main.js');
-    if (module.default && typeof module.default === 'function') {
+  if (path.startsWith("/pages/")) {
+    const module = await import("./main.js");
+    if (module.default && typeof module.default === "function") {
       await module.default();
     }
     return;
@@ -64,12 +64,12 @@ export async function router() {
   if (routes[path]) {
     try {
       const module = await routes[path]();
-      if (module.default && typeof module.default === 'function') {
+      if (module.default && typeof module.default === "function") {
         await module.default();
       }
     } catch (err) {
-      console.error('Failed to load page:', err);
-      window.location.href = '/';
+      console.error("Failed to load page:", err);
+      window.location.href = "/";
     }
     return;
   }
@@ -91,22 +91,22 @@ export function navigate(path) {
     return;
   }
 
-  window.history.pushState({}, '', normalizedPath);
+  window.history.pushState({}, "", normalizedPath);
   router();
 }
 
 // Handle browser back/forward buttons
-window.addEventListener('popstate', router);
+window.addEventListener("popstate", router);
 
 // Handle internal link clicks - whitelist approach
-document.addEventListener('click', (e) => {
+document.addEventListener("click", (e) => {
   const anchor = e.target.closest('a[href^="/"]');
 
   if (anchor) {
-    const href = anchor.getAttribute('href');
+    const href = anchor.getAttribute("href");
 
     // Skip API routes and external links
-    if (href.startsWith('/api/') || anchor.getAttribute('target') === '_blank') {
+    if (href.startsWith("/api/") || anchor.getAttribute("target") === "_blank") {
       return;
     }
 

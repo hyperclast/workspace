@@ -59,5 +59,5 @@ export const decorateSectionHeaders = ViewPlugin.fromClass(
   },
   {
     decorations: (v) => v.decorations,
-  },
+  }
 );

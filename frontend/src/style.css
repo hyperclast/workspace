@@ -78,7 +78,6 @@ nav {
   cursor: help;
 }
 
-
 .nav-main {
   flex: 1;
   display: flex;
@@ -1076,7 +1075,9 @@ body.sidebar-resizing .chat-sidebar {
 }
 
 @keyframes loading-bounce {
-  0%, 80%, 100% {
+  0%,
+  80%,
+  100% {
     opacity: 0.3;
     transform: translateY(0);
   }
@@ -1846,7 +1847,6 @@ body.sidebar-resizing .chat-sidebar {
   color: rgba(55, 53, 47, 0.8);
 }
 
-
 .note-header-actions {
   display: flex;
   align-items: center;
@@ -2259,11 +2259,8 @@ body.sidebar-resizing .chat-sidebar {
   background: white;
   padding: 1.75rem;
   border-radius: 16px;
-  box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.1),
-    0 2px 4px -1px rgba(0, 0, 0, 0.06),
-    0 20px 25px -5px rgba(0, 0, 0, 0.1),
-    0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06),
+    0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   max-width: 440px;
   width: 100%;
   animation: modalSlideIn 0.2s ease-out;
@@ -2327,7 +2324,6 @@ body.sidebar-resizing .chat-sidebar {
   font-size: 0.9rem;
 }
 
-
 /* ============================================================================
    Markdown Table Styling (Option A: Styled Markdown)
    - Tables remain as editable markdown text
@@ -2339,7 +2335,8 @@ body.sidebar-resizing .chat-sidebar {
 .cm-line.cm-table-header,
 .cm-line.cm-table-separator,
 .cm-line.cm-table-row {
-  font-family: ui-monospace, "SF Mono", "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", "Source Code Pro", Menlo, Consolas,
+    monospace;
   font-size: 0.9em;
 }
 
@@ -3021,7 +3018,7 @@ body.sidebar-resizing .chat-sidebar {
 }
 
 .site-nav-link::after {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   bottom: 0;
@@ -3080,9 +3077,7 @@ body.sidebar-resizing .chat-sidebar {
   background: white;
   padding: 2.5rem;
   border-radius: 16px;
-  box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.1),
-    0 2px 4px -1px rgba(0, 0, 0, 0.06),
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06),
     0 20px 25px -5px rgba(0, 0, 0, 0.05);
   width: 100%;
   max-width: 420px;
@@ -3262,7 +3257,7 @@ body.sidebar-resizing .chat-sidebar {
 
 .auth-divider::before,
 .auth-divider::after {
-  content: '';
+  content: "";
   flex: 1;
   height: 1px;
   background: #e2e8f0;
@@ -3331,7 +3326,7 @@ body.sidebar-resizing .chat-sidebar {
 }
 
 .settings-tab.active::after {
-  content: '';
+  content: "";
   position: absolute;
   bottom: -1px;
   left: 0;
@@ -3460,7 +3455,7 @@ body.sidebar-resizing .chat-sidebar {
   padding: 0.6rem 0.75rem;
   background-color: rgba(55, 53, 47, 0.04);
   border-radius: 4px;
-  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-family: "SF Mono", Monaco, "Courier New", monospace;
   font-size: 0.9rem;
   color: var(--text-primary);
 }
@@ -3499,7 +3494,7 @@ body.sidebar-resizing .chat-sidebar {
   padding: 0.6rem 0.75rem;
   background-color: rgba(55, 53, 47, 0.04);
   border-radius: 4px;
-  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-family: "SF Mono", Monaco, "Courier New", monospace;
   font-size: 0.9rem;
   color: var(--text-primary);
 }
@@ -3556,7 +3551,7 @@ body.sidebar-resizing .chat-sidebar {
 
 .token-input {
   flex: 1;
-  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-family: "SF Mono", Monaco, "Courier New", monospace;
   font-size: 0.85rem;
   padding: 0.6rem 0.75rem;
   background-color: rgba(55, 53, 47, 0.04);
@@ -3877,7 +3872,7 @@ body.sidebar-resizing .chat-sidebar {
 }
 
 .org-detail-value.org-domain {
-  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-family: "SF Mono", Monaco, "Courier New", monospace;
   color: #667eea;
   background: rgba(102, 126, 234, 0.1);
   padding: 0.125rem 0.375rem;
@@ -3916,9 +3911,9 @@ body.sidebar-resizing .chat-sidebar {
 }
 
 .org-billing-actions {
-  margin-top: 0.75rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 0.25rem;
 }
 
 .org-billing-btn {

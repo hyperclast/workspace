@@ -2,7 +2,7 @@
  * Test utilities for Yjs CRDT tests
  * Provides helper functions for common testing scenarios
  */
-import * as Y from 'yjs';
+import * as Y from "yjs";
 
 /**
  * Sync two Yjs documents bidirectionally
@@ -51,7 +51,7 @@ export function syncMultipleDocs(...docs) {
  */
 export function createPartition(doc1, doc2) {
   return {
-    reconnect: () => syncDocs(doc1, doc2)
+    reconnect: () => syncDocs(doc1, doc2),
   };
 }
 
@@ -60,7 +60,7 @@ export function createPartition(doc1, doc2) {
  * @param {string} textName - Name of the text type (default: 'content')
  * @returns {Object} - { doc, text } tuple
  */
-export function createDocWithText(textName = 'content') {
+export function createDocWithText(textName = "content") {
   const doc = new Y.Doc();
   const text = doc.getText(textName);
   return { doc, text };
@@ -73,10 +73,10 @@ export function createDocWithText(textName = 'content') {
  * @param {Array} operations - Array of operation objects
  */
 export function applyOperations(text, operations) {
-  operations.forEach(op => {
-    if (op.type === 'insert') {
+  operations.forEach((op) => {
+    if (op.type === "insert") {
       text.insert(op.pos, op.text);
-    } else if (op.type === 'delete') {
+    } else if (op.type === "delete") {
       text.delete(op.pos, op.length);
     }
   });
@@ -140,7 +140,7 @@ export function calculateDiff(doc1, doc2) {
     doc1MissingFromDoc2,
     doc2MissingFromDoc1,
     doc1NeedsSyncFrom2: doc1MissingFromDoc2.length > 2,
-    doc2NeedsSyncFrom1: doc2MissingFromDoc1.length > 2
+    doc2NeedsSyncFrom1: doc2MissingFromDoc1.length > 2,
   };
 }
 
@@ -163,20 +163,20 @@ export function areDocsSynced(doc1, doc2) {
  * @param {string} textName - Name of text type to compare (default: 'content')
  * @throws {Error} - If documents haven't converged
  */
-export function assertConverged(doc1, doc2, textName = 'content') {
+export function assertConverged(doc1, doc2, textName = "content") {
   const text1 = doc1.getText(textName);
   const text2 = doc2.getText(textName);
 
   if (text1.toString() !== text2.toString()) {
     throw new Error(
       `Documents have not converged!\n` +
-      `Doc1: "${text1.toString()}"\n` +
-      `Doc2: "${text2.toString()}"`
+        `Doc1: "${text1.toString()}"\n` +
+        `Doc2: "${text2.toString()}"`
     );
   }
 
   if (!areDocsSynced(doc1, doc2)) {
-    throw new Error('Documents have same content but different state vectors');
+    throw new Error("Documents have same content but different state vectors");
   }
 
   return true;
@@ -213,8 +213,8 @@ export function restoreSnapshot(doc, snapshot) {
  * @returns {string} - Random text
  */
 export function generateRandomText(length) {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 \n';
-  let result = '';
+  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 \n";
+  let result = "";
   for (let i = 0; i < length; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }

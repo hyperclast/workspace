@@ -115,14 +115,18 @@ export function createCollaborationObjects(pageExternalId, displayName = "Anonym
         const message = JSON.parse(event.data);
         if (message.type === "access_revoked") {
           console.warn("Access to this page has been revoked");
-          window.dispatchEvent(new CustomEvent("pageAccessRevoked", {
-            detail: { pageId: pageExternalId, message: message.message }
-          }));
+          window.dispatchEvent(
+            new CustomEvent("pageAccessRevoked", {
+              detail: { pageId: pageExternalId, message: message.message },
+            })
+          );
         } else if (message.type === "links_updated") {
           console.log("Links updated notification received for page:", message.page_id);
-          window.dispatchEvent(new CustomEvent("linksUpdated", {
-            detail: { pageId: message.page_id }
-          }));
+          window.dispatchEvent(
+            new CustomEvent("linksUpdated", {
+              detail: { pageId: message.page_id },
+            })
+          );
         }
       } catch (e) {
         // Not a JSON message, ignore

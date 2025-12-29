@@ -5,7 +5,7 @@
  * for Yjs and CodeMirror performance tests.
  */
 
-import * as Y from 'yjs';
+import * as Y from "yjs";
 
 /**
  * Generate a string with the specified number of lines
@@ -20,15 +20,13 @@ export const generateLines = (numLines, options = {}) => {
   const lines = [];
 
   for (let i = 0; i < numLines; i++) {
-    const length = varied
-      ? Math.floor(lineLength * (0.5 + Math.random()))
-      : lineLength;
+    const length = varied ? Math.floor(lineLength * (0.5 + Math.random())) : lineLength;
 
     const line = generateLine(i, length);
     lines.push(line);
   }
 
-  return lines.join('\n');
+  return lines.join("\n");
 };
 
 /**
@@ -44,13 +42,16 @@ const generateLine = (lineNum, length) => {
   }
 
   const remaining = length - prefix.length;
-  const words = 'Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua'.split(' ');
+  const words =
+    "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua".split(
+      " "
+    );
 
   let content = prefix;
   while (content.length < length) {
     const word = words[Math.floor(Math.random() * words.length)];
     if (content.length + word.length + 1 <= length) {
-      content += word + ' ';
+      content += word + " ";
     } else {
       break;
     }
@@ -69,7 +70,7 @@ const generateLine = (lineNum, length) => {
  * @returns {Y.Doc}
  */
 export const createYjsDoc = (numLines, options = {}) => {
-  const { textType = 'codemirror', ...generateOptions } = options;
+  const { textType = "codemirror", ...generateOptions } = options;
 
   const doc = new Y.Doc();
   const text = doc.getText(textType);
@@ -105,14 +106,14 @@ export const createMultipleYjsDocs = (count, numLines = 0, options = {}) => {
  * @returns {Uint8Array[]} Array of update bytes
  */
 export const generateUpdates = (doc, numUpdates, options = {}) => {
-  const { textType = 'codemirror', operation = 'insert' } = options;
+  const { textType = "codemirror", operation = "insert" } = options;
   const text = doc.getText(textType);
   const updates = [];
 
   for (let i = 0; i < numUpdates; i++) {
     const currentLength = text.length;
 
-    if (operation === 'insert' || (operation === 'mixed' && i % 2 === 0)) {
+    if (operation === "insert" || (operation === "mixed" && i % 2 === 0)) {
       // Insert operation
       const position = Math.floor(Math.random() * (currentLength + 1));
       const content = `Update ${i}: ${generateLine(i, 40)}\n`;
@@ -153,7 +154,7 @@ export const applyUpdates = (doc, updates) => {
  * @returns {Object} Simulation results with updates and convergence info
  */
 export const simulateConcurrentEdits = (docs, editsPerDoc, options = {}) => {
-  const { textType = 'codemirror' } = options;
+  const { textType = "codemirror" } = options;
   const allUpdates = [];
 
   // Each doc makes its edits
@@ -181,14 +182,14 @@ export const simulateConcurrentEdits = (docs, editsPerDoc, options = {}) => {
   }
 
   // Check convergence - all docs should have same content
-  const texts = docs.map(doc => doc.getText(textType).toString());
-  const converged = texts.every(text => text === texts[0]);
+  const texts = docs.map((doc) => doc.getText(textType).toString());
+  const converged = texts.every((text) => text === texts[0]);
 
   return {
     converged,
     finalLength: texts[0].length,
     totalUpdates: allUpdates.length,
-    updates: allUpdates.map(u => u.update)
+    updates: allUpdates.map((u) => u.update),
   };
 };
 
@@ -207,5 +208,5 @@ export const createRealisticNote = (sectionCount = 5, linesPerSection = 20) => {
     sections.push(header + content);
   }
 
-  return sections.join('');
+  return sections.join("");
 };

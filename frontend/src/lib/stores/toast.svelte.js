@@ -5,11 +5,11 @@ export function getToasts() {
   return toasts;
 }
 
-export function showToast(message, type = 'success', duration = 5000) {
+export function showToast(message, type = "success", duration = 5000) {
   const id = nextId++;
   toasts.push({ id, message, type });
 
-  if (type !== 'error') {
+  if (type !== "error") {
     setTimeout(() => {
       removeToast(id);
     }, duration);

@@ -1,26 +1,26 @@
-import { mount } from 'svelte';
-import GlobalConfirm from './components/GlobalConfirm.svelte';
+import { mount } from "svelte";
+import GlobalConfirm from "./components/GlobalConfirm.svelte";
 import {
   openConfirm as _openConfirm,
   openPrompt as _openPrompt,
   openShareProject as _openShareProject,
   openCreateProject as _openCreateProject,
-} from './stores/modal.svelte.js';
+} from "./stores/modal.svelte.js";
 
 let mounted = false;
 
 export function initModals() {
   // Check if container already exists on body
-  let container = document.getElementById('svelte-modal-root');
+  let container = document.getElementById("svelte-modal-root");
   if (mounted && container) return;
 
   // Create container if it doesn't exist
   if (!container) {
-    container = document.createElement('div');
-    container.id = 'svelte-modal-root';
+    container = document.createElement("div");
+    container.id = "svelte-modal-root";
     document.body.appendChild(container);
   } else {
-    container.innerHTML = '';
+    container.innerHTML = "";
   }
 
   mount(GlobalConfirm, { target: container });

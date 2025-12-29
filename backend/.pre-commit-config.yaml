@@ -1,5 +1,4 @@
 default_stages: [pre-commit, pre-push]
-files: ^backend/
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -8,6 +7,7 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-json
+        exclude: ^(\.vscode/|frontend/package-lock\.json)
       - id: check-yaml
       - id: debug-statements
       - id: check-merge-conflict
@@ -15,6 +15,7 @@ repos:
       - id: end-of-file-fixer
       - id: pretty-format-json
         args: [--autofix, --no-sort-keys]
+        exclude: ^(\.vscode/|frontend/package-lock\.json)
       - id: no-commit-to-branch
         args: [--branch, master]
 
@@ -29,11 +30,6 @@ repos:
     rev: v2.7.1
     hooks:
       - id: prettier
-        args:
-          - --config
-          - backend/.prettierrc.json
-          - --ignore-path
-          - backend/.prettierignore
 
   - repo: https://github.com/rtts/djhtml
     rev: v1.5.2

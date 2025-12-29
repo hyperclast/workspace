@@ -90,19 +90,19 @@ For session-based requests in the browser, the CSRF token is available via:
 ```javascript
 // Get CSRF token from cookie
 function getCsrfToken() {
-  return document.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '';
+  return document.querySelector('input[name="csrfmiddlewaretoken"]')?.value || "";
 }
 
 // Make a POST request
-fetch('/api/pages/', {
-  method: 'POST',
+fetch("/api/pages/", {
+  method: "POST",
   headers: {
-    'Content-Type': 'application/json',
-    'X-CSRFToken': getCsrfToken(),
+    "Content-Type": "application/json",
+    "X-CSRFToken": getCsrfToken(),
   },
-  credentials: 'same-origin',
+  credentials: "same-origin",
   body: JSON.stringify({
-    title: 'My New Page',
+    title: "My New Page",
   }),
 });
 ```
@@ -256,7 +256,7 @@ List endpoints support pagination using Django Ninja's built-in pagination with 
   "items": [
     // Array of items (up to limit)
   ],
-  "count": 150  // Total number of items across all pages
+  "count": 150 // Total number of items across all pages
 }
 ```
 
@@ -264,16 +264,16 @@ List endpoints support pagination using Django Ninja's built-in pagination with 
 
 ```javascript
 // Get first 10 pages
-fetch('/api/pages/?limit=10&offset=0');
+fetch("/api/pages/?limit=10&offset=0");
 
 // Get next 10 pages
-fetch('/api/pages/?limit=10&offset=10');
+fetch("/api/pages/?limit=10&offset=10");
 
 // Get links for a page
-fetch('/api/pages/abc123/links/');
+fetch("/api/pages/abc123/links/");
 
 // Use default pagination (100 items)
-fetch('/api/pages/');
+fetch("/api/pages/");
 ```
 
 **Iterating through pages:**
@@ -284,10 +284,9 @@ const limit = 50;
 let allItems = [];
 
 while (true) {
-  const response = await fetch(
-    `/api/pages/?limit=${limit}&offset=${offset}`,
-    { credentials: 'same-origin' }
-  );
+  const response = await fetch(`/api/pages/?limit=${limit}&offset=${offset}`, {
+    credentials: "same-origin",
+  });
 
   const data = await response.json();
   allItems = allItems.concat(data.items);

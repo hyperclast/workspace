@@ -1,11 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import {
-  API_BASE_URL,
-  WS_BASE_URL,
-  WS_HOST,
-  getCsrfToken,
-  getUserInfo,
-} from "../../config.js";
+import { API_BASE_URL, WS_BASE_URL, WS_HOST, getCsrfToken, getUserInfo } from "../../config.js";
 
 describe("config - constants", () => {
   test("API_BASE_URL is defined and is empty string for single-origin setup", () => {

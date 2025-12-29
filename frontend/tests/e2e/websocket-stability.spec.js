@@ -19,10 +19,10 @@
  *   TEST_EMAIL=you@example.com TEST_PASSWORD=yourpass npm run test:websocket -- --headed
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
 
 // Configuration
-const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:9800';
+const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:9800";
 
 // WebSocket stability thresholds
 const OBSERVATION_PERIOD_MS = 10000; // 10 seconds observation period
@@ -37,12 +37,12 @@ const USE_EXISTING_ACCOUNT = EXISTING_EMAIL && EXISTING_PASSWORD;
 
 // Generate unique test user credentials (only used if no existing account)
 const TEST_USER_EMAIL = USE_EXISTING_ACCOUNT ? EXISTING_EMAIL : `wstest-${Date.now()}@example.com`;
-const TEST_USER_PASSWORD = USE_EXISTING_ACCOUNT ? EXISTING_PASSWORD : 'TestPassword123!';
+const TEST_USER_PASSWORD = USE_EXISTING_ACCOUNT ? EXISTING_PASSWORD : "TestPassword123!";
 
-test.describe('WebSocket Connection Stability', () => {
-  let testPageId = EXISTING_PAGE_ID || '';
+test.describe("WebSocket Connection Stability", () => {
+  let testPageId = EXISTING_PAGE_ID || "";
   let shouldCleanup = !USE_EXISTING_ACCOUNT;
-  let csrfToken = '';
+  let csrfToken = "";
 
   test.beforeAll(async ({ browser }) => {
     if (USE_EXISTING_ACCOUNT) {
@@ -61,16 +61,16 @@ test.describe('WebSocket Connection Stability', () => {
 
     // Sign up via the UI
     await page.goto(`${BASE_URL}/signup`);
-    await page.waitForSelector('#signup-email', { timeout: 10000 });
+    await page.waitForSelector("#signup-email", { timeout: 10000 });
 
-    await page.fill('#signup-email', TEST_USER_EMAIL);
-    await page.fill('#signup-password', TEST_USER_PASSWORD);
+    await page.fill("#signup-email", TEST_USER_EMAIL);
+    await page.fill("#signup-password", TEST_USER_PASSWORD);
     await page.click('button[type="submit"]');
 
     // Wait for redirect to editor after signup
-    await page.waitForSelector('#editor', { timeout: 15000 });
-    await page.waitForSelector('.cm-content', { timeout: 10000 });
-    console.log('✅ Test user created and logged in');
+    await page.waitForSelector("#editor", { timeout: 15000 });
+    await page.waitForSelector(".cm-content", { timeout: 10000 });
+    console.log("✅ Test user created and logged in");
 
     // Get the current page ID
     const url = page.url();
@@ -79,74 +79,72 @@ test.describe('WebSocket Connection Stability', () => {
       testPageId = pageMatch[1];
     } else {
       testPageId = await page.evaluate(() => {
-        return window.currentPage?.external_id || '';
+        return window.currentPage?.external_id || "";
       });
     }
 
     console.log(`✅ Test page ID: ${testPageId}`);
 
     // Get CSRF token for cleanup later
-    csrfToken = await page.evaluate(() => window._csrfToken || '');
+    csrfToken = await page.evaluate(() => window._csrfToken || "");
 
     await context.close();
   });
 
-  test('WebSocket should not enter a reconnection loop', async ({ page }) => {
+  test("WebSocket should not enter a reconnection loop", async ({ page }) => {
     // Track WebSocket connections
     const wsConnections = [];
     const wsDisconnections = [];
 
     // Listen to console messages for WebSocket status
-    page.on('console', (msg) => {
+    page.on("console", (msg) => {
       const text = msg.text();
-      if (text.includes('WebSocket status:')) {
+      if (text.includes("WebSocket status:")) {
         const timestamp = Date.now();
-        if (text.includes('connected')) {
+        if (text.includes("connected")) {
           wsConnections.push(timestamp);
           console.log(`   🔌 WebSocket connected (${wsConnections.length})`);
-        } else if (text.includes('disconnected')) {
+        } else if (text.includes("disconnected")) {
           wsDisconnections.push(timestamp);
           console.log(`   ❌ WebSocket disconnected (${wsDisconnections.length})`);
         }
       }
-      if (text.includes('Connecting to WebSocket:')) {
+      if (text.includes("Connecting to WebSocket:")) {
         console.log(`   🔄 ${text}`);
       }
     });
 
     // Listen to network requests for WebSocket connections
     const wsUrls = [];
-    page.on('websocket', (ws) => {
+    page.on("websocket", (ws) => {
       const url = ws.url();
       wsUrls.push({ url, timestamp: Date.now() });
       console.log(`   🌐 WebSocket opened: ${url}`);
 
-      ws.on('close', () => {
+      ws.on("close", () => {
         console.log(`   🔒 WebSocket closed: ${url}`);
       });
 
-      ws.on('framereceived', () => {
+      ws.on("framereceived", () => {
         // We could log frame counts here if needed
       });
     });
 
     // Login first
-    console.log('\n📋 Logging in...');
+    console.log("\n📋 Logging in...");
     await page.goto(`${BASE_URL}/login`);
-    await page.waitForSelector('#login-email', { timeout: 10000 });
-    await page.fill('#login-email', TEST_USER_EMAIL);
-    await page.fill('#login-password', TEST_USER_PASSWORD);
+    await page.waitForSelector("#login-email", { timeout: 10000 });
+    await page.fill("#login-email", TEST_USER_EMAIL);
+    await page.fill("#login-password", TEST_USER_PASSWORD);
     await page.click('button[type="submit"]');
-    await page.waitForSelector('#editor', { timeout: 15000 });
+    await page.waitForSelector("#editor", { timeout: 15000 });
 
     // Navigate to the test page
-    const targetUrl = testPageId
-      ? `${BASE_URL}/pages/${testPageId}/`
-      : `${BASE_URL}/`;
+    const targetUrl = testPageId ? `${BASE_URL}/pages/${testPageId}/` : `${BASE_URL}/`;
 
     console.log(`\n🚀 Navigating to: ${targetUrl}`);
     await page.goto(targetUrl);
-    await page.waitForSelector('.cm-content', { timeout: 30000 });
+    await page.waitForSelector(".cm-content", { timeout: 30000 });
 
     console.log(`\n⏱️  Observing WebSocket connections for ${OBSERVATION_PERIOD_MS / 1000}s...`);
     const observationStart = Date.now();
@@ -158,7 +156,7 @@ test.describe('WebSocket Connection Stability', () => {
     const totalObservationTime = observationEnd - observationStart;
 
     // Analyze results
-    console.log('\n📊 WebSocket Stability Report:');
+    console.log("\n📊 WebSocket Stability Report:");
     console.log(`   Observation period: ${totalObservationTime}ms`);
     console.log(`   Total connections: ${wsConnections.length}`);
     console.log(`   Total disconnections: ${wsDisconnections.length}`);
@@ -200,36 +198,34 @@ test.describe('WebSocket Connection Stability', () => {
     ).toBeLessThan(RECONNECT_LOOP_THRESHOLD);
   });
 
-  test('WebSocket connection should establish and receive sync', async ({ page }) => {
+  test("WebSocket connection should establish and receive sync", async ({ page }) => {
     let syncReceived = false;
     let connectionEstablished = false;
 
     // Listen for sync status messages
-    page.on('console', (msg) => {
+    page.on("console", (msg) => {
       const text = msg.text();
-      if (text.includes('WebSocket status: connected')) {
+      if (text.includes("WebSocket status: connected")) {
         connectionEstablished = true;
       }
-      if (text.includes('Sync status: synced')) {
+      if (text.includes("Sync status: synced")) {
         syncReceived = true;
       }
     });
 
     // Login
     await page.goto(`${BASE_URL}/login`);
-    await page.waitForSelector('#login-email', { timeout: 10000 });
-    await page.fill('#login-email', TEST_USER_EMAIL);
-    await page.fill('#login-password', TEST_USER_PASSWORD);
+    await page.waitForSelector("#login-email", { timeout: 10000 });
+    await page.fill("#login-email", TEST_USER_EMAIL);
+    await page.fill("#login-password", TEST_USER_PASSWORD);
     await page.click('button[type="submit"]');
-    await page.waitForSelector('#editor', { timeout: 15000 });
+    await page.waitForSelector("#editor", { timeout: 15000 });
 
     // Navigate to page
-    const targetUrl = testPageId
-      ? `${BASE_URL}/pages/${testPageId}/`
-      : `${BASE_URL}/`;
+    const targetUrl = testPageId ? `${BASE_URL}/pages/${testPageId}/` : `${BASE_URL}/`;
 
     await page.goto(targetUrl);
-    await page.waitForSelector('.cm-content', { timeout: 30000 });
+    await page.waitForSelector(".cm-content", { timeout: 30000 });
 
     // Wait for connection and sync (with timeout)
     const startTime = Date.now();
@@ -243,15 +239,15 @@ test.describe('WebSocket Connection Stability', () => {
     }
 
     console.log(`\n📊 Connection Test Results:`);
-    console.log(`   Connection established: ${connectionEstablished ? '✅' : '❌'}`);
-    console.log(`   Sync received: ${syncReceived ? '✅' : '❌'}`);
+    console.log(`   Connection established: ${connectionEstablished ? "✅" : "❌"}`);
+    console.log(`   Sync received: ${syncReceived ? "✅" : "❌"}`);
     console.log(`   Time taken: ${Date.now() - startTime}ms`);
 
-    expect(connectionEstablished, 'WebSocket should connect').toBe(true);
-    expect(syncReceived, 'Sync should complete').toBe(true);
+    expect(connectionEstablished, "WebSocket should connect").toBe(true);
+    expect(syncReceived, "Sync should complete").toBe(true);
   });
 
-  test('extended stability test (30 seconds)', async ({ page }) => {
+  test("extended stability test (30 seconds)", async ({ page }) => {
     // Longer observation for more confidence
     // Increase timeout for this specific test
     test.setTimeout(60000);
@@ -259,42 +255,44 @@ test.describe('WebSocket Connection Stability', () => {
     const wsEvents = [];
 
     // Track all WebSocket events
-    page.on('console', (msg) => {
+    page.on("console", (msg) => {
       const text = msg.text();
-      if (text.includes('WebSocket status:') || text.includes('Sync status:')) {
+      if (text.includes("WebSocket status:") || text.includes("Sync status:")) {
         wsEvents.push({
           timestamp: Date.now(),
-          type: text.includes('connected') ? 'connect' :
-                text.includes('disconnected') ? 'disconnect' :
-                text.includes('synced') ? 'sync' : 'other',
-          message: text
+          type: text.includes("connected")
+            ? "connect"
+            : text.includes("disconnected")
+            ? "disconnect"
+            : text.includes("synced")
+            ? "sync"
+            : "other",
+          message: text,
         });
       }
     });
 
     // Login and navigate
     await page.goto(`${BASE_URL}/login`);
-    await page.waitForSelector('#login-email', { timeout: 10000 });
-    await page.fill('#login-email', TEST_USER_EMAIL);
-    await page.fill('#login-password', TEST_USER_PASSWORD);
+    await page.waitForSelector("#login-email", { timeout: 10000 });
+    await page.fill("#login-email", TEST_USER_EMAIL);
+    await page.fill("#login-password", TEST_USER_PASSWORD);
     await page.click('button[type="submit"]');
-    await page.waitForSelector('#editor', { timeout: 15000 });
+    await page.waitForSelector("#editor", { timeout: 15000 });
 
-    const targetUrl = testPageId
-      ? `${BASE_URL}/pages/${testPageId}/`
-      : `${BASE_URL}/`;
+    const targetUrl = testPageId ? `${BASE_URL}/pages/${testPageId}/` : `${BASE_URL}/`;
 
     console.log(`\n🚀 Starting extended stability test (${EXTENDED_OBSERVATION_MS / 1000}s)...`);
     await page.goto(targetUrl);
-    await page.waitForSelector('.cm-content', { timeout: 30000 });
+    await page.waitForSelector(".cm-content", { timeout: 30000 });
 
     // Extended observation
     await page.waitForTimeout(EXTENDED_OBSERVATION_MS);
 
     // Analyze events
-    const connects = wsEvents.filter(e => e.type === 'connect');
-    const disconnects = wsEvents.filter(e => e.type === 'disconnect');
-    const syncs = wsEvents.filter(e => e.type === 'sync');
+    const connects = wsEvents.filter((e) => e.type === "connect");
+    const disconnects = wsEvents.filter((e) => e.type === "disconnect");
+    const syncs = wsEvents.filter((e) => e.type === "sync");
 
     console.log(`\n📊 Extended Stability Report:`);
     console.log(`   Duration: ${EXTENDED_OBSERVATION_MS / 1000}s`);
@@ -322,8 +320,8 @@ test.describe('WebSocket Connection Stability', () => {
       console.log(`\n✅ Extended stability test passed`);
     }
 
-    expect(connects.length, 'Too many WebSocket connections').toBeLessThanOrEqual(2);
-    expect(disconnects.length, 'Unexpected disconnections').toBeLessThanOrEqual(1);
+    expect(connects.length, "Too many WebSocket connections").toBeLessThanOrEqual(2);
+    expect(disconnects.length, "Unexpected disconnections").toBeLessThanOrEqual(1);
   });
 
   test.afterAll(async ({ request }) => {
@@ -339,16 +337,16 @@ test.describe('WebSocket Connection Stability', () => {
     try {
       const response = await request.delete(`${BASE_URL}/api/pages/${testPageId}/`, {
         headers: {
-          'X-CSRFToken': csrfToken,
+          "X-CSRFToken": csrfToken,
         },
       });
       if (response.ok()) {
-        console.log('✅ Test page deleted');
+        console.log("✅ Test page deleted");
       } else {
         console.warn(`⚠️  Could not delete test page: ${response.status()}`);
       }
     } catch (e) {
-      console.warn('⚠️  Could not delete test page:', e.message);
+      console.warn("⚠️  Could not delete test page:", e.message);
     }
   });
 });
