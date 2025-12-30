@@ -186,7 +186,7 @@ LOGOUT_REDIRECT_URL = "/"
 ACCOUNT_LOGIN_METHODS = {"email"}
 ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*"]
 ACCOUNT_SIGNUP_AUTO_LOGIN = True
-ACCOUNT_EMAIL_VERIFICATION = "none"
+ACCOUNT_EMAIL_VERIFICATION = config("ACCOUNT_EMAIL_VERIFICATION", default="mandatory")
 ACCOUNT_EMAIL_SUBJECT_PREFIX = ""
 ACCOUNT_EMAIL_UNKNOWN_ACCOUNTS = False
 ACCOUNT_MAX_EMAIL_ADDRESSES = 1
@@ -222,6 +222,7 @@ HEADLESS_ONLY = True
 HEADLESS_CLIENTS = ["browser"]
 HEADLESS_FRONTEND_URLS = {
     "account_reset_password_from_key": f"{FRONTEND_URL}/reset-password?key={{key}}",
+    "account_confirm_email": "/accounts/confirm-email/{key}/",
 }
 
 # Hyperclast settings (continued)

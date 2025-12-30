@@ -2,6 +2,8 @@
 
 This document explains how to run E2E tests for Hyperclast, including WebSocket stability tests and page load time tests.
 
+> **Tip**: For running all tests (backend, frontend unit, and E2E), use the comprehensive `./run-tests.sh` script at the project root. See [Running All Tests](#running-all-tests) below.
+
 ## Prerequisites
 
 ```bash
@@ -226,3 +228,29 @@ The script handles:
 - Executing tests
 - Capturing logs
 - Cleanup on exit
+
+## Running All Tests
+
+For a comprehensive test run including backend, frontend unit tests, and E2E tests, use the `run-tests.sh` script at the project root:
+
+```bash
+# Run all tests with a dedicated test stack (port 9900)
+./run-tests.sh
+
+# Run against existing dev stack (faster startup)
+./run-tests.sh --use-existing 9800
+
+# Run only specific test suites
+./run-tests.sh --backend           # Django tests only
+./run-tests.sh --frontend          # Vitest tests only
+./run-tests.sh --e2e               # Playwright tests only
+./run-tests.sh --backend --frontend # Skip E2E
+
+# Additional options
+./run-tests.sh --keep              # Keep stack after tests
+./run-tests.sh --no-build          # Skip Docker builds
+./run-tests.sh --e2e --headed      # E2E with visible browser
+./run-tests.sh --port 9950         # Use custom port
+```
+
+The script parallelizes backend and frontend unit tests for faster execution, then runs E2E tests sequentially.

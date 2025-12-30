@@ -55,7 +55,7 @@ export async function getSession() {
  * Login with email and password
  * @param {string} email - User email
  * @param {string} password - User password
- * @returns {Promise<{success: boolean, user?: object, error?: string}>}
+ * @returns {Promise<{success: boolean, user?: object, error?: string, emailVerificationRequired?: boolean}>}
  */
 export async function login(email, password) {
   try {
@@ -70,6 +70,17 @@ export async function login(email, password) {
     // Backend returns status 200 with meta.is_authenticated on success
     if (response.ok && data.meta?.is_authenticated) {
       return { success: true, user: data.data?.user };
+    }
+
+    // Check if email verification is required (401 with verify_email flow)
+    // Allauth returns 401 when login succeeds but email verification is pending
+    if (response.status === 401 && data.data?.flows) {
+      const hasVerifyEmailFlow = data.data.flows.some(
+        (flow) => flow.id === "verify_email" && flow.is_pending
+      );
+      if (hasVerifyEmailFlow) {
+        return { success: true, emailVerificationRequired: true };
+      }
     }
 
     // If response is 200 but not authenticated, or other status codes
@@ -91,7 +102,7 @@ export async function login(email, password) {
  * Sign up with email and password
  * @param {string} email - User email
  * @param {string} password - User password
- * @returns {Promise<{success: boolean, user?: object, error?: string}>}
+ * @returns {Promise<{success: boolean, user?: object, error?: string, emailVerificationRequired?: boolean}>}
  */
 export async function signup(email, password) {
   try {
@@ -106,6 +117,17 @@ export async function signup(email, password) {
     // Backend returns status 200 with meta.is_authenticated on success
     if (response.ok && data.meta?.is_authenticated) {
       return { success: true, user: data.data?.user };
+    }
+
+    // Check if email verification is required (401 with verify_email flow)
+    // Allauth returns 401 when signup succeeds but email verification is pending
+    if (response.status === 401 && data.data?.flows) {
+      const hasVerifyEmailFlow = data.data.flows.some(
+        (flow) => flow.id === "verify_email" && flow.is_pending
+      );
+      if (hasVerifyEmailFlow) {
+        return { success: true, emailVerificationRequired: true };
+      }
     }
 
     // If response is 200 but not authenticated, or other status codes

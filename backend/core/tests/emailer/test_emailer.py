@@ -4,10 +4,9 @@ from django.template import TemplateDoesNotExist
 from django.test import TestCase, override_settings
 
 from core.emailer import Emailer
-from core.models import SentEmail
 
 
-@override_settings(EMAIL_BACKEND="anymail.backends.console.EmailBackend")
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
 class EmailerTestCase(TestCase):
     def test_ok_emailer_send_message(self):
         recipient = "recipient@example.com"
@@ -19,7 +18,7 @@ class EmailerTestCase(TestCase):
         }
 
         emailer = Emailer(template_prefix="core/emails/test_email")
-        emailer.send_mail(recipient, context)
+        emailer.send_mail(recipient, context, force_sync=True)
         msg = mail.outbox[0]
 
         self.assertEqual(len(mail.outbox), 1)
@@ -40,7 +39,7 @@ class EmailerTestCase(TestCase):
         metadata = {"field": "value"}
 
         emailer = Emailer(template_prefix="core/emails/test_email")
-        emailer.send_mail(recipient, context, metadata=metadata)
+        emailer.send_mail(recipient, context, metadata=metadata, force_sync=True)
         msg = mail.outbox[0]
 
         self.assertEqual(len(mail.outbox), 1)
@@ -49,8 +48,6 @@ class EmailerTestCase(TestCase):
         self.assertIn(message_text, msg.body)
         self.assertEqual(msg.from_email, settings.DEFAULT_FROM_EMAIL)
         self.assertEqual(msg.metadata, metadata)
-
-        self.assertTrue(SentEmail.objects.filter(to_address=recipient).exists())
 
     def test_ok_emailer_send_message_with_initial_payload(self):
         recipient = "recipient@example.com"
@@ -70,7 +67,7 @@ class EmailerTestCase(TestCase):
         }
 
         emailer = Emailer(payload=payload)
-        emailer.send_mail(recipient, context)
+        emailer.send_mail(recipient, context, force_sync=True)
         msg = mail.outbox[0]
 
         self.assertEqual(len(mail.outbox), 1)
@@ -102,7 +99,7 @@ class EmailerTestCase(TestCase):
         }
 
         emailer = Emailer(template_prefix="core/emails/test_email_other")
-        emailer.send_mail(recipient, context)
+        emailer.send_mail(recipient, context, force_sync=True)
         msg = mail.outbox[0]
 
         self.assertEqual(len(mail.outbox), 1)

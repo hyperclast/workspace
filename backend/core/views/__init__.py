@@ -1,4 +1,4 @@
-from .home import homepage, spa
+from .home import email_confirm, email_verification_sent, homepage, spa
 from .onboarding import welcome
 from .pages import about, privacy, terms
 from .pricing import pricing

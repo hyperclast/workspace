@@ -3,12 +3,17 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
+from core.views import email_confirm, email_verification_sent
+
 from .api import api
 
 
 urlpatterns = [
+    path("accounts/confirm-email/<str:key>/", email_confirm, name="account_confirm_email"),
+    path("accounts/confirm-email/", email_verification_sent, name="account_email_verification_sent"),
     path("accounts/", include("allauth.urls")),
     path("admin/", admin.site.urls),
+    path("anymail/", include("anymail.urls")),
     path("api/", include("allauth.headless.urls")),
     path("api/", api.urls),
     path("hijack/", include("hijack.urls")),

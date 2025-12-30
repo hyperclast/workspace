@@ -3,8 +3,11 @@
 {% load account %}
 
 {% block content %}
-  <p>Please confirm your email to activate your Hyperclast account.</p>
-  <p>
-    <a href="{{ activate_url }}">Confirm Email</a>
+  <p>Welcome to {{ brand_name|default:"Hyperclast" }}!</p>
+  <p>Please confirm your email address to get started.</p>
+  <p style="margin: 24px 0;">
+    <a href="{{ activate_url }}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: 600;">Verify Email Address</a>
   </p>
+  <p style="color: #666; font-size: 14px;">If the button doesn't work, copy and paste this link into your browser:</p>
+  <p style="color: #667eea; font-size: 14px; word-break: break-all;">{{ activate_url }}</p>
 {% endblock %}

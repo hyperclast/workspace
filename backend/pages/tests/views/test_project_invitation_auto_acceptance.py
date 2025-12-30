@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.test import TestCase, Client
+from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -226,6 +226,7 @@ class TestPostSignupProjectInvitationAutoAcceptance(TestCase):
             self.assertIn("Auto-accepted project invitation after signup", call_args[0])
 
 
+@override_settings(ACCOUNT_EMAIL_VERIFICATION="none")
 class TestPostLoginProjectInvitationAutoAcceptance(TestCase):
     """Test automatic project invitation acceptance after user login (integration tests)."""
 

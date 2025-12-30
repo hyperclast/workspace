@@ -4,7 +4,7 @@ import json
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.test import TestCase, Client
+from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -15,6 +15,7 @@ from users.tests.factories import UserFactory
 User = get_user_model()
 
 
+@override_settings(ACCOUNT_EMAIL_VERIFICATION="none")
 class TestLoginWithInvitationIntegration(TestCase):
     """Integration tests for login flow with invitation auto-acceptance using headless auth."""
 

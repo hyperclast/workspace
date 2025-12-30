@@ -192,7 +192,6 @@ describe("csrfFetch", () => {
     await csrfFetch("/api/test", {
       method: "POST",
       body: JSON.stringify({ test: "data" }),
-      credentials: "include",
       mode: "cors",
       cache: "no-cache",
     });
@@ -202,9 +201,23 @@ describe("csrfFetch", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ test: "data" }),
-        credentials: "include",
+        credentials: "same-origin",
         mode: "cors",
         cache: "no-cache",
+      })
+    );
+  });
+
+  test("always sets credentials to same-origin for security", async () => {
+    await csrfFetch("/api/test", {
+      method: "POST",
+      credentials: "include",
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/test",
+      expect.objectContaining({
+        credentials: "same-origin",
       })
     );
   });

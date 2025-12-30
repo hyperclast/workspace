@@ -1,5 +1,47 @@
 {% extends 'core/docs/base.html' %}
 
+{% block extra_styles %}
+  {{ block.super }}
+  <style>
+    /* FAQ anchor links */
+    .faq-item-open {
+      position: relative;
+      scroll-margin-top: 100px;
+    }
+    .faq-anchor {
+      position: absolute;
+      right: 0;
+      top: 0;
+      color: #6c757d;
+      text-decoration: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+      font-weight: 500;
+      padding: 0.25em 0.5em;
+    }
+    .faq-item-open:hover .faq-anchor {
+      opacity: 0.5;
+    }
+    .faq-anchor:hover {
+      opacity: 1 !important;
+    }
+
+    /* Highlighted FAQ item (when accessed via deep link) */
+    .faq-item-open.highlighted {
+      background: linear-gradient(90deg, rgba(102, 126, 234, 0.1) 0%, transparent 100%);
+      border-left: 3px solid #667eea;
+      padding-left: 1em;
+      margin-left: -1em;
+      border-radius: 0 8px 8px 0;
+      animation: faq-highlight-fade 3s ease-out forwards;
+    }
+    @keyframes faq-highlight-fade {
+      0% { background: linear-gradient(90deg, rgba(102, 126, 234, 0.2) 0%, transparent 100%); }
+      100% { background: linear-gradient(90deg, rgba(102, 126, 234, 0.05) 0%, transparent 100%); }
+    }
+  </style>
+{% endblock %}
+
 {% block docs_content %}
   <article class="oss-repo-page">
     <nav class="oss-breadcrumb">
@@ -127,7 +169,8 @@ cp backend/.env-template backend/.env-docker
     <section class="oss-section oss-faq">
       <h2>FAQ</h2>
 
-      <div class="faq-item-open">
+      <div class="faq-item-open" id="license">
+        <a href="#license" class="faq-anchor">#</a>
         <h3>Why Elastic License 2.0?</h3>
         <p>
           Let's address this directly: Workspace is licensed under
@@ -146,7 +189,8 @@ cp backend/.env-template backend/.env-docker
         </p>
       </div>
 
-      <div class="faq-item-open">
+      <div class="faq-item-open" id="opensource">
+        <a href="#opensource" class="faq-anchor">#</a>
         <h3>But is it really "open source"?</h3>
         <p>
           By the OSI definition? No. By the spirit of what most people mean when they say open source —
@@ -161,7 +205,8 @@ cp backend/.env-template backend/.env-docker
         </p>
       </div>
 
-      <div class="faq-item-open">
+      <div class="faq-item-open" id="selfhost">
+        <a href="#selfhost" class="faq-anchor">#</a>
         <h3>Can I self-host this?</h3>
         <p>
           <strong>Individuals and small teams:</strong> Yes, absolutely. Deploy it on your own infrastructure,
@@ -175,7 +220,8 @@ cp backend/.env-template backend/.env-docker
         </p>
       </div>
 
-      <div class="faq-item-open">
+      <div class="faq-item-open" id="hosted">
+        <a href="#hosted" class="faq-anchor">#</a>
         <h3>What's the difference between this and the hosted version?</h3>
         <p>
           Same codebase. The hosted version on {{ brand_name }} gives you managed infrastructure,
@@ -187,7 +233,8 @@ cp backend/.env-template backend/.env-docker
         </p>
       </div>
 
-      <div class="faq-item-open">
+      <div class="faq-item-open" id="requirements">
+        <a href="#requirements" class="faq-anchor">#</a>
         <h3>Do I need Redis and PostgreSQL?</h3>
         <p>
           For kicking the tires, SQLite works fine. For production or real-time collaboration,
@@ -195,7 +242,8 @@ cp backend/.env-template backend/.env-docker
         </p>
       </div>
 
-      <div class="faq-item-open">
+      <div class="faq-item-open" id="ai">
+        <a href="#ai" class="faq-anchor">#</a>
         <h3>How does the AI Ask feature work?</h3>
         <p>
           Pages are chunked and embedded using OpenAI's embedding API. When you ask a question,
@@ -204,7 +252,8 @@ cp backend/.env-template backend/.env-docker
         </p>
       </div>
 
-      <div class="faq-item-open">
+      <div class="faq-item-open" id="contribute">
+        <a href="#contribute" class="faq-anchor">#</a>
         <h3>Can I contribute?</h3>
         <p>
           Please do. Bug fixes, features, documentation — all welcome. Check the
@@ -234,4 +283,35 @@ cp backend/.env-template backend/.env-docker
       </div>
     </section>
   </article>
+{% endblock %}
+
+{% block extra_toc_scripts %}
+  <script>
+    (function() {
+      function highlightFaqItem() {
+        // Remove any existing highlight
+        document.querySelectorAll('.faq-item-open.highlighted').forEach(function(el) {
+          el.classList.remove('highlighted');
+        });
+
+        var hash = window.location.hash.slice(1);
+        if (!hash) return;
+
+        var target = document.getElementById(hash);
+        if (target && target.classList.contains('faq-item-open')) {
+          target.classList.add('highlighted');
+          // Scroll into view with offset for fixed header
+          setTimeout(function() {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 100);
+        }
+      }
+
+      // Run on page load
+      highlightFaqItem();
+
+      // Listen for hash changes (e.g., clicking anchor links)
+      window.addEventListener('hashchange', highlightFaqItem);
+    })();
+  </script>
 {% endblock %}

@@ -1,0 +1,11 @@
+# Override env_file to use .env-tests instead of .env-docker
+services:
+  ws-db:
+    env_file:
+      - .env-tests
+  ws-web:
+    env_file:
+      - .env-tests
+  ws-rq:
+    env_file:
+      - .env-tests

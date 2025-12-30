@@ -1,19 +1,262 @@
 {% extends "account/custom_base.html" %}
 
 {% block title %}
-  Email Confirmation Sent
+  Check Your Inbox
 {% endblock %}
 
 {% block content_main_title %}
-  Email Confirmation Sent
+  Almost there!
 {% endblock %}
 
 {% block content_main_body %}
-  <p>Click the link in the email we sent you to confirm your account.</p>
-  <p>
-    Check your spam folder if you don't see it in your inbox. We have sent an email to you for
-    verification. Follow the link provided to finalize the signup process. Please contact us at
-    <a href="mailto:support@domain.com" class="">support@domain.com</a> if you don't receive it in a
-    few minutes.
-  </p>
+  <div class="verification-content">
+    <div class="email-icon-wrapper">
+      <svg class="email-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="4" width="20" height="16" rx="2"/>
+        <path d="M22 6L12 13L2 6"/>
+      </svg>
+      <div class="email-icon-ping"></div>
+    </div>
+
+    <p class="verification-main-text">
+      We've sent a verification link to <span id="user-email" class="user-email"></span>
+    </p>
+
+    <p class="verification-instruction">
+      Click the link in the email to activate your account
+    </p>
+
+    <div class="verification-tips">
+      <p><strong>Don't see it?</strong></p>
+      <ul>
+        <li>Check your spam or junk folder</li>
+        <li>Make sure you entered the correct email</li>
+        <li>Wait a minute and refresh your inbox</li>
+      </ul>
+    </div>
+
+    <div class="resend-section">
+      <button type="button" id="resend-btn" class="resend-btn" onclick="resendEmail()">
+        Resend verification email
+      </button>
+      <p id="resend-success" class="resend-success" style="display: none;">
+        ✓ Verification email sent!
+      </p>
+    </div>
+
+    <p class="verification-support">
+      Still having trouble? Contact us at
+      <a href="mailto:{{ support_email }}">{{ support_email }}</a>
+    </p>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const userEmail = urlParams.get('email');
+
+    if (userEmail) {
+      document.getElementById('user-email').textContent = userEmail;
+    } else {
+      document.getElementById('user-email').textContent = 'your email address';
+      document.querySelector('.resend-section').style.display = 'none';
+    }
+
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
+    async function resendEmail() {
+      const btn = document.getElementById('resend-btn');
+      const success = document.getElementById('resend-success');
+      const errorEl = document.getElementById('resend-error');
+
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      if (errorEl) errorEl.style.display = 'none';
+
+      try {
+        const response = await fetch('/api/browser/v1/auth/email/verify/resend', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken'),
+          },
+          body: JSON.stringify({ email: userEmail }),
+          credentials: 'same-origin',
+        });
+
+        if (response.ok) {
+          btn.style.display = 'none';
+          success.style.display = 'block';
+
+          setTimeout(() => {
+            success.style.display = 'none';
+            btn.style.display = 'inline-block';
+            btn.disabled = false;
+            btn.textContent = 'Resend verification email';
+          }, 3000);
+        } else {
+          throw new Error('Failed to resend');
+        }
+      } catch (error) {
+        btn.disabled = false;
+        btn.textContent = 'Resend verification email';
+        console.error('Failed to resend:', error);
+      }
+    }
+  </script>
+
+  <style>
+    .verification-content {
+      text-align: center;
+    }
+
+    .email-icon-wrapper {
+      position: relative;
+      display: inline-block;
+      margin-bottom: 1.5rem;
+    }
+
+    .email-icon {
+      width: 64px;
+      height: 64px;
+      color: #667eea;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    .email-icon-ping {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      width: 16px;
+      height: 16px;
+      background: #10b981;
+      border-radius: 50%;
+      animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+
+    .email-icon-ping::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: #10b981;
+      border-radius: 50%;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    @keyframes ping {
+      0% { transform: scale(1); opacity: 1; }
+      75%, 100% { transform: scale(2); opacity: 0; }
+    }
+
+    .verification-main-text {
+      font-size: 1.1rem;
+      color: #1a1a1a;
+      margin-bottom: 0.5rem;
+    }
+
+    .verification-instruction {
+      color: #666;
+      margin-bottom: 1.5rem;
+    }
+
+    .verification-tips {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      text-align: left;
+      margin-bottom: 1.5rem;
+    }
+
+    .verification-tips p {
+      margin: 0 0 0.5rem 0;
+      color: #333;
+      font-size: 0.9rem;
+    }
+
+    .verification-tips ul {
+      margin: 0;
+      padding-left: 1.25rem;
+      color: #666;
+      font-size: 0.85rem;
+    }
+
+    .verification-tips li {
+      margin-bottom: 0.25rem;
+    }
+
+    .verification-support {
+      font-size: 0.9rem;
+      color: #666;
+      margin: 0;
+    }
+
+    .verification-support a {
+      color: #667eea;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .verification-support a:hover {
+      text-decoration: underline;
+    }
+
+    .user-email {
+      color: #667eea;
+      font-weight: 600;
+    }
+
+    .resend-section {
+      margin: 1.5rem 0;
+    }
+
+    .resend-btn {
+      background: transparent;
+      border: 1px solid #667eea;
+      color: #667eea;
+      padding: 0.6rem 1.25rem;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .resend-btn:hover:not(:disabled) {
+      background: #667eea;
+      color: white;
+    }
+
+    .resend-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .resend-success {
+      color: #10b981;
+      font-weight: 500;
+      font-size: 0.9rem;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
 {% endblock %}

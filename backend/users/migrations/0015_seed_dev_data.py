@@ -23,8 +23,15 @@ def seed_dev_data(apps, schema_editor):
     OrgMember = apps.get_model("users", "OrgMember")
     Project = apps.get_model("pages", "Project")
     Page = apps.get_model("pages", "Page")
+    EmailAddress = apps.get_model("account", "EmailAddress")
 
-    if User.objects.filter(email=DEV_USER_EMAIL).exists():
+    existing_user = User.objects.filter(email=DEV_USER_EMAIL).first()
+    if existing_user:
+        EmailAddress.objects.get_or_create(
+            user=existing_user,
+            email=DEV_USER_EMAIL,
+            defaults={"verified": True, "primary": True},
+        )
         return
 
     user = User.objects.create_user(
@@ -33,6 +40,12 @@ def seed_dev_data(apps, schema_editor):
         password=DEV_USER_PASSWORD,
     )
     Profile.objects.get_or_create(user=user)
+    EmailAddress.objects.create(
+        user=user,
+        email=DEV_USER_EMAIL,
+        verified=True,
+        primary=True,
+    )
 
     org = Org.objects.create(name=DEV_ORG_NAME)
     OrgMember.objects.create(org=org, user=user, role="admin")
@@ -64,6 +77,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ("users", "0014_remove_profile_billing_fields"),
         ("pages", "0007_add_pagelink_model"),
+        ("account", "0001_initial"),
     ]
 
     operations = [

@@ -1,0 +1,11 @@
+Welcome to {{ brand_name|default:"Hyperclast" }}!
+
+Please confirm your email address to get started.
+
+Click here to verify your email:
+{{ activate_url }}
+
+If you didn't create an account, you can safely ignore this email.
+
+Best,
+{{ brand_name|default:"Hyperclast" }} Team

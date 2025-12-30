@@ -47,7 +47,12 @@
     const result = await signup(email, password);
 
     if (result.success) {
-      window.location.href = redirectTo;
+      if (result.emailVerificationRequired) {
+        const params = new URLSearchParams({ email });
+        window.location.href = `/accounts/confirm-email/?${params}`;
+      } else {
+        window.location.href = redirectTo;
+      }
     } else {
       error = result.error;
       loading = false;

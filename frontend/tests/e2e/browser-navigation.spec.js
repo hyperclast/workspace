@@ -6,14 +6,17 @@
  * (editor pages, settings, etc.).
  *
  * Run with:
+ *   npx playwright test browser-navigation.spec.js --headed
+ *
+ * To test with a different account:
  *   TEST_EMAIL=you@example.com TEST_PASSWORD=yourpass npx playwright test browser-navigation.spec.js --headed
  */
 
 import { test, expect } from "@playwright/test";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:9800";
-const TEST_EMAIL = process.env.TEST_EMAIL;
-const TEST_PASSWORD = process.env.TEST_PASSWORD;
+const TEST_EMAIL = process.env.TEST_EMAIL || "dev@localhost";
+const TEST_PASSWORD = process.env.TEST_PASSWORD || "dev";
 
 async function login(page) {
   console.log(`\n🔧 Logging in: ${TEST_EMAIL}`);

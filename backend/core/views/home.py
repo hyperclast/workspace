@@ -39,3 +39,21 @@ def spa(request, **kwargs):
         "feature_flags": get_feature_flags(),
     }
     return render(request, "core/spa.html", context)
+
+
+def email_verification_sent(request):
+    """Shows the 'check your inbox' page after signup with email verification."""
+    return render(request, "account/verification_sent.html")
+
+
+def email_confirm(request, key):
+    """Handles email confirmation when user clicks the link in their email."""
+    from allauth.account.models import EmailConfirmationHMAC
+
+    confirmation = EmailConfirmationHMAC.from_key(key)
+
+    if request.method == "POST" and confirmation:
+        confirmation.confirm(request)
+        return redirect("core:home")
+
+    return render(request, "account/email_confirm.html", {"confirmation": confirmation})

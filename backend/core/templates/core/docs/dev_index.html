@@ -1,60 +1,248 @@
 {% extends 'core/docs/base.html' %}
 
+{% block extra_styles %}
+  {{ block.super }}
+  <style>
+    .dev-hero {
+      margin-bottom: 3rem;
+    }
+    .dev-hero h1 {
+      margin-bottom: 0.5rem;
+    }
+    .dev-hero .lead {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      max-width: 600px;
+    }
+
+    .dev-highlight-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 3rem;
+    }
+    .dev-highlight-card {
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+      border: 1px solid rgba(102, 126, 234, 0.2);
+      border-radius: 12px;
+      padding: 1.5rem;
+      text-decoration: none;
+      color: inherit;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .dev-highlight-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15);
+    }
+    .dev-highlight-card h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .dev-highlight-card p {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+    .dev-highlight-card .highlight-icon {
+      font-size: 1.25rem;
+    }
+
+    .dev-section {
+      margin-bottom: 3rem;
+    }
+    .dev-section h2 {
+      font-size: 1.4rem;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+    }
+    .dev-section > p {
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+    }
+
+    .use-case-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1rem;
+    }
+    .use-case {
+      background: var(--bg-secondary, #f8f9fa);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+    }
+    .use-case h4 {
+      margin: 0 0 0.25rem 0;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    .use-case p {
+      margin: 0;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .dev-cta-row {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-top: 1.5rem;
+    }
+    .dev-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.25rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+    }
+    .dev-cta-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .dev-cta-primary:hover {
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    .dev-cta-secondary {
+      background: var(--bg-secondary, #f8f9fa);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color, #dee2e6);
+    }
+    .dev-cta-secondary:hover {
+      background: var(--bg-tertiary, #e9ecef);
+    }
+    .dev-cta svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .code-example {
+      margin: 1.5rem 0;
+    }
+    .code-example pre {
+      margin: 0;
+      border-radius: 8px;
+    }
+    .code-example-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+    }
+  </style>
+{% endblock %}
+
 {% block docs_content %}
   <article class="dev-welcome">
-    <h1>Developer Portal</h1>
-    <p class="lead">
-      Build integrations and automate workflows with the {{ brand_name }} API.
-    </p>
+    <header class="dev-hero">
+      <h1>Build on {{ brand_name }}</h1>
+      <p class="lead">
+        The entire platform is open source. Use our API to build integrations,
+        or fork the whole thing and make it yours.
+      </p>
+    </header>
 
-    <a href="{% url 'core:oss_index' %}" class="github-card">
-      <div class="github-card-icon">
-        <svg height="24" width="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="16 18 22 12 16 6"/>
-          <polyline points="8 6 2 12 8 18"/>
-        </svg>
-      </div>
-      <div class="github-card-content">
-        <div class="github-card-title">Open Source</div>
-        <div class="github-card-desc">Explore our repos and contribute</div>
-      </div>
-      <div class="github-card-arrow">→</div>
-    </a>
+    <div class="dev-highlight-grid">
+      <a href="{% url 'core:api_docs' 'ask' %}" class="dev-highlight-card">
+        <h3><span class="highlight-icon">&#x2728;</span> AI-Powered Q&A</h3>
+        <p>
+          Ask questions in natural language and get answers grounded in your pages.
+          RAG-based retrieval with citations.
+        </p>
+      </a>
+      <a href="{% url 'core:oss_index' %}" class="dev-highlight-card">
+        <h3><span class="highlight-icon">&#x1F4BB;</span> Real-Time Collaboration</h3>
+        <p>
+          Multiple users editing the same doc simultaneously. CRDT-based sync via
+          WebSockets means no conflicts, ever.
+        </p>
+      </a>
+      <a href="{% url 'core:api_docs' 'overview' %}" class="dev-highlight-card">
+        <h3><span class="highlight-icon">&#x26A1;</span> Full REST API</h3>
+        <p>
+          Everything you can do in the UI, you can do via API. Pages, projects,
+          orgs, sharing — all programmable.
+        </p>
+      </a>
+      <a href="{% url 'core:oss_index' %}" class="dev-highlight-card">
+        <h3><span class="highlight-icon">&#x1F513;</span> Fully Open Source</h3>
+        <p>
+          Not just an API — the entire platform is open source. Fork it, self-host it,
+          learn from it, contribute to it.
+        </p>
+      </a>
+    </div>
 
-    <section class="capability-section">
-      <h2>REST API</h2>
-      <p>Full programmatic access to your knowledge base.</p>
-      <ul>
-        <li><strong>Ask</strong> — AI-powered Q&A using RAG</li>
-        <li><strong>Pages</strong> — CRUD, sharing, collaboration</li>
-        <li><strong>Projects</strong> — Organize pages into projects</li>
-        <li><strong>Organizations</strong> — Team workspaces</li>
-      </ul>
-      <a href="{% url 'core:api_docs_index' %}" class="cta-link">View API Reference →</a>
+    <section class="dev-section">
+      <h2>What people build</h2>
+      <p>A few ideas to get you started:</p>
+      <div class="use-case-grid">
+        <div class="use-case">
+          <h4>CLI tool</h4>
+          <p>Capture notes from your terminal without leaving your workflow</p>
+        </div>
+        <div class="use-case">
+          <h4>Slack bot</h4>
+          <p>Query your knowledge base directly from Slack using the Ask API</p>
+        </div>
+        <div class="use-case">
+          <h4>Browser extension</h4>
+          <p>Clip web pages and save highlights to your workspace</p>
+        </div>
+        <div class="use-case">
+          <h4>Meeting notes</h4>
+          <p>Auto-transcribe meetings and sync summaries to a project</p>
+        </div>
+        <div class="use-case">
+          <h4>Daily digest</h4>
+          <p>Email yourself a summary of what your team wrote yesterday</p>
+        </div>
+        <div class="use-case">
+          <h4>Custom dashboard</h4>
+          <p>Build internal tools that pull from your shared knowledge base</p>
+        </div>
+      </div>
     </section>
 
-    <section class="capability-section">
-      <h2>Real-Time Collaboration</h2>
-      <p>Multi-user editing via WebSockets with live presence.</p>
-      <ul>
-        <li><strong>CRDT sync</strong> — Conflict-free editing with Y.js</li>
-        <li><strong>Presence</strong> — See who's editing</li>
-        <li><strong>Instant sync</strong> — Changes propagate immediately</li>
-      </ul>
-    </section>
-
-    <section class="capability-section">
-      <h2>Quick Start</h2>
+    <section class="dev-section">
+      <h2>Try it now</h2>
       {% if access_token %}
-        <p>Your API token is ready. Start making requests:</p>
-        <pre><code class="language-bash">curl -H "Authorization: Bearer {{ access_token }}" \
-     {{ request.scheme }}://{{ request.get_host }}/api/pages/</code></pre>
+        <p>Your API token is ready. Here's a quick test:</p>
+        <div class="code-example">
+          <div class="code-example-label">Ask a question about your pages</div>
+          <pre><code class="language-bash">curl -X POST {{ request.scheme }}://{{ request.get_host }}/api/ask/ \
+  -H "Authorization: Bearer {{ access_token }}" \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What have I written about recently?"}'</code></pre>
+        </div>
       {% else %}
-        <p>Get your API token from <a href="/settings/#developer">Settings</a> and start making requests:</p>
-        <pre><code class="language-bash">curl -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
-     {{ request.scheme }}://{{ request.get_host }}/api/pages/</code></pre>
+        <p>Grab your API token from <a href="/settings/#developer">Settings</a>, then:</p>
+        <div class="code-example">
+          <div class="code-example-label">Ask a question about your pages</div>
+          <pre><code class="language-bash">curl -X POST {{ request.scheme }}://{{ request.get_host }}/api/ask/ \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What have I written about recently?"}'</code></pre>
+        </div>
       {% endif %}
-      <a href="{% url 'core:api_docs' 'overview' %}" class="cta-link">Read the Overview →</a>
+      <div class="dev-cta-row">
+        <a href="{% url 'core:api_docs' 'overview' %}" class="dev-cta dev-cta-primary">
+          API Reference
+        </a>
+        <a href="{% url 'core:oss_index' %}" class="dev-cta dev-cta-secondary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"/>
+            <polyline points="8 6 2 12 8 18"/>
+          </svg>
+          View Source
+        </a>
+      </div>
     </section>
   </article>
 {% endblock %}

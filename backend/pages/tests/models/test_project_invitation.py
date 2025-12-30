@@ -281,7 +281,7 @@ class TestProjectInvitationModel(TestCase):
 
         self.assertNotEqual(invitation1.token, invitation2.token)
 
-    @override_settings(EMAIL_BACKEND="anymail.backends.console.EmailBackend")
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_send_valid_invitation_sends_email(self):
         """Test that send() sends email for valid invitation."""
         invitation = ProjectInvitationFactory(
@@ -296,7 +296,7 @@ class TestProjectInvitationModel(TestCase):
         msg = mail.outbox[0]
         self.assertIn(invitation.email, msg.to)
 
-    @override_settings(EMAIL_BACKEND="anymail.backends.console.EmailBackend")
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_send_expired_invitation_does_not_send_email(self):
         """Test that send() does not send email for expired invitation."""
         invitation = ProjectInvitationFactory(
@@ -309,7 +309,7 @@ class TestProjectInvitationModel(TestCase):
         # Verify no email was sent
         self.assertEqual(len(mail.outbox), 0)
 
-    @override_settings(EMAIL_BACKEND="anymail.backends.console.EmailBackend")
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_send_accepted_invitation_does_not_send_email(self):
         """Test that send() does not send email for accepted invitation."""
         invitation = ProjectInvitationFactory(
@@ -322,7 +322,7 @@ class TestProjectInvitationModel(TestCase):
         # Verify no email was sent
         self.assertEqual(len(mail.outbox), 0)
 
-    @override_settings(EMAIL_BACKEND="anymail.backends.console.EmailBackend")
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_send_includes_project_name_in_context(self):
         """Test that send() includes project name in email context."""
         project = ProjectFactory(name="Important Business Project")
@@ -341,7 +341,7 @@ class TestProjectInvitationModel(TestCase):
         body_normalized = msg.body.replace("\n", " ")
         self.assertIn("Important Business Project", body_normalized)
 
-    @override_settings(EMAIL_BACKEND="anymail.backends.console.EmailBackend")
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_send_uses_correct_email_template(self):
         """Test that send() uses the correct email template prefix."""
         invitation = ProjectInvitationFactory(
@@ -358,7 +358,7 @@ class TestProjectInvitationModel(TestCase):
         self.assertTrue(len(msg.subject) > 0)
         self.assertTrue(len(msg.body) > 0)
 
-    @override_settings(EMAIL_BACKEND="anymail.backends.console.EmailBackend")
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_send_with_force_sync_true(self):
         """Test that send() respects force_sync parameter."""
         invitation = ProjectInvitationFactory(
@@ -372,7 +372,7 @@ class TestProjectInvitationModel(TestCase):
         # Verify email was sent immediately
         self.assertEqual(len(mail.outbox), 1)
 
-    @override_settings(EMAIL_BACKEND="anymail.backends.console.EmailBackend")
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_send_with_force_sync_false(self):
         """Test that send() works with force_sync=False (async)."""
         invitation = ProjectInvitationFactory(
@@ -387,7 +387,9 @@ class TestProjectInvitationModel(TestCase):
         # execute immediately. We just verify the method doesn't raise an error.
         # Actual email sending would be verified in integration tests.
 
-    @override_settings(EMAIL_BACKEND="anymail.backends.console.EmailBackend")
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend", FRONTEND_URL="http://localhost:9800"
+    )
     def test_send_includes_invitation_url_in_email(self):
         """Test that send() includes a valid invitation URL in the email."""
         invitation = ProjectInvitationFactory(
@@ -412,7 +414,9 @@ class TestProjectInvitationModel(TestCase):
         # Verify the URL is well-formed (starts with http/https)
         self.assertIn("http", body_normalized.lower())
 
-    @override_settings(EMAIL_BACKEND="anymail.backends.console.EmailBackend", FRONTEND_URL="https://example.com")
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend", FRONTEND_URL="https://example.com"
+    )
     def test_send_uses_configured_frontend_url(self):
         """Test that send() uses FRONTEND_URL from settings."""
         invitation = ProjectInvitationFactory(

@@ -57,7 +57,15 @@ npm run dev
 
 Tests: `npm test`
 
-E2E tests: See [E2E Testing Guide](docs/e2e-testing.md)
+### Running All Tests
+
+```sh
+./run-tests.sh                     # Full suite with dedicated Docker stack
+./run-tests.sh --use-existing 9800 # Against running dev stack (faster)
+./run-tests.sh --backend --frontend # Skip E2E tests
+```
+
+See [E2E Testing Guide](docs/e2e-testing.md) for more options.
 
 ### AI Search (Optional)
 
