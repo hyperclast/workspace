@@ -89,7 +89,7 @@
         </p>
       </form>
     {:else}
-      <div class="success-message">
+      <div class="success-message success-message-large">
         <div class="success-icon">✓</div>
         <strong>Check your email</strong>
         <p>We've sent a password reset link to your email address.</p>

@@ -48,12 +48,16 @@ def email_verification_sent(request):
 
 def email_confirm(request, key):
     """Handles email confirmation when user clicks the link in their email."""
+    from urllib.parse import urlencode
+
     from allauth.account.models import EmailConfirmationHMAC
 
     confirmation = EmailConfirmationHMAC.from_key(key)
 
     if request.method == "POST" and confirmation:
+        email = confirmation.email_address.email
         confirmation.confirm(request)
-        return redirect("core:home")
+        login_url = f"/login/?{urlencode({'email': email, 'verified': '1'})}"
+        return redirect(login_url)
 
     return render(request, "account/email_confirm.html", {"confirmation": confirmation})

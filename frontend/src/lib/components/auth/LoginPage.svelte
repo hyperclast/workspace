@@ -6,22 +6,28 @@
 
   const brandName = getBrandName();
 
-  let email = $state("");
+  const urlParams = new URLSearchParams(window.location.search);
+  const redirectTo = urlParams.get("redirect") || "/";
+  const prefillEmail = urlParams.get("email") || "";
+  const justVerified = urlParams.get("verified") === "1";
+
+  let email = $state(prefillEmail);
   let password = $state("");
   let error = $state("");
   let loading = $state(false);
+  let successMessage = $state(justVerified ? "Email verified! Please sign in." : "");
 
-  // Get redirect URL from query params
-  const urlParams = new URLSearchParams(window.location.search);
-  const redirectTo = urlParams.get("redirect") || "/";
+  let passwordInput = $state(null);
 
   onMount(async () => {
     document.title = `Login - ${brandName}`;
-    // Initialize CSRF token
     try {
       await getSession();
     } catch (e) {
       console.error("Failed to initialize CSRF token:", e);
+    }
+    if (prefillEmail && passwordInput) {
+      passwordInput.focus();
     }
   });
 
@@ -47,6 +53,9 @@
 </script>
 
 <AuthLayout title="Welcome back" subtitle="Sign in to continue to {brandName}">
+  {#if successMessage}
+    <div class="success-message">{successMessage}</div>
+  {/if}
   {#if error}
     <div class="error-message">{error}</div>
   {/if}
@@ -71,6 +80,7 @@
         type="password"
         id="login-password"
         bind:value={password}
+        bind:this={passwordInput}
         required
         autocomplete="current-password"
         placeholder="Your password"

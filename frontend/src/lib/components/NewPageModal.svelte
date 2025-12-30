@@ -16,6 +16,7 @@
 
   let todayValue = $derived(formatToday());
   let nowValue = $derived(formatNow());
+  let humanDateValue = $derived(formatHumanDate());
 
   function formatToday() {
     return new Date().toISOString().split('T')[0];
@@ -29,6 +30,12 @@
     const ampm = hours >= 12 ? 'pm' : 'am';
     const h = hours % 12 || 12;
     return `${date} ${h}:${mins}${ampm}`;
+  }
+
+  function formatHumanDate() {
+    const d = new Date();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
   }
 
   function getStoredTitleFormat() {
@@ -61,7 +68,13 @@
   $effect(() => {
     if (open) {
       const format = getStoredTitleFormat();
-      title = format === 'today' ? formatToday() : formatNow();
+      if (format === 'today') {
+        title = formatToday();
+      } else if (format === 'human') {
+        title = formatHumanDate();
+      } else {
+        title = formatNow();
+      }
       copyFrom = getStoredCopyFrom(projectId);
       error = '';
       loading = false;
@@ -84,6 +97,14 @@
     e.preventDefault();
     title = formatNow();
     setStoredTitleFormat('now');
+    inputEl?.focus();
+    inputEl?.select();
+  }
+
+  function handleHumanDateClick(e) {
+    e.preventDefault();
+    title = formatHumanDate();
+    setStoredTitleFormat('human');
     inputEl?.focus();
     inputEl?.select();
   }
@@ -131,10 +152,12 @@
       onkeydown={handleKeydown}
     />
     <div class="title-presets">
-      <span class="presets-label">Set as:</span>
-      <a href="#" class="preset-link" onclick={handleTodayClick}>{todayValue}</a>
+      <span class="presets-label">Set:</span>
+      <button type="button" class="preset-link" onclick={handleTodayClick}>{todayValue}</button>
       <span class="presets-sep">/</span>
-      <a href="#" class="preset-link" onclick={handleNowClick}>{nowValue}</a>
+      <button type="button" class="preset-link" onclick={handleNowClick}>{nowValue}</button>
+      <span class="presets-sep">/</span>
+      <button type="button" class="preset-link" onclick={handleHumanDateClick}>{humanDateValue}</button>
     </div>
   </div>
 
@@ -226,6 +249,11 @@
   }
 
   .preset-link {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    cursor: pointer;
     color: var(--text-secondary, #666);
     text-decoration: none;
     transition: color 0.15s;

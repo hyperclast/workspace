@@ -132,7 +132,7 @@
         </button>
       </form>
     {:else}
-      <div class="success-message">
+      <div class="success-message success-message-large">
         <div class="success-icon">✓</div>
         <strong>Password updated</strong>
         <p>Your password has been reset. Redirecting to login...</p>

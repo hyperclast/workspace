@@ -81,7 +81,7 @@ class TestEmailConfirmView(BaseViewTestCase):
 
         self.assertEqual(response.status_code, HTTPStatus.OK)
         self.assertIn(b"expired", response.content.lower())
-        self.assertIn(b"Sign up again", response.content)
+        self.assertIn(b"Go to Login", response.content)
 
     def test_post_confirm_with_valid_key_confirms_email(self):
         """POST with valid key confirms the email address."""
@@ -90,17 +90,19 @@ class TestEmailConfirmView(BaseViewTestCase):
         response = self.client.post(f"/accounts/confirm-email/{self.valid_key}/")
 
         self.assertEqual(response.status_code, HTTPStatus.FOUND)
-        self.assertRedirects(response, "/", fetch_redirect_response=False)
 
         self.email_address.refresh_from_db()
         self.assertTrue(self.email_address.verified)
 
-    def test_post_confirm_with_valid_key_redirects_to_home(self):
-        """Successful confirmation redirects to home page."""
+    def test_post_confirm_with_valid_key_redirects_to_login(self):
+        """Successful confirmation redirects to login page with email and verified params."""
+        from urllib.parse import urlencode
+
         response = self.client.post(f"/accounts/confirm-email/{self.valid_key}/")
 
         self.assertEqual(response.status_code, HTTPStatus.FOUND)
-        self.assertEqual(response.url, "/")
+        expected_params = urlencode({"email": self.user.email, "verified": "1"})
+        self.assertEqual(response.url, f"/login/?{expected_params}")
 
     def test_post_confirm_with_invalid_key_renders_page(self):
         """POST with invalid key doesn't crash, renders confirmation page."""

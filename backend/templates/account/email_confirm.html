@@ -60,11 +60,11 @@
       </p>
 
       <p class="expired-subtext">
-        Don't worry — you can request a new verification email.
+        You can sign in to request a new verification email.
       </p>
 
-      <a href="/signup" class="request-link-btn">
-        Sign up again
+      <a href="/login" class="request-link-btn">
+        Go to Login
       </a>
 
       <p class="expired-support">
@@ -153,11 +153,12 @@
 
     .request-link-btn {
       display: inline-block;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
+      background: #667eea;
+      background-image: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff !important;
       padding: 0.75rem 1.5rem;
       border-radius: 6px;
-      text-decoration: none;
+      text-decoration: none !important;
       font-weight: 600;
       transition: transform 0.2s, box-shadow 0.2s;
     }
@@ -165,7 +166,8 @@
     .request-link-btn:hover {
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-      color: white;
+      color: #fff !important;
+      text-decoration: none !important;
     }
 
     .expired-support {

@@ -2110,7 +2110,8 @@ body.sidebar-resizing .chat-sidebar {
 }
 
 .format-bullet-item {
-  line-height: 0.8;
+  padding-left: 24px !important;
+  line-height: 1.5;
 }
 
 .format-list-syntax {
@@ -2120,8 +2121,18 @@ body.sidebar-resizing .chat-sidebar {
   color: var(--text-muted, #888);
 }
 
-.format-list-raw {
-  text-indent: -10px;
+.cm-line.format-checkbox-item.format-list-raw {
+  text-indent: -10px !important;
+}
+
+.cm-line.format-bullet-item.format-list-raw {
+  padding-left: 0 !important;
+  text-indent: 8px !important;
+  line-height: 1.5;
+}
+
+.cm-line.format-ordered-item.format-list-raw {
+  text-indent: -10px !important;
 }
 
 .format-bullet {
@@ -2131,6 +2142,7 @@ body.sidebar-resizing .chat-sidebar {
   color: #4a4a4a;
   font-size: 2em;
   line-height: 0.8;
+  margin-left: -22px;
   margin-right: 0;
   position: relative;
   top: 4px;
@@ -3325,8 +3337,20 @@ body.sidebar-resizing .chat-sidebar {
 }
 
 .success-message {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #16a34a;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  margin-bottom: 1.25rem;
+}
+
+.success-message.success-message-large {
   text-align: center;
   padding: 1.5rem;
+  background: none;
+  border: none;
 }
 
 .success-message .success-icon {
