@@ -29,6 +29,9 @@ import {
 import { decorateLinks, linkClickHandler } from "./decorateLinks.js";
 import { linkAutocomplete } from "./linkAutocomplete.js";
 import { findSectionFold } from "./findSectionFold.js";
+import { sectionFoldHover } from "./sectionFoldHover.js";
+import { foldChangeListener, setCurrentPageIdForFolds } from "./foldChangeListener.js";
+import { restoreFoldedRanges } from "./foldPersistence.js";
 import { setupUserAvatar } from "./gravatar.js";
 import { confirm, shareProject, createProjectModal, newPageModal } from "./lib/modal.js";
 import { showToast } from "./lib/toast.js";
@@ -139,11 +142,24 @@ function renderAppHTML() {
                     </svg>
                   </button>
                   <div id="actions-dropdown" class="actions-dropdown" style="display: none;">
-                    <button id="share-project-btn" class="actions-dropdown-item">Share this project</button>
+                    <button id="share-project-btn" class="actions-dropdown-item">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" y1="8" x2="19" y2="14"></line><line x1="22" y1="11" x2="16" y2="11"></line></svg>
+                      Share project
+                    </button>
                     <div class="actions-dropdown-divider"></div>
-                    <button id="download-page-btn" class="actions-dropdown-item">Download page</button>
+                    <button id="rename-page-btn" class="actions-dropdown-item">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                      Rename page
+                    </button>
+                    <button id="download-page-btn" class="actions-dropdown-item">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                      Download page
+                    </button>
                     <div class="actions-dropdown-divider"></div>
-                    <button id="delete-note-btn" class="actions-dropdown-item danger">Delete page</button>
+                    <button id="delete-note-btn" class="actions-dropdown-item danger">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                      Delete page
+                    </button>
                   </div>
                 </div>
               </div>
@@ -511,6 +527,12 @@ async function loadPage(page) {
   // Always use ytext content - yCollab keeps editor and ytext in sync
   initializeEditor(collabObjects.ytext.toString(), [collabObjects.extension]);
 
+  // Restore fold state - editor and content are ready at this point (sync awaited above)
+  setCurrentPageIdForFolds(currentPage.external_id);
+  if (window.editorView && window.editorView.state.doc.length > 0) {
+    restoreFoldedRanges(window.editorView, currentPage.external_id);
+  }
+
   cleanupPresenceUI = setupPresenceUI(collabObjects.awareness);
   cleanupUnloadHandler = setupUnloadHandler(collabObjects);
   updateSidenavActive(currentPage.external_id);
@@ -807,6 +829,8 @@ function initializeEditor(pageContent = "", additionalExtensions = []) {
     linkAutocomplete,
     foldGutter(),
     foldService.of(findSectionFold),
+    sectionFoldHover,
+    foldChangeListener,
     keymap.of(defaultKeymap),
     keymap.of([indentWithTab]),
     clickToEndPlugin,
@@ -889,6 +913,7 @@ function setupNoteActions() {
   const deleteNoteBtn = document.getElementById("delete-note-btn");
   const shareProjectBtn = document.getElementById("share-project-btn");
   const downloadPageBtn = document.getElementById("download-page-btn");
+  const renamePageBtn = document.getElementById("rename-page-btn");
 
   if (!actionsBtn || !actionsDropdown) return;
 
@@ -910,6 +935,17 @@ function setupNoteActions() {
         projectId: currentProjectId,
         projectName: project?.name || "Project",
       });
+    });
+  }
+
+  if (renamePageBtn) {
+    renamePageBtn.addEventListener("click", () => {
+      actionsDropdown.style.display = "none";
+      const titleInput = document.getElementById("note-title-input");
+      if (titleInput) {
+        titleInput.focus();
+        titleInput.select();
+      }
     });
   }
 

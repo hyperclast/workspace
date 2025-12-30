@@ -161,6 +161,17 @@
     window.location.href = `${API_BASE_URL}/api/pages/${pageId}/download/`;
   }
 
+  function handlePageRename(e, pageId) {
+    e.stopPropagation();
+    closeAllMenus();
+
+    const titleInput = document.getElementById("note-title-input");
+    if (titleInput) {
+      titleInput.focus();
+      titleInput.select();
+    }
+  }
+
   async function handlePageDelete(e, pageId, pageTitle) {
     e.stopPropagation();
     closeAllMenus();
@@ -292,6 +303,13 @@
                   {@html pageMenuIcon}
                 </button>
                 <div class="page-menu-dropdown" class:open={openPageMenuId === page.external_id}>
+                  <button
+                    class="page-menu-item"
+                    onclick={(e) => handlePageRename(e, page.external_id)}
+                  >
+                    {@html renameIcon}
+                    Rename
+                  </button>
                   <button
                     class="page-menu-item"
                     onclick={(e) => handlePageDownload(e, page.external_id)}

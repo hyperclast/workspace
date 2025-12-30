@@ -1969,24 +1969,52 @@ body.sidebar-resizing .chat-sidebar {
 }
 
 .cm-gutter.cm-foldGutter {
-  width: 16px;
-  min-width: 16px;
+  width: 24px;
+  min-width: 24px;
 }
 
 .cm-gutter.cm-foldGutter .cm-gutterElement {
   padding: 0;
-  width: 16px;
+  width: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.15s;
+  padding-top: 0.15em;
 }
 
-.cm-editor:hover .cm-gutter.cm-foldGutter .cm-gutterElement,
+.cm-gutter.cm-foldGutter .cm-gutterElement span {
+  font-size: 22px;
+  color: rgba(55, 53, 47, 0.35);
+  transition: color 0.15s;
+}
+
+.cm-gutter.cm-foldGutter .cm-gutterElement:hover span {
+  color: rgba(55, 53, 47, 0.7);
+}
+
+.cm-gutter.cm-foldGutter .cm-gutterElement.section-hover,
 .cm-gutter.cm-foldGutter .cm-gutterElement:hover {
   opacity: 1;
+}
+
+.cm-foldPlaceholder {
+  margin: 0 0 0 0.5em !important;
+  padding: 0 6px !important;
+  background: rgba(55, 53, 47, 0.06) !important;
+  border: 1px solid rgba(55, 53, 47, 0.1) !important;
+  border-radius: 4px !important;
+  color: rgba(55, 53, 47, 0.5) !important;
+  font-size: 0.75em;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.cm-foldPlaceholder:hover {
+  background: rgba(55, 53, 47, 0.1);
+  border-color: rgba(55, 53, 47, 0.2);
 }
 
 .cm-content {
@@ -2021,32 +2049,48 @@ body.sidebar-resizing .chat-sidebar {
   line-height: 1.3;
 }
 
-.format-h1 {
+.format-heading-syntax {
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  font-size: 0.75em;
+  color: var(--text-muted, #888);
+}
+
+.format-h1,
+.format-h1-line {
   font-size: 2rem;
   font-weight: 700;
 }
 
-.format-h2 {
+.format-h1-line {
+  padding-top: 0.5em !important;
+}
+
+.format-h2,
+.format-h2-line {
   font-size: 1.5rem;
   font-weight: 600;
 }
 
-.format-h3 {
+.format-h3,
+.format-h3-line {
   font-size: 1.25rem;
   font-weight: 600;
 }
 
-.format-h4 {
+.format-h4,
+.format-h4-line {
   font-size: 1.1rem;
   font-weight: 600;
 }
 
-.format-h5 {
+.format-h5,
+.format-h5-line {
   font-size: 1rem;
   font-weight: 600;
 }
 
-.format-h6 {
+.format-h6,
+.format-h6-line {
   font-size: 0.875rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -2065,16 +2109,38 @@ body.sidebar-resizing .chat-sidebar {
   line-height: 1.4;
 }
 
+.format-bullet-item {
+  line-height: 0.8;
+}
+
+.format-list-syntax {
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  font-size: 0.8125em;
+  letter-spacing: -0.5px;
+  color: var(--text-muted, #888);
+}
+
+.format-list-raw {
+  text-indent: -10px;
+}
+
 .format-bullet {
-  color: var(--text-primary);
-  font-weight: bold;
-  margin-right: 0.15em;
+  display: inline-block;
+  width: 22px;
+  text-align: center;
+  color: #4a4a4a;
+  font-size: 2em;
+  line-height: 0.8;
+  margin-right: 0;
+  position: relative;
+  top: 4px;
 }
 
 .format-checkbox {
+  display: inline-block;
   width: 16px;
   height: 16px;
-  margin-right: 0.35em;
+  margin-right: 6px;
   vertical-align: middle;
   cursor: pointer;
   accent-color: var(--accent-color, #2383e2);
@@ -2089,6 +2155,38 @@ body.sidebar-resizing .chat-sidebar {
 .format-checkbox-checked {
   text-decoration: line-through;
   color: var(--text-muted, #888);
+}
+
+/* List indentation levels - 22px per level to match checkbox/bullet width */
+.format-indent-1 {
+  padding-left: 22px !important;
+}
+.format-indent-2 {
+  padding-left: 44px !important;
+}
+.format-indent-3 {
+  padding-left: 66px !important;
+}
+.format-indent-4 {
+  padding-left: 88px !important;
+}
+.format-indent-5 {
+  padding-left: 110px !important;
+}
+.format-indent-6 {
+  padding-left: 132px !important;
+}
+.format-indent-7 {
+  padding-left: 154px !important;
+}
+.format-indent-8 {
+  padding-left: 176px !important;
+}
+.format-indent-9 {
+  padding-left: 198px !important;
+}
+.format-indent-10 {
+  padding-left: 220px !important;
 }
 
 .format-blockquote {
@@ -2597,7 +2695,9 @@ body.sidebar-resizing .chat-sidebar {
 }
 
 .actions-dropdown-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   width: 100%;
   padding: 0.6rem 0.85rem;
   text-align: left;
@@ -2609,12 +2709,21 @@ body.sidebar-resizing .chat-sidebar {
   transition: background 0.1s;
 }
 
+.actions-dropdown-item svg {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
 .actions-dropdown-item:hover {
   background: var(--bg-secondary);
 }
 
 .actions-dropdown-item.danger {
   color: #dc3545;
+}
+
+.actions-dropdown-item.danger svg {
+  stroke: #dc3545;
 }
 
 .actions-dropdown-item.danger:hover {

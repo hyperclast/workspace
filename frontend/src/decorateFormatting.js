@@ -4,7 +4,7 @@ import { Decoration, ViewPlugin, WidgetType, keymap, EditorView } from "@codemir
 const BOLD_REGEX = /\*\*(.+?)\*\*/g;
 const UNDERLINE_REGEX = /__(.+?)__/g;
 const INLINE_CODE_REGEX = /`([^`\n]+)`/g;
-const HEADING_REGEX = /^(#{1,6})\s+(.+)$/;
+const HEADING_REGEX = /^(#{1,6})\s+(.*)$/;
 const HR_REGEX = /^(\s*)(-{3,}|\*{3,}|_{3,})(\s*)$/;
 const BULLET_REGEX = /^(\s*)- (.*)$/;
 const ORDERED_REGEX = /^(\s*)(\d+)\. (.*)$/;
@@ -148,16 +148,24 @@ export const decorateFormatting = ViewPlugin.fromClass(
         if (headingMatch) {
           const level = headingMatch[1].length;
           const hashEnd = line.from + headingMatch[1].length + 1;
+          const showRawSyntax = cursorOnLine && cursorPos < hashEnd;
 
-          if (!cursorOnLine) {
+          if (!showRawSyntax) {
             builder.push(Decoration.replace({}).range(line.from, hashEnd));
+          } else {
+            builder.push(
+              Decoration.mark({ class: "format-heading-syntax" }).range(line.from, hashEnd)
+            );
+          }
+
+          if (line.to > hashEnd) {
+            builder.push(
+              Decoration.mark({ class: `format-heading format-h${level}` }).range(hashEnd, line.to)
+            );
           }
 
           builder.push(
-            Decoration.mark({ class: `format-heading format-h${level}` }).range(
-              cursorOnLine ? line.from : hashEnd,
-              line.to
-            )
+            Decoration.line({ class: `format-heading-line format-h${level}-line` }).range(line.from)
           );
           continue;
         }
@@ -165,23 +173,36 @@ export const decorateFormatting = ViewPlugin.fromClass(
         const checkboxMatch = line.text.match(CHECKBOX_REGEX);
         if (checkboxMatch) {
           const indent = checkboxMatch[1].length;
+          const indentLevel = Math.floor(indent / 2);
           const checked = checkboxMatch[2].toLowerCase() === "x";
           const checkboxStart = line.from + indent;
           const checkboxEnd = checkboxStart + 6;
           const textStart = checkboxEnd;
-          const cursorInCheckboxSyntax = cursorOnLine && cursorPos < checkboxEnd;
+          const showRawSyntax = cursorOnLine && cursorPos < checkboxEnd;
 
-          if (!cursorInCheckboxSyntax) {
+          if (!showRawSyntax) {
+            if (indent > 0) {
+              builder.push(Decoration.replace({}).range(line.from, line.from + indent));
+            }
             builder.push(
               Decoration.replace({ widget: new CheckboxWidget(checked, checkboxStart) }).range(
                 checkboxStart,
                 checkboxEnd
               )
             );
+          } else {
+            builder.push(
+              Decoration.mark({ class: "format-list-syntax" }).range(line.from, checkboxEnd)
+            );
           }
 
+          const indentClass =
+            !showRawSyntax && indentLevel > 0 ? ` format-indent-${Math.min(indentLevel, 10)}` : "";
+          const rawClass = showRawSyntax ? " format-list-raw" : "";
           builder.push(
-            Decoration.line({ class: "format-list-item format-checkbox-item" }).range(line.from)
+            Decoration.line({
+              class: `format-list-item format-checkbox-item${indentClass}${rawClass}`,
+            }).range(line.from)
           );
 
           if (checked && line.to > textStart) {
@@ -195,24 +216,60 @@ export const decorateFormatting = ViewPlugin.fromClass(
         const bulletMatch = line.text.match(BULLET_REGEX);
         if (bulletMatch) {
           const indent = bulletMatch[1].length;
+          const indentLevel = Math.floor(indent / 2);
           const dashPos = line.from + indent;
+          const syntaxEnd = dashPos + 2;
+          const showRawSyntax = cursorOnLine && cursorPos < syntaxEnd;
 
-          if (!cursorOnLine) {
+          if (!showRawSyntax) {
+            if (indent > 0) {
+              builder.push(Decoration.replace({}).range(line.from, line.from + indent));
+            }
             builder.push(
               Decoration.replace({ widget: new BulletWidget() }).range(dashPos, dashPos + 1)
             );
+          } else {
+            builder.push(
+              Decoration.mark({ class: "format-list-syntax" }).range(line.from, syntaxEnd)
+            );
           }
 
+          const indentClass =
+            !showRawSyntax && indentLevel > 0 ? ` format-indent-${Math.min(indentLevel, 10)}` : "";
+          const rawClass = showRawSyntax ? " format-list-raw" : "";
           builder.push(
-            Decoration.line({ class: "format-list-item format-bullet-item" }).range(line.from)
+            Decoration.line({
+              class: `format-list-item format-bullet-item${indentClass}${rawClass}`,
+            }).range(line.from)
           );
           continue;
         }
 
         const orderedMatch = line.text.match(ORDERED_REGEX);
         if (orderedMatch) {
+          const indent = orderedMatch[1].length;
+          const indentLevel = Math.floor(indent / 2);
+          const numberLength = orderedMatch[2].length;
+          const syntaxEnd = line.from + indent + numberLength + 2;
+          const showRawSyntax = cursorOnLine && cursorPos < syntaxEnd;
+
+          if (!showRawSyntax) {
+            if (indent > 0) {
+              builder.push(Decoration.replace({}).range(line.from, line.from + indent));
+            }
+          } else {
+            builder.push(
+              Decoration.mark({ class: "format-list-syntax" }).range(line.from, syntaxEnd)
+            );
+          }
+
+          const indentClass =
+            !showRawSyntax && indentLevel > 0 ? ` format-indent-${Math.min(indentLevel, 10)}` : "";
+          const rawClass = showRawSyntax ? " format-list-raw" : "";
           builder.push(
-            Decoration.line({ class: "format-list-item format-ordered-item" }).range(line.from)
+            Decoration.line({
+              class: `format-list-item format-ordered-item${indentClass}${rawClass}`,
+            }).range(line.from)
           );
           continue;
         }
