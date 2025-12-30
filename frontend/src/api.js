@@ -66,18 +66,20 @@ export async function fetchOrgs() {
  * Create a new page in a project.
  * @param {string} projectId - External ID of the project
  * @param {string} title - Title of the page
+ * @param {string} [copyFrom] - Optional external ID of a page to copy content from
  * @returns {Promise<Object>} The created page object
  */
-export async function createPage(projectId, title) {
+export async function createPage(projectId, title, copyFrom = null) {
+  const body = { project_id: projectId, title };
+  if (copyFrom) {
+    body.copy_from = copyFrom;
+  }
   const response = await csrfFetch(`${API_BASE}/pages/`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      project_id: projectId,
-      title,
-    }),
+    body: JSON.stringify(body),
   });
   if (!response.ok) {
     throw new Error(`Failed to create page: ${response.statusText}`);

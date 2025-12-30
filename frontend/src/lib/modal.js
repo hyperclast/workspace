@@ -5,6 +5,7 @@ import {
   openPrompt as _openPrompt,
   openShareProject as _openShareProject,
   openCreateProject as _openCreateProject,
+  openNewPage as _openNewPage,
 } from "./stores/modal.svelte.js";
 
 let mounted = false;
@@ -80,4 +81,16 @@ export function shareProject(options) {
 export function createProjectModal(options = {}) {
   initModals();
   _openCreateProject(options);
+}
+
+/**
+ * Show a new page modal with title format buttons and copy-from dropdown
+ * @param {Object} options
+ * @param {string} options.projectId - Project external ID
+ * @param {Array} options.pages - List of pages in the project for copy-from dropdown
+ * @param {Function} options.oncreated - Callback when page info is submitted, receives { title, copyFrom }
+ */
+export function newPageModal(options = {}) {
+  initModals();
+  _openNewPage(options);
 }

@@ -30,7 +30,7 @@ import { decorateLinks, linkClickHandler } from "./decorateLinks.js";
 import { linkAutocomplete } from "./linkAutocomplete.js";
 import { findSectionFold } from "./findSectionFold.js";
 import { setupUserAvatar } from "./gravatar.js";
-import { confirm, prompt, shareProject, createProjectModal } from "./lib/modal.js";
+import { confirm, shareProject, createProjectModal, newPageModal } from "./lib/modal.js";
 import { showToast } from "./lib/toast.js";
 import {
   markdownTableExtension,
@@ -236,10 +236,11 @@ async function fetchPage(external_id) {
  * Create a new page via API.
  * @param {string} projectId - External ID of the project
  * @param {string} title - Title of the page
+ * @param {string} [copyFrom] - Optional external ID of page to copy content from
  */
-async function createPage(projectId, title) {
+async function createPage(projectId, title, copyFrom = null) {
   try {
-    const page = await createPageApi(projectId, title || "Untitled");
+    const page = await createPageApi(projectId, title || "Untitled", copyFrom);
     return { success: true, page };
   } catch (error) {
     console.error("Error creating page:", error);
@@ -841,62 +842,42 @@ function initializeEditor(pageContent = "", additionalExtensions = []) {
 }
 
 /**
- * Get today's date and time in a friendly format like "2025-12-27 9h30am".
+ * Open create new page dialog using Svelte new page modal.
  */
-function getTodayDateTimeString() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  let hours = now.getHours();
-  const minutes = String(now.getMinutes()).padStart(2, "0");
-  const ampm = hours >= 12 ? "pm" : "am";
-  hours = hours % 12 || 12;
-  return `${year}-${month}-${day} ${hours}h${minutes}${ampm}`;
-}
-
-/**
- * Open create new page dialog using Svelte prompt modal.
- */
-async function openCreatePageDialog(projectId) {
+function openCreatePageDialog(projectId) {
   if (!projectId) {
     showToast("No project selected. Please create a project first.", "error");
     return;
   }
 
-  const title = await prompt({
-    title: "New Page",
-    label: "Page title",
-    placeholder: "Untitled",
-    value: getTodayDateTimeString(),
-    confirmText: "Create Page",
-    maxlength: 100,
-    required: false,
+  const project = cachedProjects.find((p) => p.external_id === projectId);
+  const pages = project?.pages || [];
+
+  newPageModal({
+    projectId,
+    pages,
+    oncreated: async ({ title, copyFrom }) => {
+      const result = await createPage(projectId, title, copyFrom);
+
+      if (result.success) {
+        if (currentPage) {
+          closePageWithoutNavigate();
+        }
+
+        if (project) {
+          if (!project.pages) project.pages = [];
+          project.pages.unshift(result.page);
+        }
+
+        renderSidenav(cachedProjects, result.page.external_id);
+        await loadPage(result.page);
+        window.history.pushState({}, "", `/pages/${result.page.external_id}/`);
+      } else {
+        console.error("Failed to create page:", result.error);
+        showToast("Failed to create page", "error");
+      }
+    },
   });
-
-  if (title === null) return; // Cancelled
-
-  const pageTitle = title.trim() || "Untitled";
-  const result = await createPage(projectId, pageTitle);
-
-  if (result.success) {
-    if (currentPage) {
-      closePageWithoutNavigate();
-    }
-
-    const project = cachedProjects.find((p) => p.external_id === projectId);
-    if (project) {
-      if (!project.pages) project.pages = [];
-      project.pages.unshift(result.page);
-    }
-
-    renderSidenav(cachedProjects, result.page.external_id);
-    await loadPage(result.page);
-    window.history.pushState({}, "", `/pages/${result.page.external_id}/`);
-  } else {
-    console.error("Failed to create page:", result.error);
-    showToast("Failed to create page", "error");
-  }
 }
 
 /**

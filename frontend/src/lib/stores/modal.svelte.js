@@ -112,3 +112,25 @@ export function openCreateProject(options = {}) {
 export function closeCreateProject() {
   createProjectState.open = false;
 }
+
+let newPageState = $state({
+  open: false,
+  projectId: "",
+  pages: [],
+  oncreated: () => {},
+});
+
+export function getNewPageState() {
+  return newPageState;
+}
+
+export function openNewPage(options = {}) {
+  newPageState.projectId = options.projectId || "";
+  newPageState.pages = options.pages || [];
+  newPageState.oncreated = options.oncreated || (() => {});
+  newPageState.open = true;
+}
+
+export function closeNewPage() {
+  newPageState.open = false;
+}

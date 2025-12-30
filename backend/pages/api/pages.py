@@ -56,16 +56,28 @@ def create_page(request: HttpRequest, payload: PageIn):
     """Create a new page for the current user.
 
     Project access is granted via org membership OR project editor.
+    If copy_from is provided, copies content and filetype from the source page.
     """
-    # Look up project by external_id and verify user has access (org member OR project editor)
     project = get_object_or_404(
         Project.objects.get_user_accessible_projects(request.user),
         external_id=payload.project_id,
     )
 
     default_details = {"content": "", "filetype": "md", "schema_version": 1}
+
+    if payload.copy_from:
+        source_page = Page.objects.filter(
+            external_id=payload.copy_from,
+            project=project,
+            is_deleted=False,
+        ).first()
+        if source_page and source_page.details:
+            default_details["content"] = source_page.details.get("content", "")
+            default_details["filetype"] = source_page.details.get("filetype", "md")
+
     if payload.details:
         default_details.update(payload.details)
+
     page = Page.objects.create_with_owner(
         user=request.user,
         project=project,

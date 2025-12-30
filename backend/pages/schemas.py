@@ -22,6 +22,7 @@ class PageIn(Schema):
     project_id: str
     title: str = Field(..., min_length=1, max_length=100)
     details: Optional[Dict[str, Any]] = None
+    copy_from: Optional[str] = None
 
 
 class PageUpdateIn(Schema):
