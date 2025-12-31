@@ -50,7 +50,7 @@ class CheckboxWidget extends WidgetType {
     return checkbox;
   }
 
-  ignoreEvent() {
+  ignoreEvent(event) {
     return false;
   }
 }
@@ -582,28 +582,74 @@ export function toggleCheckbox(view) {
   return true;
 }
 
-export const checkboxClickHandler = EditorView.domEventHandlers({
-  click(event, view) {
-    const target = event.target;
-    if (target.classList.contains("format-checkbox")) {
+let checkboxHandlerAttached = false;
+
+function handleCheckboxToggle(target) {
+  const pos = parseInt(target.dataset.pos, 10);
+  if (isNaN(pos)) return;
+
+  const cmContent = target.closest(".cm-content");
+  if (!cmContent) return;
+
+  const editorView = EditorView.findFromDOM(cmContent);
+  if (!editorView) return;
+
+  const line = editorView.state.doc.lineAt(pos);
+  const match = line.text.match(CHECKBOX_REGEX);
+  if (match) {
+    const indent = match[1].length;
+    const currentState = match[2];
+    const newState = currentState === " " ? "x" : " ";
+    const bracketPos = line.from + indent + 3;
+    editorView.dispatch({
+      changes: { from: bracketPos, to: bracketPos + 1, insert: newState },
+    });
+  }
+}
+
+function setupGlobalCheckboxHandler() {
+  if (checkboxHandlerAttached) return;
+  checkboxHandlerAttached = true;
+
+  document.addEventListener(
+    "click",
+    (event) => {
+      const target = event.target;
+      if (!target.classList.contains("format-checkbox")) return;
       event.preventDefault();
-      const pos = parseInt(target.dataset.pos, 10);
-      const line = view.state.doc.lineAt(pos);
-      const match = line.text.match(CHECKBOX_REGEX);
-      if (match) {
-        const indent = match[1].length;
-        const currentState = match[2];
-        const newState = currentState === " " ? "x" : " ";
-        const bracketPos = line.from + indent + 3;
-        view.dispatch({
-          changes: { from: bracketPos, to: bracketPos + 1, insert: newState },
-        });
-      }
-      return true;
-    }
-    return false;
-  },
-});
+      event.stopPropagation();
+      handleCheckboxToggle(target);
+    },
+    true
+  );
+
+  document.addEventListener(
+    "change",
+    (event) => {
+      const target = event.target;
+      if (!target.classList.contains("format-checkbox")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      target.checked = !target.checked;
+      handleCheckboxToggle(target);
+    },
+    true
+  );
+
+  document.addEventListener(
+    "mousedown",
+    (event) => {
+      const target = event.target;
+      if (!target.classList.contains("format-checkbox")) return;
+      event.stopPropagation();
+    },
+    true
+  );
+}
+
+setupGlobalCheckboxHandler();
+
+export const checkboxClickHandler = [];
 
 const EMPTY_BLOCKQUOTE_REGEX = /^(\s*)>\s*$/;
 
