@@ -110,8 +110,26 @@ def update_page(
         return Response({"message": "Only the creator can update this page"}, status=403)
 
     page.title = payload.title
+
     if payload.details is not None:
-        page.details = payload.details
+        mode = payload.mode or "append"
+
+        if mode in ("append", "prepend") and "content" in payload.details:
+            existing_content = page.details.get("content", "") if page.details else ""
+            new_content = payload.details.get("content", "")
+
+            if mode == "append":
+                merged_content = existing_content + new_content
+            else:  # prepend
+                merged_content = new_content + existing_content
+
+            if page.details:
+                page.details = {**page.details, **payload.details, "content": merged_content}
+            else:
+                page.details = {**payload.details, "content": merged_content}
+        else:
+            page.details = payload.details
+
     page.save(update_fields=["title", "details", "modified"])
 
     if settings.ASK_FEATURE_ENABLED:

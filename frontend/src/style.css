@@ -1914,6 +1914,56 @@ body.sidebar-resizing .chat-sidebar {
   flex-shrink: 0;
 }
 
+/* Collaboration status indicator */
+.collab-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  border-radius: 50%;
+  transition: opacity 0.3s ease, transform 0.2s ease;
+  cursor: help;
+}
+
+.collab-status.connecting {
+  color: #f59e0b;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.collab-status.connected {
+  color: #10b981;
+}
+
+.collab-status.offline {
+  color: #6b7280;
+}
+
+.collab-status.denied {
+  color: #ef4444;
+}
+
+.collab-status.error {
+  color: #ef4444;
+  font-weight: bold;
+}
+
+.collab-status.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
 #editor-container {
   flex: 1 1 auto;
   display: flex;

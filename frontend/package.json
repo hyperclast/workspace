@@ -14,6 +14,8 @@
     "test:load-time": "playwright test tests/e2e/note-load-time.spec.js --headed",
     "test:websocket": "playwright test tests/e2e/websocket-stability.spec.js",
     "test:websocket:headed": "playwright test tests/e2e/websocket-stability.spec.js --headed",
+    "test:collab": "playwright test tests/e2e/page-load-collab.spec.js",
+    "test:collab:headed": "playwright test tests/e2e/page-load-collab.spec.js --headed",
     "test:all": "npm test && npm run test:e2e"
   },
   "devDependencies": {

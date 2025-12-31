@@ -115,11 +115,13 @@ class TestPagesCreateAPI(BaseAuthenticatedViewTestCase):
 class TestPagesUpdateAPI(BaseAuthenticatedViewTestCase):
     """Test PUT /api/pages/{external_id}/ endpoint."""
 
-    def send_update_page_request(self, external_id, title, details=None):
+    def send_update_page_request(self, external_id, title, details=None, mode=None):
         url = f"/api/pages/{external_id}/"
         data = {"title": title}
         if details is not None:
             data["details"] = details
+        if mode is not None:
+            data["mode"] = mode
         return self.send_api_request(url=url, method="put", data=data)
 
     @override_settings(ASK_FEATURE_ENABLED=False)
@@ -211,6 +213,141 @@ class TestPagesUpdateAPI(BaseAuthenticatedViewTestCase):
         response = self.send_update_page_request(page.external_id, "New Title")
 
         self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    def test_update_page_with_append_mode(self):
+        """Test updating a page with append mode adds content at the end."""
+        page = PageFactory(
+            creator=self.user,
+            title="Test Page",
+            details={"content": "Original content", "filetype": "txt"},
+        )
+
+        response = self.send_update_page_request(
+            page.external_id,
+            page.title,
+            details={"content": "\nAppended content"},
+            mode="append",
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        page.refresh_from_db()
+        self.assertEqual(page.details["content"], "Original content\nAppended content")
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    def test_update_page_with_prepend_mode(self):
+        """Test updating a page with prepend mode adds content at the beginning."""
+        page = PageFactory(
+            creator=self.user,
+            title="Test Page",
+            details={"content": "Original content", "filetype": "txt"},
+        )
+
+        response = self.send_update_page_request(
+            page.external_id,
+            page.title,
+            details={"content": "Prepended content\n"},
+            mode="prepend",
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        page.refresh_from_db()
+        self.assertEqual(page.details["content"], "Prepended content\nOriginal content")
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    def test_update_page_with_overwrite_mode(self):
+        """Test updating a page with overwrite mode replaces all content."""
+        page = PageFactory(
+            creator=self.user,
+            title="Test Page",
+            details={"content": "Original content", "filetype": "txt"},
+        )
+
+        response = self.send_update_page_request(
+            page.external_id,
+            page.title,
+            details={"content": "Completely new content"},
+            mode="overwrite",
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        page.refresh_from_db()
+        self.assertEqual(page.details["content"], "Completely new content")
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    def test_update_page_without_mode_defaults_to_append(self):
+        """Test updating a page without mode defaults to append behavior."""
+        page = PageFactory(
+            creator=self.user,
+            title="Test Page",
+            details={"content": "Original content", "filetype": "txt"},
+        )
+
+        response = self.send_update_page_request(
+            page.external_id,
+            page.title,
+            details={"content": " appended"},
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        page.refresh_from_db()
+        self.assertEqual(page.details["content"], "Original content appended")
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    def test_update_page_with_append_mode_preserves_other_details(self):
+        """Test that append mode preserves other detail fields like filetype."""
+        page = PageFactory(
+            creator=self.user,
+            title="Test Page",
+            details={"content": "Original", "filetype": "md", "schema_version": 1},
+        )
+
+        response = self.send_update_page_request(
+            page.external_id,
+            page.title,
+            details={"content": " appended"},
+            mode="append",
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        page.refresh_from_db()
+        self.assertEqual(page.details["content"], "Original appended")
+        self.assertEqual(page.details["filetype"], "md")
+        self.assertEqual(page.details["schema_version"], 1)
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    def test_update_page_with_append_mode_on_empty_page(self):
+        """Test appending to a page with no existing content."""
+        page = PageFactory(
+            creator=self.user,
+            title="Test Page",
+            details={"content": "", "filetype": "txt"},
+        )
+
+        response = self.send_update_page_request(
+            page.external_id,
+            page.title,
+            details={"content": "First content"},
+            mode="append",
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        page.refresh_from_db()
+        self.assertEqual(page.details["content"], "First content")
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    def test_update_page_with_invalid_mode_returns_422(self):
+        """Test that an invalid mode returns 422."""
+        page = PageFactory(creator=self.user, title="Test Page")
+
+        response = self.send_update_page_request(
+            page.external_id,
+            page.title,
+            details={"content": "test"},
+            mode="invalid_mode",
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
 
 
 class TestPagesDeleteAPI(BaseAuthenticatedViewTestCase):

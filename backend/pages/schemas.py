@@ -30,6 +30,17 @@ class PageUpdateIn(Schema):
 
     title: str = Field(..., min_length=1, max_length=100)
     details: Optional[Dict[str, Any]] = None
+    mode: Optional[str] = Field(
+        None,
+        description="Content update mode: 'append' (default), 'prepend', or 'overwrite'",
+    )
+
+    @field_validator("mode")
+    @classmethod
+    def validate_mode(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in ("overwrite", "append", "prepend"):
+            raise ValueError("mode must be 'overwrite', 'append', or 'prepend'")
+        return v
 
 
 class PageOut(Schema):

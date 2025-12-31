@@ -121,6 +121,11 @@ class PageYjsConsumer(BaseYjsConsumer):
         allowed, count = await self._check_rate_limit()
         if not allowed:
             log_warning(f"Rate limited: user={user}, page={page_uuid}, count={count}")
+            # Accept briefly so client receives the close code
+            await self.accept()
+            await self.send(
+                text_data='{"type":"error","code":"rate_limited","message":"Too many connections. Please try again later."}'
+            )
             await self.close(code=WS_CLOSE_RATE_LIMITED)
             return
 
@@ -128,7 +133,13 @@ class PageYjsConsumer(BaseYjsConsumer):
         has_access = await can_access_page(user, page_uuid)
         if not has_access:
             log_warning(f"Access denied for user {user} to page {page_uuid}")
-            await self.close(code=4003)  # Reject without accepting
+            # Accept the connection briefly so client receives the close code
+            # (Rejecting before accept means client only sees HTTP 403, not WS close code)
+            await self.accept()
+            await self.send(
+                text_data='{"type":"error","code":"access_denied","message":"You do not have access to this page"}'
+            )
+            await self.close(code=4003)
             return
 
         log_info(f"Access granted for user {user} to page {page_uuid}")

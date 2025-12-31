@@ -29,7 +29,7 @@
     const mins = String(d.getMinutes()).padStart(2, '0');
     const ampm = hours >= 12 ? 'pm' : 'am';
     const h = hours % 12 || 12;
-    return `${date} ${h}:${mins}${ampm}`;
+    return `${date} ${h}h${mins}${ampm}`;
   }
 
   function formatHumanDate() {

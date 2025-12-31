@@ -1,0 +1,9 @@
+# Binary
+hyperclast
+hyperclast.exe
+
+# Build output
+dist/
+
+# Test coverage
+coverage.out

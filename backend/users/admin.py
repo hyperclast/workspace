@@ -5,7 +5,7 @@ from django.shortcuts import reverse
 from django.utils.html import format_html
 
 from .forms import ProfileAdminForm
-from .models import Org, OrgMember, Profile, StripeLog
+from .models import Org, OrgMember, PersonalEmailDomain, Profile, StripeLog
 
 
 class OrgMemberInline(admin.TabularInline):
@@ -93,3 +93,11 @@ class StripeLogAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(PersonalEmailDomain)
+class PersonalEmailDomainAdmin(admin.ModelAdmin):
+    list_display = ["substring", "created"]
+    search_fields = ["substring"]
+    readonly_fields = ["created", "modified"]
+    ordering = ["substring"]

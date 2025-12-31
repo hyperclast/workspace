@@ -67,6 +67,16 @@ Tests: `npm test`
 
 See [E2E Testing Guide](docs/e2e-testing.md) for more options.
 
+### Performance Testing
+
+```sh
+cd frontend
+npm run test:collab        # Run performance & collaboration tests
+npm run test:collab:headed # Run with visible browser
+```
+
+See [Performance Monitoring](docs/performance.md) for metrics, debugging, and architecture details.
+
 ### AI Search (Optional)
 
 Add to your `.env`:

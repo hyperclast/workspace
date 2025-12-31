@@ -23,18 +23,12 @@ def get_email_verified(user) -> bool:
 users_router = Router()
 
 
-@users_router.get("/me/", response=CurrentUserSchema)
+@users_router.get("/me/", response=CurrentUserSchema, auth=[token_auth, session_auth])
 def get_current_user(request: HttpRequest):
     """
     Get current authenticated user information.
-    Used by frontend to check authentication status.
+    Used by frontend to check authentication status and CLI to validate tokens.
     """
-    if not request.user.is_authenticated:
-        return Response(
-            {"message": "Not authenticated"},
-            status=401,
-        )
-
     return {
         "external_id": request.user.external_id,
         "email": request.user.email,

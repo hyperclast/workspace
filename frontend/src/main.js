@@ -10,6 +10,7 @@ import {
   fetchPage as fetchPageApi,
   fetchProjectsWithPages,
 } from "./api.js";
+import { metrics } from "./lib/metrics.js";
 import { getSession, logout } from "./auth.js";
 import { clickToEndPlugin } from "./clickToEndPlugin.js";
 import {
@@ -474,9 +475,34 @@ function setupTitleEditing() {
 
 /**
  * Load and display a page (used for both new and existing pages).
+ *
+ * Architecture: Show content IMMEDIATELY from REST API, then enhance with real-time
+ * collaboration. WebSocket is an enhancement, not a requirement.
+ *
+ * Strategy to avoid content duplication:
+ * 1. Show REST content in editor WITHOUT yCollab initially
+ * 2. Wait for sync in background
+ * 3. After sync, rebuild editor WITH yCollab using correct content source
+ *
  * @param {Object} page - The page object from API (with external_id, title, details, etc.)
  */
 async function loadPage(page) {
+  const pageId = page.external_id;
+  const contentLength = page.details?.content?.length || 0;
+
+  // Start comprehensive metrics span for entire page load
+  const pageLoadSpan = metrics.startSpan("page_load", {
+    pageId,
+    contentLength,
+    hasContent: contentLength > 0,
+    filetype: page.details?.filetype || "md",
+  });
+
+  // Clean up any existing page state first
+  pageLoadSpan.addEvent("cleanup_start");
+  cleanupCurrentPage();
+  pageLoadSpan.addEvent("cleanup_complete");
+
   currentPage = {
     external_id: page.external_id,
     title: page.title,
@@ -504,38 +530,286 @@ async function loadPage(page) {
   }
 
   const content = page.details?.content || "";
+  const filetype = page.details?.filetype || "md";
+  pageLoadSpan.addEvent("setup_complete");
 
-  // Setup collaboration and wait for initial sync (with timeout fallback)
-  // Use getUserInfo() which has username from Django template (session API doesn't include it)
-  const userInfo = getUserInfo();
-  const displayName = userInfo.user?.username || currentUser?.email || "Anonymous";
-  collabObjects = createCollaborationObjects(currentPage.external_id, displayName);
+  // STEP 1: Show REST content immediately WITHOUT collaboration
+  // This ensures instant page load - user sees content in <100ms
+  pageLoadSpan.addEvent("editor_init_start");
+  initializeEditor(content, [], filetype);
+  pageLoadSpan.addEvent("editor_init_complete", { editorContentLength: content.length });
 
-  // Wait for sync to see if server has content
-  const syncResult = await collabObjects.syncPromise;
+  // End page load span - user can now see content
+  pageLoadSpan.end({
+    status: "success",
+    phase: "rest_content_visible",
+  });
 
-  if (syncResult.synced && !syncResult.ytextHasContent && content) {
-    // Sync succeeded but server is empty - safe to insert REST content
-    collabObjects.ytext.insert(0, content);
-    console.log("Server synced but empty, inserted REST content");
-  } else if (!syncResult.synced) {
-    // Sync timed out - do NOT insert REST content to avoid duplication
-    // Editor will start empty, content appears when WebSocket connects
-    console.log("Sync timeout - editor will be empty until WebSocket connects");
-  }
+  metrics.event("page_visible", {
+    pageId,
+    contentLength,
+    timestamp: Date.now(),
+  });
 
-  // Always use ytext content - yCollab keeps editor and ytext in sync
-  initializeEditor(collabObjects.ytext.toString(), [collabObjects.extension]);
-
-  // Restore fold state - editor and content are ready at this point (sync awaited above)
+  // Restore fold state
   setCurrentPageIdForFolds(currentPage.external_id);
   if (window.editorView && window.editorView.state.doc.length > 0) {
     restoreFoldedRanges(window.editorView, currentPage.external_id);
   }
 
-  cleanupPresenceUI = setupPresenceUI(collabObjects.awareness);
-  cleanupUnloadHandler = setupUnloadHandler(collabObjects);
   updateSidenavActive(currentPage.external_id);
+
+  // STEP 2: Setup collaboration in background and upgrade editor when ready
+  // This is tracked separately from page_load since it's async
+  setupCollaborationAsync(page, content, filetype);
+}
+
+/**
+ * Setup collaboration asynchronously and upgrade the editor when sync completes.
+ * This runs after the page is already visible with REST content.
+ */
+async function setupCollaborationAsync(page, restContent, filetype) {
+  const pageId = page.external_id;
+
+  // Start collaboration span - tracks entire async collab setup
+  const collabSpan = metrics.startSpan("collab_setup", {
+    pageId,
+    restContentLength: restContent?.length || 0,
+    filetype,
+  });
+
+  updateCollabStatus("connecting");
+
+  // Create collaboration objects
+  const userInfo = getUserInfo();
+  const displayName = userInfo.user?.username || currentUser?.email || "Anonymous";
+
+  collabSpan.addEvent("create_collab_objects_start");
+  collabObjects = createCollaborationObjects(pageId, displayName);
+  collabSpan.addEvent("create_collab_objects_complete");
+
+  // If collaboration is not available (access denied from cache), stay in REST-only mode
+  if (!collabObjects.provider) {
+    collabSpan.end({
+      status: "skipped",
+      reason: "access_denied_cached",
+    });
+    metrics.event("collab_skipped", { pageId, reason: "access_denied_cached" });
+    updateCollabStatus("denied");
+    return;
+  }
+
+  // Setup unload handler early
+  cleanupUnloadHandler = setupUnloadHandler(collabObjects);
+  collabSpan.addEvent("ws_connect_start");
+
+  try {
+    // Wait for sync to complete - this is the critical async operation
+    const syncSpan = metrics.startSpan("ws_sync", { pageId });
+    const syncResult = await collabObjects.syncPromise;
+
+    const syncStatus = syncResult.synced
+      ? "synced"
+      : syncResult.accessDenied
+      ? "denied"
+      : "timeout";
+    syncSpan.end({
+      status: syncStatus,
+      serverHasContent: syncResult.ytextHasContent,
+      ytextLength: collabObjects.ytext?.length || 0,
+    });
+
+    collabSpan.addEvent("ws_sync_complete", {
+      synced: syncResult.synced,
+      serverHasContent: syncResult.ytextHasContent,
+    });
+
+    // Guard: Check if user navigated away while we were waiting
+    if (currentPage?.external_id !== pageId) {
+      collabSpan.end({
+        status: "aborted",
+        reason: "page_changed_during_sync",
+        newPageId: currentPage?.external_id,
+      });
+      metrics.event("collab_aborted", {
+        pageId,
+        reason: "page_changed",
+        newPageId: currentPage?.external_id,
+      });
+      return;
+    }
+
+    if (syncResult.accessDenied) {
+      collabSpan.end({
+        status: "error",
+        reason: "access_denied",
+      });
+      metrics.event("collab_access_denied", { pageId });
+      updateCollabStatus("denied");
+      return;
+    }
+
+    if (syncResult.synced) {
+      // Determine which content to use
+      let contentSource = "server";
+      if (!syncResult.ytextHasContent && restContent) {
+        // Server is empty - insert REST content into ytext
+        collabSpan.addEvent("insert_rest_content", { length: restContent.length });
+        collabObjects.ytext.insert(0, restContent);
+        contentSource = "rest_api";
+      }
+
+      // Now upgrade the editor to collaborative mode
+      collabSpan.addEvent("editor_upgrade_start");
+      const upgradeSpan = metrics.startSpan("editor_upgrade", { pageId, contentSource });
+      upgradeEditorToCollaborative(collabObjects, filetype);
+      upgradeSpan.end({ status: "success" });
+      collabSpan.addEvent("editor_upgrade_complete");
+
+      updateCollabStatus("connected");
+
+      // Setup presence UI now that we have awareness
+      if (collabObjects.awareness) {
+        cleanupPresenceUI = setupPresenceUI(collabObjects.awareness);
+      }
+
+      collabSpan.end({
+        status: "success",
+        contentSource,
+        finalYtextLength: collabObjects.ytext?.length || 0,
+      });
+
+      metrics.event("collab_connected", {
+        pageId,
+        contentSource,
+        ytextLength: collabObjects.ytext?.length || 0,
+      });
+    } else {
+      // Sync timed out - stay in REST-only mode, editor already has content
+      collabSpan.end({
+        status: "timeout",
+        reason: "ws_sync_timeout",
+      });
+      metrics.event("collab_timeout", { pageId });
+      updateCollabStatus("offline");
+    }
+  } catch (error) {
+    collabSpan.end({
+      status: "error",
+      error: error.message,
+    });
+    metrics.error("collab_error", error, { pageId });
+    updateCollabStatus("error");
+  }
+}
+
+/**
+ * Upgrade the editor to collaborative mode by adding yCollab extension.
+ * Preserves cursor position and scroll state.
+ */
+function upgradeEditorToCollaborative(collabObjects, filetype) {
+  if (!window.editorView || !collabObjects) return;
+
+  // Save current state
+  const currentSelection = window.editorView.state.selection;
+  const scrollTop = window.editorView.scrollDOM.scrollTop;
+
+  // Get content from ytext (which now has the correct content)
+  const ytextContent = collabObjects.ytext.toString();
+
+  // Destroy old editor
+  window.editorView.destroy();
+  window.editorView = null;
+
+  // Reinitialize with yCollab extension
+  initializeEditor(ytextContent, [collabObjects.extension], filetype);
+
+  // Restore cursor position (if valid)
+  if (window.editorView && currentSelection) {
+    try {
+      const docLength = window.editorView.state.doc.length;
+      const anchor = Math.min(currentSelection.main.anchor, docLength);
+      const head = Math.min(currentSelection.main.head, docLength);
+
+      window.editorView.dispatch({
+        selection: { anchor, head },
+        scrollIntoView: false,
+      });
+    } catch (e) {
+      // Selection restore failed, that's ok
+    }
+  }
+
+  // Restore scroll position
+  if (window.editorView) {
+    window.editorView.scrollDOM.scrollTop = scrollTop;
+  }
+
+  console.log("[Collab] Editor upgraded to collaborative mode");
+}
+
+/**
+ * Update the collaboration status indicator in the UI.
+ * Shows users the current state of real-time collaboration.
+ */
+function updateCollabStatus(status) {
+  // Find or create the status indicator
+  let indicator = document.getElementById("collab-status");
+  if (!indicator) {
+    // Create the indicator next to the presence indicator
+    const presenceIndicator = document.getElementById("presence-indicator");
+    if (presenceIndicator?.parentElement) {
+      indicator = document.createElement("div");
+      indicator.id = "collab-status";
+      indicator.className = "collab-status";
+      presenceIndicator.parentElement.insertBefore(indicator, presenceIndicator);
+    }
+  }
+
+  if (!indicator) return;
+
+  // Update based on status
+  const statusConfig = {
+    connecting: {
+      icon: "◌",
+      title: "Connecting to collaboration server...",
+      class: "connecting",
+    },
+    connected: {
+      icon: "●",
+      title: "Real-time collaboration active",
+      class: "connected",
+    },
+    offline: {
+      icon: "○",
+      title: "Offline mode - changes save locally but won't sync in real-time",
+      class: "offline",
+    },
+    denied: {
+      icon: "⊘",
+      title: "Collaboration unavailable for this page",
+      class: "denied",
+    },
+    error: {
+      icon: "!",
+      title: "Connection error - retrying...",
+      class: "error",
+    },
+  };
+
+  const config = statusConfig[status] || statusConfig.offline;
+  indicator.textContent = config.icon;
+  indicator.title = config.title;
+  indicator.className = `collab-status ${config.class}`;
+
+  // Hide indicator after successful connection (it's the normal state)
+  if (status === "connected") {
+    setTimeout(() => {
+      indicator.classList.add("fade-out");
+    }, 3000);
+  } else {
+    indicator.classList.remove("fade-out");
+  }
 }
 
 /**
@@ -676,31 +950,57 @@ const failedPageIds = new Set();
  * @param {boolean} skipPushState - If true, don't push to history (used for popstate handling)
  */
 async function openPage(external_id, skipPushState = false) {
+  const navSpan = metrics.startSpan("page_navigation", {
+    pageId: external_id,
+    source: skipPushState ? "browser_history" : "programmatic",
+  });
+
   if (failedPageIds.has(external_id)) {
-    console.warn(`Skipping page ${external_id} - previously failed to load`);
+    navSpan.end({ status: "skipped", reason: "previously_failed" });
     return;
   }
 
   if (cachedProjects.length === 0) {
+    navSpan.addEvent("fetch_projects_start");
     cachedProjects = await fetchProjects();
+    navSpan.addEvent("fetch_projects_complete", { projectCount: cachedProjects.length });
   }
   renderSidenav(cachedProjects, external_id);
 
+  navSpan.addEvent("fetch_page_start");
+  const fetchSpan = metrics.startSpan("rest_fetch", { pageId: external_id, endpoint: "page" });
   const page = await fetchPage(external_id);
+  fetchSpan.end({
+    status: page?.error ? "error" : "success",
+    contentLength: page?.details?.content?.length || 0,
+  });
+  navSpan.addEvent("fetch_page_complete", {
+    hasContent: !!page?.details?.content,
+    contentLength: page?.details?.content?.length || 0,
+  });
 
   if (!page || page.error) {
     failedPageIds.add(external_id);
+    navSpan.end({ status: "error", reason: page?.error || "not_found" });
     showError(page?.error || "Page not found");
     await redirectToFirstAvailablePage();
     return;
   }
 
+  navSpan.addEvent("load_page_start");
   await loadPage(page);
+  navSpan.addEvent("load_page_complete");
 
   // Only push state if this is a programmatic navigation, not browser back/forward
   if (!skipPushState) {
     window.history.pushState({}, "", `/pages/${external_id}/`);
   }
+
+  navSpan.end({
+    status: "success",
+    title: page.title,
+    contentLength: page.details?.content?.length || 0,
+  });
 }
 
 /**
@@ -735,8 +1035,9 @@ function showError(message) {
  * Initialize the editor with page content.
  * @param {string} pageContent - Initial content (only used if not using collaboration)
  * @param {Array} additionalExtensions - Extra CodeMirror extensions (e.g., Yjs collab)
+ * @param {string} filetype - The page filetype (md, txt, csv)
  */
-function initializeEditor(pageContent = "", additionalExtensions = []) {
+function initializeEditor(pageContent = "", additionalExtensions = [], filetype = "md") {
   // Create a simple theme to ensure text is visible
   // Using EditorView.theme() instead of baseTheme() to override any defaults
   const simpleTheme = EditorView.theme(
@@ -769,6 +1070,18 @@ function initializeEditor(pageContent = "", additionalExtensions = []) {
     },
     { dark: false }
   );
+
+  // Monospace theme for txt files - treat content literally without styling
+  const monospaceTheme = EditorView.theme({
+    ".cm-content": {
+      fontFamily: '"SF Mono", "Monaco", "Inconsolata", "Roboto Mono", "Source Code Pro", monospace',
+      fontSize: "14px",
+      lineHeight: "1.5",
+    },
+    ".cm-line": {
+      fontFamily: '"SF Mono", "Monaco", "Inconsolata", "Roboto Mono", "Source Code Pro", monospace',
+    },
+  });
 
   const titleNavigationKeymap = Prec.high(
     keymap.of([
@@ -813,16 +1126,16 @@ function initializeEditor(pageContent = "", additionalExtensions = []) {
   ]);
 
   // Build the base extensions
+  // For txt files: use monospace font and skip markdown-specific extensions
+  const isTxt = filetype === "txt";
+
   const baseExtensions = [
     simpleTheme,
+    ...(isTxt ? [monospaceTheme] : []),
     EditorView.lineWrapping,
-    markdown(),
-    markdownTableExtension,
+    ...(isTxt ? [] : [markdown(), markdownTableExtension]),
     titleNavigationKeymap,
-    listKeymap,
-    blockquoteKeymap,
-    checkboxClickHandler,
-    decorateFormatting,
+    ...(isTxt ? [] : [listKeymap, blockquoteKeymap, checkboxClickHandler, decorateFormatting]),
     decorateEmails,
     decorateLinks,
     linkClickHandler,
@@ -1027,7 +1340,10 @@ function setupCreateProjectButton() {
  * Initialize the page view - open appropriate page on startup.
  */
 async function initializePageView() {
+  console.time("[PERF] initializePageView total");
+  console.time("[PERF] initializePageView fetchProjects");
   cachedProjects = await fetchProjects();
+  console.timeEnd("[PERF] initializePageView fetchProjects");
 
   const pageIdFromUrl = getPageIdFromPath();
 
@@ -1070,13 +1386,23 @@ async function initializePageView() {
  * Start the application.
  */
 async function startApp() {
+  const appSpan = metrics.startSpan("app_startup", {
+    url: window.location.pathname,
+    timestamp: Date.now(),
+  });
+
   renderAppHTML();
+  appSpan.addEvent("html_rendered");
 
   // Expose openPage for sidebar components to navigate between pages
   window.openPage = openPage;
 
+  appSpan.addEvent("auth_check_start");
   const user = await checkAuthentication();
+  appSpan.addEvent("auth_check_complete", { authenticated: !!user });
+
   if (!user) {
+    appSpan.end({ status: "redirect", reason: "not_authenticated" });
     return;
   }
 
@@ -1171,8 +1497,29 @@ async function startApp() {
     }
   });
 
+  // Listen for collaboration errors (access denied, rate limited, etc.)
+  window.addEventListener("collabError", (event) => {
+    const { pageId, code, message } = event.detail;
+    console.warn("Collaboration error:", code, message, "for page:", pageId);
+
+    // Update the status indicator
+    if (currentPage && currentPage.external_id === pageId) {
+      if (code === "access_denied") {
+        updateCollabStatus("denied");
+      } else if (code === "rate_limited") {
+        updateCollabStatus("error");
+        // Show a toast notification for rate limiting
+        showToast("Connection limited - please close some tabs and refresh", "warning");
+      } else {
+        updateCollabStatus("error");
+      }
+    }
+  });
+
   // Initialize page view (open last page or create one)
+  appSpan.addEvent("page_view_init_start");
   await initializePageView();
+  appSpan.addEvent("page_view_init_complete");
 
   // Show upgrade pill if user has any free (non-Pro) orgs
   const hasFreePlan = cachedProjects.some((p) => !p.org?.is_pro);
@@ -1180,6 +1527,19 @@ async function startApp() {
   if (upgradePill && hasFreePlan) {
     upgradePill.style.display = "inline-flex";
   }
+
+  appSpan.end({
+    status: "success",
+    projectCount: cachedProjects.length,
+    pageCount: cachedProjects.reduce((sum, p) => sum + (p.pages?.length || 0), 0),
+  });
+
+  // Log startup summary
+  metrics.event("app_ready", {
+    projectCount: cachedProjects.length,
+    pageCount: cachedProjects.reduce((sum, p) => sum + (p.pages?.length || 0), 0),
+    currentPageId: currentPage?.external_id,
+  });
 }
 
 /**

@@ -41,8 +41,7 @@ class TestGetCurrentUserAPI(BaseAuthenticatedViewTestCase):
         payload = response.json()
 
         self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
-        self.assertIn("message", payload)
-        self.assertEqual(payload["message"], "Not authenticated")
+        self.assertIn("detail", payload)
         self.assertNotIn("external_id", payload)
         self.assertNotIn("email", payload)
 
@@ -59,5 +58,40 @@ class TestGetCurrentUserAPIUnauthenticated(BaseViewTestCase):
         payload = response.json()
 
         self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
-        self.assertIn("message", payload)
-        self.assertEqual(payload["message"], "Not authenticated")
+        self.assertIn("detail", payload)
+
+
+class TestGetCurrentUserAPIWithTokenAuth(BaseViewTestCase):
+    """Test get current user endpoint with token authentication (for CLI)."""
+
+    def test_get_current_user_with_valid_token(self):
+        from users.tests.factories import UserFactory
+
+        user = UserFactory()
+        token = user.profile.access_token
+
+        response = self.client.get(
+            "/api/users/me/",
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+        )
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(payload["external_id"], user.external_id)
+        self.assertEqual(payload["email"], user.email)
+
+    def test_get_current_user_with_invalid_token(self):
+        response = self.client.get(
+            "/api/users/me/",
+            HTTP_AUTHORIZATION="Bearer invalid_token_12345",
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+
+    def test_get_current_user_with_malformed_auth_header(self):
+        response = self.client.get(
+            "/api/users/me/",
+            HTTP_AUTHORIZATION="NotBearer sometoken",
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
