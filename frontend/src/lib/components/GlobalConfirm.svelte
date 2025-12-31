@@ -4,13 +4,15 @@
   import ShareProjectModal from './ShareProjectModal.svelte';
   import CreateProjectModal from './CreateProjectModal.svelte';
   import NewPageModal from './NewPageModal.svelte';
-  import { getConfirmState, getPromptState, getShareProjectState, getCreateProjectState, getNewPageState } from '../stores/modal.svelte.js';
+  import ChangePageTypeModal from './ChangePageTypeModal.svelte';
+  import { getConfirmState, getPromptState, getShareProjectState, getCreateProjectState, getNewPageState, getChangePageTypeState } from '../stores/modal.svelte.js';
 
   const confirmState = getConfirmState();
   const promptState = getPromptState();
   const shareProjectState = getShareProjectState();
   const createProjectState = getCreateProjectState();
   const newPageState = getNewPageState();
+  const changePageTypeState = getChangePageTypeState();
 </script>
 
 <ConfirmModal
@@ -56,4 +58,12 @@
   projectId={newPageState.projectId}
   pages={newPageState.pages}
   oncreated={newPageState.oncreated}
+/>
+
+<ChangePageTypeModal
+  bind:open={changePageTypeState.open}
+  pageId={changePageTypeState.pageId}
+  pageTitle={changePageTypeState.pageTitle}
+  currentType={changePageTypeState.currentType}
+  onchanged={changePageTypeState.onchanged}
 />

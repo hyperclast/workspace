@@ -34,7 +34,13 @@ import { sectionFoldHover } from "./sectionFoldHover.js";
 import { foldChangeListener, setCurrentPageIdForFolds } from "./foldChangeListener.js";
 import { restoreFoldedRanges } from "./foldPersistence.js";
 import { setupUserAvatar } from "./gravatar.js";
-import { confirm, shareProject, createProjectModal, newPageModal } from "./lib/modal.js";
+import {
+  confirm,
+  shareProject,
+  createProjectModal,
+  newPageModal,
+  changePageType,
+} from "./lib/modal.js";
 import { showToast } from "./lib/toast.js";
 import {
   markdownTableExtension,
@@ -124,7 +130,7 @@ function renderAppHTML() {
                 <span class="breadcrumb-sep">/</span>
                 <span id="breadcrumb-project" class="breadcrumb-item"></span>
                 <span class="breadcrumb-sep">/</span>
-                <span id="breadcrumb-page" class="breadcrumb-item breadcrumb-page"></span><span id="breadcrumb-filetype" class="breadcrumb-filetype"></span>
+                <span id="breadcrumb-page" class="breadcrumb-item breadcrumb-page"></span><button id="breadcrumb-filetype" class="breadcrumb-filetype" title="Change page type"></button>
               </nav>
               <div class="breadcrumb-actions">
                 <div id="presence-indicator" class="presence-indicator" title="Users currently editing">
@@ -155,6 +161,10 @@ function renderAppHTML() {
                     <button id="download-page-btn" class="actions-dropdown-item">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                       Download page
+                    </button>
+                    <button id="change-type-btn" class="actions-dropdown-item">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M9 15l2 2 4-4"></path></svg>
+                      Change type
                     </button>
                     <div class="actions-dropdown-divider"></div>
                     <button id="delete-note-btn" class="actions-dropdown-item danger">
@@ -1227,6 +1237,8 @@ function setupNoteActions() {
   const shareProjectBtn = document.getElementById("share-project-btn");
   const downloadPageBtn = document.getElementById("download-page-btn");
   const renamePageBtn = document.getElementById("rename-page-btn");
+  const changeTypeBtn = document.getElementById("change-type-btn");
+  const breadcrumbFiletype = document.getElementById("breadcrumb-filetype");
 
   if (!actionsBtn || !actionsDropdown) return;
 
@@ -1275,6 +1287,29 @@ function setupNoteActions() {
       actionsDropdown.style.display = "none";
       if (!currentPage) return;
       openDeleteModal();
+    });
+  }
+
+  if (changeTypeBtn) {
+    changeTypeBtn.addEventListener("click", () => {
+      actionsDropdown.style.display = "none";
+      if (!currentPage) return;
+      changePageType({
+        pageId: currentPage.external_id,
+        pageTitle: currentPage.title || "Untitled",
+        currentType: currentPage.details?.filetype || "md",
+      });
+    });
+  }
+
+  if (breadcrumbFiletype) {
+    breadcrumbFiletype.addEventListener("click", () => {
+      if (!currentPage) return;
+      changePageType({
+        pageId: currentPage.external_id,
+        pageTitle: currentPage.title || "Untitled",
+        currentType: currentPage.details?.filetype || "md",
+      });
     });
   }
 }

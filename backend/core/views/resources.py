@@ -119,6 +119,7 @@ def cli_docs(request):
         "is_cli_docs": True,
         "page_title": "CLI",
         "cli_platforms": CLI_PLATFORMS,
+        "root_url": settings.WS_ROOT_URL,
         **_get_dev_context(request),
     }
     return render(request, "core/docs/cli.html", context)

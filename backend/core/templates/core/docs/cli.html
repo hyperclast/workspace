@@ -201,6 +201,17 @@
     .download-cmd.open {
       display: block;
     }
+    .download-note {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin: 0.75rem 0 0 0;
+    }
+    .download-note code {
+      background: rgba(0,0,0,0.06);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+    }
     .download-cmd code {
       font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
       font-size: 0.85rem;
@@ -528,8 +539,12 @@
             Or install via command line
           </button>
           <div class="download-cmd" id="macos-cmd">
-            <code>curl -L {{ request.scheme }}://{{ request.get_host }}/downloads/cli/darwin-arm64/ -o hyperclast && chmod +x hyperclast</code>
+            <code>curl -L {{ root_url }}/downloads/cli/darwin-arm64/ -o hyperclast && chmod +x hyperclast</code>
           </div>
+          <p class="download-note">
+            <strong>After downloading:</strong> <code>chmod +x hyperclast</code> to make it executable.
+            If macOS shows "cannot be opened", also run: <code>xattr -d com.apple.quarantine ./hyperclast</code>
+          </p>
         </div>
       </div>
 
@@ -553,8 +568,11 @@
             Or install via command line
           </button>
           <div class="download-cmd" id="linux-cmd">
-            <code>curl -L {{ request.scheme }}://{{ request.get_host }}/downloads/cli/linux-amd64/ -o hyperclast && chmod +x hyperclast</code>
+            <code>curl -L {{ root_url }}/downloads/cli/linux-amd64/ -o hyperclast && chmod +x hyperclast</code>
           </div>
+          <p class="download-note">
+            <strong>After downloading:</strong> <code>chmod +x hyperclast</code> to make it executable.
+          </p>
         </div>
       </div>
 
@@ -578,7 +596,7 @@
             Or install via PowerShell
           </button>
           <div class="download-cmd" id="windows-cmd">
-            <code>Invoke-WebRequest -Uri "{{ request.scheme }}://{{ request.get_host }}/downloads/cli/windows-amd64/" -OutFile "hyperclast.exe"</code>
+            <code>Invoke-WebRequest -Uri "{{ root_url }}/downloads/cli/windows-amd64/" -OutFile "hyperclast.exe"</code>
           </div>
         </div>
       </div>
@@ -931,8 +949,20 @@ make build 2>&1 | hyperclast page new \
         detectedTab.classList.add('detected');
       }
 
-      // Switch to detected platform on load
-      switchTab(detectedPlatform);
+      // Check for hash in URL (e.g., #macos, #linux, #windows, #source)
+      var validTabs = ['macos', 'linux', 'windows', 'source'];
+      var hash = window.location.hash.slice(1).toLowerCase();
+      var initialTab = validTabs.includes(hash) ? hash : detectedPlatform;
+
+      // Switch to initial tab (from hash or detected platform)
+      switchTab(initialTab);
+
+      // Update hash when tab is clicked
+      tabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+          history.replaceState(null, null, '#' + tab.dataset.tab);
+        });
+      });
     })();
   </script>
 {% endblock %}

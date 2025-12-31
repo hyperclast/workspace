@@ -650,6 +650,21 @@ nav {
   margin-bottom: 1px;
 }
 
+.sidebar-project-pages .sidebar-item .page-filetype-btn {
+  background: none;
+  border: none;
+  padding: 0 3px;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: opacity 0.15s, background-color 0.15s;
+}
+
+.sidebar-project-pages .sidebar-item .page-filetype-btn:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.06);
+}
+
 .sidebar-project-pages .sidebar-item .page-menu {
   margin-left: auto;
   opacity: 0;
@@ -1794,11 +1809,23 @@ body.sidebar-resizing .chat-sidebar {
 }
 
 .breadcrumb-filetype {
-  font-size: 1em;
+  font-size: 0.75em;
   color: var(--text-tertiary, #999);
-  opacity: 0.4;
+  opacity: 0.5;
   margin-left: 4px;
   vertical-align: baseline;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: opacity 0.15s, background-color 0.15s;
+}
+
+.breadcrumb-filetype:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .breadcrumb-item:first-child {

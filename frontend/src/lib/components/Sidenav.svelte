@@ -1,7 +1,7 @@
 <script>
   import { API_BASE_URL } from "../../config.js";
   import { csrfFetch } from "../../csrf.js";
-  import { confirm, prompt, shareProject } from "../modal.js";
+  import { confirm, prompt, shareProject, changePageType } from "../modal.js";
   import { showToast } from "../toast.js";
   import { validateProjectName } from "../validation.js";
   import {
@@ -23,6 +23,7 @@
   const renameIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>`;
   const downloadIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
   const deleteIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+  const changeTypeIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M9 15l2 2 4-4"></path></svg>`;
 
   // Local state
   let openMenuId = $state(null);
@@ -172,6 +173,25 @@
     }
   }
 
+  function handleChangePageType(e, pageId, pageTitle, filetype) {
+    e.stopPropagation();
+    closeAllMenus();
+    changePageType({
+      pageId,
+      pageTitle: pageTitle || "Untitled",
+      currentType: filetype || "md",
+    });
+  }
+
+  function handleFiletypeClick(e, pageId, pageTitle, filetype) {
+    e.stopPropagation();
+    changePageType({
+      pageId,
+      pageTitle: pageTitle || "Untitled",
+      currentType: filetype || "md",
+    });
+  }
+
   async function handlePageDelete(e, pageId, pageTitle) {
     e.stopPropagation();
     closeAllMenus();
@@ -293,7 +313,11 @@
               onclick={() => handlePageClick(page.external_id, project.external_id)}
             >
               <span class="page-title">{page.title || "Untitled"}</span>
-              <span class="page-filetype">{page.filetype || "md"}</span>
+              <button
+                class="page-filetype page-filetype-btn"
+                title="Change page type"
+                onclick={(e) => handleFiletypeClick(e, page.external_id, page.title, page.filetype)}
+              >{page.filetype || "md"}</button>
               <div class="page-menu">
                 <button
                   class="page-menu-btn"
@@ -316,6 +340,13 @@
                   >
                     {@html downloadIcon}
                     Download
+                  </button>
+                  <button
+                    class="page-menu-item"
+                    onclick={(e) => handleChangePageType(e, page.external_id, page.title, page.filetype)}
+                  >
+                    {@html changeTypeIcon}
+                    Change type
                   </button>
                   <button
                     class="page-menu-item page-menu-delete"

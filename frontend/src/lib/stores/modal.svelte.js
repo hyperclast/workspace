@@ -134,3 +134,27 @@ export function openNewPage(options = {}) {
 export function closeNewPage() {
   newPageState.open = false;
 }
+
+let changePageTypeState = $state({
+  open: false,
+  pageId: "",
+  pageTitle: "",
+  currentType: "md",
+  onchanged: () => {},
+});
+
+export function getChangePageTypeState() {
+  return changePageTypeState;
+}
+
+export function openChangePageType(options = {}) {
+  changePageTypeState.pageId = options.pageId || "";
+  changePageTypeState.pageTitle = options.pageTitle || "";
+  changePageTypeState.currentType = options.currentType || "md";
+  changePageTypeState.onchanged = options.onchanged || (() => {});
+  changePageTypeState.open = true;
+}
+
+export function closeChangePageType() {
+  changePageTypeState.open = false;
+}

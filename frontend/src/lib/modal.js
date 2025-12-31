@@ -6,6 +6,7 @@ import {
   openShareProject as _openShareProject,
   openCreateProject as _openCreateProject,
   openNewPage as _openNewPage,
+  openChangePageType as _openChangePageType,
 } from "./stores/modal.svelte.js";
 
 let mounted = false;
@@ -93,4 +94,17 @@ export function createProjectModal(options = {}) {
 export function newPageModal(options = {}) {
   initModals();
   _openNewPage(options);
+}
+
+/**
+ * Show a change page type modal
+ * @param {Object} options
+ * @param {string} options.pageId - Page external ID
+ * @param {string} options.pageTitle - Page title
+ * @param {string} options.currentType - Current filetype (md, txt, etc.)
+ * @param {Function} options.onchanged - Callback when type is changed, receives new type
+ */
+export function changePageType(options = {}) {
+  initModals();
+  _openChangePageType(options);
 }

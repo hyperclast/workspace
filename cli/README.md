@@ -25,6 +25,12 @@ chmod +x hyperclast
 sudo mv hyperclast /usr/local/bin/
 ```
 
+**macOS Gatekeeper:** If you see "cannot be opened because the developer cannot be verified", run:
+
+```bash
+xattr -d com.apple.quarantine ./hyperclast
+```
+
 ### From Source
 
 ```bash
