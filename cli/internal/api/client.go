@@ -6,8 +6,22 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime"
 	"time"
 )
+
+const ClientName = "cli"
+
+var ClientVersion = "dev"
+
+func SetVersion(v string) {
+	ClientVersion = v
+}
+
+func buildClientHeader() string {
+	return fmt.Sprintf("client=%s; version=%s; os=%s; arch=%s",
+		ClientName, ClientVersion, runtime.GOOS, runtime.GOARCH)
+}
 
 type Client struct {
 	baseURL    string
@@ -43,6 +57,7 @@ func (c *Client) doRequest(method, path string, body interface{}) (*http.Respons
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-Hyperclast-Client", buildClientHeader())
 
 	return c.httpClient.Do(req)
 }

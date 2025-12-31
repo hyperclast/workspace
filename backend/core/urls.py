@@ -18,10 +18,12 @@ urlpatterns = [
     #
     path("about/", views.about, name="about"),
     path("dev/", views.dev_index, name="dev_index"),
+    path("dev/cli/", views.cli_docs, name="cli_docs"),
     path("dev/api/", views.api_docs, name="api_docs_index"),
     path("dev/api/<str:doc_name>/", views.api_docs, name="api_docs"),
     path("dev/oss/", views.oss_index, name="oss_index"),
     path("dev/oss/<str:repo_name>/", views.oss_repo, name="oss_repo"),
+    path("downloads/cli/<str:platform>/", views.cli_download, name="cli_download"),
     path("welcome/", views.welcome, name="welcome"),
     path("pricing/", views.pricing, name="pricing"),
     path("privacy/", views.privacy, name="privacy"),

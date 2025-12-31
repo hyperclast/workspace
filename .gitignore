@@ -32,3 +32,6 @@ dist-ssr
 CLAUDE.*.md
 /frontend/playwright-report/
 /frontend/test-results/
+
+# Deployment tracking (local state)
+/deployment/.last-deployed-*

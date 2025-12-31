@@ -51,6 +51,7 @@ AUTHENTICATION_BACKENDS = [
 
 MIDDLEWARE = [
     "core.middlewares.RequestIDMiddleware",  # Must be first to capture all requests
+    "core.middlewares.ClientHeaderMiddleware",  # Log client identification headers
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -98,6 +99,7 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
     "x-requested-with",
     "x-password-reset-key",  # Custom header for password reset
+    "x-hyperclast-client",  # Client identification header for telemetry
 ]
 
 TEMPLATES = [
@@ -227,6 +229,7 @@ HEADLESS_FRONTEND_URLS = {
 
 # Hyperclast settings (continued)
 WS_DEPLOYMENT_ID = config("WS_DEPLOYMENT_ID", "_local")
+CLI_VERSION = config("WS_CLI_VERSION", default="0.1.0")
 WS_EXTERNAL_API_MAX_RETRIES = 5
 WS_EXTERNAL_API_BASE_WAIT_SECONDS = 2
 WS_EXTERNAL_API_TIMEOUT_SECONDS = 30

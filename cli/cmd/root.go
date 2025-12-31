@@ -9,6 +9,12 @@ import (
 )
 
 var (
+	Version   = "dev"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
+)
+
+var (
 	cfgFile   string
 	apiURL    string
 	outputFmt string

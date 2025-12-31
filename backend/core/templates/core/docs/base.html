@@ -113,7 +113,18 @@
       <aside class="docs-sidebar">
         <nav class="docs-nav">
           <a href="{% url 'core:dev_index' %}" class="docs-nav-home{% if is_dev_index %} active{% endif %}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+              <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
             Home
+          </a>
+          <a href="{% url 'core:cli_docs' %}" class="docs-nav-home{% if is_cli_docs %} active{% endif %}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="4 17 10 11 4 5"></polyline>
+              <line x1="12" y1="19" x2="20" y2="19"></line>
+            </svg>
+            CLI
           </a>
           <div class="docs-nav-section">
             <h3>API Reference</h3>

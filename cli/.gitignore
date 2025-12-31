@@ -7,3 +7,6 @@ dist/
 
 # Test coverage
 coverage.out
+
+# Release tracking (local state)
+.last-released-version

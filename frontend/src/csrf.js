@@ -5,6 +5,31 @@
  * for all mutating requests (POST, PUT, PATCH, DELETE).
  */
 
+// Client identification for telemetry
+const CLIENT_NAME = "web";
+const CLIENT_VERSION = __APP_VERSION__; // Injected by Vite from package.json
+
+/**
+ * Detect the operating system from navigator.platform.
+ * @returns {string} OS identifier: darwin, windows, linux, or unknown
+ */
+function detectOS() {
+  const platform = navigator.platform || "";
+  if (platform.includes("Mac")) return "darwin";
+  if (platform.includes("Win")) return "windows";
+  if (platform.includes("Linux")) return "linux";
+  return "unknown";
+}
+
+/**
+ * Build the X-Hyperclast-Client header value.
+ * Format: client=web; version=1.0.0; os=darwin; arch=unknown
+ * @returns {string}
+ */
+function buildClientHeader() {
+  return `client=${CLIENT_NAME}; version=${CLIENT_VERSION}; os=${detectOS()}; arch=unknown`;
+}
+
 /**
  * Get CSRF token from cookie.
  * Django sets this cookie when CSRF protection is enabled.
@@ -39,6 +64,10 @@ export async function csrfFetch(url, options = {}) {
   const enhancedOptions = {
     ...options,
     credentials: "same-origin",
+    headers: {
+      ...options.headers,
+      "X-Hyperclast-Client": buildClientHeader(),
+    },
   };
 
   // Add CSRF token header for mutating requests
@@ -46,10 +75,7 @@ export async function csrfFetch(url, options = {}) {
     const csrfToken = getCsrfToken();
 
     if (csrfToken) {
-      enhancedOptions.headers = {
-        ...enhancedOptions.headers,
-        "X-CSRFToken": csrfToken,
-      };
+      enhancedOptions.headers["X-CSRFToken"] = csrfToken;
     } else {
       console.warn("CSRF token not found in cookies. Request may fail.");
     }

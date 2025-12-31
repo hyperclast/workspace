@@ -2,6 +2,8 @@
 Custom middleware for the application.
 """
 
+import logging
+
 from asgiref.sync import iscoroutinefunction, markcoroutinefunction
 
 from django.conf import settings
@@ -13,6 +15,8 @@ from backend.utils import (
     clear_request_id,
     set_request_id,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class RequestIDMiddleware:
@@ -116,3 +120,23 @@ class RestrictAuthMiddleware(MiddlewareMixin):
             return
 
         return redirect("core:home")
+
+
+class ClientHeaderMiddleware(MiddlewareMixin):
+    """
+    Middleware that logs the X-Hyperclast-Client header for API requests.
+
+    This enables tracking which clients (CLI, web, etc.) are making API requests,
+    along with their version, OS, and architecture.
+
+    Header format: client=cli; version=0.1.0; os=darwin; arch=arm64
+    """
+
+    def process_request(self, request):
+        # Only log for API requests
+        if not request.path.startswith("/api/"):
+            return
+
+        client_header = request.headers.get("X-Hyperclast-Client", "")
+        if client_header:
+            logger.info(f"API request: path={request.path}, client={client_header}")
