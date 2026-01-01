@@ -91,7 +91,7 @@ class UpdateUserSchema(Schema):
 
     username: Optional[str] = Field(
         None,
-        min_length=1,
+        min_length=4,
         max_length=20,
         pattern=r"^[a-zA-Z0-9._-]+$",
     )

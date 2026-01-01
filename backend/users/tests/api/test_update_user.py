@@ -75,3 +75,15 @@ class TestUpdateUserAPI(BaseAuthenticatedViewTestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
         self.user.refresh_from_db()
         self.assertEqual(self.user.username, "CamelCaseUser")
+
+    def test_update_username_rejects_too_short(self):
+        response = self.send_update_user_request({"username": "abc"})
+
+        self.assertEqual(response.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    def test_update_username_accepts_minimum_length(self):
+        response = self.send_update_user_request({"username": "abcd"})
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "abcd")

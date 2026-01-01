@@ -66,3 +66,10 @@ class TestGenerateUsernameFromEmail(TestCase):
         username = generate_username_from_email("john-smith_jr@example.com")
 
         self.assertTrue(username.startswith("john-smith_jr"))
+
+    def test_single_char_email_still_meets_minimum_length(self):
+        """Username should be at least 4 chars even with single-char email local part."""
+        username = generate_username_from_email("a@example.com")
+
+        self.assertTrue(len(username) >= 4)
+        self.assertTrue(username.startswith("a"))

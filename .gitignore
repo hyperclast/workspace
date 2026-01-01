@@ -35,3 +35,4 @@ CLAUDE.*.md
 
 # Deployment tracking (local state)
 /deployment/.last-deployed-*
+/.claude/

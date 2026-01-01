@@ -11,6 +11,10 @@ export function validateUsername(value) {
 
   const trimmed = value.trim();
 
+  if (trimmed.length < 4) {
+    return { valid: false, error: "Username must be at least 4 characters" };
+  }
+
   if (trimmed.length > 20) {
     return { valid: false, error: "Username must be 20 characters or less" };
   }
