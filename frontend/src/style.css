@@ -2180,28 +2180,28 @@ body.sidebar-resizing .chat-sidebar {
 }
 
 .format-checkbox-item {
-  padding-left: 48px;
+  padding-left: 24px !important;
   line-height: 1.5;
   position: relative;
 }
 
 .format-checkbox-item.format-indent-1 {
-  padding-left: 70px !important;
+  padding-left: 46px !important;
 }
 .format-checkbox-item.format-indent-2 {
-  padding-left: 92px !important;
+  padding-left: 68px !important;
 }
 .format-checkbox-item.format-indent-3 {
-  padding-left: 114px !important;
+  padding-left: 90px !important;
 }
 .format-checkbox-item.format-indent-4 {
-  padding-left: 136px !important;
+  padding-left: 112px !important;
 }
 .format-checkbox-item.format-indent-5 {
-  padding-left: 158px !important;
+  padding-left: 134px !important;
 }
 .format-checkbox-item.format-indent-6 {
-  padding-left: 180px !important;
+  padding-left: 156px !important;
 }
 
 .format-list-syntax {
@@ -2243,7 +2243,7 @@ body.sidebar-resizing .chat-sidebar {
   display: inline-block;
   width: 16px;
   height: 16px;
-  /* margin-left: -24px; */
+  margin-left: -24px;
   margin-right: 8px;
   vertical-align: middle;
   cursor: pointer;
