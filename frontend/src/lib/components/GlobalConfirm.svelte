@@ -65,5 +65,6 @@
   pageId={changePageTypeState.pageId}
   pageTitle={changePageTypeState.pageTitle}
   currentType={changePageTypeState.currentType}
+  pageContent={changePageTypeState.pageContent}
   onchanged={changePageTypeState.onchanged}
 />

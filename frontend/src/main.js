@@ -59,7 +59,7 @@ import {
   setupSidenav,
   updateSidenavActive,
 } from "./lib/sidenav.js";
-import { setupToolbar } from "./toolbar.js";
+import { setupToolbar, resetToolbar } from "./toolbar.js";
 import { getPageIdFromPath } from "./router.js";
 
 /**
@@ -543,8 +543,52 @@ async function loadPage(page) {
   const filetype = page.details?.filetype || "md";
   pageLoadSpan.addEvent("setup_complete");
 
+  // CSV pages use a different viewer (read-only, needs Yjs sync for content)
+  if (filetype === "csv") {
+    pageLoadSpan.addEvent("csv_viewer_init_start");
+    resetToolbar();
+    const toolbarWrapper = document.getElementById("toolbar-wrapper");
+    if (toolbarWrapper) toolbarWrapper.style.display = "none";
+
+    const { mountCsvViewer, unmountCsvViewer } = await import("./csv/index.js");
+
+    const editorEl = document.getElementById("editor");
+    editorEl.style.paddingLeft = "16px";
+
+    // Show loading state with REST content (likely empty)
+    mountCsvViewer(content, editorEl);
+    window.csvViewerCleanup = unmountCsvViewer;
+
+    // Sync with Yjs to get the actual content
+    const userInfo = getUserInfo();
+    const displayName = userInfo.user?.username || currentUser?.email || "Anonymous";
+    const csvCollabObjects = createCollaborationObjects(pageId, displayName);
+
+    pageLoadSpan.addEvent("csv_yjs_sync_start");
+    const syncResult = await csvCollabObjects.syncPromise;
+
+    if (syncResult.synced && syncResult.ytextHasContent) {
+      const ytextContent = csvCollabObjects.ytext.toString();
+      mountCsvViewer(ytextContent, document.getElementById("editor"));
+      pageLoadSpan.addEvent("csv_yjs_sync_complete", { contentLength: ytextContent.length });
+    }
+
+    // Disconnect from Yjs - CSV view is read-only
+    destroyCollaboration(csvCollabObjects);
+
+    pageLoadSpan.addEvent("csv_viewer_init_complete");
+    pageLoadSpan.end({ status: "success", phase: "csv_visible" });
+
+    metrics.event("page_visible", { pageId, contentLength, timestamp: Date.now() });
+    updateSidenavActive(currentPage.external_id);
+    return;
+  }
+
   // STEP 1: Show REST content immediately WITHOUT collaboration
   // This ensures instant page load - user sees content in <100ms
+  const toolbarWrapper = document.getElementById("toolbar-wrapper");
+  if (toolbarWrapper) toolbarWrapper.style.display = "block";
+
   pageLoadSpan.addEvent("editor_init_start");
   initializeEditor(content, [], filetype);
   pageLoadSpan.addEvent("editor_init_complete", { editorContentLength: content.length });
@@ -869,6 +913,12 @@ function cleanupCurrentPage() {
   if (window.editorView) {
     window.editorView.destroy();
     window.editorView = null;
+  }
+
+  if (window.csvViewerCleanup) {
+    window.csvViewerCleanup();
+    window.csvViewerCleanup = null;
+    document.getElementById("editor").style.paddingLeft = "";
   }
 
   document.getElementById("editor").innerHTML = "";
@@ -1298,6 +1348,7 @@ function setupNoteActions() {
         pageId: currentPage.external_id,
         pageTitle: currentPage.title || "Untitled",
         currentType: currentPage.details?.filetype || "md",
+        pageContent: currentPage.details?.content || "",
       });
     });
   }
@@ -1309,6 +1360,7 @@ function setupNoteActions() {
         pageId: currentPage.external_id,
         pageTitle: currentPage.title || "Untitled",
         currentType: currentPage.details?.filetype || "md",
+        pageContent: currentPage.details?.content || "",
       });
     });
   }

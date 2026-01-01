@@ -32,10 +32,15 @@ var pageNewCmd = &cobra.Command{
 	Short: "Create a new page",
 	Long: `Create a new page from stdin or a file.
 
+CSV files are auto-detected and displayed as sortable tables in the UI.
+
 Examples:
   # Pipe command output
   cat build.log | hyperclast page new --project proj_abc --title "Build Log"
   ./run-tests.sh 2>&1 | hyperclast page new --project proj_abc --title "Test Results"
+
+  # CSV files are auto-detected
+  cat data.csv | hyperclast page new --title "Data"
 
   # With default project set
   make build 2>&1 | hyperclast page new --title "Build Log"
@@ -46,7 +51,7 @@ Examples:
   # Title defaults to timestamp if not provided
   echo "Quick note" | hyperclast page new --project proj_abc
 
-  # Specify filetype (default: txt)
+  # Specify filetype explicitly
   echo "# Markdown" | hyperclast page new --project proj_abc --filetype md
 
   # Include metadata backmatter
@@ -85,9 +90,10 @@ func runPageNew(cmd *cobra.Command, args []string) error {
 		title = generateDefaultTitle()
 	}
 
+	// Auto-detect filetype if not explicitly set
 	filetype := pageFiletype
-	if filetype == "" {
-		filetype = "txt"
+	if !cmd.Flags().Changed("filetype") {
+		filetype = detectFiletype(content, "txt")
 	}
 
 	client := api.NewClient(cfg.APIURL, cfg.Token)
@@ -316,6 +322,63 @@ func generateDefaultTitle() string {
 	return time.Now().Format("2006-01-02 3h04pm")
 }
 
+// detectFiletype examines the first 10 lines of content to detect CSV format.
+// Returns "csv" if content appears to be CSV, otherwise returns defaultType.
+func detectFiletype(content string, defaultType string) string {
+	if content == "" {
+		return defaultType
+	}
+
+	// Extract first 10 lines (or fewer if content is shorter)
+	lines := make([]string, 0, 10)
+	start := 0
+	for i := 0; i < len(content) && len(lines) < 10; i++ {
+		if content[i] == '\n' {
+			line := content[start:i]
+			if len(line) > 0 && line[len(line)-1] == '\r' {
+				line = line[:len(line)-1]
+			}
+			lines = append(lines, line)
+			start = i + 1
+		}
+	}
+	// Add last line if no trailing newline
+	if start < len(content) && len(lines) < 10 {
+		lines = append(lines, content[start:])
+	}
+
+	if len(lines) == 0 {
+		return defaultType
+	}
+
+	// Check if lines consistently have delimiters
+	csvLines := 0
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		commas := 0
+		tabs := 0
+		for _, c := range line {
+			if c == ',' {
+				commas++
+			} else if c == '\t' {
+				tabs++
+			}
+		}
+		if commas >= 2 || tabs >= 2 {
+			csvLines++
+		}
+	}
+
+	// Consider CSV if majority of non-empty lines look like CSV
+	if csvLines >= 1 && csvLines >= len(lines)/2 {
+		return "csv"
+	}
+
+	return defaultType
+}
+
 func init() {
 	rootCmd.AddCommand(pageCmd)
 	pageCmd.AddCommand(pageNewCmd)
@@ -328,7 +391,7 @@ func init() {
 	pageNewCmd.Flags().StringVar(&pageProjectID, "project", "", "project ID")
 	pageNewCmd.Flags().StringVar(&pageTitle, "title", "", "page title (defaults to timestamp)")
 	pageNewCmd.Flags().StringVar(&pageFile, "file", "", "read content from file instead of stdin")
-	pageNewCmd.Flags().StringVar(&pageFiletype, "filetype", "txt", "file type: txt (default), md, csv")
+	pageNewCmd.Flags().StringVar(&pageFiletype, "filetype", "txt", "file type: txt, md, csv")
 	pageNewCmd.Flags().BoolVar(&pageMeta, "meta", false, "append metadata backmatter to content")
 	pageNewCmd.Flags().StringVar(&pageSource, "source", "", "source description for metadata")
 

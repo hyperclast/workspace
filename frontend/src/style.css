@@ -650,21 +650,6 @@ nav {
   margin-bottom: 1px;
 }
 
-.sidebar-project-pages .sidebar-item .page-filetype-btn {
-  background: none;
-  border: none;
-  padding: 0 3px;
-  font: inherit;
-  cursor: pointer;
-  border-radius: 3px;
-  transition: opacity 0.15s, background-color 0.15s;
-}
-
-.sidebar-project-pages .sidebar-item .page-filetype-btn:hover {
-  opacity: 1;
-  background: rgba(0, 0, 0, 0.06);
-}
-
 .sidebar-project-pages .sidebar-item .page-menu {
   margin-left: auto;
   opacity: 0;
@@ -2195,29 +2180,28 @@ body.sidebar-resizing .chat-sidebar {
 }
 
 .format-checkbox-item {
-  padding-left: 24px;
-  text-indent: -24px;
+  padding-left: 48px;
   line-height: 1.5;
   position: relative;
 }
 
 .format-checkbox-item.format-indent-1 {
-  padding-left: 46px !important;
+  padding-left: 70px !important;
 }
 .format-checkbox-item.format-indent-2 {
-  padding-left: 68px !important;
+  padding-left: 92px !important;
 }
 .format-checkbox-item.format-indent-3 {
-  padding-left: 90px !important;
+  padding-left: 114px !important;
 }
 .format-checkbox-item.format-indent-4 {
-  padding-left: 112px !important;
+  padding-left: 136px !important;
 }
 .format-checkbox-item.format-indent-5 {
-  padding-left: 134px !important;
+  padding-left: 158px !important;
 }
 .format-checkbox-item.format-indent-6 {
-  padding-left: 156px !important;
+  padding-left: 180px !important;
 }
 
 .format-list-syntax {
@@ -2259,7 +2243,8 @@ body.sidebar-resizing .chat-sidebar {
   display: inline-block;
   width: 16px;
   height: 16px;
-  margin-right: 6px;
+  /* margin-left: -24px; */
+  margin-right: 8px;
   vertical-align: middle;
   cursor: pointer;
   accent-color: var(--accent-color, #2383e2);

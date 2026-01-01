@@ -183,14 +183,6 @@
     });
   }
 
-  function handleFiletypeClick(e, pageId, pageTitle, filetype) {
-    e.stopPropagation();
-    changePageType({
-      pageId,
-      pageTitle: pageTitle || "Untitled",
-      currentType: filetype || "md",
-    });
-  }
 
   async function handlePageDelete(e, pageId, pageTitle) {
     e.stopPropagation();
@@ -313,11 +305,7 @@
               onclick={() => handlePageClick(page.external_id, project.external_id)}
             >
               <span class="page-title">{page.title || "Untitled"}</span>
-              <button
-                class="page-filetype page-filetype-btn"
-                title="Change page type"
-                onclick={(e) => handleFiletypeClick(e, page.external_id, page.title, page.filetype)}
-              >{page.filetype || "md"}</button>
+              <span class="page-filetype">{page.filetype || "md"}</span>
               <div class="page-menu">
                 <button
                   class="page-menu-btn"

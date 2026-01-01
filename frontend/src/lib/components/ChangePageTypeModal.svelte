@@ -3,19 +3,23 @@
   import { API_BASE_URL } from '../../config.js';
   import { csrfFetch } from '../../csrf.js';
   import { showToast } from '../toast.js';
+  import { looksLikeCsv } from '../../csv/detect.js';
 
   const PAGE_TYPES = [
     {
       id: 'md',
       label: 'Markdown',
       description: 'Rich formatting with headers, lists, links, and text styling.',
-      features: ['Syntax highlighting', 'Date/email/link decorations', 'Section folding', 'Formatting toolbar'],
     },
     {
       id: 'txt',
       label: 'Plain Text',
       description: 'Simple text with monospace font. No formatting or decorations.',
-      features: ['Monospace font', 'Clean raw text view'],
+    },
+    {
+      id: 'csv',
+      label: 'Spreadsheet',
+      description: 'View tabular data as a sortable, filterable table.',
     },
   ];
 
@@ -24,11 +28,14 @@
     pageId = '',
     pageTitle = '',
     currentType = 'md',
+    pageContent = '',
     onchanged = () => {},
   } = $props();
 
   let selectedType = $state('md');
   let loading = $state(false);
+
+  const csvAvailable = $derived(currentType === 'csv' || looksLikeCsv(pageContent));
 
   $effect(() => {
     if (open) {
@@ -77,9 +84,21 @@
   }
 
   function handleTypeSelect(typeId) {
-    if (!loading) {
+    if (!loading && isTypeAvailable(typeId)) {
       selectedType = typeId;
     }
+  }
+
+  function isTypeAvailable(typeId) {
+    if (typeId === 'csv') return csvAvailable;
+    return true;
+  }
+
+  function getUnavailableReason(typeId) {
+    if (typeId === 'csv' && !csvAvailable) {
+      return 'Content doesn\'t appear to be in CSV format.';
+    }
+    return null;
   }
 
   function handleKeydown(e, typeId) {
@@ -98,14 +117,17 @@
 
     <div class="type-options">
       {#each PAGE_TYPES as type (type.id)}
+        {@const unavailableReason = getUnavailableReason(type.id)}
+        {@const isAvailable = isTypeAvailable(type.id)}
         <button
           type="button"
           class="type-card"
           class:selected={selectedType === type.id}
           class:current={currentType === type.id}
+          class:unavailable={!isAvailable}
           onclick={() => handleTypeSelect(type.id)}
           onkeydown={(e) => handleKeydown(e, type.id)}
-          disabled={loading}
+          disabled={loading || !isAvailable}
         >
           <div class="type-header">
             <span class="type-label">{type.label}</span>
@@ -115,11 +137,9 @@
             {/if}
           </div>
           <p class="type-description">{type.description}</p>
-          <ul class="type-features">
-            {#each type.features as feature}
-              <li>{feature}</li>
-            {/each}
-          </ul>
+          {#if unavailableReason}
+            <p class="type-unavailable-reason">{unavailableReason}</p>
+          {/if}
         </button>
       {/each}
     </div>
@@ -181,6 +201,26 @@
     cursor: not-allowed;
   }
 
+  .type-card.unavailable {
+    opacity: 0.7;
+    background: var(--bg-secondary, #f9f9f9);
+  }
+
+  .type-card.unavailable .type-label,
+  .type-card.unavailable .type-description {
+    color: var(--text-tertiary, #888);
+  }
+
+  .type-unavailable-reason {
+    margin: 0.5rem 0 0 0;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-warning, #b45309);
+    background: rgba(251, 191, 36, 0.1);
+    border-radius: 4px;
+    line-height: 1.4;
+  }
+
   .type-header {
     display: flex;
     align-items: center;
@@ -213,31 +253,9 @@
   }
 
   .type-description {
-    margin: 0 0 0.625rem 0;
+    margin: 0;
     font-size: 0.8125rem;
     color: var(--text-secondary, #666);
     line-height: 1.4;
-  }
-
-  .type-features {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.375rem;
-  }
-
-  .type-features li {
-    font-size: 0.7rem;
-    color: var(--text-tertiary, #888);
-    background: var(--bg-tertiary, #f5f5f5);
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
-  }
-
-  .type-card.selected .type-features li {
-    background: rgba(35, 131, 226, 0.1);
-    color: #1a6bb8;
   }
 </style>

@@ -140,6 +140,7 @@ let changePageTypeState = $state({
   pageId: "",
   pageTitle: "",
   currentType: "md",
+  pageContent: "",
   onchanged: () => {},
 });
 
@@ -151,6 +152,7 @@ export function openChangePageType(options = {}) {
   changePageTypeState.pageId = options.pageId || "";
   changePageTypeState.pageTitle = options.pageTitle || "";
   changePageTypeState.currentType = options.currentType || "md";
+  changePageTypeState.pageContent = options.pageContent ?? "";
   changePageTypeState.onchanged = options.onchanged || (() => {});
   changePageTypeState.open = true;
 }

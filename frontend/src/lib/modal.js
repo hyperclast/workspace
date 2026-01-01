@@ -102,6 +102,7 @@ export function newPageModal(options = {}) {
  * @param {string} options.pageId - Page external ID
  * @param {string} options.pageTitle - Page title
  * @param {string} options.currentType - Current filetype (md, txt, etc.)
+ * @param {string} options.pageContent - Page content (used for type validation)
  * @param {Function} options.onchanged - Callback when type is changed, receives new type
  */
 export function changePageType(options = {}) {
