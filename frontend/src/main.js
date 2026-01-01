@@ -584,6 +584,46 @@ async function loadPage(page) {
     return;
   }
 
+  // Log pages use a different viewer (read-only, needs Yjs sync for content)
+  if (filetype === "log") {
+    pageLoadSpan.addEvent("log_viewer_init_start");
+    resetToolbar();
+    const toolbarWrapper = document.getElementById("toolbar-wrapper");
+    if (toolbarWrapper) toolbarWrapper.style.display = "none";
+
+    const { mountLogViewer, unmountLogViewer } = await import("./log/index.js");
+
+    const editorEl = document.getElementById("editor");
+
+    // Show loading state with REST content (likely empty)
+    mountLogViewer(content, editorEl);
+    window.logViewerCleanup = unmountLogViewer;
+
+    // Sync with Yjs to get the actual content
+    const userInfo = getUserInfo();
+    const displayName = userInfo.user?.username || currentUser?.email || "Anonymous";
+    const logCollabObjects = createCollaborationObjects(pageId, displayName);
+
+    pageLoadSpan.addEvent("log_yjs_sync_start");
+    const syncResult = await logCollabObjects.syncPromise;
+
+    if (syncResult.synced && syncResult.ytextHasContent) {
+      const ytextContent = logCollabObjects.ytext.toString();
+      mountLogViewer(ytextContent, document.getElementById("editor"));
+      pageLoadSpan.addEvent("log_yjs_sync_complete", { contentLength: ytextContent.length });
+    }
+
+    // Disconnect from Yjs - Log view is read-only
+    destroyCollaboration(logCollabObjects);
+
+    pageLoadSpan.addEvent("log_viewer_init_complete");
+    pageLoadSpan.end({ status: "success", phase: "log_visible" });
+
+    metrics.event("page_visible", { pageId, contentLength, timestamp: Date.now() });
+    updateSidenavActive(currentPage.external_id);
+    return;
+  }
+
   // STEP 1: Show REST content immediately WITHOUT collaboration
   // This ensures instant page load - user sees content in <100ms
   const toolbarWrapper = document.getElementById("toolbar-wrapper");
@@ -918,6 +958,12 @@ function cleanupCurrentPage() {
   if (window.csvViewerCleanup) {
     window.csvViewerCleanup();
     window.csvViewerCleanup = null;
+    document.getElementById("editor").style.paddingLeft = "";
+  }
+
+  if (window.logViewerCleanup) {
+    window.logViewerCleanup();
+    window.logViewerCleanup = null;
     document.getElementById("editor").style.paddingLeft = "";
   }
 

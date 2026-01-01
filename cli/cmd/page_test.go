@@ -207,3 +207,227 @@ func TestDetectFiletypeDefaultTypePassthrough(t *testing.T) {
 		t.Errorf("Should return default type 'md' for non-CSV, got %q", result)
 	}
 }
+
+// TestDetectFiletypeLog tests Apache/Nginx log format detection
+func TestDetectFiletypeLog(t *testing.T) {
+	tests := []struct {
+		name        string
+		content     string
+		defaultType string
+		expected    string
+	}{
+		// Apache/Nginx combined log format
+		{
+			name: "nginx combined log format",
+			content: `192.168.1.1 - - [10/Oct/2023:13:55:36 -0700] "GET /index.html HTTP/1.1" 200 2326 "-" "Mozilla/5.0"
+192.168.1.2 - - [10/Oct/2023:13:55:37 -0700] "POST /api/data HTTP/1.1" 201 512 "https://example.com" "curl/7.68.0"
+10.0.0.1 - - [10/Oct/2023:13:55:38 -0700] "GET /favicon.ico HTTP/1.1" 404 0 "-" "Mozilla/5.0"`,
+			defaultType: "txt",
+			expected:    "log",
+		},
+		{
+			name: "apache access log format",
+			content: `203.0.113.50 - frank [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.0" 200 2326 "http://www.example.com/start.html" "Mozilla/4.08"
+203.0.113.51 - - [10/Oct/2000:13:55:37 -0700] "GET /test.html HTTP/1.0" 200 1234 "-" "Mozilla/4.08"
+203.0.113.52 - - [10/Oct/2000:13:55:38 -0700] "POST /submit HTTP/1.0" 302 0 "-" "Mozilla/4.08"`,
+			defaultType: "txt",
+			expected:    "log",
+		},
+		{
+			name: "various HTTP methods",
+			content: `1.2.3.4 - - [01/Jan/2024:00:00:00 +0000] "GET /a HTTP/1.1" 200 100 "-" "test"
+1.2.3.4 - - [01/Jan/2024:00:00:01 +0000] "POST /b HTTP/1.1" 201 100 "-" "test"
+1.2.3.4 - - [01/Jan/2024:00:00:02 +0000] "PUT /c HTTP/1.1" 200 100 "-" "test"
+1.2.3.4 - - [01/Jan/2024:00:00:03 +0000] "DELETE /d HTTP/1.1" 204 0 "-" "test"`,
+			defaultType: "txt",
+			expected:    "log",
+		},
+		{
+			name: "HTTP/2 requests",
+			content: `192.168.1.1 - - [01/Jan/2024:12:00:00 +0000] "GET /api/v2/data HTTP/2.0" 200 1234 "-" "Mozilla/5.0"
+192.168.1.1 - - [01/Jan/2024:12:00:01 +0000] "POST /api/v2/submit HTTP/2.0" 201 567 "-" "Mozilla/5.0"
+192.168.1.1 - - [01/Jan/2024:12:00:02 +0000] "GET /static/app.js HTTP/2.0" 200 89012 "-" "Mozilla/5.0"`,
+			defaultType: "txt",
+			expected:    "log",
+		},
+
+		// Not enough lines to be confident
+		{
+			name:        "single log line (not confident enough)",
+			content:     `192.168.1.1 - - [10/Oct/2023:13:55:36 -0700] "GET /page HTTP/1.1" 200 1234 "-" "Mozilla/5.0"`,
+			defaultType: "txt",
+			expected:    "txt", // Only 1 line, need 3+ for confidence
+		},
+		{
+			name: "two log lines (not confident enough)",
+			content: `192.168.1.1 - - [10/Oct/2023:13:55:36 -0700] "GET /a HTTP/1.1" 200 100 "-" "Mozilla"
+192.168.1.2 - - [10/Oct/2023:13:55:37 -0700] "GET /b HTTP/1.1" 200 100 "-" "Mozilla"`,
+			defaultType: "txt",
+			expected:    "txt", // Only 2 lines, need 3+ for confidence
+		},
+
+		// Mixed content (not enough log lines)
+		{
+			name: "mixed log and text lines",
+			content: `192.168.1.1 - - [10/Oct/2023:13:55:36 -0700] "GET /page HTTP/1.1" 200 1234 "-" "Mozilla/5.0"
+Some random text here
+Another random line
+192.168.1.2 - - [10/Oct/2023:13:55:37 -0700] "GET /page HTTP/1.1" 200 1234 "-" "Mozilla/5.0"
+More random text`,
+			defaultType: "txt",
+			expected:    "txt", // Only 2/5 lines are log (40%), need 80%
+		},
+
+		// Not log format
+		{
+			name:        "plain text",
+			content:     "Hello world\nThis is plain text\nNo log format here",
+			defaultType: "txt",
+			expected:    "txt",
+		},
+		{
+			name: "application log (not HTTP access log)",
+			content: `[INFO] 2023-10-10 13:55:36 Starting server
+[ERROR] 2023-10-10 13:55:37 Failed to connect to database
+[INFO] 2023-10-10 13:55:38 Retrying connection`,
+			defaultType: "txt",
+			expected:    "txt",
+		},
+		{
+			name: "JSON logs (detected as CSV due to commas)",
+			content: `{"timestamp":"2023-10-10T13:55:36Z","level":"info","message":"Starting"}
+{"timestamp":"2023-10-10T13:55:37Z","level":"error","message":"Failed"}
+{"timestamp":"2023-10-10T13:55:38Z","level":"info","message":"Retrying"}`,
+			defaultType: "txt",
+			expected:    "csv", // JSON has many commas, so CSV detection triggers
+		},
+
+		// Log takes priority over CSV
+		{
+			name: "log format has higher priority than CSV",
+			content: `192.168.1.1 - - [10/Oct/2023:13:55:36 -0700] "GET /a,b,c HTTP/1.1" 200 100 "-" "Mozilla/5.0"
+192.168.1.2 - - [10/Oct/2023:13:55:37 -0700] "GET /d,e,f HTTP/1.1" 200 100 "-" "Mozilla/5.0"
+192.168.1.3 - - [10/Oct/2023:13:55:38 -0700] "GET /g,h,i HTTP/1.1" 200 100 "-" "Mozilla/5.0"`,
+			defaultType: "txt",
+			expected:    "log", // Should be detected as log, not CSV
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := detectFiletype(tt.content, tt.defaultType)
+			if result != tt.expected {
+				t.Errorf("detectFiletype() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestLooksLikeLogLine tests the log line detection helper
+func TestLooksLikeLogLine(t *testing.T) {
+	tests := []struct {
+		name     string
+		line     string
+		expected bool
+	}{
+		// Valid log lines
+		{
+			name:     "combined format",
+			line:     `192.168.1.1 - - [10/Oct/2023:13:55:36 -0700] "GET /index.html HTTP/1.1" 200 2326 "-" "Mozilla/5.0"`,
+			expected: true,
+		},
+		{
+			name:     "common format",
+			line:     `192.168.1.1 - - [10/Oct/2023:13:55:36 -0700] "GET /page HTTP/1.1" 200 1234`,
+			expected: true,
+		},
+		{
+			name:     "POST request",
+			line:     `10.0.0.1 - - [01/Jan/2024:00:00:00 +0000] "POST /api/data HTTP/1.1" 201 512 "-" "curl"`,
+			expected: true,
+		},
+		{
+			name:     "HTTP/2",
+			line:     `1.2.3.4 - - [01/Jan/2024:00:00:00 +0000] "GET /test HTTP/2.0" 200 100 "-" "test"`,
+			expected: true,
+		},
+
+		// Invalid log lines
+		{
+			name:     "plain text",
+			line:     "Hello world this is plain text",
+			expected: false,
+		},
+		{
+			name:     "too short",
+			line:     "1.2.3.4 GET /",
+			expected: false,
+		},
+		{
+			name:     "no IP at start",
+			line:     `abc - - [10/Oct/2023:13:55:36 -0700] "GET /page HTTP/1.1" 200 1234`,
+			expected: false,
+		},
+		{
+			name:     "no timestamp brackets",
+			line:     `192.168.1.1 - - 10/Oct/2023:13:55:36 "GET /page HTTP/1.1" 200 1234`,
+			expected: false,
+		},
+		{
+			name:     "no HTTP method",
+			line:     `192.168.1.1 - - [10/Oct/2023:13:55:36 -0700] "/page HTTP/1.1" 200 1234`,
+			expected: false,
+		},
+		{
+			name:     "no HTTP version",
+			line:     `192.168.1.1 - - [10/Oct/2023:13:55:36 -0700] "GET /page" 200 1234`,
+			expected: false,
+		},
+		{
+			name:     "application log",
+			line:     "[INFO] 2023-10-10 Starting server on port 8080",
+			expected: false,
+		},
+		{
+			name:     "JSON log",
+			line:     `{"timestamp":"2023-10-10T13:55:36Z","level":"info","message":"Starting"}`,
+			expected: false,
+		},
+		{
+			name:     "empty line",
+			line:     "",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := looksLikeLogLine(tt.line)
+			if result != tt.expected {
+				t.Errorf("looksLikeLogLine() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestContainsHTTPVersion tests the HTTP version detection helper
+func TestContainsHTTPVersion(t *testing.T) {
+	tests := []struct {
+		line     string
+		expected bool
+	}{
+		{`"GET /page HTTP/1.1" 200`, true},
+		{`"GET /page HTTP/1.0" 200`, true},
+		{`"GET /page HTTP/2.0" 200`, true},
+		{`"GET /page" 200`, false},
+		{"plain text", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		result := containsHTTPVersion(tt.line)
+		if result != tt.expected {
+			t.Errorf("containsHTTPVersion(%q) = %v, want %v", tt.line, result, tt.expected)
+		}
+	}
+}

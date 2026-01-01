@@ -9,17 +9,22 @@
     {
       id: 'md',
       label: 'Markdown',
-      description: 'Rich formatting with headers, lists, links, and text styling.',
+      description: 'Rich formatting with headers, lists, links etc',
     },
     {
       id: 'txt',
       label: 'Plain Text',
-      description: 'Simple text with monospace font. No formatting or decorations.',
+      description: 'Simple text with monospace font',
     },
     {
       id: 'csv',
       label: 'Spreadsheet',
-      description: 'View tabular data as a sortable, filterable table.',
+      description: 'View csv as tabular data',
+    },
+    {
+      id: 'log',
+      label: 'HTTP Log',
+      description: 'View HTTP access logs',
     },
   ];
 

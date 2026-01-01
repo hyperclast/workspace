@@ -32,7 +32,9 @@ var pageNewCmd = &cobra.Command{
 	Short: "Create a new page",
 	Long: `Create a new page from stdin or a file.
 
-CSV files are auto-detected and displayed as sortable tables in the UI.
+CSV files and HTTP access logs are auto-detected:
+- CSV: displayed as sortable, filterable tables
+- Log: displayed with IP highlighting and filtering (Apache/Nginx format)
 
 Examples:
   # Pipe command output
@@ -41,6 +43,9 @@ Examples:
 
   # CSV files are auto-detected
   cat data.csv | hyperclast page new --title "Data"
+
+  # HTTP access logs are auto-detected
+  cat /var/log/nginx/access.log | hyperclast page new --title "Access Log"
 
   # With default project set
   make build 2>&1 | hyperclast page new --title "Build Log"
@@ -322,8 +327,8 @@ func generateDefaultTitle() string {
 	return time.Now().Format("2006-01-02 3h04pm")
 }
 
-// detectFiletype examines the first 10 lines of content to detect CSV format.
-// Returns "csv" if content appears to be CSV, otherwise returns defaultType.
+// detectFiletype examines the first 10 lines of content to detect CSV or log format.
+// Returns "csv" if content appears to be CSV, "log" if Apache/Nginx logs, otherwise defaultType.
 func detectFiletype(content string, defaultType string) string {
 	if content == "" {
 		return defaultType
@@ -351,7 +356,26 @@ func detectFiletype(content string, defaultType string) string {
 		return defaultType
 	}
 
-	// Check if lines consistently have delimiters
+	// Check for Apache/Nginx log format first (higher priority, needs high confidence)
+	// Format: IP - - [timestamp] "METHOD path HTTP/x.x" status bytes
+	logLines := 0
+	nonEmptyLines := 0
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		nonEmptyLines++
+		if looksLikeLogLine(line) {
+			logLines++
+		}
+	}
+
+	// Require very high confidence for log detection (80%+ of lines must match)
+	if nonEmptyLines >= 3 && logLines >= (nonEmptyLines*8/10) {
+		return "log"
+	}
+
+	// Check if lines consistently have delimiters (CSV detection)
 	csvLines := 0
 	for _, line := range lines {
 		if line == "" {
@@ -379,6 +403,82 @@ func detectFiletype(content string, defaultType string) string {
 	return defaultType
 }
 
+// looksLikeLogLine checks if a line matches Apache/Nginx combined log format.
+// Format: IP - - [timestamp] "METHOD path HTTP/x.x" status bytes "referer" "user-agent"
+func looksLikeLogLine(line string) bool {
+	// Quick checks before regex-like parsing
+	if len(line) < 50 {
+		return false
+	}
+
+	// Must start with IP-like pattern (digits and dots)
+	i := 0
+	for i < len(line) && (line[i] == '.' || (line[i] >= '0' && line[i] <= '9')) {
+		i++
+	}
+	if i < 7 || i > 15 { // IP should be 7-15 chars (1.1.1.1 to 255.255.255.255)
+		return false
+	}
+
+	// Must contain timestamp in brackets
+	bracketOpen := -1
+	bracketClose := -1
+	for j := i; j < len(line); j++ {
+		if line[j] == '[' {
+			bracketOpen = j
+		} else if line[j] == ']' && bracketOpen > 0 {
+			bracketClose = j
+			break
+		}
+	}
+	if bracketOpen < 0 || bracketClose < 0 || bracketClose-bracketOpen < 10 {
+		return false
+	}
+
+	// Must contain HTTP method in quotes after timestamp
+	quoteStart := -1
+	for j := bracketClose; j < len(line); j++ {
+		if line[j] == '"' {
+			quoteStart = j
+			break
+		}
+	}
+	if quoteStart < 0 || quoteStart+5 >= len(line) {
+		return false
+	}
+
+	// Check for common HTTP methods
+	methodStart := quoteStart + 1
+	methods := []string{"GET ", "POST ", "PUT ", "DELETE ", "HEAD ", "OPTIONS ", "PATCH "}
+	hasMethod := false
+	for _, method := range methods {
+		if len(line) > methodStart+len(method) && line[methodStart:methodStart+len(method)] == method {
+			hasMethod = true
+			break
+		}
+	}
+	if !hasMethod {
+		return false
+	}
+
+	// Must have HTTP version somewhere
+	if !containsHTTPVersion(line) {
+		return false
+	}
+
+	return true
+}
+
+// containsHTTPVersion checks if the line contains "HTTP/1" or "HTTP/2"
+func containsHTTPVersion(line string) bool {
+	for i := 0; i < len(line)-6; i++ {
+		if line[i:i+6] == "HTTP/1" || line[i:i+6] == "HTTP/2" {
+			return true
+		}
+	}
+	return false
+}
+
 func init() {
 	rootCmd.AddCommand(pageCmd)
 	pageCmd.AddCommand(pageNewCmd)
@@ -391,7 +491,7 @@ func init() {
 	pageNewCmd.Flags().StringVar(&pageProjectID, "project", "", "project ID")
 	pageNewCmd.Flags().StringVar(&pageTitle, "title", "", "page title (defaults to timestamp)")
 	pageNewCmd.Flags().StringVar(&pageFile, "file", "", "read content from file instead of stdin")
-	pageNewCmd.Flags().StringVar(&pageFiletype, "filetype", "txt", "file type: txt, md, csv")
+	pageNewCmd.Flags().StringVar(&pageFiletype, "filetype", "txt", "file type: txt, md, csv, log (auto-detected if not set)")
 	pageNewCmd.Flags().BoolVar(&pageMeta, "meta", false, "append metadata backmatter to content")
 	pageNewCmd.Flags().StringVar(&pageSource, "source", "", "source description for metadata")
 
