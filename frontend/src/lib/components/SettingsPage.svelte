@@ -556,6 +556,7 @@
       <div class="settings-footer-column">
         <h4>Learn More</h4>
         <a href="/about/">About Us</a>
+        <a href="/updates/">Updates</a>
         <a href="/dev/">Developer Portal</a>
         {#if pricingEnabled}<a href="/pricing/">Pricing</a>{/if}
       </div>

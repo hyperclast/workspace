@@ -1,0 +1,18 @@
+{{ brand_name }} - Product Update
+================================
+
+{{ update.title }}
+{{ update.published_at|date:"F j, Y" }}
+
+{{ update.content }}
+
+---
+
+Read the full update: {{ update_url }}
+
+View all updates: {{ updates_url }}
+
+---
+
+You're receiving this because you have an account with {{ brand_name }}.
+Unsubscribe from product updates: {{ unsubscribe_url }}

@@ -1,0 +1,536 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ update.title }} | Updates | {{ brand_name }}</title>
+    <meta name="description" content="{{ update.content|truncatewords:30|striptags }}" />
+    {% include 'core/partials/_favicon.html' %}
+
+    {% include 'core/partials/_app_nav_styles.html' %}
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background: #fafafa;
+        color: #333;
+        line-height: 1.6;
+      }
+
+      .updates-page {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .site-nav {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 0.75rem 2rem;
+      }
+
+      .site-nav-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .site-logo {
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        color: white;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .site-logo .logo-icon {
+        width: 28px;
+        height: 28px;
+      }
+
+      .site-nav-actions {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+      }
+
+      .site-nav-link {
+        color: rgba(255, 255, 255, 0.9);
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s;
+      }
+
+      .site-nav-link:hover {
+        color: white;
+      }
+
+      .site-nav-btn {
+        background: white;
+        color: #667eea;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+
+      .site-nav-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+
+      .admin-panel {
+        background: #1a1a2e;
+        color: white;
+        padding: 1rem 2rem;
+      }
+
+      .admin-panel-container {
+        max-width: 800px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+      }
+
+      .admin-panel-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+
+      .admin-panel-title {
+        font-weight: 600;
+        font-size: 0.9rem;
+        opacity: 0.9;
+      }
+
+      .admin-panel-status {
+        font-size: 0.85rem;
+        opacity: 0.7;
+      }
+
+      .admin-panel-status.sent {
+        color: #86efac;
+        opacity: 1;
+      }
+
+      .admin-panel-actions {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+      }
+
+      .admin-btn {
+        background: white;
+        color: #1a1a2e;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        text-decoration: none;
+      }
+
+      .admin-btn:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+
+      .admin-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .admin-btn-secondary {
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+      }
+
+      .updates-main {
+        flex: 1;
+        padding: 3rem 2rem;
+      }
+
+      .updates-container {
+        max-width: 800px;
+        margin: 0 auto;
+      }
+
+      .breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .breadcrumb a {
+        color: #667eea;
+        text-decoration: none;
+        transition: color 0.15s;
+      }
+
+      .breadcrumb a:hover {
+        color: #5a6fd6;
+        text-decoration: underline;
+      }
+
+      .breadcrumb-separator {
+        color: #9ca3af;
+        font-size: 0.75rem;
+      }
+
+      .breadcrumb-current {
+        color: #6b7280;
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .update-header {
+        margin-bottom: 2rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 1px solid #e5e7eb;
+      }
+
+      .update-date {
+        font-size: 0.9rem;
+        color: #888;
+        margin-bottom: 0.75rem;
+      }
+
+      .update-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1a1a1a;
+        line-height: 1.2;
+      }
+
+      .update-content {
+        font-size: 1.1rem;
+        line-height: 1.75;
+        color: #333;
+      }
+
+      .update-content h1,
+      .update-content h2,
+      .update-content h3 {
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+        color: #1a1a1a;
+      }
+
+      .update-content h2 {
+        font-size: 1.5rem;
+      }
+
+      .update-content h3 {
+        font-size: 1.25rem;
+      }
+
+      .update-content p {
+        margin-bottom: 1.25rem;
+      }
+
+      .update-content ul,
+      .update-content ol {
+        margin-bottom: 1.25rem;
+        padding-left: 1.5rem;
+      }
+
+      .update-content li {
+        margin-bottom: 0.5rem;
+      }
+
+      .update-content a {
+        color: #667eea;
+      }
+
+      .update-content code {
+        background: #f3f4f6;
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+
+      .update-content pre {
+        background: #1a1a2e;
+        color: #e5e7eb;
+        padding: 1rem 1.25rem;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin-bottom: 1.25rem;
+      }
+
+      .update-content pre code {
+        background: none;
+        padding: 0;
+        font-size: 0.9rem;
+      }
+
+      .update-content img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 8px;
+        margin: 1.5rem 0;
+      }
+
+      .update-content blockquote {
+        border-left: 4px solid #667eea;
+        padding-left: 1rem;
+        margin: 1.5rem 0;
+        color: #555;
+        font-style: italic;
+      }
+
+      .update-image {
+        margin: 2rem 0;
+      }
+
+      .update-image img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      }
+
+      {% include 'core/partials/_footer_styles.html' %}
+      .landing-footer {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      }
+
+      .toast {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        background: #1a1a1a;
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        display: none;
+        z-index: 100;
+      }
+
+      .toast.show {
+        display: block;
+        animation: slideIn 0.3s ease;
+      }
+
+      .toast.error {
+        background: #dc2626;
+      }
+
+      .toast.success {
+        background: #16a34a;
+      }
+
+      @keyframes slideIn {
+        from {
+          transform: translateY(1rem);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .site-nav {
+          padding: 0.75rem 1rem;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .update-title {
+          font-size: 2rem;
+        }
+
+        .admin-panel-container {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="updates-page">
+      {% if user.is_authenticated %}
+        {% include 'core/partials/app_nav.html' %}
+      {% else %}
+        <nav class="site-nav">
+          <div class="site-nav-container">
+            <a href="/" class="site-logo">{% include 'core/partials/_logo_icon.html' %} {{ brand_name }}</a>
+            <div class="site-nav-actions">
+              <a href="/" class="site-nav-link">Home</a>
+              <a href="/login/" class="site-nav-link">Log in</a>
+              <a href="/signup/" class="site-nav-btn">Get Started</a>
+            </div>
+          </div>
+        </nav>
+      {% endif %}
+
+      {% if is_superuser %}
+        <div class="admin-panel">
+          <div class="admin-panel-container">
+            <div class="admin-panel-info">
+              <span class="admin-panel-title">Admin Panel</span>
+              {% if update.emailed_at %}
+                <span class="admin-panel-status sent">✓ Email sent on {{ update.emailed_at|date:"F j, Y \a\t g:i A" }}</span>
+              {% else %}
+                <span class="admin-panel-status">Email not sent yet · {{ subscriber_count }} active subscriber{{ subscriber_count|pluralize }}</span>
+              {% endif %}
+            </div>
+            <div class="admin-panel-actions">
+              <a href="/admin/updates/update/{{ update.pk }}/change/" class="admin-btn admin-btn-secondary">Edit in Admin</a>
+              <button type="button" class="admin-btn admin-btn-secondary" id="testEmailBtn" onclick="sendTestEmail()">
+                Send Test
+              </button>
+              {% if not update.emailed_at %}
+                <button type="button" class="admin-btn" id="sendEmailBtn" onclick="sendEmail()">
+                  Send to {{ subscriber_count }} subscriber{{ subscriber_count|pluralize }}
+                </button>
+              {% else %}
+                <button type="button" class="admin-btn" disabled>Already Sent</button>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      <main class="updates-main">
+        <div class="updates-container">
+          <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/">Home</a>
+            <span class="breadcrumb-separator">›</span>
+            <a href="{% url 'updates:list' %}">Updates</a>
+            <span class="breadcrumb-separator">›</span>
+            <span class="breadcrumb-current">{{ update.title }}</span>
+          </nav>
+
+          <header class="update-header">
+            <div class="update-date">{{ update.published_at|date:"F j, Y" }}</div>
+            <h1 class="update-title">{{ update.title }}</h1>
+          </header>
+
+          {% if update.image_url %}
+            <div class="update-image">
+              <img src="{{ update.image_url }}" alt="{{ update.title }}" />
+            </div>
+          {% endif %}
+
+          <article class="update-content">
+            {{ content_html|safe }}
+          </article>
+        </div>
+      </main>
+
+      {% include 'core/partials/_footer.html' %}
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    {% if is_superuser %}
+      <script>
+        function showToast(message, type) {
+          const toast = document.getElementById('toast');
+          toast.textContent = message;
+          toast.className = 'toast show ' + type;
+          setTimeout(() => {
+            toast.className = 'toast';
+          }, 4000);
+        }
+
+        function sendTestEmail() {
+          const btn = document.getElementById('testEmailBtn');
+          const originalText = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = 'Sending...';
+
+          fetch('{% url "updates:send_test_email" update.slug %}', {
+            method: 'POST',
+            headers: {
+              'X-CSRFToken': '{{ csrf_token }}',
+              'Content-Type': 'application/json',
+            },
+          })
+            .then(response => response.json())
+            .then(data => {
+            if (data.success) {
+              showToast(data.message, 'success');
+            } else {
+              showToast(data.error || 'Failed to send test email', 'error');
+            }
+            btn.disabled = false;
+            btn.textContent = originalText;
+          })
+            .catch(err => {
+            showToast('Failed to send test email', 'error');
+            btn.disabled = false;
+            btn.textContent = originalText;
+          });
+        }
+
+        {% if not update.emailed_at %}
+          function sendEmail() {
+            const btn = document.getElementById('sendEmailBtn');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+
+            fetch('{% url "updates:send_email" update.slug %}', {
+              method: 'POST',
+              headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+              },
+            })
+              .then(response => response.json())
+              .then(data => {
+              if (data.success) {
+                showToast('Email queued for delivery!', 'success');
+                btn.textContent = 'Sent!';
+                setTimeout(() => {
+                  location.reload();
+                }, 1500);
+              } else {
+                showToast(data.error || 'Failed to send email', 'error');
+                btn.disabled = false;
+                btn.textContent = originalText;
+              }
+            })
+              .catch(err => {
+              showToast('Failed to send email', 'error');
+              btn.disabled = false;
+              btn.textContent = originalText;
+            });
+          }
+        {% endif %}
+      </script>
+    {% endif %}
+
+    {% include 'core/partials/_app_nav_scripts.html' %}
+  </body>
+</html>

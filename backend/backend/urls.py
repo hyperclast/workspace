@@ -21,6 +21,7 @@ urlpatterns = [
     path("", include(("pages.urls", "pages"), namespace="pages")),
     path("", include(("users.urls", "users"), namespace="users")),
     path("", include(("core.urls", "core"), namespace="core")),
+    path("updates/", include(("updates.urls", "updates"), namespace="updates")),
 ]
 
 try:

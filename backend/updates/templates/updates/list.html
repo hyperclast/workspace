@@ -1,0 +1,281 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Updates | {{ brand_name }}</title>
+    <meta name="description" content="Latest updates and improvements from {{ brand_name }}" />
+    {% include 'core/partials/_favicon.html' %}
+
+    {% include 'core/partials/_app_nav_styles.html' %}
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background: #fafafa;
+        color: #333;
+        line-height: 1.6;
+      }
+
+      .updates-page {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .site-nav {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 0.75rem 2rem;
+      }
+
+      .site-nav-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .site-logo {
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        color: white;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .site-logo .logo-icon {
+        width: 28px;
+        height: 28px;
+      }
+
+      .site-nav-actions {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+      }
+
+      .site-nav-link {
+        color: rgba(255, 255, 255, 0.9);
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s;
+      }
+
+      .site-nav-link:hover {
+        color: white;
+      }
+
+      .site-nav-btn {
+        background: white;
+        color: #667eea;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+
+      .site-nav-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+
+      .updates-main {
+        flex: 1;
+        padding: 3rem 2rem;
+      }
+
+      .updates-container {
+        max-width: 800px;
+        margin: 0 auto;
+      }
+
+      .breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .breadcrumb a {
+        color: #667eea;
+        text-decoration: none;
+        transition: color 0.15s;
+      }
+
+      .breadcrumb a:hover {
+        color: #5a6fd6;
+        text-decoration: underline;
+      }
+
+      .breadcrumb-separator {
+        color: #9ca3af;
+        font-size: 0.75rem;
+      }
+
+      .breadcrumb-current {
+        color: #6b7280;
+      }
+
+      .updates-header {
+        margin-bottom: 3rem;
+      }
+
+      .updates-header h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin-bottom: 0.5rem;
+      }
+
+      .updates-header p {
+        color: #666;
+        font-size: 1.1rem;
+      }
+
+      .updates-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      .update-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem 2rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        border: 1px solid #e5e7eb;
+        transition: box-shadow 0.2s, border-color 0.2s;
+      }
+
+      .update-card:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        border-color: #d1d5db;
+      }
+
+      .update-card a {
+        text-decoration: none;
+        color: inherit;
+      }
+
+      .update-date {
+        font-size: 0.85rem;
+        color: #888;
+        margin-bottom: 0.5rem;
+      }
+
+      .update-title {
+        font-size: 1.35rem;
+        font-weight: 600;
+        color: #1a1a1a;
+        margin-bottom: 0.5rem;
+      }
+
+      .update-title:hover {
+        color: #667eea;
+      }
+
+      .update-preview {
+        color: #555;
+        line-height: 1.6;
+      }
+
+      .no-updates {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: #666;
+      }
+
+      {% include 'core/partials/_footer_styles.html' %}
+      .landing-footer {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      }
+
+      @media (max-width: 768px) {
+        .site-nav {
+          padding: 0.75rem 1rem;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .updates-header h1 {
+          font-size: 2rem;
+        }
+
+        .update-card {
+          padding: 1.25rem 1.5rem;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="updates-page">
+      {% if user.is_authenticated %}
+        {% include 'core/partials/app_nav.html' %}
+      {% else %}
+        <nav class="site-nav">
+          <div class="site-nav-container">
+            <a href="/" class="site-logo">{% include 'core/partials/_logo_icon.html' %} {{ brand_name }}</a>
+            <div class="site-nav-actions">
+              <a href="/" class="site-nav-link">Home</a>
+              <a href="/login/" class="site-nav-link">Log in</a>
+              <a href="/signup/" class="site-nav-btn">Get Started</a>
+            </div>
+          </div>
+        </nav>
+      {% endif %}
+
+      <main class="updates-main">
+        <div class="updates-container">
+          <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/">Home</a>
+            <span class="breadcrumb-separator">›</span>
+            <span class="breadcrumb-current">Updates</span>
+          </nav>
+
+          <header class="updates-header">
+            <h1>Updates</h1>
+            <p>The latest improvements and new features</p>
+          </header>
+
+          {% if updates %}
+            <div class="updates-list">
+              {% for update in updates %}
+                <article class="update-card">
+                  <a href="{% url 'updates:detail' update.slug %}">
+                    <div class="update-date">{{ update.published_at|date:"F j, Y" }}</div>
+                    <h2 class="update-title">{{ update.title }}</h2>
+                    <p class="update-preview">{{ update.content|truncatewords:30|striptags }}</p>
+                  </a>
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="no-updates">
+              <p>No updates yet. Check back soon!</p>
+            </div>
+          {% endif %}
+        </div>
+      </main>
+
+      {% include 'core/partials/_footer.html' %}
+    </div>
+
+    {% include 'core/partials/_app_nav_scripts.html' %}
+  </body>
+</html>

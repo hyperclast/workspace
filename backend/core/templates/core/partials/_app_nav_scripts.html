@@ -38,9 +38,21 @@
       var logoutBtn = document.getElementById("logout-btn");
       if (logoutBtn) {
         logoutBtn.addEventListener("click", function() {
+          var csrfToken = "";
+          var csrfCookie = document.cookie.split(";").find(function(c) {
+            return c.trim().startsWith("csrftoken=");
+          });
+          if (csrfCookie) {
+            csrfToken = csrfCookie.split("=")[1];
+          }
+
           fetch("/api/browser/v1/auth/session", {
             method: "DELETE",
-            credentials: "same-origin"
+            credentials: "same-origin",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": csrfToken
+            }
           }).finally(function() {
             window.location.href = "/login/";
           });

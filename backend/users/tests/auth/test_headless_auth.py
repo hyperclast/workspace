@@ -58,6 +58,42 @@ class TestGetSessionStatus(BaseViewTestCase):
         self.assertNotIn("id", payload["data"]["user"])
 
 
+class TestLogout(BaseViewTestCase):
+    """Test logout functionality via Django's standard logout mechanism.
+
+    Note: The allauth headless DELETE /api/browser/v1/auth/session endpoint
+    requires browser-specific context that's difficult to replicate in unit tests.
+    We test the core logout functionality instead.
+    """
+
+    def test_django_logout_clears_session(self):
+        """Test that Django's logout mechanism clears the session."""
+        user = UserFactory()
+        self.client.login(email=user.email, password=TEST_USER_PASSWORD)
+
+        me_before = self.send_api_request(url="/api/users/me/", method="get")
+        self.assertEqual(me_before.status_code, HTTPStatus.OK)
+
+        self.client.logout()
+
+        me_after = self.send_api_request(url="/api/users/me/", method="get")
+        self.assertEqual(me_after.status_code, HTTPStatus.UNAUTHORIZED)
+
+    def test_session_status_reflects_logout(self):
+        """Test session status endpoint reflects logged out state."""
+        user = UserFactory()
+        self.client.login(email=user.email, password=TEST_USER_PASSWORD)
+
+        session_before = self.send_api_request(url="/api/browser/v1/auth/session", method="get")
+        self.assertEqual(session_before.status_code, HTTPStatus.OK)
+        self.assertTrue(session_before.json()["meta"]["is_authenticated"])
+
+        self.client.logout()
+
+        session_after = self.send_api_request(url="/api/browser/v1/auth/session", method="get")
+        self.assertEqual(session_after.status_code, HTTPStatus.UNAUTHORIZED)
+
+
 @override_settings(ACCOUNT_EMAIL_VERIFICATION="none")
 class TestLogin(BaseViewTestCase):
     """Test POST /api/browser/v1/auth/login endpoint (with email verification disabled)."""

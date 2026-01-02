@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "core",
     "collab",
     "pages.apps.PagesConfig",
+    "updates",
     "users",
 ]
 
@@ -62,6 +63,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "users.middlewares.LastActiveMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "core.middlewares.RestrictAuthMiddleware",
@@ -350,6 +352,9 @@ DEV_SIDEBAR_ENABLED = config("WS_DEV_SIDEBAR_ENABLED", cast=bool, default=False)
 # Branding configuration
 BRAND_NAME = config("WS_BRAND_NAME", default="Hyperclast")
 LANDING_TEMPLATE = config("WS_LANDING_TEMPLATE", default="core/landing.html")
+
+# Updates email configuration (default per RFC 2606 - example.com is reserved and blackholed)
+UPDATES_TEST_EMAIL = config("WS_UPDATES_TEST_EMAIL", default="test@example.com")
 
 # Private features (not included in OSS release)
 # Comma-separated list of private features to enable, e.g., "feature1,feature2"
