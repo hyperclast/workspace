@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional, Union
 
 from django.conf import settings
@@ -9,6 +10,9 @@ from django.utils.encoding import force_str
 from premailer import transform
 
 from .helpers import handle_task, to_markdown
+from .models import SentEmail
+
+logger = logging.getLogger(__name__)
 
 
 def create_msg_from_payload(payload: dict) -> Union[EmailMessage, EmailMultiAlternatives]:
@@ -56,6 +60,27 @@ def create_msg_from_payload(payload: dict) -> Union[EmailMessage, EmailMultiAlte
 def send_msg(payload: dict) -> None:
     msg = create_msg_from_payload(payload)
     msg.send()
+
+    message_id = None
+    if hasattr(msg, "anymail_status") and msg.anymail_status.message_id:
+        message_id = msg.anymail_status.message_id
+
+    bodies = payload.get("bodies", {})
+    for to_email in payload.get("to", []):
+        try:
+            SentEmail.objects.create(
+                to_address=to_email,
+                from_address=payload.get("from_email", settings.DEFAULT_FROM_EMAIL),
+                subject=payload.get("subject", ""),
+                text_content=bodies.get("txt"),
+                html_content=bodies.get("html"),
+                message_id=message_id,
+                email_type="transactional",
+                status="sent",
+                esp_name="postmark" if settings.EMAIL_BACKEND.endswith("postmark.EmailBackend") else None,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to log sent email to {to_email}: {e}")
 
 
 class Emailer:

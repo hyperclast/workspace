@@ -165,6 +165,41 @@
         color: white;
       }
 
+      .spam-score {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        margin-left: 0.5rem;
+      }
+
+      .spam-score.good {
+        background: rgba(134, 239, 172, 0.2);
+        color: #86efac;
+      }
+
+      .spam-score.borderline {
+        background: rgba(253, 224, 71, 0.2);
+        color: #fde047;
+      }
+
+      .spam-score.bad {
+        background: rgba(248, 113, 113, 0.2);
+        color: #f87171;
+      }
+
+      .spam-score a {
+        color: inherit;
+        text-decoration: underline;
+        text-decoration-style: dotted;
+      }
+
+      .spam-score a:hover {
+        text-decoration-style: solid;
+      }
+
       .updates-main {
         flex: 1;
         padding: 3rem 2rem;
@@ -345,6 +380,99 @@
         background: #16a34a;
       }
 
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 200;
+      }
+
+      .modal-overlay.show {
+        display: flex;
+        animation: fadeIn 0.2s ease;
+      }
+
+      .modal {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        max-width: 440px;
+        width: 90%;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      }
+
+      .modal-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #1a1a1a;
+        margin-bottom: 0.75rem;
+      }
+
+      .modal-message {
+        color: #555;
+        margin-bottom: 1.5rem;
+        line-height: 1.5;
+      }
+
+      .modal-message strong {
+        color: #1a1a1a;
+      }
+
+      .modal-actions {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: flex-end;
+      }
+
+      .modal-btn {
+        padding: 0.6rem 1.25rem;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        border: none;
+        transition: transform 0.15s, box-shadow 0.15s;
+      }
+
+      .modal-btn:hover {
+        transform: translateY(-1px);
+      }
+
+      .modal-btn-cancel {
+        background: #f3f4f6;
+        color: #555;
+      }
+
+      .modal-btn-cancel:hover {
+        background: #e5e7eb;
+      }
+
+      .modal-btn-confirm {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+      }
+
+      .modal-btn-confirm:hover {
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      }
+
+      .modal-btn-confirm:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
       @keyframes slideIn {
         from {
           transform: translateY(1rem);
@@ -396,7 +524,17 @@
         <div class="admin-panel">
           <div class="admin-panel-container">
             <div class="admin-panel-info">
-              <span class="admin-panel-title">Admin Panel</span>
+              <span class="admin-panel-title">Admin Panel
+                {% if update.spam_score is not None %}
+                  {% if update.spam_score < 2 %}
+                    <span class="spam-score good" title="SpamAssassin score">✅ {{ update.spam_score|floatformat:1 }} <a href="/admin/updates/update/{{ update.pk }}/change/#spam-analysis" target="_blank">details</a></span>
+                  {% elif update.spam_score < 5 %}
+                    <span class="spam-score borderline" title="SpamAssassin score">⚠️ {{ update.spam_score|floatformat:1 }} <a href="/admin/updates/update/{{ update.pk }}/change/#spam-analysis" target="_blank">details</a></span>
+                  {% else %}
+                    <span class="spam-score bad" title="SpamAssassin score">❌ {{ update.spam_score|floatformat:1 }} <a href="/admin/updates/update/{{ update.pk }}/change/#spam-analysis" target="_blank">details</a></span>
+                  {% endif %}
+                {% endif %}
+              </span>
               {% if update.emailed_at %}
                 <span class="admin-panel-status sent">✓ Email sent on {{ update.emailed_at|date:"F j, Y \a\t g:i A" }}</span>
               {% else %}
@@ -404,7 +542,10 @@
               {% endif %}
             </div>
             <div class="admin-panel-actions">
-              <a href="/admin/updates/update/{{ update.pk }}/change/" class="admin-btn admin-btn-secondary">Edit in Admin</a>
+              <a href="/admin/updates/update/{{ update.pk }}/change/" class="admin-btn admin-btn-secondary" target="_blank" rel="noopener">Edit</a>
+              <button type="button" class="admin-btn admin-btn-secondary" id="checkSpamBtn" onclick="checkSpam()">
+                Check Spam
+              </button>
               <button type="button" class="admin-btn admin-btn-secondary" id="testEmailBtn" onclick="sendTestEmail()">
                 Send Test
               </button>
@@ -452,15 +593,74 @@
 
     <div class="toast" id="toast"></div>
 
+    {% if is_superuser and not update.emailed_at %}
+      <div class="modal-overlay" id="confirmModal">
+        <div class="modal">
+          <div class="modal-title">Send to all subscribers?</div>
+          <div class="modal-message">
+            You're about to send "<strong>{{ update.title }}</strong>" to <strong>{{ subscriber_count }} subscriber{{ subscriber_count|pluralize }}</strong>.
+            This action cannot be undone.
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="modal-btn modal-btn-cancel" onclick="closeModal()">Cancel</button>
+            <button type="button" class="modal-btn modal-btn-confirm" id="confirmSendBtn" onclick="confirmSendEmail()">
+              Send Now
+            </button>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
     {% if is_superuser %}
       <script>
-        function showToast(message, type) {
+        function showToast(message, type, duration = 4000) {
           const toast = document.getElementById('toast');
           toast.textContent = message;
           toast.className = 'toast show ' + type;
           setTimeout(() => {
             toast.className = 'toast';
-          }, 4000);
+          }, duration);
+        }
+
+        function checkSpam() {
+          const btn = document.getElementById('checkSpamBtn');
+          const originalText = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = 'Checking...';
+
+          fetch('{% url "updates:check_spam" update.slug %}', {
+            method: 'POST',
+            headers: {
+              'X-CSRFToken': '{{ csrf_token }}',
+              'Content-Type': 'application/json',
+            },
+          })
+            .then(response => response.json())
+            .then(data => {
+            if (data.success && data.spam_score) {
+              const score = data.spam_score.score;
+              const scoreClass = score < 2 ? '✅' : score < 5 ? '⚠️' : '❌';
+              let message = `Spam Score: ${scoreClass} ${score.toFixed(1)}`;
+              if (score >= 5) {
+                message += ' (likely spam!)';
+              } else if (score >= 2) {
+                message += ' (borderline)';
+              } else {
+                message += ' (good)';
+              }
+              showToast(message, score < 5 ? 'success' : 'error', 3000);
+              setTimeout(() => location.reload(), 3000);
+            } else {
+              showToast(data.error || 'Failed to check spam score', 'error');
+              btn.disabled = false;
+              btn.textContent = originalText;
+            }
+          })
+            .catch(err => {
+            showToast('Failed to check spam score', 'error');
+            btn.disabled = false;
+            btn.textContent = originalText;
+          });
         }
 
         function sendTestEmail() {
@@ -480,11 +680,13 @@
             .then(data => {
             if (data.success) {
               showToast(data.message, 'success');
+              btn.disabled = false;
+              btn.textContent = originalText;
             } else {
               showToast(data.error || 'Failed to send test email', 'error');
+              btn.disabled = false;
+              btn.textContent = originalText;
             }
-            btn.disabled = false;
-            btn.textContent = originalText;
           })
             .catch(err => {
             showToast('Failed to send test email', 'error');
@@ -495,10 +697,21 @@
 
         {% if not update.emailed_at %}
           function sendEmail() {
+            document.getElementById('confirmModal').classList.add('show');
+          }
+
+          function closeModal() {
+            document.getElementById('confirmModal').classList.remove('show');
+          }
+
+          function confirmSendEmail() {
             const btn = document.getElementById('sendEmailBtn');
+            const confirmBtn = document.getElementById('confirmSendBtn');
             const originalText = btn.textContent;
             btn.disabled = true;
             btn.textContent = 'Sending...';
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Sending...';
 
             fetch('{% url "updates:send_email" update.slug %}', {
               method: 'POST',
@@ -509,6 +722,7 @@
             })
               .then(response => response.json())
               .then(data => {
+              closeModal();
               if (data.success) {
                 showToast('Email queued for delivery!', 'success');
                 btn.textContent = 'Sent!';
@@ -519,14 +733,23 @@
                 showToast(data.error || 'Failed to send email', 'error');
                 btn.disabled = false;
                 btn.textContent = originalText;
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Send Now';
               }
             })
               .catch(err => {
+              closeModal();
               showToast('Failed to send email', 'error');
               btn.disabled = false;
               btn.textContent = originalText;
+              confirmBtn.disabled = false;
+              confirmBtn.textContent = 'Send Now';
             });
           }
+
+          document.getElementById('confirmModal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+          });
         {% endif %}
       </script>
     {% endif %}

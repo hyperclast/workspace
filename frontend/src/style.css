@@ -2031,6 +2031,7 @@ body.sidebar-resizing .chat-sidebar {
 
 .cm-scroller {
   min-height: 100%;
+  overflow-x: hidden !important;
 }
 
 .cm-gutters {

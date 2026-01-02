@@ -1,4 +1,4 @@
-{{ brand_name }} - Product Update
+{{ brand_name }} Update
 ================================
 
 {{ update.title }}
@@ -15,4 +15,3 @@ View all updates: {{ updates_url }}
 ---
 
 You're receiving this because you have an account with {{ brand_name }}.
-Unsubscribe from product updates: {{ unsubscribe_url }}

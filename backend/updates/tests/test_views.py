@@ -1,8 +1,6 @@
-from datetime import timedelta
 from http import HTTPStatus
 from unittest.mock import patch
 
-from django.core.signing import TimestampSigner
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -267,10 +265,10 @@ class TestSendTestUpdateEmail(TestCase):
 
         self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
 
-    @patch("updates.views.django_rq.get_queue")
-    def test_send_test_email_enqueues_task(self, mock_get_queue):
+    @patch("updates.tasks.send_broadcast_email")
+    def test_send_test_email_calls_task(self, mock_send):
         self.client.force_login(self.superuser)
-        mock_queue = mock_get_queue.return_value
+        mock_send.return_value = "test-message-id"
 
         response = self.client.post(reverse("updates:send_test_email", args=[self.update.slug]))
 
@@ -278,31 +276,28 @@ class TestSendTestUpdateEmail(TestCase):
         data = response.json()
         self.assertTrue(data["success"])
         self.assertIn("test@example.com", data["message"])
-        mock_queue.enqueue.assert_called_once_with(
-            "updates.tasks.send_test_update_email", self.update.id, "test@example.com"
-        )
+        mock_send.assert_called_once()
 
-    @patch("updates.views.django_rq.get_queue")
+    @patch("updates.tasks.send_broadcast_email")
     @override_settings(UPDATES_TEST_EMAIL="custom@example.org")
-    def test_send_test_email_uses_configured_email(self, mock_get_queue):
+    def test_send_test_email_uses_configured_email(self, mock_send):
         self.client.force_login(self.superuser)
-        mock_queue = mock_get_queue.return_value
+        mock_send.return_value = None
 
         response = self.client.post(reverse("updates:send_test_email", args=[self.update.slug]))
 
         self.assertEqual(response.status_code, HTTPStatus.OK)
         data = response.json()
         self.assertIn("custom@example.org", data["message"])
-        mock_queue.enqueue.assert_called_once_with(
-            "updates.tasks.send_test_update_email", self.update.id, "custom@example.org"
-        )
+        call_kwargs = mock_send.call_args.kwargs
+        self.assertEqual(call_kwargs["to_email"], "custom@example.org")
 
-    @patch("updates.views.django_rq.get_queue")
-    def test_send_test_email_works_even_after_real_send(self, mock_get_queue):
+    @patch("updates.tasks.send_broadcast_email")
+    def test_send_test_email_works_even_after_real_send(self, mock_send):
         self.client.force_login(self.superuser)
         self.update.emailed_at = timezone.now()
         self.update.save()
-        mock_queue = mock_get_queue.return_value
+        mock_send.return_value = None
 
         response = self.client.post(reverse("updates:send_test_email", args=[self.update.slug]))
 
@@ -310,10 +305,10 @@ class TestSendTestUpdateEmail(TestCase):
         data = response.json()
         self.assertTrue(data["success"])
 
-    @patch("updates.views.django_rq.get_queue")
-    def test_send_test_email_does_not_set_emailed_at(self, mock_get_queue):
+    @patch("updates.tasks.send_broadcast_email")
+    def test_send_test_email_does_not_set_emailed_at(self, mock_send):
         self.client.force_login(self.superuser)
-        mock_queue = mock_get_queue.return_value
+        mock_send.return_value = None
 
         self.assertIsNone(self.update.emailed_at)
 
@@ -352,52 +347,145 @@ class TestSendTestUpdateEmail(TestCase):
         self.assertContains(response, "Already Sent")
 
 
-class TestUnsubscribeView(TestCase):
+class TestCheckSpamScoreView(TestCase):
+    """Tests for the check spam score endpoint."""
+
     def setUp(self):
-        self.user = UserFactory(receive_product_updates=True)
-        self.signer = TimestampSigner(salt="updates-unsubscribe")
+        self.superuser = UserFactory(is_superuser=True)
+        self.update = UpdateFactory(title="Test Update")
 
-    def test_valid_token_unsubscribes_user(self):
-        token = self.signer.sign(str(self.user.id))
+    def test_check_spam_requires_superuser(self):
+        user = UserFactory()
+        self.client.force_login(user)
 
-        response = self.client.get(reverse("updates:unsubscribe", args=[token]))
+        response = self.client.post(reverse("updates:check_spam", args=[self.update.slug]))
 
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertContains(response, "unsubscribed")
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
 
-        self.user.refresh_from_db()
-        self.assertFalse(self.user.receive_product_updates)
+    def test_check_spam_requires_authentication(self):
+        response = self.client.post(reverse("updates:check_spam", args=[self.update.slug]))
 
-    def test_invalid_token_shows_error(self):
-        response = self.client.get(reverse("updates:unsubscribe", args=["invalid-token"]))
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
 
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertContains(response, "invalid or has expired")
+    @patch("updates.tasks.check_spam_score")
+    def test_check_spam_returns_score(self, mock_check):
+        self.client.force_login(self.superuser)
+        mock_check.return_value = {"score": 1.5, "success": True, "rules": []}
 
-    def test_expired_token_shows_error(self):
-        signer = TimestampSigner(salt="updates-unsubscribe")
-        token = signer.sign(str(self.user.id))
-
-        with patch("updates.views.UNSUBSCRIBE_TOKEN_MAX_AGE", 0):
-            response = self.client.get(reverse("updates:unsubscribe", args=[token]))
+        response = self.client.post(reverse("updates:check_spam", args=[self.update.slug]))
 
         self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertContains(response, "invalid or has expired")
+        data = response.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["spam_score"]["score"], 1.5)
 
-    def test_already_unsubscribed_user_still_shows_success(self):
-        self.user.receive_product_updates = False
-        self.user.save()
-        token = self.signer.sign(str(self.user.id))
+    @patch("updates.tasks.check_spam_score")
+    def test_check_spam_persists_score_to_update(self, mock_check):
+        self.client.force_login(self.superuser)
+        mock_check.return_value = {"score": 2.0, "success": True, "rules": [{"name": "TEST_RULE"}]}
 
-        response = self.client.get(reverse("updates:unsubscribe", args=[token]))
-
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertContains(response, "unsubscribed")
-
-    def test_nonexistent_user_shows_error(self):
-        token = self.signer.sign("999999")
-
-        response = self.client.get(reverse("updates:unsubscribe", args=[token]))
+        response = self.client.post(reverse("updates:check_spam", args=[self.update.slug]))
 
         self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertContains(response, "invalid or has expired")
+        self.update.refresh_from_db()
+        self.assertEqual(self.update.spam_score, 2.0)
+        self.assertEqual(self.update.spam_rules, [{"name": "TEST_RULE"}])
+
+    @patch("updates.tasks.check_spam_score")
+    def test_check_spam_handles_api_failure(self, mock_check):
+        self.client.force_login(self.superuser)
+        mock_check.return_value = None
+
+        response = self.client.post(reverse("updates:check_spam", args=[self.update.slug]))
+
+        self.assertEqual(response.status_code, HTTPStatus.INTERNAL_SERVER_ERROR)
+        data = response.json()
+        self.assertIn("error", data)
+
+    def test_check_spam_404_for_nonexistent_update(self):
+        self.client.force_login(self.superuser)
+
+        response = self.client.post(reverse("updates:check_spam", args=["nonexistent-slug"]))
+
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+    def test_detail_view_shows_check_spam_button_to_superuser(self):
+        self.client.force_login(self.superuser)
+
+        response = self.client.get(reverse("updates:detail", args=[self.update.slug]))
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertContains(response, "Check Spam")
+        self.assertContains(response, "checkSpam()")
+
+
+class TestSpamScoreDisplay(TestCase):
+    """Tests for spam score display in the admin toolbar."""
+
+    def setUp(self):
+        self.superuser = UserFactory(is_superuser=True)
+
+    def test_detail_view_shows_good_spam_score(self):
+        self.client.force_login(self.superuser)
+        update = UpdateFactory(spam_score=1.0)
+
+        response = self.client.get(reverse("updates:detail", args=[update.slug]))
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        # Check for actual spam score element in admin panel (with class and score)
+        self.assertContains(response, '<span class="spam-score good"')
+        self.assertContains(response, "1.0")
+        self.assertContains(response, "✅")
+
+    def test_detail_view_shows_borderline_spam_score(self):
+        self.client.force_login(self.superuser)
+        update = UpdateFactory(spam_score=3.5)
+
+        response = self.client.get(reverse("updates:detail", args=[update.slug]))
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertContains(response, '<span class="spam-score borderline"')
+        self.assertContains(response, "3.5")
+        self.assertContains(response, "⚠️")
+
+    def test_detail_view_shows_bad_spam_score(self):
+        self.client.force_login(self.superuser)
+        update = UpdateFactory(spam_score=6.0)
+
+        response = self.client.get(reverse("updates:detail", args=[update.slug]))
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertContains(response, '<span class="spam-score bad"')
+        self.assertContains(response, "6.0")
+        self.assertContains(response, "❌")
+
+    def test_detail_view_shows_details_link_when_spam_score_present(self):
+        self.client.force_login(self.superuser)
+        update = UpdateFactory(spam_score=1.5)
+
+        response = self.client.get(reverse("updates:detail", args=[update.slug]))
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertContains(response, "details</a>")
+        self.assertContains(response, f"/admin/updates/update/{update.pk}/change/")
+
+    def test_detail_view_hides_spam_score_when_not_present(self):
+        self.client.force_login(self.superuser)
+        update = UpdateFactory(spam_score=None)
+
+        response = self.client.get(reverse("updates:detail", args=[update.slug]))
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        # The CSS class .spam-score will exist in the stylesheet, but no span with it
+        self.assertNotContains(response, '<span class="spam-score')
+
+    def test_detail_view_hides_spam_score_from_non_superuser(self):
+        user = UserFactory()
+        self.client.force_login(user)
+        update = UpdateFactory(spam_score=1.5)
+
+        response = self.client.get(reverse("updates:detail", args=[update.slug]))
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        # Non-superuser should not see the admin panel at all
+        self.assertNotContains(response, "Admin Panel")

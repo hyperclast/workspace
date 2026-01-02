@@ -70,6 +70,18 @@ class SentEmailManager(models.Manager):
 
 
 class SentEmail(TimeStampedModel):
+    EMAIL_TYPE_CHOICES = [
+        ("transactional", "Transactional"),
+        ("broadcast", "Broadcast"),
+    ]
+    STATUS_CHOICES = [
+        ("sent", "Sent"),
+        ("delivered", "Delivered"),
+        ("bounced", "Bounced"),
+        ("spam_complaint", "Spam Complaint"),
+        ("failed", "Failed"),
+    ]
+
     recipient = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -78,6 +90,7 @@ class SentEmail(TimeStampedModel):
         default=None,
     )
     to_address = models.EmailField(db_index=True)
+    from_address = models.EmailField(null=True, blank=True)
     subject = models.TextField()
     text_content = models.TextField(null=True, default=None)
     html_content = models.TextField(null=True, default=None)
@@ -86,7 +99,22 @@ class SentEmail(TimeStampedModel):
     batch_id = models.TextField(db_index=True, null=True, default=None)
     esp_name = models.TextField(null=True, default=None)
 
+    email_type = models.CharField(max_length=20, choices=EMAIL_TYPE_CHOICES, default="transactional")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="sent")
+    related_update = models.ForeignKey(
+        "updates.Update",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="email_logs",
+    )
+    spam_score = models.FloatField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
     objects = SentEmailManager()
+
+    class Meta:
+        ordering = ["-created"]
 
     def __str__(self) -> str:
         return f"{self.to_address}: {self.subject}"

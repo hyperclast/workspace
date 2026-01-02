@@ -14,6 +14,9 @@ class Update(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    spam_score = models.FloatField(null=True, blank=True, help_text="SpamAssassin score from test email")
+    spam_rules = models.JSONField(null=True, blank=True, help_text="SpamAssassin rules that triggered")
+
     class Meta:
         ordering = ["-published_at", "-created_at"]
 

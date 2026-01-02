@@ -4,6 +4,7 @@ from django.template import TemplateDoesNotExist
 from django.test import TestCase, override_settings
 
 from core.emailer import Emailer
+from core.models import SentEmail
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
@@ -108,3 +109,40 @@ class EmailerTestCase(TestCase):
         self.assertIn(message_text, msg.body)
         self.assertEqual(msg.from_email, settings.DEFAULT_FROM_EMAIL)
         self.assertIsNone(msg.metadata)
+
+    def test_emailer_creates_sent_email_log(self):
+        """Test that sending an email creates a SentEmail log entry."""
+        recipient = "recipient@example.com"
+        subject_phrase = "LogTest"
+        message_text = "LogTestText"
+        context = {
+            "test_phrase": subject_phrase,
+            "test_msg_text": message_text,
+        }
+
+        initial_count = SentEmail.objects.count()
+
+        emailer = Emailer(template_prefix="core/emails/test_email")
+        emailer.send_mail(recipient, context, force_sync=True)
+
+        self.assertEqual(SentEmail.objects.count(), initial_count + 1)
+        log = SentEmail.objects.latest("created")
+        self.assertEqual(log.to_address, recipient)
+        self.assertIn(subject_phrase, log.subject)
+        self.assertEqual(log.email_type, "transactional")
+        self.assertEqual(log.status, "sent")
+
+    def test_emailer_logs_html_and_text_content(self):
+        """Test that SentEmail log captures both HTML and text content."""
+        recipient = "recipient@example.com"
+        context = {
+            "test_phrase": "ContentTest",
+            "test_msg_text": "Text content here",
+        }
+
+        emailer = Emailer(template_prefix="core/emails/test_email")
+        emailer.send_mail(recipient, context, force_sync=True)
+
+        log = SentEmail.objects.latest("created")
+        self.assertIsNotNone(log.text_content)
+        self.assertIn("Text content here", log.text_content)
