@@ -21,6 +21,13 @@ from pages.schemas import (
     PagesAutocompleteOut,
 )
 
+MAX_CONTENT_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+def validate_content_size(content: str) -> bool:
+    """Check if content exceeds the maximum allowed size."""
+    return len(content.encode("utf-8")) <= MAX_CONTENT_SIZE
+
 
 pages_router = Router(auth=[token_auth, session_auth])
 
@@ -51,7 +58,7 @@ def autocomplete_pages(request: HttpRequest, q: str = ""):
     return PagesAutocompleteOut(pages=list(pages))
 
 
-@pages_router.post("/", response={201: PageOut})
+@pages_router.post("/", response={201: PageOut, 413: dict})
 def create_page(request: HttpRequest, payload: PageIn):
     """Create a new page for the current user.
 
@@ -78,6 +85,10 @@ def create_page(request: HttpRequest, payload: PageIn):
     if payload.details:
         default_details.update(payload.details)
 
+    content = default_details.get("content", "")
+    if not validate_content_size(content):
+        return 413, {"message": f"Content too large (max {MAX_CONTENT_SIZE // (1024 * 1024)} MB)"}
+
     page = Page.objects.create_with_owner(
         user=request.user,
         project=project,
@@ -97,7 +108,7 @@ def get_page(request: HttpRequest, external_id: str):
     return page
 
 
-@pages_router.put("/{external_id}/", response=PageOut)
+@pages_router.put("/{external_id}/", response={200: PageOut, 413: dict})
 def update_page(
     request: HttpRequest,
     external_id: str,
@@ -105,7 +116,6 @@ def update_page(
 ):
     page = get_object_or_404(Page, external_id=external_id)
 
-    # Use permission helper - only creator can update
     if not user_can_modify_page(request.user, page):
         return Response({"message": "Only the creator can update this page"}, status=403)
 
@@ -123,11 +133,17 @@ def update_page(
             else:  # prepend
                 merged_content = new_content + existing_content
 
+            if not validate_content_size(merged_content):
+                return 413, {"message": f"Content too large (max {MAX_CONTENT_SIZE // (1024 * 1024)} MB)"}
+
             if page.details:
                 page.details = {**page.details, **payload.details, "content": merged_content}
             else:
                 page.details = {**payload.details, "content": merged_content}
         else:
+            content = payload.details.get("content", "")
+            if not validate_content_size(content):
+                return 413, {"message": f"Content too large (max {MAX_CONTENT_SIZE // (1024 * 1024)} MB)"}
             page.details = payload.details
 
     page.save(update_fields=["title", "details", "modified"])

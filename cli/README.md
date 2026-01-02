@@ -170,19 +170,40 @@ git log --oneline -20 | hyperclast page new -t "Recent Commits"
 docker ps -a | hyperclast page new -t "Container Status"
 ```
 
+## Content Validation
+
+The CLI validates content before uploading:
+
+- **Maximum size:** 10 MB
+- **Text encoding:** Must be valid UTF-8
+- **No binary data:** Files with null bytes are rejected
+
+### Stdin Safety Net
+
+When piping data, if any error occurs (validation or API failure), your data is preserved in a temporary file:
+
+```bash
+$ cat huge-file.log | hyperclast page new --project proj_abc
+Your data is saved at: /tmp/hyperclast-stdin-1704067200.txt
+Retry with: hyperclast page new --project proj_abc --file /tmp/hyperclast-stdin-1704067200.txt
+Error: content too large (15728640 bytes, max 10485760)
+```
+
+The temp file is only deleted after successful upload. This ensures piped data is never lost.
+
 ## Error Handling
 
 The CLI provides helpful error messages:
 
 ```bash
 # No project specified and no default set
-$ echo "test" | hyperclast page new -t "Test"
+$ echo "test" | hyperclast page new --title "Test"
 Error: No project specified.
   Use --project <id> or set a default: hyperclast project use <id>
   Run 'hyperclast project list' to see available projects.
 
 # No content provided
-$ hyperclast page new -p proj_abc -t "Empty"
+$ hyperclast page new --project proj_abc --title "Empty"
 Error: No content provided. Pipe content or use --file <path>
 
 # Not authenticated

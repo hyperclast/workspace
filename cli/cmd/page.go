@@ -1,15 +1,23 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 	"text/tabwriter"
 	"time"
+	"unicode/utf8"
 
 	"github.com/hyperclast/workspace/cli/internal/api"
 	"github.com/spf13/cobra"
+)
+
+const (
+	maxContentSize = 10 * 1024 * 1024 // 10 MB
 )
 
 var (
@@ -95,7 +103,6 @@ func runPageNew(cmd *cobra.Command, args []string) error {
 		title = generateDefaultTitle()
 	}
 
-	// Auto-detect filetype if not explicitly set
 	filetype := pageFiletype
 	if !cmd.Flags().Changed("filetype") {
 		filetype = detectFiletype(content, "txt")
@@ -104,8 +111,10 @@ func runPageNew(cmd *cobra.Command, args []string) error {
 	client := api.NewClient(cfg.APIURL, cfg.Token)
 	page, err := client.CreatePage(projectID, title, content, filetype)
 	if err != nil {
-		return fmt.Errorf("failed to create page: %w", err)
+		return handleContentError(fmt.Errorf("failed to create page: %w", err))
 	}
+
+	cleanupStdinTemp()
 
 	if outputFmt == "json" {
 		return json.NewEncoder(os.Stdout).Encode(page)
@@ -174,8 +183,10 @@ func runPageUpdate(pageID string, mode string) error {
 	client := api.NewClient(cfg.APIURL, cfg.Token)
 	page, err := client.UpdatePageContent(pageID, content, mode)
 	if err != nil {
-		return fmt.Errorf("failed to update page: %w", err)
+		return handleContentError(fmt.Errorf("failed to update page: %w", err))
 	}
+
+	cleanupStdinTemp()
 
 	if outputFmt == "json" {
 		return json.NewEncoder(os.Stdout).Encode(page)
@@ -195,34 +206,143 @@ func runPageUpdate(pageID string, mode string) error {
 	return nil
 }
 
-func readContent() (string, error) {
-	var content string
-	if pageFile != "" {
-		data, err := os.ReadFile(pageFile)
-		if err != nil {
-			return "", fmt.Errorf("failed to read file: %w", err)
-		}
-		content = string(data)
-	} else {
-		stat, _ := os.Stdin.Stat()
-		if (stat.Mode() & os.ModeCharDevice) != 0 {
-			printError("No content provided. Pipe content or use --file <path>")
-			return "", fmt.Errorf("no content provided")
-		}
+var stdinTempPath string
 
-		data, err := io.ReadAll(os.Stdin)
-		if err != nil {
-			return "", fmt.Errorf("failed to read stdin: %w", err)
-		}
-		content = string(data)
+func readContent() (string, error) {
+	stdinTempPath = ""
+
+	if pageFile != "" {
+		return readAndValidateFile(pageFile)
 	}
 
-	if content == "" {
+	stat, _ := os.Stdin.Stat()
+	if (stat.Mode() & os.ModeCharDevice) != 0 {
 		printError("No content provided. Pipe content or use --file <path>")
 		return "", fmt.Errorf("no content provided")
 	}
 
+	tempPath, err := bufferStdinToTemp()
+	if err != nil {
+		return "", err
+	}
+
+	content, err := readAndValidateFile(tempPath)
+	if err != nil {
+		printRecoveryInfo(tempPath)
+		return "", err
+	}
+
+	stdinTempPath = tempPath
 	return content, nil
+}
+
+func cleanupStdinTemp() {
+	if stdinTempPath != "" {
+		os.Remove(stdinTempPath)
+		stdinTempPath = ""
+	}
+}
+
+func handleContentError(err error) error {
+	if stdinTempPath != "" {
+		printRecoveryInfo(stdinTempPath)
+	}
+	return err
+}
+
+func bufferStdinToTemp() (string, error) {
+	tempDir := os.TempDir()
+	filename := fmt.Sprintf("hyperclast-stdin-%d.txt", time.Now().Unix())
+	tempPath := filepath.Join(tempDir, filename)
+
+	tempFile, err := os.Create(tempPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer tempFile.Close()
+
+	_, err = io.Copy(tempFile, os.Stdin)
+	if err != nil {
+		os.Remove(tempPath)
+		return "", fmt.Errorf("failed to buffer stdin: %w", err)
+	}
+
+	return tempPath, nil
+}
+
+func readAndValidateFile(path string) (string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to stat file: %w", err)
+	}
+
+	if info.Size() > maxContentSize {
+		return "", fmt.Errorf("content too large (%d bytes, max %d)", info.Size(), maxContentSize)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file: %w", err)
+	}
+
+	if err := validateTextContent(data); err != nil {
+		return "", err
+	}
+
+	content := string(data)
+	if content == "" {
+		return "", fmt.Errorf("no content provided")
+	}
+
+	return content, nil
+}
+
+func validateTextContent(data []byte) error {
+	if bytes.Contains(data, []byte{0}) {
+		return fmt.Errorf("binary data detected (null bytes found)")
+	}
+
+	if !utf8.Valid(data) {
+		return fmt.Errorf("invalid text encoding (not valid UTF-8)")
+	}
+
+	return nil
+}
+
+func printRecoveryInfo(tempPath string) {
+	printInfo("Your data is saved at: %s", tempPath)
+
+	cmd := reconstructCommand()
+	if cmd != "" {
+		printInfo("Retry with: %s --file %s", cmd, tempPath)
+	}
+}
+
+func reconstructCommand() string {
+	args := os.Args[1:]
+	if len(args) == 0 {
+		return ""
+	}
+
+	var parts []string
+	parts = append(parts, "hyperclast")
+
+	skipNext := false
+	for _, arg := range args {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		if arg == "--file" || strings.HasPrefix(arg, "--file=") {
+			if arg == "--file" {
+				skipNext = true
+			}
+			continue
+		}
+		parts = append(parts, arg)
+	}
+
+	return strings.Join(parts, " ")
 }
 
 func appendMetadata(content string) string {

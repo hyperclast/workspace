@@ -206,6 +206,32 @@ Directory: /Users/alice/myproject
 ---
 ```
 
+**Content Validation:**
+
+Content is validated before upload:
+
+- **Maximum size:** 10 MB
+- **Text encoding:** Must be valid UTF-8 (no binary data)
+- **No null bytes:** Binary files are rejected
+
+**Stdin Safety Net:**
+
+When piping data, stdin is buffered to a temporary file before validation. If validation fails or the API call fails, the data is preserved and a recovery command is shown:
+
+```
+$ cat huge-file.log | hyperclast page new --project proj_abc
+Your data is saved at: /tmp/hyperclast-stdin-1704067200.txt
+Retry with: hyperclast page new --project proj_abc --file /tmp/hyperclast-stdin-1704067200.txt
+Error: content too large (15728640 bytes, max 10485760)
+
+$ cat /bin/ls | hyperclast page new --project proj_abc
+Your data is saved at: /tmp/hyperclast-stdin-1704067201.txt
+Retry with: hyperclast page new --project proj_abc --file /tmp/hyperclast-stdin-1704067201.txt
+Error: binary data detected (null bytes found)
+```
+
+The temp file is only deleted after the operation succeeds completely. This ensures piped data is never lost.
+
 **Error Cases:**
 
 ```

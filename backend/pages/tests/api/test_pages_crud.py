@@ -645,3 +645,100 @@ class TestProjectEditorAccessAPI(BaseAuthenticatedViewTestCase):
         # Access should be revoked
         response = self.send_api_request(url=f"/api/pages/{page.external_id}/", method="get")
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+
+class TestContentSizeLimit(BaseAuthenticatedViewTestCase):
+    """Test content size limit enforcement (10 MB max)."""
+
+    def setUp(self):
+        super().setUp()
+        self.org = OrgFactory()
+        OrgMemberFactory(org=self.org, user=self.user, role=OrgMemberRole.MEMBER.value)
+        self.project = ProjectFactory(org=self.org, creator=self.user)
+
+    def test_create_page_with_content_at_limit_succeeds(self):
+        """Test creating a page with content exactly at 10 MB limit succeeds."""
+        content = "x" * (10 * 1024 * 1024)
+        response = self.send_api_request(
+            url="/api/pages/",
+            method="post",
+            data={
+                "title": "Large Page",
+                "project_id": self.project.external_id,
+                "details": {"content": content},
+            },
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.CREATED)
+
+    def test_create_page_with_content_exceeding_limit_returns_413(self):
+        """Test creating a page with content exceeding 10 MB returns 413."""
+        content = "x" * (10 * 1024 * 1024 + 1)
+        response = self.send_api_request(
+            url="/api/pages/",
+            method="post",
+            data={
+                "title": "Too Large Page",
+                "project_id": self.project.external_id,
+                "details": {"content": content},
+            },
+        )
+
+        self.assertEqual(response.status_code, 413)
+        self.assertIn("too large", response.json()["message"].lower())
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    def test_update_page_with_content_exceeding_limit_returns_413(self):
+        """Test updating a page with content exceeding 10 MB returns 413."""
+        page = PageFactory(creator=self.user, details={"content": ""})
+        content = "x" * (10 * 1024 * 1024 + 1)
+
+        response = self.send_api_request(
+            url=f"/api/pages/{page.external_id}/",
+            method="put",
+            data={
+                "title": page.title,
+                "details": {"content": content},
+                "mode": "overwrite",
+            },
+        )
+
+        self.assertEqual(response.status_code, 413)
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    def test_append_resulting_in_content_exceeding_limit_returns_413(self):
+        """Test appending content that results in total > 10 MB returns 413."""
+        existing_content = "x" * (5 * 1024 * 1024)
+        page = PageFactory(creator=self.user, details={"content": existing_content})
+
+        new_content = "y" * (6 * 1024 * 1024)
+        response = self.send_api_request(
+            url=f"/api/pages/{page.external_id}/",
+            method="put",
+            data={
+                "title": page.title,
+                "details": {"content": new_content},
+                "mode": "append",
+            },
+        )
+
+        self.assertEqual(response.status_code, 413)
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    def test_prepend_resulting_in_content_exceeding_limit_returns_413(self):
+        """Test prepending content that results in total > 10 MB returns 413."""
+        existing_content = "x" * (5 * 1024 * 1024)
+        page = PageFactory(creator=self.user, details={"content": existing_content})
+
+        new_content = "y" * (6 * 1024 * 1024)
+        response = self.send_api_request(
+            url=f"/api/pages/{page.external_id}/",
+            method="put",
+            data={
+                "title": page.title,
+                "details": {"content": new_content},
+                "mode": "prepend",
+            },
+        )
+
+        self.assertEqual(response.status_code, 413)
