@@ -11,7 +11,7 @@ from core.helpers import hashify
 
 
 class PageEmbeddingManager(models.Manager):
-    def update_or_create_page_embedding(self, page):
+    def update_or_create_page_embedding(self, page, user=None):
         input_data = page.content_for_embedding
 
         if not input_data:
@@ -25,7 +25,7 @@ class PageEmbeddingManager(models.Manager):
             if content_hash == entry.content_hash:
                 return entry, "skipped"
 
-            entry.embedding = compute_embedding(input_data)
+            entry.embedding = compute_embedding(input_data, user=user)
             entry.content_hash = content_hash
             entry.computed = timezone.now()
             entry.save(update_fields=["embedding", "content_hash", "computed", "modified"])
@@ -34,7 +34,7 @@ class PageEmbeddingManager(models.Manager):
         except self.model.DoesNotExist:
             entry = self.create(
                 page=page,
-                embedding=compute_embedding(input_data),
+                embedding=compute_embedding(input_data, user=user),
                 content_hash=content_hash,
                 computed=timezone.now(),
             )

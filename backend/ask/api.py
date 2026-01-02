@@ -27,10 +27,27 @@ def ask(request, payload: AskIn):
 
     user = request.user
 
-    ask_request = AskRequest.objects.process_query(query=payload.query, user=user, page_ids=payload.page_ids)
+    ask_request = AskRequest.objects.process_query(
+        query=payload.query,
+        user=user,
+        page_ids=payload.page_ids,
+        provider=payload.provider,
+        config_id=payload.config_id,
+        model=payload.model,
+    )
 
     if not ask_request.is_ok:
         errcode = getattr(ask_request, "error", "") or AskRequestError.UNEXPECTED.value
+
+        if errcode == "ai_key_not_configured":
+            return Response(
+                {
+                    "error": "ai_key_not_configured",
+                    "message": "No AI provider configured. Please add an API key in Settings.",
+                },
+                status=HTTPStatus.BAD_REQUEST,
+            )
+
         errmsg = ask_request_error_map(errcode)
         return Response(
             {"error": errcode, "message": errmsg},

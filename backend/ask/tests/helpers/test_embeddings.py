@@ -19,23 +19,30 @@ class TestCreateEmbedding(TestCase):
     """Test the create_embedding function."""
 
     @patch("ask.helpers.embeddings.embedding")
-    def test_create_embedding_with_defaults(self, mock_embedding):
-        """Test creating an embedding with default settings."""
+    def test_create_embedding_with_api_key(self, mock_embedding):
+        """Test creating an embedding with an API key."""
         # Setup mock
         mock_response = Mock()
         mock_response.data = [{"embedding": [0.1, 0.2, 0.3]}]
         mock_embedding.return_value = mock_response
 
         # Call function
-        result = create_embedding("test input")
+        result = create_embedding("test input", api_key="test-api-key")
 
         # Verify
         self.assertEqual(result, [0.1, 0.2, 0.3])
         mock_embedding.assert_called_once_with(
             input=["test input"],
             model=settings.ASK_EMBEDDINGS_DEFAULT_MODEL,
-            api_key=settings.OPENAI_API_KEY,
+            api_key="test-api-key",
         )
+
+    def test_create_embedding_requires_api_key(self):
+        """Test that create_embedding raises error without API key."""
+        with self.assertRaises(ValueError) as context:
+            create_embedding("test input")
+
+        self.assertIn("api_key is required", str(context.exception))
 
     @patch("ask.helpers.embeddings.embedding")
     def test_create_embedding_with_custom_model(self, mock_embedding):
@@ -46,33 +53,14 @@ class TestCreateEmbedding(TestCase):
         mock_embedding.return_value = mock_response
 
         # Call function with custom model
-        result = create_embedding("test input", model="custom-model")
+        result = create_embedding("test input", model="custom-model", api_key="test-key")
 
         # Verify
         self.assertEqual(result, [0.4, 0.5, 0.6])
         mock_embedding.assert_called_once_with(
             input=["test input"],
             model="custom-model",
-            api_key=settings.OPENAI_API_KEY,
-        )
-
-    @patch("ask.helpers.embeddings.embedding")
-    def test_create_embedding_with_custom_api_key(self, mock_embedding):
-        """Test creating an embedding with a custom API key."""
-        # Setup mock
-        mock_response = Mock()
-        mock_response.data = [{"embedding": [0.7, 0.8, 0.9]}]
-        mock_embedding.return_value = mock_response
-
-        # Call function with custom API key
-        result = create_embedding("test input", api_key="custom-api-key")
-
-        # Verify
-        self.assertEqual(result, [0.7, 0.8, 0.9])
-        mock_embedding.assert_called_once_with(
-            input=["test input"],
-            model=settings.ASK_EMBEDDINGS_DEFAULT_MODEL,
-            api_key="custom-api-key",
+            api_key="test-key",
         )
 
     @patch("ask.helpers.embeddings.embedding")
@@ -85,7 +73,7 @@ class TestCreateEmbedding(TestCase):
         mock_embedding.side_effect = [RateLimitError("Rate limit", "openai", "text-embedding-3-small"), mock_response]
 
         # Call function
-        result = create_embedding("test input")
+        result = create_embedding("test input", api_key="test-key")
 
         # Verify it retried and succeeded
         self.assertEqual(result, [0.1, 0.2, 0.3])
@@ -102,7 +90,7 @@ class TestCreateEmbedding(TestCase):
         mock_embedding.side_effect = [Timeout("Timeout error", "text-embedding-3-small", "openai"), mock_response]
 
         # Call function
-        result = create_embedding("test input")
+        result = create_embedding("test input", api_key="test-key")
 
         # Verify it retried and succeeded
         self.assertEqual(result, [0.1, 0.2, 0.3])
@@ -173,14 +161,14 @@ class TestComputeEmbedding(TestCase):
 
     @patch("ask.helpers.embeddings.create_embedding")
     @patch("ask.helpers.embeddings.truncate_input_data")
-    def test_compute_embedding_success(self, mock_truncate, mock_create):
-        """Test successful embedding computation."""
+    def test_compute_embedding_success_with_api_key(self, mock_truncate, mock_create):
+        """Test successful embedding computation with explicit API key."""
         # Setup mocks
         mock_truncate.return_value = "truncated data"
         mock_create.return_value = [0.1, 0.2, 0.3]
 
-        # Call function
-        result = compute_embedding("test data")
+        # Call function with api_key
+        result = compute_embedding("test data", api_key="test-api-key")
 
         # Verify
         self.assertEqual(result, [0.1, 0.2, 0.3])
@@ -192,7 +180,8 @@ class TestComputeEmbedding(TestCase):
         mock_create.assert_called_once_with(
             input_data="truncated data",
             model=settings.ASK_EMBEDDINGS_DEFAULT_MODEL,
-            api_key=settings.OPENAI_API_KEY,
+            api_key="test-api-key",
+            user=None,
         )
 
     @patch("ask.helpers.embeddings.create_embedding")
@@ -206,10 +195,10 @@ class TestComputeEmbedding(TestCase):
         # Call function with custom params
         result = compute_embedding(
             data="test data",
+            api_key="custom-key",
             model="custom-model",
             encoding_name="custom-encoding",
             max_tokens=1000,
-            api_key="custom-key",
         )
 
         # Verify
@@ -223,6 +212,7 @@ class TestComputeEmbedding(TestCase):
             input_data="truncated data",
             model="custom-model",
             api_key="custom-key",
+            user=None,
         )
 
     @patch("ask.helpers.embeddings.create_embedding")
@@ -234,7 +224,7 @@ class TestComputeEmbedding(TestCase):
         mock_create.side_effect = Exception("API Error")
 
         # Call function (should not raise)
-        result = compute_embedding("test data")
+        result = compute_embedding("test data", api_key="test-key")
 
         # Verify returns None on error
         self.assertIsNone(result)
@@ -249,21 +239,21 @@ class TestComputeEmbedding(TestCase):
 
         # Call function with raise_exception=True
         with self.assertRaises(Exception) as context:
-            compute_embedding("test data", raise_exception=True)
+            compute_embedding("test data", api_key="test-key", raise_exception=True)
 
         # Verify correct exception was raised
         self.assertEqual(str(context.exception), "API Error")
 
     @patch("ask.helpers.embeddings.create_embedding")
     @patch("ask.helpers.embeddings.truncate_input_data")
-    def test_compute_embedding_uses_default_settings(self, mock_truncate, mock_create):
-        """Test that compute_embedding uses settings defaults when not provided."""
+    def test_compute_embedding_uses_default_model_settings(self, mock_truncate, mock_create):
+        """Test that compute_embedding uses default model settings when not provided."""
         # Setup mocks
         mock_truncate.return_value = "truncated data"
         mock_create.return_value = [0.1, 0.2, 0.3]
 
-        # Call function without optional params
-        compute_embedding("test data")
+        # Call function with just api_key
+        compute_embedding("test data", api_key="test-key")
 
         # Verify defaults were used
         mock_truncate.assert_called_once_with(
@@ -274,7 +264,8 @@ class TestComputeEmbedding(TestCase):
         mock_create.assert_called_once_with(
             input_data="truncated data",
             model=settings.ASK_EMBEDDINGS_DEFAULT_MODEL,
-            api_key=settings.OPENAI_API_KEY,
+            api_key="test-key",
+            user=None,
         )
 
     @patch("ask.helpers.embeddings.create_embedding")
@@ -287,7 +278,7 @@ class TestComputeEmbedding(TestCase):
         mock_create.return_value = [0.1, 0.2, 0.3]
 
         # Call function
-        result = compute_embedding(long_data)
+        result = compute_embedding(long_data, api_key="test-key")
 
         # Verify truncation was called
         mock_truncate.assert_called_once()
@@ -295,7 +286,8 @@ class TestComputeEmbedding(TestCase):
         mock_create.assert_called_once_with(
             input_data="truncated",
             model=settings.ASK_EMBEDDINGS_DEFAULT_MODEL,
-            api_key=settings.OPENAI_API_KEY,
+            api_key="test-key",
+            user=None,
         )
         self.assertEqual(result, [0.1, 0.2, 0.3])
 
@@ -308,7 +300,7 @@ class TestComputeEmbedding(TestCase):
         mock_create.return_value = [0.0, 0.0, 0.0]
 
         # Call function
-        result = compute_embedding("")
+        result = compute_embedding("", api_key="test-key")
 
         # Verify
         self.assertEqual(result, [0.0, 0.0, 0.0])

@@ -14,14 +14,13 @@ from ask.helpers.llm import create_chat_completion
     OPENAI_DEFAULT_CHAT_MODEL="gpt-4",
     OPENAI_DEFAULT_CHAT_MAX_TOKENS=500,
     OPENAI_DEFAULT_CHAT_TEMPERATURE=0.7,
-    OPENAI_API_KEY="test-api-key",
 )
 class TestCreateChatCompletion(TestCase):
     """Test the create_chat_completion function."""
 
     @patch("ask.helpers.llm.litellm.completion")
-    def test_create_chat_completion_with_defaults(self, mock_completion):
-        """Test creating a chat completion with default settings."""
+    def test_create_chat_completion_with_api_key(self, mock_completion):
+        """Test creating a chat completion with explicit API key."""
         # Setup mock response
         mock_response = Mock()
         mock_response.to_dict.return_value = {
@@ -30,9 +29,9 @@ class TestCreateChatCompletion(TestCase):
         }
         mock_completion.return_value = mock_response
 
-        # Call function
+        # Call function with api_key
         messages = [{"role": "user", "content": "Hello"}]
-        result = create_chat_completion(messages)
+        result = create_chat_completion(messages, api_key="test-api-key")
 
         # Verify result
         self.assertEqual(result["id"], "chatcmpl-123")
@@ -57,7 +56,7 @@ class TestCreateChatCompletion(TestCase):
 
         # Call function with custom model
         messages = [{"role": "user", "content": "Test"}]
-        result = create_chat_completion(messages, model="gpt-3.5-turbo")
+        result = create_chat_completion(messages, model="gpt-3.5-turbo", api_key="test-api-key")
 
         # Verify litellm.completion was called with custom model
         mock_completion.assert_called_once_with(
@@ -78,7 +77,7 @@ class TestCreateChatCompletion(TestCase):
 
         # Call function with custom max_tokens
         messages = [{"role": "user", "content": "Test"}]
-        result = create_chat_completion(messages, max_tokens=1000)
+        result = create_chat_completion(messages, max_tokens=1000, api_key="test-api-key")
 
         # Verify litellm.completion was called with custom max_tokens
         mock_completion.assert_called_once_with(
@@ -99,7 +98,7 @@ class TestCreateChatCompletion(TestCase):
 
         # Call function with custom temperature
         messages = [{"role": "user", "content": "Test"}]
-        result = create_chat_completion(messages, temperature=0.3)
+        result = create_chat_completion(messages, temperature=0.3, api_key="test-api-key")
 
         # Verify litellm.completion was called with custom temperature
         mock_completion.assert_called_once_with(
@@ -108,27 +107,6 @@ class TestCreateChatCompletion(TestCase):
             max_tokens=500,
             temperature=0.3,
             api_key="test-api-key",
-        )
-
-    @patch("ask.helpers.llm.litellm.completion")
-    def test_create_chat_completion_with_custom_api_key(self, mock_completion):
-        """Test creating a chat completion with custom API key."""
-        # Setup mock response
-        mock_response = Mock()
-        mock_response.to_dict.return_value = {"id": "chatcmpl-def"}
-        mock_completion.return_value = mock_response
-
-        # Call function with custom API key
-        messages = [{"role": "user", "content": "Test"}]
-        result = create_chat_completion(messages, api_key="custom-key")
-
-        # Verify litellm.completion was called with custom API key
-        mock_completion.assert_called_once_with(
-            model="gpt-4",
-            messages=messages,
-            max_tokens=500,
-            temperature=0.7,
-            api_key="custom-key",
         )
 
     @patch("ask.helpers.llm.litellm.completion")
@@ -179,7 +157,7 @@ class TestCreateChatCompletion(TestCase):
             {"role": "assistant", "content": "Python is a programming language."},
             {"role": "user", "content": "Tell me more."},
         ]
-        result = create_chat_completion(messages)
+        result = create_chat_completion(messages, api_key="test-api-key")
 
         # Verify litellm.completion was called with the message list
         mock_completion.assert_called_once_with(
@@ -201,7 +179,7 @@ class TestCreateChatCompletion(TestCase):
 
         # Call function with temperature=0
         messages = [{"role": "user", "content": "Test"}]
-        result = create_chat_completion(messages, temperature=0)
+        result = create_chat_completion(messages, temperature=0, api_key="test-api-key")
 
         # Verify temperature=0 is passed (not treated as None/default)
         mock_completion.assert_called_once_with(
@@ -236,7 +214,7 @@ class TestCreateChatCompletion(TestCase):
 
         # Call function
         messages = [{"role": "user", "content": "Test"}]
-        result = create_chat_completion(messages)
+        result = create_chat_completion(messages, api_key="test-api-key")
 
         # Verify to_dict() was called
         mock_response.to_dict.assert_called_once()
@@ -256,7 +234,7 @@ class TestCreateChatCompletion(TestCase):
 
         # Call function with gpt-5 model (should exclude temperature)
         messages = [{"role": "user", "content": "Test"}]
-        result = create_chat_completion(messages, model="gpt-5-turbo")
+        result = create_chat_completion(messages, model="gpt-5-turbo", api_key="test-api-key")
 
         # Verify litellm.completion was called WITHOUT temperature parameter
         mock_completion.assert_called_once_with(
@@ -277,7 +255,7 @@ class TestCreateChatCompletion(TestCase):
         # Call function with gpt-5 model and custom temperature
         # Custom temperature should be ignored
         messages = [{"role": "user", "content": "Test"}]
-        result = create_chat_completion(messages, model="gpt-5-preview", temperature=0.8)
+        result = create_chat_completion(messages, model="gpt-5-preview", temperature=0.8, api_key="test-api-key")
 
         # Verify litellm.completion was called WITHOUT temperature parameter
         mock_completion.assert_called_once_with(
@@ -297,7 +275,7 @@ class TestCreateChatCompletion(TestCase):
 
         # Call function with gpt-5 model and temperature=0
         messages = [{"role": "user", "content": "Test"}]
-        result = create_chat_completion(messages, model="gpt-5", temperature=0)
+        result = create_chat_completion(messages, model="gpt-5", temperature=0, api_key="test-api-key")
 
         # Verify litellm.completion was called WITHOUT temperature parameter
         mock_completion.assert_called_once_with(
@@ -322,7 +300,7 @@ class TestCreateChatCompletion(TestCase):
             mock_completion.reset_mock()
 
             messages = [{"role": "user", "content": "Test"}]
-            result = create_chat_completion(messages, model=model, temperature=0.5)
+            result = create_chat_completion(messages, model=model, temperature=0.5, api_key="test-api-key")
 
             # Verify litellm.completion was called WITH temperature parameter
             mock_completion.assert_called_once_with(
@@ -348,7 +326,7 @@ class TestCreateChatCompletion(TestCase):
             mock_completion.reset_mock()
 
             messages = [{"role": "user", "content": "Test"}]
-            result = create_chat_completion(messages, model=model)
+            result = create_chat_completion(messages, model=model, api_key="test-api-key")
 
             # Verify litellm.completion was called WITHOUT temperature parameter
             mock_completion.assert_called_once()

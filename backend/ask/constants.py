@@ -5,6 +5,7 @@ class AIProvider(TextChoices):
     OPENAI = "openai", "OpenAI"
     ANTHROPIC = "anthropic", "Anthropic"
     GOOGLE = "google", "Google"
+    CUSTOM = "custom", "Custom"
 
 
 class AskRequestStatus(TextChoices):

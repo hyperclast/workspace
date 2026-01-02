@@ -24,25 +24,76 @@ export class AskError extends Error {
  *
  * @param {string} query - The question to ask
  * @param {string[]} pageIds - Optional array of page IDs to provide as context
+ * @param {Object} options - Optional parameters
+ * @param {string} options.provider - Provider to use (openai, anthropic, google, custom)
+ * @param {string} options.configId - Specific config ID to use
+ * @param {string} options.model - Model ID to use
  * @returns {Promise<Object>} Response with answer and page citations
  * @throws {AskError} If the API request fails
  */
-export async function askQuestion(query, pageIds = []) {
+export async function askQuestion(query, pageIds = [], options = {}) {
+  const body = {
+    query: query,
+    page_ids: pageIds,
+  };
+
+  if (options.provider) {
+    body.provider = options.provider;
+  }
+  if (options.configId) {
+    body.config_id = options.configId;
+  }
+  if (options.model) {
+    body.model = options.model;
+  }
+
   const response = await csrfFetch(`${API_BASE_URL}/api/ask/`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    credentials: "include", // Include session cookie
-    body: JSON.stringify({
-      query: query,
-      page_ids: pageIds,
-    }),
+    credentials: "include",
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
     const errorData = await response.json();
     throw new AskError(errorData.error, errorData.message, response.status);
+  }
+
+  return response.json();
+}
+
+/**
+ * Fetch available AI providers for the current user
+ *
+ * @returns {Promise<Array>} Array of available provider configs
+ */
+export async function fetchAvailableProviders() {
+  const response = await fetch(`${API_BASE_URL}/api/ai/providers/available/`, {
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    return [];
+  }
+
+  return response.json();
+}
+
+/**
+ * Fetch available models for a specific provider
+ *
+ * @param {string} provider - Provider ID (openai, anthropic, google, custom)
+ * @returns {Promise<Object>} Object with models array and default_model
+ */
+export async function fetchProviderModels(provider) {
+  const response = await fetch(`${API_BASE_URL}/api/ai/models/${provider}/`, {
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    return { provider, models: [], default_model: null };
   }
 
   return response.json();

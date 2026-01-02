@@ -144,3 +144,32 @@ export async function syncPageLinks(externalId, content = null) {
   }
   return response.json();
 }
+
+// AI Indexing API
+
+/**
+ * Fetch the indexing status for the current user's pages.
+ * @returns {Promise<{total_pages: number, indexed_pages: number, pending_pages: number, has_valid_provider: boolean}>}
+ */
+export async function fetchIndexingStatus() {
+  const response = await csrfFetch(`${API_BASE}/ai/indexing/status/`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch indexing status: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Trigger indexing of all unindexed pages.
+ * @returns {Promise<{triggered: boolean, pages_queued: number, message: string}>}
+ */
+export async function triggerIndexing() {
+  const response = await csrfFetch(`${API_BASE}/ai/indexing/trigger/`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || `Failed to trigger indexing: ${response.statusText}`);
+  }
+  return response.json();
+}

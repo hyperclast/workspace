@@ -7,6 +7,10 @@ from django.utils.html import format_html
 from .forms import ProfileAdminForm
 from .models import Org, OrgMember, PersonalEmailDomain, Profile, StripeLog
 
+admin.site.site_header = "Hyperclast Admin"
+admin.site.site_title = "Hyperclast"
+admin.site.index_title = "Administration"
+
 
 class OrgMemberInline(admin.TabularInline):
     model = OrgMember
@@ -21,6 +25,7 @@ class OrgAdmin(admin.ModelAdmin):
     list_filter = ["created"]
     search_fields = ["name", "domain", "external_id"]
     readonly_fields = ["external_id", "created", "modified"]
+    date_hierarchy = "created"
     inlines = [OrgMemberInline]
 
     def member_count(self, obj):
@@ -36,6 +41,7 @@ class OrgMemberAdmin(admin.ModelAdmin):
     search_fields = ["org__name", "user__email"]
     autocomplete_fields = ["org", "user"]
     readonly_fields = ["created"]
+    list_select_related = ["org", "user"]
 
 
 @admin.register(get_user_model())
@@ -50,6 +56,8 @@ class UserAdmin(BaseUserAdmin):
         "profile_link",
     ]
     list_display_links = ["email"]
+    search_fields = ["email", "username", "first_name", "last_name"]
+    date_hierarchy = "date_joined"
 
     def profile_link(self, obj):
         if hasattr(obj, "profile") and obj.profile is not None:

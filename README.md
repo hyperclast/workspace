@@ -13,8 +13,12 @@ Collaborative workspace with real-time editing, bidirectional links, and AI-powe
 Create `backend/.env-docker`:
 
 ```sh
-cat << 'EOF' > backend/.env-docker
-WS_SECRET_KEY=change_this_secret_key
+SECRET_KEY=$(openssl rand -base64 32)
+ENCRYPTION_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+
+cat << EOF > backend/.env-docker
+WS_SECRET_KEY=${SECRET_KEY}
+WS_ENCRYPTION_KEY=${ENCRYPTION_KEY}
 WS_DB_USER=hyperclast
 WS_DB_PASSWORD=hyperclast_pw
 WS_DB_NAME=hyperclast
@@ -25,66 +29,14 @@ EOF
 Run:
 
 ```sh
-./run-stack.sh          # port 9800
-./run-stack.sh 9810     # alternate port
+./run-stack.sh 9800     # webapp available at localhost:9800
 ```
 
-See `backend/.env-template` for all options.
+See `backend/.env-template` for all configuration options.
 
-## Local Development
+## Development
 
-### Backend
-
-```sh
-cd backend
-cp .env-template .env   # then edit with your values
-uv sync --group dev
-uv run pre-commit install
-git config core.hooksPath backend/.githooks
-uv run manage.py migrate
-uv run manage.py runserver_plus 9800
-```
-
-Tests: `uv run manage.py test --parallel`
-
-### Frontend
-
-```sh
-cd frontend
-nvm use && npm install
-npm run dev
-```
-
-Tests: `npm test`
-
-### Running All Tests
-
-```sh
-./run-tests.sh                     # Full suite with dedicated Docker stack
-./run-tests.sh --use-existing 9800 # Against running dev stack (faster)
-./run-tests.sh --backend --frontend # Skip E2E tests
-```
-
-See [E2E Testing Guide](docs/e2e-testing.md) for more options.
-
-### Performance Testing
-
-```sh
-cd frontend
-npm run test:collab        # Run performance & collaboration tests
-npm run test:collab:headed # Run with visible browser
-```
-
-See [Performance Monitoring](docs/performance.md) for metrics, debugging, and architecture details.
-
-### AI Search (Optional)
-
-Add to your `.env`:
-
-```
-WS_ASK_FEATURE_ENABLED=true
-WS_OPENAI_API_KEY=<your-key>
-```
+See [Local Development Guide](docs/local-development.md) for running without Docker.
 
 ## License
 

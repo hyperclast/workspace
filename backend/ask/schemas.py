@@ -23,6 +23,9 @@ class AskIn(Schema):
 
     query: str = Field(..., min_length=1, max_length=10000)
     page_ids: List[str] = Field(default_factory=list)
+    provider: Optional[str] = None
+    config_id: Optional[str] = None
+    model: Optional[str] = None
 
 
 class AskOut(Schema):

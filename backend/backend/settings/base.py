@@ -44,6 +44,9 @@ INSTALLED_APPS = [
 
 AUTH_USER_MODEL = "users.User"
 
+HIJACK_LOGOUT_REDIRECT_URL = "/admin/users/user/"
+HIJACK_PERMISSION_CHECK = lambda hijacker, hijacked: hijacker.is_superuser
+
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
     "allauth.account.auth_backends.AuthenticationBackend",
@@ -329,14 +332,13 @@ PROJECT_INVITATION_TOKEN_EXPIRES_IN = timedelta(days=7)
 PROJECT_INVITATION_PENDING_TOKEN_SESSION_KEY = "pending_project_invitation_token"
 PROJECT_INVITATION_PENDING_EMAIL_SESSION_KEY = "pending_project_invitation_email"
 
-# OpenaAI
-OPENAI_API_KEY = config("WS_OPENAI_API_KEY", default=None)
+# OpenAI defaults (API keys are now configured per-user/org via AIProviderConfig)
 OPENAI_DEFAULT_CHAT_MODEL = "gpt-4o"
 OPENAI_DEFAULT_CHAT_MAX_TOKENS = 1500
 OPENAI_DEFAULT_CHAT_TEMPERATURE = 0.3
 
 # Ask feature
-ASK_FEATURE_ENABLED = config("WS_ASK_FEATURE_ENABLED", cast=bool, default=False)
+ASK_FEATURE_ENABLED = config("WS_ASK_FEATURE_ENABLED", cast=bool, default=True)
 ASK_EMBEDDINGS_DEFAULT_MODEL = "text-embedding-3-small"
 ASK_EMBEDDINGS_DEFAULT_ENCODING = "cl100k_base"
 ASK_EMBEDDINGS_DEFAULT_MAX_INPUT = 8191

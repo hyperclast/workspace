@@ -19,6 +19,8 @@ class ProjectAdmin(admin.ModelAdmin):
     search_fields = ["name", "external_id", "org__name", "creator__email"]
     readonly_fields = ["external_id", "created", "modified"]
     autocomplete_fields = ["org", "creator"]
+    date_hierarchy = "created"
+    list_select_related = ["org", "creator"]
     inlines = [PageInline]
 
     def page_count(self, obj):
@@ -41,6 +43,8 @@ class PageAdmin(admin.ModelAdmin):
     search_fields = ["title", "external_id", "creator__email", "project__name"]
     readonly_fields = ["external_id", "created", "modified", "updated"]
     autocomplete_fields = ["project", "creator"]
+    date_hierarchy = "created"
+    list_select_related = ["project", "creator"]
     inlines = [PageEditorInline]
 
     def project_link(self, obj):

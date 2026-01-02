@@ -14,11 +14,29 @@ RETRY_ERROR_TYPES = (
 )
 
 
+def _resolve_api_key(user=None, api_key=None):
+    """Resolve API key from user's AIProviderConfig if not provided."""
+    if api_key:
+        return api_key
+
+    if user:
+        from users.models import AIProviderConfig
+
+        config = AIProviderConfig.objects.get_config_for_request(user)
+        if config:
+            return config.api_key
+
+    return None
+
+
 @retry_with_exponential_backoff(errors=RETRY_ERROR_TYPES)
 def create_embedding(input_data: str, **options) -> List[float]:
     """Creates embedding for the given `input_data`."""
     model = options.get("model", settings.ASK_EMBEDDINGS_DEFAULT_MODEL)
-    api_key = options.get("api_key", settings.OPENAI_API_KEY)
+    api_key = _resolve_api_key(user=options.get("user"), api_key=options.get("api_key"))
+
+    if not api_key:
+        raise ValueError("api_key is required for creating embeddings - configure an AI provider in settings")
 
     return embedding(input=[input_data], model=model, api_key=api_key).data[0]["embedding"]
 
@@ -40,23 +58,23 @@ def truncate_input_data(data: str, encoding_name: str, max_tokens: int) -> str:
 
 def compute_embedding(
     data: str,
+    user=None,
+    api_key: Optional[str] = None,
     model: Optional[str] = None,
     encoding_name: Optional[str] = None,
     max_tokens: Optional[int] = None,
-    api_key: Optional[str] = None,
     raise_exception: Optional[bool] = False,
 ) -> Union[List[float], None]:
-    """Computes embedding for given `data`."""
+    """Computes embedding for given `data`. Requires user or api_key to resolve credentials."""
     embedding = None
 
     try:
-        api_key = api_key or settings.OPENAI_API_KEY
         model = model or settings.ASK_EMBEDDINGS_DEFAULT_MODEL
         encoding_name = encoding_name or settings.ASK_EMBEDDINGS_DEFAULT_ENCODING
         max_tokens = max_tokens or settings.ASK_EMBEDDINGS_DEFAULT_MAX_INPUT
 
         input_data = truncate_input_data(data=data, encoding_name=encoding_name, max_tokens=max_tokens)
-        embedding = create_embedding(input_data=input_data, model=model, api_key=api_key)
+        embedding = create_embedding(input_data=input_data, model=model, api_key=api_key, user=user)
 
     except Exception as e:
         if raise_exception:

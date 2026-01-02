@@ -10,6 +10,7 @@ from django_extensions.db.models import TimeStampedModel
 from litellm.exceptions import APIError
 
 from ask.constants import AIProvider, AskRequestError, AskRequestStatus
+from ask.exceptions import AIKeyNotConfiguredError
 from ask.helpers import build_ask_request_messages, compute_embedding, create_chat_completion, parse_mentions
 from ask.schemas import AskOut, PageReference
 from backend.utils import log_error, log_info, log_warning
@@ -22,7 +23,15 @@ User = get_user_model()
 
 
 class AskRequestManager(models.Manager):
-    def process_query(self, query: str, user, page_ids: Optional[List[str]] = None):
+    def process_query(
+        self,
+        query: str,
+        user,
+        page_ids: Optional[List[str]] = None,
+        provider: Optional[str] = None,
+        config_id: Optional[str] = None,
+        model: Optional[str] = None,
+    ):
         ask_request = self.create(
             user=user,
             query=query,
@@ -64,7 +73,7 @@ class AskRequestManager(models.Manager):
                 pages = list(Page.objects.get_user_editable_pages(user).filter(external_id__in=priority_page_ids))
             # Otherwise, use similarity search
             else:
-                input_embedding = compute_embedding(question)
+                input_embedding = compute_embedding(question, user=user)
                 search_page_ids = list(
                     PageEmbedding.objects.similarity_search(
                         user=user, input_embedding=input_embedding, limit=limit
@@ -77,10 +86,26 @@ class AskRequestManager(models.Manager):
                 return ask_request
 
             messages = build_ask_request_messages(question, pages)
-            response = create_chat_completion(messages=messages)
+
+            from ask.helpers.llm import get_ai_config_for_user
+
+            resolved_config = None
+            resolved_provider = provider
+            try:
+                resolved_config = get_ai_config_for_user(user, provider=provider, config_id=config_id)
+                resolved_provider = resolved_config.provider
+            except Exception:
+                pass
+
+            response = create_chat_completion(
+                messages=messages,
+                user=user,
+                provider=provider,
+                config_id=config_id,
+                model=model,
+            )
             answer = response["choices"][0]["message"]["content"]
 
-            # Build results using AskOut schema
             page_references = [
                 PageReference(
                     external_id=str(n.external_id),
@@ -99,7 +124,17 @@ class AskRequestManager(models.Manager):
             ask_request.replied = timezone.now()
             ask_request.details = response
             ask_request.status = AskRequestStatus.OK.value
+            if resolved_provider:
+                ask_request.provider = resolved_provider
+            if resolved_config:
+                ask_request.ai_config = resolved_config
             ask_request.save()
+
+        except AIKeyNotConfiguredError as e:
+            log_error("AI key not configured for user %s: %s", user, e)
+            ask_request.error = "ai_key_not_configured"
+            ask_request.status = AskRequestStatus.FAILED.value
+            ask_request.save(update_fields=["status", "error", "modified"])
 
         except Exception as e:
             log_error("Error processing query %s from user %s: %s", ask_request, user, e)
@@ -115,6 +150,14 @@ class AskRequest(TimeStampedModel):
         on_delete=models.SET_NULL,
         related_name="ask_requests",
         null=True,
+        default=None,
+    )
+    ai_config = models.ForeignKey(
+        "users.AIProviderConfig",
+        on_delete=models.SET_NULL,
+        related_name="ask_requests",
+        null=True,
+        blank=True,
         default=None,
     )
     external_id = models.UUIDField(
