@@ -15,7 +15,9 @@
     Quote,
     Code,
     FileCode,
-    Link2
+    Link2,
+    Undo2,
+    Redo2
   } from "lucide-static";
   import { openSidebar, setActiveTab } from "../stores/sidebar.svelte.js";
   import { toggleCheckbox } from "../../decorateFormatting.js";
@@ -216,6 +218,20 @@
     editorView.focus();
   }
 
+  function handleUndo() {
+    const um = window.undoManager;
+    if (!um) return;
+    um.undo();
+    window.editorView?.focus();
+  }
+
+  function handleRedo() {
+    const um = window.undoManager;
+    if (!um) return;
+    um.redo();
+    window.editorView?.focus();
+  }
+
   function insertTable() {
     if (!editorView || !tableUtils?.generateTable) return;
 
@@ -349,6 +365,15 @@
 <div class="toolbar-wrapper">
   <div class="toolbar">
     <div class="toolbar-container">
+      <button class="toolbar-btn" title="Undo (Cmd+Z)" onmousedown={(e) => { e.preventDefault(); handleUndo(); }}>
+        {@html Undo2}
+      </button>
+      <button class="toolbar-btn" title="Redo (Cmd+Shift+Z)" onmousedown={(e) => { e.preventDefault(); handleRedo(); }}>
+        {@html Redo2}
+      </button>
+
+      <span class="toolbar-separator"></span>
+
       <button class="toolbar-btn" title="Bold (Cmd+B)" onmousedown={(e) => { e.preventDefault(); toggleFormat("**"); }}>
         {@html Bold}
       </button>

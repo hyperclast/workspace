@@ -19,7 +19,7 @@ export const sectionFoldHover = ViewPlugin.fromClass(
     update(update) {
       if (update.docChanged) {
         this.updateSections();
-        this.updateGutterVisibility();
+        requestAnimationFrame(() => this.updateGutterVisibility());
       }
     }
 

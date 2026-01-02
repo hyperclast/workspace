@@ -551,7 +551,7 @@
       <div class="settings-footer-column">
         <h4>Contact</h4>
         <a href="mailto:support@hyperclast.com">support@hyperclast.com</a>
-        <p class="address">548 Market St #42127<br />San Francisco CA 94104</p>
+        <p class="address">histre inc<br />548 Market St #42127<br />San Francisco CA 94104</p>
       </div>
       <div class="settings-footer-column">
         <h4>Learn More</h4>

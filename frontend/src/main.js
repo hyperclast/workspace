@@ -141,12 +141,8 @@ function renderAppHTML() {
                   </div>
                 </div>
                 <div id="note-actions" class="note-actions">
-                  <button id="actions-btn" class="actions-btn" title="More actions">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <circle cx="12" cy="12" r="1"></circle>
-                      <circle cx="12" cy="5" r="1"></circle>
-                      <circle cx="12" cy="19" r="1"></circle>
-                    </svg>
+                  <button id="actions-btn" class="actions-btn" title="Page options">
+                    Options <span class="btn-chevron">▾</span>
                   </button>
                   <div id="actions-dropdown" class="actions-dropdown" style="display: none;">
                     <button id="share-project-btn" class="actions-dropdown-item">
@@ -165,6 +161,12 @@ function renderAppHTML() {
                     <button id="change-type-btn" class="actions-dropdown-item">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M9 15l2 2 4-4"></path></svg>
                       Change type
+                    </button>
+                    <div class="actions-dropdown-divider"></div>
+                    <div class="actions-dropdown-label">Tasks</div>
+                    <button id="clear-completed-btn" class="actions-dropdown-item">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="m9 11 3 3L22 4"></path></svg>
+                      Clear done
                     </button>
                     <div class="actions-dropdown-divider"></div>
                     <button id="delete-note-btn" class="actions-dropdown-item danger">
@@ -533,10 +535,18 @@ async function loadPage(page) {
   setCurrentPageId(page.external_id);
   notifyPageChange(page.external_id);
 
-  // Show/hide actions menu based on ownership
-  const pageActions = document.getElementById("note-actions");
-  if (pageActions) {
-    pageActions.style.display = page.is_owner ? "block" : "none";
+  // Disable delete button for non-owners with explanation
+  const deleteNoteBtn = document.getElementById("delete-note-btn");
+  if (deleteNoteBtn) {
+    if (page.is_owner) {
+      deleteNoteBtn.disabled = false;
+      deleteNoteBtn.title = "Delete page";
+      deleteNoteBtn.classList.remove("disabled");
+    } else {
+      deleteNoteBtn.disabled = true;
+      deleteNoteBtn.title = "Only the page creator can delete this page";
+      deleteNoteBtn.classList.add("disabled");
+    }
   }
 
   const content = page.details?.content || "";
@@ -680,6 +690,7 @@ async function setupCollaborationAsync(page, restContent, filetype) {
 
   collabSpan.addEvent("create_collab_objects_start");
   collabObjects = createCollaborationObjects(pageId, displayName);
+  window.undoManager = collabObjects.undoManager;
   collabSpan.addEvent("create_collab_objects_complete");
 
   // If collaboration is not available (access denied from cache), stay in REST-only mode
@@ -948,6 +959,7 @@ function cleanupCurrentPage() {
   if (collabObjects) {
     destroyCollaboration(collabObjects);
     collabObjects = null;
+    window.undoManager = null;
   }
 
   if (window.editorView) {
@@ -1323,6 +1335,45 @@ function openCreatePageDialog(projectId) {
   });
 }
 
+function clearCompletedTasks() {
+  const view = window.editorView;
+  if (!view) return;
+
+  const doc = view.state.doc;
+  const checkedPattern = /^\s*- \[[xX]\]/;
+  const linesToDelete = [];
+
+  for (let i = 1; i <= doc.lines; i++) {
+    const line = doc.line(i);
+    if (checkedPattern.test(line.text)) {
+      linesToDelete.push({ from: line.from, to: line.to });
+    }
+  }
+
+  if (linesToDelete.length === 0) {
+    showToast("No completed tasks to clear", "info");
+    return;
+  }
+
+  const changes = [];
+  for (let i = linesToDelete.length - 1; i >= 0; i--) {
+    const { from, to } = linesToDelete[i];
+    const deleteFrom = from;
+    const deleteTo = to < doc.length ? to + 1 : to;
+    if (from > 0 && deleteTo === doc.length) {
+      changes.push({ from: from - 1, to: to });
+    } else {
+      changes.push({ from: deleteFrom, to: deleteTo });
+    }
+  }
+
+  view.dispatch({ changes });
+  showToast(
+    `Cleared ${linesToDelete.length} completed task${linesToDelete.length === 1 ? "" : "s"}`,
+    "success"
+  );
+}
+
 /**
  * Setup note actions dropdown (delete, etc.)
  */
@@ -1380,6 +1431,7 @@ function setupNoteActions() {
 
   if (deleteNoteBtn) {
     deleteNoteBtn.addEventListener("click", () => {
+      if (deleteNoteBtn.disabled) return;
       actionsDropdown.style.display = "none";
       if (!currentPage) return;
       openDeleteModal();
@@ -1396,6 +1448,14 @@ function setupNoteActions() {
         currentType: currentPage.details?.filetype || "md",
         pageContent: currentPage.details?.content || "",
       });
+    });
+  }
+
+  const clearCompletedBtn = document.getElementById("clear-completed-btn");
+  if (clearCompletedBtn) {
+    clearCompletedBtn.addEventListener("click", () => {
+      actionsDropdown.style.display = "none";
+      clearCompletedTasks();
     });
   }
 

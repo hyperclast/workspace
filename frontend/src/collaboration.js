@@ -10,6 +10,21 @@ import { WS_HOST } from "./config.js";
 // Track pages that have had access denied - don't retry these
 const accessDeniedPages = new Set();
 
+// Global error handler to catch Yjs decoding errors
+// These can happen when WebSocket messages are corrupted or truncated
+window.addEventListener("error", (event) => {
+  if (event.message?.includes("Unexpected end of array")) {
+    console.error("[Yjs Decode Error] Caught decoding error:", {
+      message: event.message,
+      filename: event.filename,
+      lineno: event.lineno,
+      colno: event.colno,
+    });
+    // Prevent the error from propagating (optional - remove if you want to see it in console)
+    // event.preventDefault();
+  }
+});
+
 /**
  * Create collaboration objects for a page.
  * This should be called BEFORE creating the editor view.
@@ -167,9 +182,13 @@ export function createCollaborationObjects(pageExternalId, displayName = "Anonym
   });
 
   // Listen to awareness changes (who joined/left)
-  awareness.on("change", () => {
-    const states = awareness.getStates();
-    console.log("Awareness changed, total users:", states.size);
+  awareness.on("change", (changes, origin) => {
+    try {
+      const states = awareness.getStates();
+      console.log("Awareness changed, total users:", states.size, "origin:", origin);
+    } catch (e) {
+      console.error("[Awareness Error] Error in awareness change handler:", e);
+    }
   });
 
   // Listen for custom messages (like access revocation, links updated, errors)
@@ -237,7 +256,64 @@ export function createCollaborationObjects(pageExternalId, displayName = "Anonym
     }
   });
 
+  // Add debug logging for binary WebSocket messages and fix text message handling
+  const setupBinaryMessageDebug = () => {
+    if (!provider.ws) return;
+
+    const originalOnMessage = provider.ws.onmessage;
+    provider.ws.onmessage = (event) => {
+      const isBinary = event.data instanceof ArrayBuffer || event.data instanceof Blob;
+
+      if (isBinary) {
+        const size = event.data instanceof ArrayBuffer ? event.data.byteLength : event.data.size;
+        console.log("[WS Binary] Received binary message:", size, "bytes");
+
+        // Log first few bytes for debugging if it's an ArrayBuffer
+        if (event.data instanceof ArrayBuffer && size > 0) {
+          const view = new Uint8Array(event.data);
+          const preview = Array.from(view.slice(0, 10))
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join(" ");
+          console.log("[WS Binary] First bytes:", preview, size > 10 ? "..." : "");
+        }
+
+        // Only pass BINARY messages to y-websocket handler
+        // Text messages (like links_updated JSON) are handled by setupMessageListener
+        if (originalOnMessage) {
+          try {
+            originalOnMessage.call(provider.ws, event);
+          } catch (e) {
+            console.error("[WS Binary] Error processing binary message:", e, {
+              size: size,
+            });
+          }
+        }
+      } else {
+        // Text message - log it but DON'T pass to y-websocket (it can't handle text)
+        // Our setupMessageListener handles text messages separately via addEventListener
+        console.log("[WS Text] Received text message:", event.data?.substring?.(0, 100));
+      }
+    };
+  };
+
+  // Setup binary debug when connected
+  provider.on("status", ({ status }) => {
+    if (status === "connected") {
+      setupBinaryMessageDebug();
+    }
+  });
+
+  // Listen for ydoc updates to catch any errors
+  ydoc.on("update", (update, origin) => {
+    console.log("[Ydoc Update] Received update:", update.byteLength, "bytes, origin:", origin);
+  });
+
   console.log("Collaboration objects created for page:", pageExternalId);
+
+  // Create UndoManager for undo/redo with collaborative editing
+  const undoManager = new Y.UndoManager(ytext, {
+    captureTimeout: 500,
+  });
 
   // Return objects for use in editor and cleanup
   // Extension is created lazily after sync completes to ensure ytext has content
@@ -247,9 +323,10 @@ export function createCollaborationObjects(pageExternalId, displayName = "Anonym
     provider,
     ytext,
     awareness,
+    undoManager,
     get extension() {
       if (!_extension) {
-        _extension = yCollab(ytext, awareness);
+        _extension = yCollab(ytext, awareness, { undoManager });
         console.log("yCollab extension created, ytext.length=" + ytext.length);
       }
       return _extension;
