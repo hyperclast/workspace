@@ -3,8 +3,9 @@ from urllib.parse import quote
 from django.conf import settings
 from django.contrib import messages
 from django.shortcuts import redirect, render
+from django.utils.html import escape
 
-from .models import PageInvitation, ProjectInvitation
+from .models import Page, PageInvitation, ProjectInvitation
 
 
 def accept_invitation(request, token):
@@ -142,3 +143,62 @@ def accept_project_invitation(request, token):
     signup_url = f"/accounts/signup/?next={quote(invitation.project.project_url, safe='')}"
 
     return redirect(signup_url)
+
+
+def render_markdown_simple(content):
+    """Convert markdown-like content to simple HTML for read-only display.
+
+    Only handles basic formatting - paragraphs and line breaks.
+    Content is already escaped before this function is called.
+    """
+    if not content:
+        return ""
+
+    # Split by double newlines for paragraphs
+    paragraphs = content.split("\n\n")
+    html_parts = []
+
+    for para in paragraphs:
+        if para.strip():
+            # Convert single newlines to <br>
+            para_html = para.replace("\n", "<br>")
+            html_parts.append(f"<p>{para_html}</p>")
+
+    return "".join(html_parts)
+
+
+def shared_page(request, access_code):
+    """Display a read-only view of a shared page.
+
+    This view is public (no authentication required).
+    Security is provided by the unguessable 43-character access code.
+    """
+    # Get the page
+    try:
+        page = Page.objects.get(access_code=access_code, is_deleted=False)
+    except Page.DoesNotExist:
+        return render(
+            request,
+            "pages/shared_page.html",
+            {
+                "error": True,
+                "error_message": "This page doesn't exist or is no longer shared.",
+                "brand_name": settings.BRAND_NAME,
+            },
+            status=404,
+        )
+
+    # Get page content
+    content = page.details.get("content", "") if page.details else ""
+
+    return render(
+        request,
+        "pages/shared_page.html",
+        {
+            "page": page,
+            "title": escape(page.title or "Untitled"),
+            "content_html": render_markdown_simple(escape(content)),
+            "updated": page.updated,
+            "brand_name": settings.BRAND_NAME,
+        },
+    )

@@ -173,3 +173,34 @@ export async function triggerIndexing() {
   }
   return response.json();
 }
+
+// Access Code API (Read-only sharing)
+
+/**
+ * Generate or retrieve a read-only access code for a page.
+ * @param {string} pageExternalId - External ID of the page
+ * @returns {Promise<{access_code: string}>}
+ */
+export async function generateAccessCode(pageExternalId) {
+  const response = await csrfFetch(`${API_BASE}/pages/${pageExternalId}/access-code/`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to generate access code: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Remove the read-only access code from a page.
+ * @param {string} pageExternalId - External ID of the page
+ * @returns {Promise<void>}
+ */
+export async function removeAccessCode(pageExternalId) {
+  const response = await csrfFetch(`${API_BASE}/pages/${pageExternalId}/access-code/`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to remove access code: ${response.statusText}`);
+  }
+}

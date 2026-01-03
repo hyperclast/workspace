@@ -5,7 +5,9 @@
   import CreateProjectModal from './CreateProjectModal.svelte';
   import NewPageModal from './NewPageModal.svelte';
   import ChangePageTypeModal from './ChangePageTypeModal.svelte';
-  import { getConfirmState, getPromptState, getShareProjectState, getCreateProjectState, getNewPageState, getChangePageTypeState } from '../stores/modal.svelte.js';
+  import CommandPalette from './CommandPalette.svelte';
+  import ReadOnlyLinkModal from './ReadOnlyLinkModal.svelte';
+  import { getConfirmState, getPromptState, getShareProjectState, getCreateProjectState, getNewPageState, getChangePageTypeState, getCommandPaletteState, getReadonlyLinkState } from '../stores/modal.svelte.js';
 
   const confirmState = getConfirmState();
   const promptState = getPromptState();
@@ -13,6 +15,8 @@
   const createProjectState = getCreateProjectState();
   const newPageState = getNewPageState();
   const changePageTypeState = getChangePageTypeState();
+  const commandPaletteState = getCommandPaletteState();
+  const readonlyLinkState = getReadonlyLinkState();
 </script>
 
 <ConfirmModal
@@ -67,4 +71,20 @@
   currentType={changePageTypeState.currentType}
   pageContent={changePageTypeState.pageContent}
   onchanged={changePageTypeState.onchanged}
+/>
+
+<CommandPalette
+  bind:open={commandPaletteState.open}
+  projects={commandPaletteState.projects}
+  currentPageId={commandPaletteState.currentPageId}
+  currentProjectId={commandPaletteState.currentProjectId}
+  onselect={commandPaletteState.onselect}
+/>
+
+<ReadOnlyLinkModal
+  bind:open={readonlyLinkState.open}
+  pageExternalId={readonlyLinkState.pageExternalId}
+  pageTitle={readonlyLinkState.pageTitle}
+  accessCode={readonlyLinkState.accessCode}
+  onremove={readonlyLinkState.onremove}
 />

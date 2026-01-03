@@ -128,9 +128,11 @@ class TestSendUpdateToSubscribers(TestCase):
 
     @patch("updates.tasks.send_broadcast_email")
     def test_sends_to_active_opted_in_users(self, mock_send):
-        active_user = UserFactory(receive_product_updates=True, last_active=self.now - timedelta(days=5))
-        UserFactory(receive_product_updates=False, last_active=self.now - timedelta(days=5))
-        UserFactory(receive_product_updates=True, last_active=self.now - timedelta(days=60))
+        active_user = UserFactory(
+            profile__receive_product_updates=True, profile__last_active=self.now - timedelta(days=5)
+        )
+        UserFactory(profile__receive_product_updates=False, profile__last_active=self.now - timedelta(days=5))
+        UserFactory(profile__receive_product_updates=True, profile__last_active=self.now - timedelta(days=60))
 
         send_update_to_subscribers(self.update.id)
 
@@ -140,7 +142,7 @@ class TestSendUpdateToSubscribers(TestCase):
 
     @patch("updates.tasks.send_broadcast_email")
     def test_sets_emailed_at_after_sending(self, mock_send):
-        UserFactory(receive_product_updates=True, last_active=self.now - timedelta(days=5))
+        UserFactory(profile__receive_product_updates=True, profile__last_active=self.now - timedelta(days=5))
 
         self.assertIsNone(self.update.emailed_at)
 
@@ -152,7 +154,7 @@ class TestSendUpdateToSubscribers(TestCase):
     @patch("updates.tasks.send_broadcast_email")
     def test_sends_to_multiple_subscribers(self, mock_send):
         for i in range(5):
-            UserFactory(receive_product_updates=True, last_active=self.now - timedelta(days=5))
+            UserFactory(profile__receive_product_updates=True, profile__last_active=self.now - timedelta(days=5))
 
         send_update_to_subscribers(self.update.id)
 
@@ -171,7 +173,7 @@ class TestSendUpdateToSubscribers(TestCase):
         self.update.content = "**Bold** and *italic*"
         self.update.save()
 
-        UserFactory(receive_product_updates=True, last_active=self.now - timedelta(days=5))
+        UserFactory(profile__receive_product_updates=True, profile__last_active=self.now - timedelta(days=5))
 
         send_update_to_subscribers(self.update.id)
 
@@ -185,7 +187,7 @@ class TestSendUpdateToSubscribers(TestCase):
         mock_send.side_effect = [Exception("Failed"), None, None]
 
         for i in range(3):
-            UserFactory(receive_product_updates=True, last_active=self.now - timedelta(days=5))
+            UserFactory(profile__receive_product_updates=True, profile__last_active=self.now - timedelta(days=5))
 
         send_update_to_subscribers(self.update.id)
 
@@ -239,8 +241,16 @@ class TestSubscriberFiltering(TestCase):
 
     @patch("updates.tasks.send_broadcast_email")
     def test_excludes_users_active_more_than_30_days_ago(self, mock_send):
-        UserFactory(email="active@test.com", receive_product_updates=True, last_active=self.now - timedelta(days=29))
-        UserFactory(email="inactive@test.com", receive_product_updates=True, last_active=self.now - timedelta(days=31))
+        UserFactory(
+            email="active@test.com",
+            profile__receive_product_updates=True,
+            profile__last_active=self.now - timedelta(days=29),
+        )
+        UserFactory(
+            email="inactive@test.com",
+            profile__receive_product_updates=True,
+            profile__last_active=self.now - timedelta(days=31),
+        )
 
         send_update_to_subscribers(self.update.id)
 
@@ -250,9 +260,15 @@ class TestSubscriberFiltering(TestCase):
 
     @patch("updates.tasks.send_broadcast_email")
     def test_excludes_users_who_opted_out(self, mock_send):
-        UserFactory(email="subscribed@test.com", receive_product_updates=True, last_active=self.now - timedelta(days=5))
         UserFactory(
-            email="unsubscribed@test.com", receive_product_updates=False, last_active=self.now - timedelta(days=5)
+            email="subscribed@test.com",
+            profile__receive_product_updates=True,
+            profile__last_active=self.now - timedelta(days=5),
+        )
+        UserFactory(
+            email="unsubscribed@test.com",
+            profile__receive_product_updates=False,
+            profile__last_active=self.now - timedelta(days=5),
         )
 
         send_update_to_subscribers(self.update.id)
@@ -263,8 +279,12 @@ class TestSubscriberFiltering(TestCase):
 
     @patch("updates.tasks.send_broadcast_email")
     def test_excludes_users_with_null_last_active(self, mock_send):
-        UserFactory(email="never_visited@test.com", receive_product_updates=True, last_active=None)
-        UserFactory(email="visited@test.com", receive_product_updates=True, last_active=self.now - timedelta(days=5))
+        UserFactory(email="never_visited@test.com", profile__receive_product_updates=True, profile__last_active=None)
+        UserFactory(
+            email="visited@test.com",
+            profile__receive_product_updates=True,
+            profile__last_active=self.now - timedelta(days=5),
+        )
 
         send_update_to_subscribers(self.update.id)
 

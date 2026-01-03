@@ -46,7 +46,7 @@ INSTALLED_APPS = [
 AUTH_USER_MODEL = "users.User"
 
 HIJACK_LOGOUT_REDIRECT_URL = "/admin/users/user/"
-HIJACK_PERMISSION_CHECK = lambda hijacker, hijacked: hijacker.is_superuser
+HIJACK_PERMISSION_CHECK = "users.utils.can_hijack_user"
 
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",

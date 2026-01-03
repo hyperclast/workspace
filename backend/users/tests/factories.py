@@ -13,6 +13,11 @@ TEST_USER_PASSWORD = "testpass1234"
 
 
 class UserFactory(factory.django.DjangoModelFactory):
+    """
+    Creates User with auto-created Profile.
+    Set profile fields with profile__ prefix: UserFactory(profile__last_active=now)
+    """
+
     class Meta:
         model = User
         exclude = "text_password"

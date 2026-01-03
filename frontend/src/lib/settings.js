@@ -3,8 +3,11 @@
  */
 
 import { mount } from "svelte";
+import { setupCommandPalette } from "./commandPaletteSetup.js";
+import { fetchProjectsWithPages } from "../api.js";
 
 let mounted = false;
+let cachedProjects = [];
 
 /**
  * Initialize the settings page by mounting the Svelte component.
@@ -43,6 +46,31 @@ export default async function initSettingsPage() {
 
     mounted = true;
     console.log("[Settings] Successfully initialized");
+
+    // Setup command palette (Cmd+K / Ctrl+K)
+    // Fetch projects for navigation
+    try {
+      cachedProjects = await fetchProjectsWithPages();
+    } catch (e) {
+      console.warn("[Settings] Could not fetch projects for command palette:", e);
+      cachedProjects = [];
+    }
+
+    setupCommandPalette({
+      getProjects: () => cachedProjects,
+      // No current page/project on settings page
+      getCurrentPageId: () => null,
+      getCurrentProjectId: () => null,
+      // Navigation goes to the page URL
+      onNavigate: (pageId) => {
+        window.location.href = `/pages/${pageId}/`;
+      },
+      // Other actions navigate to main app
+      onCreatePage: null,
+      onCreateProject: null,
+      onDeletePage: null,
+      onAsk: null,
+    });
   } catch (error) {
     console.error("[Settings] Failed to initialize:", error);
     throw error;

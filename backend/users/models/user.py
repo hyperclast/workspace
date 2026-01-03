@@ -5,10 +5,13 @@ from core.fields import UniqueIDTextField
 
 
 class User(AbstractUser):
+    """
+    Authentication user model. Only contains auth-related fields.
+    Custom user attributes belong on Profile model (user.profile.*).
+    """
+
     external_id = UniqueIDTextField()
     email = models.EmailField(unique=True)
-    last_active = models.DateTimeField(null=True, blank=True)
-    receive_product_updates = models.BooleanField(default=True)
 
     def __str__(self):
         return self.email

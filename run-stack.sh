@@ -20,4 +20,17 @@ echo "Preview directory: $SOCRATIC_PREVIEW_DIR"
 echo "Starting docker-compose..."
 
 cd "$(dirname "$0")/backend"
+
+# Auto-copy .env-docker from main worktree if missing (common in new worktrees)
+if [[ ! -f .env-docker ]]; then
+    MAIN_WORKTREE=$(git worktree list --porcelain | grep -m1 '^worktree ' | cut -d' ' -f2-)
+    if [[ -f "$MAIN_WORKTREE/backend/.env-docker" ]]; then
+        echo "Copying .env-docker from main worktree..."
+        cp "$MAIN_WORKTREE/backend/.env-docker" .env-docker
+    else
+        echo "Error: .env-docker not found. Copy from backend/.env-template or another worktree."
+        exit 1
+    fi
+fi
+
 docker compose --env-file .env-docker -p "$PROJECT_NAME" up --build

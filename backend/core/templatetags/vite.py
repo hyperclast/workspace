@@ -48,12 +48,25 @@ def vite_css(entry):
         return '<link rel="stylesheet" href="/static/core/spa/assets/css/style.css">'
 
     tags = []
+    collected_css = set()
 
     entry_data = manifest.get(entry) or manifest.get(f"src/{entry}")
     if entry_data:
-        css_files = entry_data.get("css", [])
-        for css_file in css_files:
-            tags.append(f'<link rel="stylesheet" href="/static/core/spa/{css_file}">')
+        # Collect CSS from the entry point itself
+        for css_file in entry_data.get("css", []):
+            if css_file not in collected_css:
+                tags.append(f'<link rel="stylesheet" href="/static/core/spa/{css_file}">')
+                collected_css.add(css_file)
+
+        # Recursively collect CSS from all imports
+        all_imports = _collect_imports(manifest, entry)
+        for imp in all_imports:
+            imp_data = manifest.get(imp)
+            if imp_data:
+                for css_file in imp_data.get("css", []):
+                    if css_file not in collected_css:
+                        tags.append(f'<link rel="stylesheet" href="/static/core/spa/{css_file}">')
+                        collected_css.add(css_file)
 
     if not tags:
         style_entry = manifest.get("style.css") or manifest.get("src/style.css")

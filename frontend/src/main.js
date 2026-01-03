@@ -9,6 +9,7 @@ import {
   deletePage as deletePageApi,
   fetchPage as fetchPageApi,
   fetchProjectsWithPages,
+  generateAccessCode,
 } from "./api.js";
 import { metrics } from "./lib/metrics.js";
 import { getSession, logout } from "./auth.js";
@@ -23,6 +24,7 @@ import { csrfFetch } from "./csrf.js";
 import { decorateEmails } from "./decorateEmails.js";
 import {
   decorateFormatting,
+  codeFenceField,
   listKeymap,
   checkboxClickHandler,
   blockquoteKeymap,
@@ -30,6 +32,7 @@ import {
 import { decorateLinks, linkClickHandler } from "./decorateLinks.js";
 import { linkAutocomplete } from "./linkAutocomplete.js";
 import { findSectionFold } from "./findSectionFold.js";
+import { largeFileModeExtension } from "./largeFileMode.js";
 import { sectionFoldHover } from "./sectionFoldHover.js";
 import { foldChangeListener, setCurrentPageIdForFolds } from "./foldChangeListener.js";
 import { restoreFoldedRanges } from "./foldPersistence.js";
@@ -40,7 +43,9 @@ import {
   createProjectModal,
   newPageModal,
   changePageType,
+  readonlyLinkModal,
 } from "./lib/modal.js";
+import { setupCommandPalette } from "./lib/commandPaletteSetup.js";
 import { showToast } from "./lib/toast.js";
 import {
   markdownTableExtension,
@@ -50,7 +55,13 @@ import {
   findTables,
 } from "./markdownTable.js";
 import { setupPresenceUI } from "./presence.js";
-import { setCurrentPageId, notifyPageChange, setupSidebar } from "./lib/sidebar.js";
+import {
+  setCurrentPageId,
+  notifyPageChange,
+  setupSidebar,
+  openSidebar,
+  setActiveTab,
+} from "./lib/sidebar.js";
 import {
   renderSidenav,
   setNavigateCallback,
@@ -59,6 +70,7 @@ import {
   setupSidenav,
   updateSidenavActive,
 } from "./lib/sidenav.js";
+import { updatePageAccessCode } from "./lib/stores/sidenav.svelte.js";
 import { setupToolbar, resetToolbar } from "./toolbar.js";
 import { getPageIdFromPath } from "./router.js";
 
@@ -133,6 +145,14 @@ function renderAppHTML() {
                 <span id="breadcrumb-page" class="breadcrumb-item breadcrumb-page"></span><button id="breadcrumb-filetype" class="breadcrumb-filetype" title="Change page type"></button>
               </nav>
               <div class="breadcrumb-actions">
+                <div id="readonly-indicator" class="readonly-indicator" style="display: none;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                  <div class="indicator-popover readonly-popover">
+                    <div class="indicator-popover-header">Public Link</div>
+                    <div class="indicator-popover-text">Anyone with the link can view this page without signing in.</div>
+                    <button class="indicator-popover-btn" id="readonly-popover-btn">Manage link</button>
+                  </div>
+                </div>
                 <div id="presence-indicator" class="presence-indicator" title="Users currently editing">
                   <span id="user-count">1 user editing</span>
                   <div id="presence-popover" class="presence-popover" style="display: none;">
@@ -157,6 +177,10 @@ function renderAppHTML() {
                     <button id="download-page-btn" class="actions-dropdown-item">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                       Download page
+                    </button>
+                    <button id="readonly-link-btn" class="actions-dropdown-item">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                      Get public link
                     </button>
                     <button id="change-type-btn" class="actions-dropdown-item">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M9 15l2 2 4-4"></path></svg>
@@ -337,6 +361,16 @@ function setPageTitle(title, filetype = "md") {
   const breadcrumbFiletype = document.getElementById("breadcrumb-filetype");
   if (breadcrumbFiletype) {
     breadcrumbFiletype.textContent = filetype || "md";
+  }
+}
+
+/**
+ * Update the read-only indicator visibility based on access_code.
+ */
+function updateReadonlyIndicator(accessCode) {
+  const indicator = document.getElementById("readonly-indicator");
+  if (indicator) {
+    indicator.style.display = accessCode ? "flex" : "none";
   }
 }
 
@@ -523,7 +557,11 @@ async function loadPage(page) {
     modified: page.modified,
     updated: page.updated,
     is_owner: page.is_owner,
+    access_code: page.access_code,
   };
+
+  // Update the read-only indicator
+  updateReadonlyIndicator(page.access_code);
 
   // Store the project ID for this page
   currentProjectId = page.project_id || findProjectIdForPage(page.external_id);
@@ -858,16 +896,37 @@ function upgradeEditorToCollaborative(collabObjects, filetype) {
  * Shows users the current state of real-time collaboration.
  */
 function updateCollabStatus(status) {
-  // Find or create the status indicator
+  // Find or create the status indicator wrapper
+  let wrapper = document.getElementById("collab-status-wrapper");
   let indicator = document.getElementById("collab-status");
-  if (!indicator) {
-    // Create the indicator next to the presence indicator
+  let popover = document.getElementById("collab-popover");
+
+  if (!wrapper) {
+    // Create the wrapper with indicator and popover
     const presenceIndicator = document.getElementById("presence-indicator");
     if (presenceIndicator?.parentElement) {
-      indicator = document.createElement("div");
+      wrapper = document.createElement("div");
+      wrapper.id = "collab-status-wrapper";
+      wrapper.className = "collab-status-wrapper";
+
+      indicator = document.createElement("span");
       indicator.id = "collab-status";
       indicator.className = "collab-status";
-      presenceIndicator.parentElement.insertBefore(indicator, presenceIndicator);
+
+      popover = document.createElement("div");
+      popover.id = "collab-popover";
+      popover.className = "indicator-popover collab-popover";
+      popover.innerHTML = `
+        <div class="indicator-popover-header" id="collab-popover-header">Connection</div>
+        <div class="indicator-popover-text" id="collab-popover-text"></div>
+      `;
+
+      wrapper.appendChild(indicator);
+      wrapper.appendChild(popover);
+      presenceIndicator.parentElement.insertBefore(wrapper, presenceIndicator);
+
+      // Setup hover handlers
+      setupIndicatorPopover(wrapper, popover);
     }
   }
 
@@ -877,44 +936,73 @@ function updateCollabStatus(status) {
   const statusConfig = {
     connecting: {
       icon: "◌",
-      title: "Connecting to collaboration server...",
+      header: "Connecting",
+      text: "Establishing connection to sync server...",
       class: "connecting",
     },
     connected: {
       icon: "●",
-      title: "Real-time collaboration active",
+      header: "Connected",
+      text: "Changes sync instantly with other editors.",
       class: "connected",
     },
     offline: {
-      icon: "○",
-      title: "Offline mode - changes save locally but won't sync in real-time",
+      icon: "●",
+      header: "Offline",
+      text: "Changes are saved locally. They will sync when you reconnect.",
       class: "offline",
     },
     denied: {
       icon: "⊘",
-      title: "Collaboration unavailable for this page",
+      header: "Unavailable",
+      text: "Real-time collaboration is not available for this page.",
       class: "denied",
     },
     error: {
       icon: "!",
-      title: "Connection error - retrying...",
+      header: "Connection Lost",
+      text: "Attempting to reconnect...",
       class: "error",
     },
   };
 
   const config = statusConfig[status] || statusConfig.offline;
   indicator.textContent = config.icon;
-  indicator.title = config.title;
   indicator.className = `collab-status ${config.class}`;
 
-  // Hide indicator after successful connection (it's the normal state)
-  if (status === "connected") {
-    setTimeout(() => {
-      indicator.classList.add("fade-out");
-    }, 3000);
-  } else {
-    indicator.classList.remove("fade-out");
-  }
+  // Update popover content
+  const headerEl = document.getElementById("collab-popover-header");
+  const textEl = document.getElementById("collab-popover-text");
+  if (headerEl) headerEl.textContent = config.header;
+  if (textEl) textEl.textContent = config.text;
+}
+
+/**
+ * Setup hover handlers for indicator popovers
+ */
+function setupIndicatorPopover(wrapper, popover) {
+  let hideTimeout;
+
+  wrapper.addEventListener("mouseenter", () => {
+    clearTimeout(hideTimeout);
+    popover.style.display = "block";
+  });
+
+  wrapper.addEventListener("mouseleave", () => {
+    hideTimeout = setTimeout(() => {
+      popover.style.display = "none";
+    }, 200);
+  });
+
+  popover.addEventListener("mouseenter", () => {
+    clearTimeout(hideTimeout);
+  });
+
+  popover.addEventListener("mouseleave", () => {
+    hideTimeout = setTimeout(() => {
+      popover.style.display = "none";
+    }, 200);
+  });
 }
 
 /**
@@ -1248,12 +1336,15 @@ function initializeEditor(pageContent = "", additionalExtensions = [], filetype 
   const isTxt = filetype === "txt";
 
   const baseExtensions = [
+    largeFileModeExtension,
     simpleTheme,
     ...(isTxt ? [monospaceTheme] : []),
     EditorView.lineWrapping,
     ...(isTxt ? [] : [markdown(), markdownTableExtension]),
     titleNavigationKeymap,
-    ...(isTxt ? [] : [listKeymap, blockquoteKeymap, checkboxClickHandler, decorateFormatting]),
+    ...(isTxt
+      ? []
+      : [codeFenceField, listKeymap, blockquoteKeymap, checkboxClickHandler, decorateFormatting]),
     decorateEmails,
     decorateLinks,
     linkClickHandler,
@@ -1447,6 +1538,62 @@ function setupNoteActions() {
         pageTitle: currentPage.title || "Untitled",
         currentType: currentPage.details?.filetype || "md",
         pageContent: currentPage.details?.content || "",
+      });
+    });
+  }
+
+  const readonlyLinkBtn = document.getElementById("readonly-link-btn");
+  if (readonlyLinkBtn) {
+    readonlyLinkBtn.addEventListener("click", async () => {
+      actionsDropdown.style.display = "none";
+      if (!currentPage) return;
+      try {
+        const { access_code } = await generateAccessCode(currentPage.external_id);
+        readonlyLinkModal({
+          pageExternalId: currentPage.external_id,
+          pageTitle: currentPage.title || "Untitled",
+          accessCode: access_code,
+          onremove: () => {
+            // Update the cached page to remove access_code
+            currentPage.access_code = null;
+            updatePageAccessCode(currentPage.external_id, null);
+            updateReadonlyIndicator(null);
+          },
+        });
+        // Update the cached page with the access_code
+        currentPage.access_code = access_code;
+        updatePageAccessCode(currentPage.external_id, access_code);
+        updateReadonlyIndicator(access_code);
+      } catch (err) {
+        console.error("Error generating access code:", err);
+        showToast("Failed to generate read-only link", "error");
+      }
+    });
+  }
+
+  // Setup hover popover for the read-only indicator
+  const readonlyIndicator = document.getElementById("readonly-indicator");
+  const readonlyPopover = readonlyIndicator?.querySelector(".readonly-popover");
+  const readonlyPopoverBtn = document.getElementById("readonly-popover-btn");
+
+  if (readonlyIndicator && readonlyPopover) {
+    setupIndicatorPopover(readonlyIndicator, readonlyPopover);
+  }
+
+  // Click handler for "Manage link" button in popover
+  if (readonlyPopoverBtn) {
+    readonlyPopoverBtn.addEventListener("click", () => {
+      if (!currentPage?.access_code) return;
+      readonlyPopover.style.display = "none";
+      readonlyLinkModal({
+        pageExternalId: currentPage.external_id,
+        pageTitle: currentPage.title || "Untitled",
+        accessCode: currentPage.access_code,
+        onremove: () => {
+          currentPage.access_code = null;
+          updatePageAccessCode(currentPage.external_id, null);
+          updateReadonlyIndicator(null);
+        },
       });
     });
   }
@@ -1673,6 +1820,52 @@ async function startApp() {
     }
   });
 
+  // Setup command palette (Cmd+K / Ctrl+K)
+  setupCommandPalette({
+    getProjects: () => cachedProjects,
+    getCurrentPageId: () => currentPage?.external_id,
+    getCurrentProjectId: () => currentProjectId,
+    onNavigate: async (pageId) => {
+      if (currentPage) {
+        closePageWithoutNavigate();
+      }
+      await openPage(pageId);
+    },
+    onCreatePage: () => {
+      if (currentProjectId) {
+        openCreatePageDialog(currentProjectId);
+      } else {
+        showToast("No project selected", "error");
+      }
+    },
+    onCreateProject: () => {
+      createProjectModal({
+        oncreated: async (newProject) => {
+          const result = await createPage(newProject.external_id, "Untitled");
+          if (result.success && result.page) {
+            newProject.pages = [result.page];
+          }
+          cachedProjects.unshift(newProject);
+          renderSidenav(cachedProjects, result.page?.external_id);
+          if (result.page) {
+            window.location.href = `/pages/${result.page.external_id}/`;
+          }
+        },
+      });
+    },
+    onDeletePage: () => {
+      if (currentPage?.is_owner) {
+        openDeleteModal();
+      } else if (currentPage) {
+        showToast("Only the page creator can delete this page", "error");
+      }
+    },
+    onAsk: () => {
+      openSidebar();
+      setActiveTab("ask");
+    },
+  });
+
   // Setup note actions dropdown
   setupNoteActions();
 
@@ -1706,6 +1899,15 @@ async function startApp() {
       } else {
         updateCollabStatus("error");
       }
+    }
+  });
+
+  // Listen for collaboration status changes (connected, disconnected, etc.)
+  window.addEventListener("collabStatus", (event) => {
+    const { pageId, status } = event.detail;
+    // Only update if we're still on the same page
+    if (currentPage && currentPage.external_id === pageId) {
+      updateCollabStatus(status);
     }
   });
 

@@ -42,48 +42,62 @@ export const decorateLinks = ViewPlugin.fromClass(
     computeDecorations(view) {
       const builder = [];
       const { state } = view;
-      const text = state.doc.toString();
-
       const cursorPos = state.selection.main.head;
 
-      for (const match of text.matchAll(MARKDOWN_LINK_REGEX)) {
-        const start = match.index;
-        const end = start + match[0].length;
-        const linkText = match[1];
-        const url = match[2];
+      for (const { from, to } of view.visibleRanges) {
+        const startLine = state.doc.lineAt(from).number;
+        const endLine = state.doc.lineAt(to).number;
 
-        const cursorInLink = cursorPos >= start && cursorPos <= end;
+        for (let lineNum = startLine; lineNum <= endLine; lineNum++) {
+          const line = state.doc.line(lineNum);
+          const lineText = line.text;
 
-        const isInternal = INTERNAL_LINK_PATTERN.test(url);
+          let match;
+          const regex = new RegExp(MARKDOWN_LINK_REGEX.source, "g");
 
-        const bracketStart = start;
-        const textStart = start + 1;
-        const textEnd = textStart + linkText.length;
+          while ((match = regex.exec(lineText)) !== null) {
+            const start = line.from + match.index;
+            const end = start + match[0].length;
+            const linkText = match[1];
+            const url = match[2];
 
-        if (!cursorInLink) {
-          builder.push(
-            Decoration.replace({ widget: new LinkWidget(isInternal, url) }).range(
-              bracketStart,
-              textStart
-            )
-          );
+            if (!linkText) continue;
 
-          builder.push(Decoration.replace({}).range(textEnd, end));
+            const cursorInLink = cursorPos >= start && cursorPos <= end;
+            const isInternal = INTERNAL_LINK_PATTERN.test(url);
+
+            const bracketStart = start;
+            const textStart = start + 1;
+            const textEnd = textStart + linkText.length;
+
+            if (!cursorInLink) {
+              builder.push(
+                Decoration.replace({ widget: new LinkWidget(isInternal, url) }).range(
+                  bracketStart,
+                  textStart
+                )
+              );
+
+              builder.push(Decoration.replace({}).range(textEnd, end));
+            }
+
+            const linkClass = isInternal
+              ? "format-link format-link-internal"
+              : "format-link format-link-external";
+            builder.push(
+              Decoration.mark({
+                class: linkClass,
+                attributes: {
+                  "data-url": url,
+                  "data-internal": isInternal ? "true" : "false",
+                },
+              }).range(textStart, textEnd)
+            );
+          }
         }
-
-        const linkClass = isInternal
-          ? "format-link format-link-internal"
-          : "format-link format-link-external";
-        builder.push(
-          Decoration.mark({
-            class: linkClass,
-            attributes: {
-              "data-url": url,
-              "data-internal": isInternal ? "true" : "false",
-            },
-          }).range(textStart, textEnd)
-        );
       }
+
+      builder.sort((a, b) => a.from - b.from || a.startSide - b.startSide);
 
       return Decoration.set(builder, true);
     }

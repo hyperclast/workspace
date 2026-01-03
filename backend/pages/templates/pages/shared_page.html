@@ -1,0 +1,196 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% if error %}Page not available{% else %}{{ title }}{% endif %} | {{ brand_name }}</title>
+    {% include 'core/partials/_favicon.html' %}
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+        line-height: 1.5;
+        color: #1f2937;
+      }
+
+      .shared-page {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: #fafafa;
+      }
+
+      .shared-nav {
+        background: white;
+        border-bottom: 1px solid #e5e7eb;
+        padding: 0.75rem 1.5rem;
+      }
+
+      .shared-nav-container {
+        max-width: 800px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .shared-nav-brand {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #1f2937;
+        text-decoration: none;
+      }
+
+      .shared-nav-brand:hover {
+        color: #667eea;
+      }
+
+      .shared-nav-badge {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: #92400e;
+        background: #fef3c7;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+      }
+
+      .shared-main {
+        flex: 1;
+        padding: 2rem 1.5rem;
+      }
+
+      .shared-article {
+        max-width: 800px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        padding: 2rem;
+      }
+
+      .shared-header {
+        margin-bottom: 2rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 1px solid #e5e7eb;
+      }
+
+      .shared-title {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin: 0 0 0.5rem 0;
+      }
+
+      .shared-updated {
+        font-size: 0.875rem;
+        color: #6b7280;
+      }
+
+      .shared-content {
+        font-size: 1rem;
+        line-height: 1.75;
+        color: #374151;
+      }
+
+      .shared-content p {
+        margin: 0 0 1rem 0;
+      }
+
+      .shared-content p:last-child {
+        margin-bottom: 0;
+      }
+
+      .shared-footer {
+        text-align: center;
+        padding: 1.5rem;
+        color: #6b7280;
+        font-size: 0.875rem;
+      }
+
+      .shared-footer a {
+        color: #667eea;
+        text-decoration: none;
+      }
+
+      .shared-footer a:hover {
+        text-decoration: underline;
+      }
+
+      .shared-error {
+        max-width: 400px;
+        margin: 4rem auto;
+        text-align: center;
+        padding: 2rem;
+      }
+
+      .shared-error h1 {
+        font-size: 1.5rem;
+        color: #1f2937;
+        margin: 0 0 0.75rem 0;
+      }
+
+      .shared-error p {
+        color: #6b7280;
+        margin: 0 0 1.5rem 0;
+      }
+
+      .shared-error-link {
+        display: inline-block;
+        padding: 0.625rem 1.25rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: transform 0.15s, box-shadow 0.15s;
+      }
+
+      .shared-error-link:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shared-page">
+      <nav class="shared-nav">
+        <div class="shared-nav-container">
+          <a href="/" class="shared-nav-brand">{{ brand_name }}</a>
+          {% if not error %}
+            <span class="shared-nav-badge">Read-only</span>
+          {% endif %}
+        </div>
+      </nav>
+
+      <main class="shared-main">
+        {% if error %}
+          <div class="shared-error">
+            <h1>Page not available</h1>
+            <p>{{ error_message }}</p>
+            <a href="/" class="shared-error-link">Go to {{ brand_name }}</a>
+          </div>
+        {% else %}
+          <article class="shared-article">
+            <header class="shared-header">
+              <h1 class="shared-title">{{ title }}</h1>
+              <time class="shared-updated">Last updated: {{ updated|date:"F j, Y, g:i A" }}</time>
+            </header>
+            <div class="shared-content">
+              {{ content_html|safe }}
+            </div>
+          </article>
+        {% endif %}
+      </main>
+
+      <footer class="shared-footer">
+        <p>Shared via <a href="/">{{ brand_name }}</a></p>
+      </footer>
+    </div>
+  </body>
+</html>

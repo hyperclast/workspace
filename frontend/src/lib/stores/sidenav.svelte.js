@@ -104,6 +104,18 @@ export function updateProjectName(projectId, newName) {
   }
 }
 
+export function updatePageAccessCode(pageId, accessCode) {
+  for (const project of projects) {
+    const page = project.pages?.find((p) => p.external_id === pageId);
+    if (page) {
+      page.access_code = accessCode;
+      // Trigger reactivity by reassigning
+      projects = [...projects];
+      break;
+    }
+  }
+}
+
 // Callback setters (called from vanilla JS bridge)
 export function setNavigateHandler(handler) {
   onNavigate = handler;

@@ -1,5 +1,7 @@
 import logging
+import uuid
 from datetime import timedelta
+from email.utils import formatdate
 
 import markdown2
 import requests
@@ -26,8 +28,14 @@ def check_spam_score(subject: str, html_body: str, text_body: str, from_email: s
 
     API docs: https://spamcheck.postmarkapp.com/doc
     """
-    # Build a minimal raw email format for the spam checker
+    to_email = getattr(settings, "UPDATES_TEST_EMAIL", "test@example.com")
+    date_header = formatdate(localtime=True)
+    message_id = f"<{uuid.uuid4()}@hyperclast.com>"
+
     raw_email = f"""From: {from_email}
+To: {to_email}
+Date: {date_header}
+Message-Id: {message_id}
 Subject: {subject}
 MIME-Version: 1.0
 Content-Type: multipart/alternative; boundary="boundary123"
@@ -186,8 +194,8 @@ def send_update_to_subscribers(update_id: int) -> None:
 
     thirty_days_ago = timezone.now() - timedelta(days=30)
     subscribers = User.objects.filter(
-        receive_product_updates=True,
-        last_active__gte=thirty_days_ago,
+        profile__receive_product_updates=True,
+        profile__last_active__gte=thirty_days_ago,
     ).values_list("id", "email")
 
     content_html = markdown2.markdown(

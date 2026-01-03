@@ -13,7 +13,10 @@ export default defineConfig({
   build: {
     manifest: true,
     rollupOptions: {
-      input: "src/app.js",
+      input: {
+        app: "src/app.js",
+        commandPalette: "src/commandPaletteStandalone.js",
+      },
       output: {
         entryFileNames: "assets/js/[name]-[hash].js",
         chunkFileNames: "assets/js/[name]-[hash].js",
@@ -25,6 +28,6 @@ export default defineConfig({
         },
       },
     },
-    cssCodeSplit: false,
+    cssCodeSplit: true,
   },
 });

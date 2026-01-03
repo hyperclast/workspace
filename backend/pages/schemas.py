@@ -53,9 +53,16 @@ class PageOut(Schema):
     created: datetime
     modified: datetime
     is_owner: Optional[bool] = True
+    access_code: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+
+class AccessCodeOut(Schema):
+    """Response for access code generation."""
+
+    access_code: str
 
 
 class PageList(Schema):

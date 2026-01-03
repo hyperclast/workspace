@@ -17,8 +17,8 @@ from .models import Update
 def get_subscriber_count():
     thirty_days_ago = timezone.now() - timedelta(days=30)
     return User.objects.filter(
-        receive_product_updates=True,
-        last_active__gte=thirty_days_ago,
+        profile__receive_product_updates=True,
+        profile__last_active__gte=thirty_days_ago,
     ).count()
 
 

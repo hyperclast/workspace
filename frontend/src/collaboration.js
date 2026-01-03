@@ -88,12 +88,15 @@ export function createCollaborationObjects(pageExternalId, displayName = "Anonym
   let connectionAttempts = 0;
   const maxFailedAttempts = 3;
 
-  // Listen to provider events
+  // Listen to provider events and dispatch custom events for UI updates
   provider.on("status", ({ status }) => {
     console.log("WebSocket status:", status); // 'connecting' | 'connected' | 'disconnected'
     if (status === "connected") {
       console.timeEnd("[PERF] WebSocket connect");
       connectionAttempts = 0; // Reset on successful connection
+      window.dispatchEvent(
+        new CustomEvent("collabStatus", { detail: { status: "connected", pageId: pageExternalId } })
+      );
     }
     if (status === "disconnected") {
       connectionAttempts++;
@@ -105,6 +108,14 @@ export function createCollaborationObjects(pageExternalId, displayName = "Anonym
         accessDeniedPages.add(pageExternalId);
         provider.shouldConnect = false;
         provider.disconnect();
+        window.dispatchEvent(
+          new CustomEvent("collabStatus", { detail: { status: "denied", pageId: pageExternalId } })
+        );
+      } else {
+        // Normal disconnection - will attempt to reconnect
+        window.dispatchEvent(
+          new CustomEvent("collabStatus", { detail: { status: "offline", pageId: pageExternalId } })
+        );
       }
     }
   });

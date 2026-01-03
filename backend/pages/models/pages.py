@@ -110,6 +110,14 @@ class Page(TimeStampedModel):
     )
     is_deleted = models.BooleanField(db_index=True, default=False)
     version = models.TextField(blank=True, default="")
+    access_code = models.CharField(
+        max_length=43,  # secrets.token_urlsafe(32) produces 43 chars
+        unique=True,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Token for read-only public access",
+    )
 
     objects = PageManager()
 

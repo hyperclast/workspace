@@ -10,6 +10,7 @@ from django.contrib.auth import get_user_model
 from django.test import TransactionTestCase
 
 from backend.asgi import application
+from collab.tests import assert_ws_rejected
 from pages.tests.factories import PageFactory, ProjectFactory, UserFactory
 from users.tests.factories import OrgFactory, OrgMemberFactory
 
@@ -89,8 +90,12 @@ class TestWebSocketTwoTierAccess(TransactionTestCase):
         )
         communicator.scope["user"] = external_user
 
+        # Connection is initially accepted, then rejected with close code
         connected, _ = await communicator.connect()
-        self.assertFalse(connected, "External user should not be able to connect to org page")
+        self.assertTrue(connected, "Connection is initially accepted to allow error message")
+
+        # Verify the connection is then rejected with proper error
+        await assert_ws_rejected(communicator, expected_close_code=4003, expected_error_code="access_denied")
 
     async def test_project_editor_can_join_page(self):
         """Test that project editors can connect to pages in shared projects."""

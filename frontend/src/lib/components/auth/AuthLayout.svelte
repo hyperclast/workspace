@@ -16,7 +16,7 @@
       {brandName}
     </a>
     <div class="site-nav-actions">
-      <a href="/dev/" class="site-nav-link">Developers</a>
+      <a href="/dev/" class="site-nav-link hide-mobile">Developers</a>
       <a href="/login" class="site-nav-link" class:site-nav-link-active={path === '/login'}>Log in</a>
       <a href="/signup" class="site-nav-btn" class:site-nav-btn-active={path === '/signup'}>Get Started</a>
     </div>

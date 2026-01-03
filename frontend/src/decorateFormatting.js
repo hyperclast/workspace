@@ -1,5 +1,6 @@
-import { Prec } from "@codemirror/state";
+import { Prec, StateField } from "@codemirror/state";
 import { Decoration, ViewPlugin, WidgetType, keymap, EditorView } from "@codemirror/view";
+import { CODE_FENCE_SCAN_LIMIT_LINES } from "./config/performance.js";
 
 const BOLD_REGEX = /\*\*(.+?)\*\*/g;
 const UNDERLINE_REGEX = /__(.+?)__/g;
@@ -12,6 +13,72 @@ const LIST_REGEX = /^(\s*)(?:- |\d+\. )/;
 const CHECKBOX_REGEX = /^(\s*)- \[([ xX])\] (.*)$/;
 const BLOCKQUOTE_REGEX = /^(\s*)> (.*)$/;
 const CODE_FENCE_REGEX = /^```(\w*)$/;
+
+/**
+ * Compute all code fence boundaries in a document.
+ * Returns array of {start, end, unclosed} line numbers (1-indexed).
+ * unclosed is true if the code block has no closing fence.
+ */
+function computeCodeFences(doc) {
+  const fences = [];
+  let inCodeBlock = false;
+  let codeBlockStart = null;
+
+  for (let i = 1; i <= doc.lines; i++) {
+    const line = doc.line(i);
+    if (CODE_FENCE_REGEX.test(line.text)) {
+      if (!inCodeBlock) {
+        inCodeBlock = true;
+        codeBlockStart = i;
+      } else {
+        fences.push({ start: codeBlockStart, end: i, unclosed: false });
+        inCodeBlock = false;
+        codeBlockStart = null;
+      }
+    }
+  }
+
+  if (inCodeBlock && codeBlockStart !== null) {
+    fences.push({ start: codeBlockStart, end: doc.lines, unclosed: true });
+  }
+
+  return fences;
+}
+
+/**
+ * StateField that tracks code fence boundaries.
+ * For large documents, returns empty array (falls back to viewport-only scan).
+ * This trades accuracy at viewport edges for O(1) performance.
+ */
+export const codeFenceField = StateField.define({
+  create(state) {
+    if (state.doc.lines > CODE_FENCE_SCAN_LIMIT_LINES) {
+      return [];
+    }
+    return computeCodeFences(state.doc);
+  },
+  update(fences, tr) {
+    if (!tr.docChanged) return fences;
+    if (tr.state.doc.lines > CODE_FENCE_SCAN_LIMIT_LINES) {
+      return [];
+    }
+    return computeCodeFences(tr.state.doc);
+  },
+});
+
+/**
+ * Binary search to find if a line is inside a code block.
+ * O(log n) lookup instead of O(scroll_position).
+ */
+function findCodeBlockForLine(fences, lineNum) {
+  for (const fence of fences) {
+    if (lineNum >= fence.start && lineNum <= fence.end) {
+      return fence;
+    }
+    if (fence.start > lineNum) break;
+  }
+  return null;
+}
 
 class HrWidget extends WidgetType {
   toDOM() {
@@ -70,232 +137,275 @@ export const decorateFormatting = ViewPlugin.fromClass(
     computeDecorations(view) {
       const builder = [];
       const { state } = view;
-      const text = state.doc.toString();
 
       const cursorPos = state.selection.main.head;
       const cursorLine = state.doc.lineAt(cursorPos).number;
 
-      const codeBlocks = [];
-      let inCodeBlock = false;
-      let codeBlockStart = null;
+      const globalFences = state.field(codeFenceField, false) || [];
+      const useGlobalFences =
+        globalFences.length > 0 || state.doc.lines <= CODE_FENCE_SCAN_LIMIT_LINES;
 
-      for (let i = 1; i <= state.doc.lines; i++) {
-        const line = state.doc.line(i);
-        if (CODE_FENCE_REGEX.test(line.text)) {
-          if (!inCodeBlock) {
-            inCodeBlock = true;
-            codeBlockStart = i;
-          } else {
-            codeBlocks.push({ start: codeBlockStart, end: i });
-            inCodeBlock = false;
-            codeBlockStart = null;
-          }
-        }
-      }
+      for (const { from, to } of view.visibleRanges) {
+        const startLine = state.doc.lineAt(from).number;
+        const endLine = state.doc.lineAt(to).number;
 
-      const isInCodeBlock = (lineNum) => {
-        for (const block of codeBlocks) {
-          if (lineNum >= block.start && lineNum <= block.end) {
-            return block;
-          }
-        }
-        return null;
-      };
+        let codeBlocksInRange = [];
 
-      for (let i = 1; i <= state.doc.lines; i++) {
-        const line = state.doc.line(i);
-        const cursorOnLine = cursorLine === i;
-
-        const codeBlock = isInCodeBlock(i);
-        if (codeBlock) {
-          const isStartFence = i === codeBlock.start;
-          const isEndFence = i === codeBlock.end;
-          const isFirstContent = i === codeBlock.start + 1;
-          const isLastContent = i === codeBlock.end - 1;
-          const isSingleLine = codeBlock.end - codeBlock.start === 2;
-
-          if (isStartFence || isEndFence) {
-            if (!cursorOnLine) {
-              builder.push(Decoration.replace({}).range(line.from, line.to));
-            } else {
-              builder.push(Decoration.line({ class: "format-code-fence" }).range(line.from));
-            }
-          } else {
-            let blockClass = "format-code-block";
-            if (isSingleLine || (isFirstContent && isLastContent)) {
-              blockClass += " format-code-block-single";
-            } else if (isFirstContent) {
-              blockClass += " format-code-block-first";
-            } else if (isLastContent) {
-              blockClass += " format-code-block-last";
-            } else {
-              blockClass += " format-code-block-middle";
-            }
-            builder.push(Decoration.line({ class: blockClass }).range(line.from));
-          }
-          continue;
-        }
-
-        const hrMatch = line.text.match(HR_REGEX);
-        if (hrMatch) {
-          if (!cursorOnLine) {
-            builder.push(Decoration.replace({ widget: new HrWidget() }).range(line.from, line.to));
-          }
-          continue;
-        }
-
-        const headingMatch = line.text.match(HEADING_REGEX);
-        if (headingMatch) {
-          const level = headingMatch[1].length;
-          const hashEnd = line.from + headingMatch[1].length + 1;
-          const showRawSyntax = cursorOnLine && cursorPos < hashEnd;
-
-          if (!showRawSyntax) {
-            builder.push(Decoration.replace({}).range(line.from, hashEnd));
-          } else {
-            builder.push(
-              Decoration.mark({ class: "format-heading-syntax" }).range(line.from, hashEnd)
-            );
-          }
-
-          if (line.to > hashEnd) {
-            builder.push(
-              Decoration.mark({ class: `format-heading format-h${level}` }).range(hashEnd, line.to)
-            );
-          }
-
-          builder.push(
-            Decoration.line({ class: `format-heading-line format-h${level}-line` }).range(line.from)
+        if (useGlobalFences) {
+          codeBlocksInRange = globalFences.filter(
+            (fence) => fence.end >= startLine && fence.start <= endLine
           );
-          continue;
+        } else {
+          let inCodeBlock = false;
+          let codeBlockStart = null;
+          for (let i = startLine; i <= endLine; i++) {
+            const line = state.doc.line(i);
+            if (CODE_FENCE_REGEX.test(line.text)) {
+              if (!inCodeBlock) {
+                inCodeBlock = true;
+                codeBlockStart = i;
+              } else {
+                codeBlocksInRange.push({ start: codeBlockStart, end: i, unclosed: false });
+                inCodeBlock = false;
+                codeBlockStart = null;
+              }
+            }
+          }
+          if (inCodeBlock && codeBlockStart !== null) {
+            codeBlocksInRange.push({ start: codeBlockStart, end: endLine + 1, unclosed: true });
+          }
         }
 
-        const checkboxMatch = line.text.match(CHECKBOX_REGEX);
-        if (checkboxMatch) {
-          const indent = checkboxMatch[1].length;
-          const indentLevel = Math.floor(indent / 2);
-          const checked = checkboxMatch[2].toLowerCase() === "x";
-          const checkboxStart = line.from + indent;
-          const checkboxEnd = checkboxStart + 6;
-          const textStart = checkboxEnd;
-          const showRawSyntax = cursorOnLine && cursorPos < checkboxEnd;
+        const isInCodeBlock = (lineNum) => {
+          return findCodeBlockForLine(codeBlocksInRange, lineNum);
+        };
 
-          if (!showRawSyntax) {
-            if (indent > 0) {
-              builder.push(Decoration.replace({}).range(line.from, line.from + indent));
+        for (let i = startLine; i <= endLine; i++) {
+          const line = state.doc.line(i);
+          const cursorOnLine = cursorLine === i;
+
+          const codeBlock = isInCodeBlock(i);
+          if (codeBlock) {
+            const isStartFence = i === codeBlock.start;
+            const isEndFence = i === codeBlock.end && !codeBlock.unclosed;
+            const isFirstContent = i === codeBlock.start + 1;
+            const isLastContent = codeBlock.unclosed
+              ? i === codeBlock.end
+              : i === codeBlock.end - 1;
+            const contentLines = codeBlock.unclosed
+              ? codeBlock.end - codeBlock.start
+              : codeBlock.end - codeBlock.start - 1;
+            const isSingleContent = contentLines === 1;
+
+            if (isStartFence || isEndFence) {
+              if (!cursorOnLine) {
+                builder.push(Decoration.replace({}).range(line.from, line.to));
+              } else {
+                builder.push(Decoration.line({ class: "format-code-fence" }).range(line.from));
+              }
+            } else {
+              let blockClass = "format-code-block";
+              if (isSingleContent || (isFirstContent && isLastContent)) {
+                blockClass += " format-code-block-single";
+              } else if (isFirstContent) {
+                blockClass += " format-code-block-first";
+              } else if (isLastContent) {
+                blockClass += " format-code-block-last";
+              } else {
+                blockClass += " format-code-block-middle";
+              }
+              builder.push(Decoration.line({ class: blockClass }).range(line.from));
             }
+            continue;
+          }
+
+          const hrMatch = line.text.match(HR_REGEX);
+          if (hrMatch) {
+            if (!cursorOnLine) {
+              builder.push(
+                Decoration.replace({ widget: new HrWidget() }).range(line.from, line.to)
+              );
+            }
+            continue;
+          }
+
+          const headingMatch = line.text.match(HEADING_REGEX);
+          if (headingMatch) {
+            const level = headingMatch[1].length;
+            const hashEnd = line.from + headingMatch[1].length + 1;
+            const showRawSyntax = cursorOnLine && cursorPos < hashEnd;
+
+            if (!showRawSyntax) {
+              builder.push(Decoration.replace({}).range(line.from, hashEnd));
+            } else {
+              builder.push(
+                Decoration.mark({ class: "format-heading-syntax" }).range(line.from, hashEnd)
+              );
+            }
+
+            if (line.to > hashEnd) {
+              builder.push(
+                Decoration.mark({ class: `format-heading format-h${level}` }).range(
+                  hashEnd,
+                  line.to
+                )
+              );
+            }
+
             builder.push(
-              Decoration.replace({ widget: new CheckboxWidget(checked, checkboxStart) }).range(
-                checkboxStart,
-                checkboxEnd
+              Decoration.line({ class: `format-heading-line format-h${level}-line` }).range(
+                line.from
               )
             );
-          } else {
-            builder.push(
-              Decoration.mark({ class: "format-list-syntax" }).range(line.from, checkboxEnd)
-            );
+            continue;
           }
 
-          const indentClass =
-            !showRawSyntax && indentLevel > 0 ? ` format-indent-${Math.min(indentLevel, 10)}` : "";
-          const rawClass = showRawSyntax ? " format-list-raw" : "";
-          builder.push(
-            Decoration.line({
-              class: `format-list-item format-checkbox-item${indentClass}${rawClass}`,
-            }).range(line.from)
-          );
+          const checkboxMatch = line.text.match(CHECKBOX_REGEX);
+          if (checkboxMatch) {
+            const indent = checkboxMatch[1].length;
+            const indentLevel = Math.floor(indent / 2);
+            const checked = checkboxMatch[2].toLowerCase() === "x";
+            const checkboxStart = line.from + indent;
+            const checkboxEnd = checkboxStart + 6;
+            const textStart = checkboxEnd;
+            const showRawSyntax = cursorOnLine && cursorPos < checkboxEnd;
 
-          if (checked && line.to > textStart) {
-            builder.push(
-              Decoration.mark({ class: "format-checkbox-checked" }).range(textStart, line.to)
-            );
-          }
-          continue;
-        }
-
-        const bulletMatch = line.text.match(BULLET_REGEX);
-        if (bulletMatch) {
-          const indent = bulletMatch[1].length;
-          const indentLevel = Math.floor(indent / 2);
-          const dashPos = line.from + indent;
-          const syntaxEnd = dashPos + 2;
-          const showRawSyntax = cursorOnLine && cursorPos < syntaxEnd;
-
-          if (!showRawSyntax) {
-            if (indent > 0) {
-              builder.push(Decoration.replace({}).range(line.from, line.from + indent));
+            if (!showRawSyntax) {
+              if (indent > 0) {
+                builder.push(Decoration.replace({}).range(line.from, line.from + indent));
+              }
+              builder.push(
+                Decoration.replace({ widget: new CheckboxWidget(checked, checkboxStart) }).range(
+                  checkboxStart,
+                  checkboxEnd
+                )
+              );
+            } else {
+              builder.push(
+                Decoration.mark({ class: "format-list-syntax" }).range(line.from, checkboxEnd)
+              );
             }
+
+            const indentClass =
+              !showRawSyntax && indentLevel > 0
+                ? ` format-indent-${Math.min(indentLevel, 10)}`
+                : "";
+            const rawClass = showRawSyntax ? " format-list-raw" : "";
             builder.push(
-              Decoration.replace({ widget: new BulletWidget() }).range(dashPos, dashPos + 1)
+              Decoration.line({
+                class: `format-list-item format-checkbox-item${indentClass}${rawClass}`,
+              }).range(line.from)
             );
-          } else {
-            builder.push(
-              Decoration.mark({ class: "format-list-syntax" }).range(line.from, syntaxEnd)
-            );
-          }
 
-          const indentClass =
-            !showRawSyntax && indentLevel > 0 ? ` format-indent-${Math.min(indentLevel, 10)}` : "";
-          const rawClass = showRawSyntax ? " format-list-raw" : "";
-          builder.push(
-            Decoration.line({
-              class: `format-list-item format-bullet-item${indentClass}${rawClass}`,
-            }).range(line.from)
-          );
-          continue;
-        }
-
-        const orderedMatch = line.text.match(ORDERED_REGEX);
-        if (orderedMatch) {
-          const indent = orderedMatch[1].length;
-          const indentLevel = Math.floor(indent / 2);
-          const numberLength = orderedMatch[2].length;
-          const syntaxEnd = line.from + indent + numberLength + 2;
-          const showRawSyntax = cursorOnLine && cursorPos < syntaxEnd;
-
-          if (!showRawSyntax) {
-            if (indent > 0) {
-              builder.push(Decoration.replace({}).range(line.from, line.from + indent));
+            if (checked && line.to > textStart) {
+              builder.push(
+                Decoration.mark({ class: "format-checkbox-checked" }).range(textStart, line.to)
+              );
             }
-          } else {
+            continue;
+          }
+
+          const bulletMatch = line.text.match(BULLET_REGEX);
+          if (bulletMatch) {
+            const indent = bulletMatch[1].length;
+            const indentLevel = Math.floor(indent / 2);
+            const dashPos = line.from + indent;
+            const syntaxEnd = dashPos + 2;
+            const showRawSyntax = cursorOnLine && cursorPos < syntaxEnd;
+
+            if (!showRawSyntax) {
+              if (indent > 0) {
+                builder.push(Decoration.replace({}).range(line.from, line.from + indent));
+              }
+              builder.push(
+                Decoration.replace({ widget: new BulletWidget() }).range(dashPos, dashPos + 1)
+              );
+            } else {
+              builder.push(
+                Decoration.mark({ class: "format-list-syntax" }).range(line.from, syntaxEnd)
+              );
+            }
+
+            const indentClass =
+              !showRawSyntax && indentLevel > 0
+                ? ` format-indent-${Math.min(indentLevel, 10)}`
+                : "";
+            const rawClass = showRawSyntax ? " format-list-raw" : "";
             builder.push(
-              Decoration.mark({ class: "format-list-syntax" }).range(line.from, syntaxEnd)
+              Decoration.line({
+                class: `format-list-item format-bullet-item${indentClass}${rawClass}`,
+              }).range(line.from)
             );
+            continue;
           }
 
-          const indentClass =
-            !showRawSyntax && indentLevel > 0 ? ` format-indent-${Math.min(indentLevel, 10)}` : "";
-          const rawClass = showRawSyntax ? " format-list-raw" : "";
-          builder.push(
-            Decoration.line({
-              class: `format-list-item format-ordered-item${indentClass}${rawClass}`,
-            }).range(line.from)
-          );
-          continue;
-        }
+          const orderedMatch = line.text.match(ORDERED_REGEX);
+          if (orderedMatch) {
+            const indent = orderedMatch[1].length;
+            const indentLevel = Math.floor(indent / 2);
+            const numberLength = orderedMatch[2].length;
+            const syntaxEnd = line.from + indent + numberLength + 2;
+            const showRawSyntax = cursorOnLine && cursorPos < syntaxEnd;
 
-        const blockquoteMatch = line.text.match(BLOCKQUOTE_REGEX);
-        if (blockquoteMatch) {
-          const indent = blockquoteMatch[1].length;
-          const quoteStart = line.from + indent;
+            if (!showRawSyntax) {
+              if (indent > 0) {
+                builder.push(Decoration.replace({}).range(line.from, line.from + indent));
+              }
+            } else {
+              builder.push(
+                Decoration.mark({ class: "format-list-syntax" }).range(line.from, syntaxEnd)
+              );
+            }
 
-          if (!cursorOnLine) {
-            builder.push(Decoration.replace({}).range(quoteStart, quoteStart + 2));
+            const indentClass =
+              !showRawSyntax && indentLevel > 0
+                ? ` format-indent-${Math.min(indentLevel, 10)}`
+                : "";
+            const rawClass = showRawSyntax ? " format-list-raw" : "";
+            builder.push(
+              Decoration.line({
+                class: `format-list-item format-ordered-item${indentClass}${rawClass}`,
+              }).range(line.from)
+            );
+            continue;
           }
 
-          builder.push(Decoration.line({ class: "format-blockquote" }).range(line.from));
-          continue;
+          const blockquoteMatch = line.text.match(BLOCKQUOTE_REGEX);
+          if (blockquoteMatch) {
+            const indent = blockquoteMatch[1].length;
+            const quoteStart = line.from + indent;
+
+            if (!cursorOnLine) {
+              builder.push(Decoration.replace({}).range(quoteStart, quoteStart + 2));
+            }
+
+            builder.push(Decoration.line({ class: "format-blockquote" }).range(line.from));
+            continue;
+          }
+
+          this.decorateInlinePatterns(line, cursorLine, builder, isInCodeBlock);
         }
       }
 
-      for (const match of text.matchAll(BOLD_REGEX)) {
-        const start = match.index;
+      builder.sort((a, b) => a.from - b.from || a.startSide - b.startSide);
+
+      return Decoration.set(builder, true);
+    }
+
+    decorateInlinePatterns(line, cursorLine, builder, isInCodeBlock) {
+      const cursorOnLine = cursorLine === line.number;
+      const lineText = line.text;
+
+      if (isInCodeBlock(line.number)) return;
+
+      let match;
+
+      const boldRegex = new RegExp(BOLD_REGEX.source, "g");
+      while ((match = boldRegex.exec(lineText)) !== null) {
+        const start = line.from + match.index;
         const end = start + match[0].length;
         const innerStart = start + 2;
         const innerEnd = end - 2;
-
-        const matchLine = state.doc.lineAt(start).number;
-        const cursorOnLine = cursorLine === matchLine;
 
         if (!cursorOnLine) {
           builder.push(Decoration.replace({}).range(start, innerStart));
@@ -308,14 +418,12 @@ export const decorateFormatting = ViewPlugin.fromClass(
         }
       }
 
-      for (const match of text.matchAll(UNDERLINE_REGEX)) {
-        const start = match.index;
+      const underlineRegex = new RegExp(UNDERLINE_REGEX.source, "g");
+      while ((match = underlineRegex.exec(lineText)) !== null) {
+        const start = line.from + match.index;
         const end = start + match[0].length;
         const innerStart = start + 2;
         const innerEnd = end - 2;
-
-        const matchLine = state.doc.lineAt(start).number;
-        const cursorOnLine = cursorLine === matchLine;
 
         if (!cursorOnLine) {
           builder.push(Decoration.replace({}).range(start, innerStart));
@@ -328,17 +436,12 @@ export const decorateFormatting = ViewPlugin.fromClass(
         }
       }
 
-      for (const match of text.matchAll(INLINE_CODE_REGEX)) {
-        const start = match.index;
+      const codeRegex = new RegExp(INLINE_CODE_REGEX.source, "g");
+      while ((match = codeRegex.exec(lineText)) !== null) {
+        const start = line.from + match.index;
         const end = start + match[0].length;
-
-        if (isInCodeBlock(state.doc.lineAt(start).number)) continue;
-
         const innerStart = start + 1;
         const innerEnd = end - 1;
-
-        const matchLine = state.doc.lineAt(start).number;
-        const cursorOnLine = cursorLine === matchLine;
 
         if (!cursorOnLine) {
           builder.push(Decoration.replace({}).range(start, innerStart));
@@ -350,8 +453,6 @@ export const decorateFormatting = ViewPlugin.fromClass(
           builder.push(Decoration.replace({}).range(innerEnd, end));
         }
       }
-
-      return Decoration.set(builder, true);
     }
   },
   {

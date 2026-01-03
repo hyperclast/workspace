@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { markdownTableExtension, tablesField, formatTable } from "../../markdownTable.js";
+import {
+  markdownTableExtension,
+  formatTable,
+  insertRowBelow,
+  insertColumnRight,
+  tablesField,
+} from "../../markdownTable.js";
 
 function createEditorWithTable(tableText) {
   const state = EditorState.create({
@@ -48,63 +54,11 @@ function calculateColumnWidths(table) {
 }
 
 function simulateInsertRowBelow(view) {
-  const tables = view.state.field(tablesField);
-  const pos = view.state.selection.main.head;
-  const table = tables.find((t) => pos >= t.from && pos <= t.to);
-  if (!table) return false;
-
-  const found = findCellAtPosInTable(table, pos);
-  if (!found) return false;
-
-  const { row, cell } = found;
-  const colIndex = cell.colIndex;
-
-  let insertAfterRow = row;
-  let targetRowIndexAfterInsert;
-
-  if (row.type === "header" || row.type === "separator") {
-    const separatorRow = table.rows.find((r) => r.type === "separator");
-    if (!separatorRow) return false;
-    insertAfterRow = separatorRow;
-    targetRowIndexAfterInsert = table.rows.indexOf(separatorRow) + 1;
-  } else {
-    targetRowIndexAfterInsert = found.rowIndex + 1;
-  }
-
-  const colWidths = calculateColumnWidths(table);
-  const newRowCells = colWidths.map((w) => " ".repeat(w));
-  const newRowText = "| " + newRowCells.join(" | ") + " |";
-
-  view.dispatch({
-    changes: { from: insertAfterRow.to, insert: "\n" + newRowText },
-  });
-
-  return { found, table, targetRowIndexAfterInsert, colIndex };
+  return insertRowBelow(view);
 }
 
 function simulateInsertColumnRight(view) {
-  const tables = view.state.field(tablesField);
-  const pos = view.state.selection.main.head;
-  const table = tables.find((t) => pos >= t.from && pos <= t.to);
-  if (!table) return false;
-
-  const found = findCellAtPosInTable(table, pos);
-  if (!found) return false;
-
-  const colIndex = found.cell.colIndex;
-  const changes = [];
-
-  for (const row of table.rows) {
-    const cells = row.cells.map((c) => c.content);
-    const newContent = row.type === "separator" ? "---" : "";
-    cells.splice(colIndex + 1, 0, newContent);
-
-    const newLine = "| " + cells.join(" | ") + " |";
-    changes.push({ from: row.from, to: row.to, insert: newLine });
-  }
-
-  view.dispatch({ changes });
-  return { found, table, colIndex };
+  return insertColumnRight(view);
 }
 
 describe("insertRowBelow - from header row", () => {

@@ -71,7 +71,8 @@ class UserAdmin(BaseUserAdmin):
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
     form = ProfileAdminForm
-    list_display = ["user", "tz", "created"]
+    list_display = ["user", "receive_product_updates", "last_active", "tz", "created"]
+    list_filter = ["receive_product_updates"]
     search_fields = ["user__email"]
     readonly_fields = ["created", "modified", "access_token"]
 

@@ -1,7 +1,8 @@
 <script>
   import { API_BASE_URL } from "../../config.js";
   import { csrfFetch } from "../../csrf.js";
-  import { confirm, prompt, shareProject, changePageType } from "../modal.js";
+  import { generateAccessCode } from "../../api.js";
+  import { confirm, prompt, shareProject, changePageType, readonlyLinkModal } from "../modal.js";
   import { showToast } from "../toast.js";
   import { validateProjectName } from "../validation.js";
   import {
@@ -14,6 +15,7 @@
     createNewPage,
     updateProjectName,
     notifyProjectDeleted,
+    updatePageAccessCode,
   } from "../stores/sidenav.svelte.js";
 
   // Icons
@@ -25,6 +27,7 @@
   const deleteIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
   const changeTypeIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M9 15l2 2 4-4"></path></svg>`;
   const newPageIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>`;
+  const globeIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>`;
 
   // Local state
   let openMenuId = $state(null);
@@ -190,6 +193,33 @@
     });
   }
 
+  async function handleReadonlyLink(e, pageId, pageTitle, existingAccessCode) {
+    e.stopPropagation();
+    closeAllMenus();
+
+    try {
+      // If page already has an access code, show the modal directly
+      // Otherwise, generate a new one
+      const accessCode = existingAccessCode || (await generateAccessCode(pageId)).access_code;
+
+      if (!existingAccessCode) {
+        // Update the page in the store with the new access code
+        updatePageAccessCode(pageId, accessCode);
+      }
+
+      readonlyLinkModal({
+        pageExternalId: pageId,
+        pageTitle: pageTitle || "Untitled",
+        accessCode: accessCode,
+        onremove: () => {
+          updatePageAccessCode(pageId, null);
+        },
+      });
+    } catch (err) {
+      console.error("Error generating access code:", err);
+      showToast("Failed to generate read-only link", "error");
+    }
+  }
 
   async function handlePageDelete(e, pageId, pageTitle) {
     e.stopPropagation();
@@ -319,6 +349,15 @@
               onclick={() => handlePageClick(page.external_id, project.external_id)}
             >
               <span class="page-title">{page.title || "Untitled"}</span>
+              {#if page.access_code}
+                <button
+                  class="page-shared-indicator"
+                  title="Public link enabled"
+                  onclick={(e) => handleReadonlyLink(e, page.external_id, page.title, page.access_code)}
+                >
+                  {@html globeIcon}
+                </button>
+              {/if}
               <span class="page-filetype">{page.filetype || "md"}</span>
               <div class="page-menu">
                 <button
@@ -349,6 +388,13 @@
                   >
                     {@html changeTypeIcon}
                     Change type
+                  </button>
+                  <button
+                    class="page-menu-item"
+                    onclick={(e) => handleReadonlyLink(e, page.external_id, page.title, page.access_code)}
+                  >
+                    {@html globeIcon}
+                    Get public link
                   </button>
                   <button
                     class="page-menu-item page-menu-delete"

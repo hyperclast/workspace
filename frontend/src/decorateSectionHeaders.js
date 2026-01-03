@@ -1,30 +1,36 @@
 import { Decoration, ViewPlugin } from "@codemirror/view";
-import { getSections } from "./getSections.js";
-import { findTableRanges, isInsideTable } from "./markdownTable.js";
 
-const DEBOUNCE_MS = 200;
+const HEADING_REGEX = /^(#{1,6})\s+(.*)$/;
+const TABLE_HEADER_REGEX = /^\|.*\|$/;
+const TABLE_SEPARATOR_REGEX = /^\|[\s:-]+\|$/;
+
+function isTableLine(text) {
+  return TABLE_HEADER_REGEX.test(text) || TABLE_SEPARATOR_REGEX.test(text);
+}
+
+function isInsideTableContext(doc, lineNumber) {
+  if (lineNumber > 1) {
+    const prevLine = doc.line(lineNumber - 1);
+    if (isTableLine(prevLine.text)) return true;
+  }
+
+  if (lineNumber < doc.lines) {
+    const nextLine = doc.line(lineNumber + 1);
+    if (TABLE_SEPARATOR_REGEX.test(nextLine.text)) return true;
+  }
+
+  return false;
+}
 
 export const decorateSectionHeaders = ViewPlugin.fromClass(
   class {
     constructor(view) {
-      this.view = view;
       this.decorations = this.computeDecorations(view);
-      this.timeout = null;
     }
 
     update(update) {
       if (update.docChanged || update.viewportChanged) {
-        clearTimeout(this.timeout);
-
-        this.timeout = setTimeout(() => {
-          if (!this.view || this.view.destroyed) {
-            clearTimeout(this.timeout);
-            return;
-          }
-
-          this.decorations = this.computeDecorations(this.view);
-          this.view.update([]);
-        }, DEBOUNCE_MS);
+        this.decorations = this.computeDecorations(update.view);
       }
     }
 
@@ -33,21 +39,21 @@ export const decorateSectionHeaders = ViewPlugin.fromClass(
       const { state } = view;
       const headDeco = Decoration.line({ class: "section-header" });
 
-      const { sections } = getSections(state.doc);
-      const text = state.doc.toString();
-      const tableRanges = findTableRanges(text);
+      for (const { from, to } of view.visibleRanges) {
+        const startLine = state.doc.lineAt(from).number;
+        const endLine = state.doc.lineAt(to).number;
 
-      for (const section of sections) {
-        if (!isInsideTable(section.from, tableRanges)) {
-          builder.push(headDeco.range(section.from));
+        for (let lineNum = startLine; lineNum <= endLine; lineNum++) {
+          const line = state.doc.line(lineNum);
+          const match = line.text.match(HEADING_REGEX);
+
+          if (match && !isInsideTableContext(state.doc, lineNum)) {
+            builder.push(headDeco.range(line.from));
+          }
         }
       }
 
       return Decoration.set(builder, true);
-    }
-
-    destroy() {
-      clearTimeout(this.timeout);
     }
   },
   {

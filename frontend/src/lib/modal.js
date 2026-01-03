@@ -7,6 +7,8 @@ import {
   openCreateProject as _openCreateProject,
   openNewPage as _openNewPage,
   openChangePageType as _openChangePageType,
+  openCommandPalette as _openCommandPalette,
+  openReadonlyLink as _openReadonlyLink,
 } from "./stores/modal.svelte.js";
 
 let mounted = false;
@@ -108,4 +110,30 @@ export function newPageModal(options = {}) {
 export function changePageType(options = {}) {
   initModals();
   _openChangePageType(options);
+}
+
+/**
+ * Show the command palette (Cmd+K / Ctrl+K)
+ * @param {Object} options
+ * @param {Array} options.projects - Array of projects with nested pages
+ * @param {string} options.currentPageId - Currently active page external ID
+ * @param {string} options.currentProjectId - Currently active project external ID
+ * @param {Function} options.onselect - Callback when an item is selected, receives { type, pageId?, actionId? }
+ */
+export function commandPalette(options = {}) {
+  initModals();
+  _openCommandPalette(options);
+}
+
+/**
+ * Show a read-only link modal for sharing a page publicly
+ * @param {Object} options
+ * @param {string} options.pageExternalId - Page external ID
+ * @param {string} options.pageTitle - Page title
+ * @param {string} options.accessCode - The access code for the read-only link
+ * @param {Function} options.onremove - Callback when access is removed
+ */
+export function readonlyLinkModal(options = {}) {
+  initModals();
+  _openReadonlyLink(options);
 }

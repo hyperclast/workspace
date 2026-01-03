@@ -232,6 +232,23 @@
     }
 
     @media (max-width: 768px) {
+      .landing-nav {
+        padding: 1rem;
+      }
+
+      .landing-nav-actions {
+        gap: 0.75rem;
+      }
+
+      .hide-mobile {
+        display: none;
+      }
+
+      .landing-btn-primary {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+      }
+
       .legal-main {
         padding: 1.5rem 1rem;
       }
@@ -254,10 +271,6 @@
         text-align: center;
         padding: 0.75rem 1rem;
       }
-
-      .landing-nav-actions {
-        gap: 1rem;
-      }
     }
   </style>
 {% endblock %}
@@ -271,7 +284,7 @@
         <div class="landing-nav-container">
           <a href="/" class="landing-logo">{% include 'core/partials/_logo_icon.html' %} {{ brand_name }}</a>
           <div class="landing-nav-actions">
-            <a href="{% url 'core:dev_index' %}" class="landing-link">Developers</a>
+            <a href="{% url 'core:dev_index' %}" class="landing-link hide-mobile">Developers</a>
             <a href="/login/" class="landing-link">Log in</a>
             <a href="/signup/" class="landing-btn-primary">Get Started</a>
           </div>

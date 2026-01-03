@@ -1,5 +1,5 @@
 {% extends 'core/base.html' %}
-{% load static %}
+{% load static vite %}
 
 {% block title %}
   {{ page_title|default:"API Documentation" }}
@@ -8,6 +8,9 @@
 {% block extra_styles %}
   <link rel="stylesheet" href="{% static 'core/css/docs.css' %}?v={{ deployment_id }}" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+  {% if user.is_authenticated %}
+    {% vite_css "src/commandPaletteStandalone.js" %}
+  {% endif %}
   <style>
     .docs-wrapper {
       display: flex;
@@ -200,6 +203,9 @@
 
 {% block extra_scripts %}
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  {% if user.is_authenticated %}
+    <script type="module" crossorigin src="{% vite_asset 'src/commandPaletteStandalone.js' %}"></script>
+  {% endif %}
   <script>
     // Replace placeholders BEFORE syntax highlighting to avoid security warnings
     (function() {

@@ -160,3 +160,51 @@ export function openChangePageType(options = {}) {
 export function closeChangePageType() {
   changePageTypeState.open = false;
 }
+
+let commandPaletteState = $state({
+  open: false,
+  projects: [],
+  currentPageId: null,
+  currentProjectId: null,
+  onselect: () => {},
+});
+
+export function getCommandPaletteState() {
+  return commandPaletteState;
+}
+
+export function openCommandPalette(options = {}) {
+  commandPaletteState.projects = options.projects || [];
+  commandPaletteState.currentPageId = options.currentPageId || null;
+  commandPaletteState.currentProjectId = options.currentProjectId || null;
+  commandPaletteState.onselect = options.onselect || (() => {});
+  commandPaletteState.open = true;
+}
+
+export function closeCommandPalette() {
+  commandPaletteState.open = false;
+}
+
+let readonlyLinkState = $state({
+  open: false,
+  pageExternalId: "",
+  pageTitle: "",
+  accessCode: "",
+  onremove: () => {},
+});
+
+export function getReadonlyLinkState() {
+  return readonlyLinkState;
+}
+
+export function openReadonlyLink(options = {}) {
+  readonlyLinkState.pageExternalId = options.pageExternalId || "";
+  readonlyLinkState.pageTitle = options.pageTitle || "";
+  readonlyLinkState.accessCode = options.accessCode || "";
+  readonlyLinkState.onremove = options.onremove || (() => {});
+  readonlyLinkState.open = true;
+}
+
+export function closeReadonlyLink() {
+  readonlyLinkState.open = false;
+}

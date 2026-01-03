@@ -1,4 +1,5 @@
 import re
+import secrets
 
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse
@@ -10,7 +11,7 @@ from ninja.responses import Response
 from ask.tasks import update_page_embedding
 from core.authentication import session_auth, token_auth
 from pages.models import Page, Project
-from pages.permissions import user_can_modify_page
+from pages.permissions import user_can_access_page, user_can_modify_page
 from typing import List
 
 from pages.schemas import (
@@ -19,6 +20,7 @@ from pages.schemas import (
     PageOut,
     PagesAutocompleteItem,
     PagesAutocompleteOut,
+    AccessCodeOut,
 )
 
 MAX_CONTENT_SIZE = 10 * 1024 * 1024  # 10 MB
@@ -211,3 +213,39 @@ def download_page(request: HttpRequest, external_id: str):
     response = HttpResponse(file_content, content_type=f"{content_type}; charset=utf-8")
     response["Content-Disposition"] = f'attachment; filename="{filename}.{filetype}"'
     return response
+
+
+@pages_router.post("/{external_id}/access-code/", response={200: AccessCodeOut, 403: dict})
+def generate_access_code(request: HttpRequest, external_id: str):
+    """Generate or retrieve a read-only access code for a page.
+
+    Returns existing access code if one exists, otherwise creates a new one.
+    Requires edit access to the page (org member or project editor).
+    """
+    page = get_object_or_404(Page, external_id=external_id, is_deleted=False)
+
+    if not user_can_access_page(request.user, page):
+        return 403, {"message": "You don't have access to this page"}
+
+    if not page.access_code:
+        page.access_code = secrets.token_urlsafe(32)
+        page.save(update_fields=["access_code"])
+
+    return AccessCodeOut(access_code=page.access_code)
+
+
+@pages_router.delete("/{external_id}/access-code/", response={204: None, 403: dict})
+def remove_access_code(request: HttpRequest, external_id: str):
+    """Remove the read-only access code from a page.
+
+    Requires edit access to the page (org member or project editor).
+    """
+    page = get_object_or_404(Page, external_id=external_id, is_deleted=False)
+
+    if not user_can_access_page(request.user, page):
+        return 403, {"message": "You don't have access to this page"}
+
+    page.access_code = None
+    page.save(update_fields=["access_code"])
+
+    return 204, None

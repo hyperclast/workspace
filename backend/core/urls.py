@@ -3,6 +3,7 @@ from django.urls import path, re_path
 from django.views.static import serve
 
 from . import views
+from pages.views import shared_page
 
 FAVICON_DIR = settings.BASE_DIR / "core" / "static" / "core" / "img" / "favicon"
 
@@ -37,4 +38,5 @@ urlpatterns = [
     path("forgot-password/", views.spa, name="forgot-password"),
     path("settings/", views.spa, name="settings"),
     re_path(r"^pages/(?P<page_id>[^/]+)/$", views.spa, name="page"),
+    re_path(r"^share/pages/(?P<access_code>[^/]+)/$", shared_page, name="shared_page"),
 ]

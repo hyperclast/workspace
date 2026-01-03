@@ -108,6 +108,11 @@ def compute_org_name_for_email(email: str) -> str:
     return email.split("@")[0] if "@" in email else "user"
 
 
+def can_hijack_user(hijacker, hijacked) -> bool:
+    """Permission check for django-hijack user impersonation."""
+    return hijacker.is_superuser
+
+
 def generate_username_from_email(email: str, max_attempts: int = 10) -> str:
     """Generate a username from email address with 4 random digits.
 

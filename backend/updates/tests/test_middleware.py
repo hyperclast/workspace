@@ -16,15 +16,15 @@ class TestLastActiveMiddleware(TestCase):
 
     def test_updates_last_active_for_authenticated_user(self):
         user = UserFactory()
-        self.assertIsNone(user.last_active)
+        self.assertIsNone(user.profile.last_active)
 
         request = self.factory.get("/")
         request.user = user
 
         self.middleware(request)
 
-        user.refresh_from_db()
-        self.assertIsNotNone(user.last_active)
+        user.profile.refresh_from_db()
+        self.assertIsNotNone(user.profile.last_active)
 
     def test_does_not_update_for_anonymous_user(self):
         from django.contrib.auth.models import AnonymousUser
@@ -37,46 +37,54 @@ class TestLastActiveMiddleware(TestCase):
         self.get_response.assert_called_once_with(request)
 
     def test_throttles_updates_within_one_hour(self):
+        user = UserFactory()
         recent_time = timezone.now() - timedelta(minutes=30)
-        user = UserFactory(last_active=recent_time)
+        user.profile.last_active = recent_time
+        user.profile.save()
 
         request = self.factory.get("/")
         request.user = user
 
-        with patch.object(user, "save") as mock_save:
+        with patch.object(user.profile, "save") as mock_save:
             self.middleware(request)
             mock_save.assert_not_called()
 
     def test_updates_after_one_hour(self):
+        user = UserFactory()
         old_time = timezone.now() - timedelta(hours=2)
-        user = UserFactory(last_active=old_time)
+        user.profile.last_active = old_time
+        user.profile.save()
 
         request = self.factory.get("/")
         request.user = user
 
         self.middleware(request)
 
-        user.refresh_from_db()
-        self.assertGreater(user.last_active, old_time)
+        user.profile.refresh_from_db()
+        self.assertGreater(user.profile.last_active, old_time)
 
     def test_updates_when_last_active_is_none(self):
-        user = UserFactory(last_active=None)
+        user = UserFactory()
+        user.profile.last_active = None
+        user.profile.save()
 
         request = self.factory.get("/")
         request.user = user
 
         self.middleware(request)
 
-        user.refresh_from_db()
-        self.assertIsNotNone(user.last_active)
+        user.profile.refresh_from_db()
+        self.assertIsNotNone(user.profile.last_active)
 
     def test_uses_update_fields_for_efficiency(self):
-        user = UserFactory(last_active=None)
+        user = UserFactory()
+        user.profile.last_active = None
+        user.profile.save()
 
         request = self.factory.get("/")
         request.user = user
 
-        with patch.object(user, "save") as mock_save:
+        with patch.object(user.profile, "save") as mock_save:
             self.middleware(request)
             mock_save.assert_called_once_with(update_fields=["last_active"])
 

@@ -21,6 +21,7 @@ from pycrdt import Doc, Text
 from backend.asgi import application
 from collab.tests import (
     add_project_editor,
+    assert_ws_rejected,
     create_page_with_access,
     create_user_with_org_and_project,
 )
@@ -179,9 +180,12 @@ class TestWebSocketUpdatePersistenceMocked(TransactionTestCase):
         comm = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
         comm.scope["user"] = unauthorized_user
 
-        # Connection should be rejected
+        # Connection is initially accepted, then rejected with close code
         connected, _ = await comm.connect()
-        self.assertFalse(connected)
+        self.assertTrue(connected, "Connection is initially accepted to allow error message")
+
+        # Verify the connection is then rejected with proper error
+        await assert_ws_rejected(comm, expected_close_code=4003, expected_error_code="access_denied")
 
         # Wait a bit to ensure no async tasks run
         await asyncio.sleep(0.5)
@@ -287,9 +291,12 @@ class TestWebSocketSnapshotPersistence(TransactionTestCase):
         comm = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
         comm.scope["user"] = unauthorized_user
 
-        # Connection should be rejected
+        # Connection is initially accepted, then rejected with close code
         connected, _ = await comm.connect()
-        self.assertFalse(connected)
+        self.assertTrue(connected, "Connection is initially accepted to allow error message")
+
+        # Verify the connection is then rejected with proper error
+        await assert_ws_rejected(comm, expected_close_code=4003, expected_error_code="access_denied")
 
         # Wait a bit to ensure no async tasks run
         await asyncio.sleep(0.5)

@@ -7,9 +7,10 @@ class LastActiveMiddleware:
 
     def __call__(self, request):
         response = self.get_response(request)
-        if request.user.is_authenticated:
-            last = request.user.last_active
+        if request.user.is_authenticated and hasattr(request.user, "profile"):
+            profile = request.user.profile
+            last = profile.last_active
             if last is None or (timezone.now() - last).total_seconds() > 3600:
-                request.user.last_active = timezone.now()
-                request.user.save(update_fields=["last_active"])
+                profile.last_active = timezone.now()
+                profile.save(update_fields=["last_active"])
         return response

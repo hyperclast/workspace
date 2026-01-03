@@ -11,6 +11,11 @@ User = get_user_model()
 
 
 class Profile(TimeStampedModel):
+    """
+    User preferences and metadata. All custom user attributes go here.
+    Auto-created when User is created. Access via user.profile.field_name.
+    """
+
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
@@ -22,6 +27,8 @@ class Profile(TimeStampedModel):
         default=None,
     )
     access_token = models.TextField(unique=True, default=token_urlsafe)
+    last_active = models.DateTimeField(null=True, blank=True)
+    receive_product_updates = models.BooleanField(default=True)
 
     def __str__(self):
         return f"{self.user.email}"

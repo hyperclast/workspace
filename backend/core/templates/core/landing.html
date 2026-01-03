@@ -326,6 +326,23 @@
       }
 
       @media (max-width: 768px) {
+        .landing-nav {
+          padding: 1rem 1rem;
+        }
+
+        .landing-nav-actions {
+          gap: 0.75rem;
+        }
+
+        .hide-mobile {
+          display: none;
+        }
+
+        .landing-btn-primary {
+          padding: 0.5rem 0.75rem;
+          font-size: 0.875rem;
+        }
+
         .landing-hero-content h1 {
           font-size: 2.5rem;
         }
@@ -334,13 +351,31 @@
           font-size: 1.1rem;
         }
 
+        .landing-features {
+          padding: 3rem 1.5rem;
+        }
+
+        .landing-features-grid {
+          gap: 1.5rem;
+        }
+
+        .landing-feature {
+          padding: 1rem;
+        }
+
         .landing-footer-content {
           grid-template-columns: repeat(2, 1fr);
           gap: 1.5rem;
         }
 
+        .landing-comparison-container {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+
         .comparison-table {
           font-size: 0.85rem;
+          min-width: 540px;
         }
 
         .comparison-table th,
@@ -361,7 +396,7 @@
         <div class="landing-nav-container">
           <a href="/" class="landing-logo">{% include 'core/partials/_logo_icon.html' %} {{ brand_name }}</a>
           <div class="landing-nav-actions">
-            <a href="{% url 'core:dev_index' %}" class="landing-link">Developers</a>
+            <a href="{% url 'core:dev_index' %}" class="landing-link hide-mobile">Developers</a>
             <a href="/login" class="landing-link">Log in</a>
             <a href="/signup" class="landing-btn-primary">Get Started</a>
           </div>
@@ -404,7 +439,7 @@
                 <td class="highlight-col"><span class="check">✓</span></td>
                 <td><span class="partial">Slow</span></td>
                 <td><span class="partial">Slow</span></td>
-                <td><span class="check-note">✓<span class="cell-note">Local only</span></span></td>
+                <td><span class="check-note">✓</span></td>
               </tr>
               <tr>
                 <td>Open Source</td>
@@ -418,14 +453,14 @@
                   <td class="highlight-col"><span class="check">✓</span></td>
                   <td><span class="cross">✗</span></td>
                   <td><span class="partial">Limited</span></td>
-                  <td><span class="check-note">✓<span class="cell-note">Local only</span></span></td>
+                  <td><span class="check-note">✓</span></td>
                 </tr>
                 <tr>
                   <td>Full Data Ownership</td>
                   <td class="highlight-col"><span class="check">✓</span></td>
                   <td><span class="partial">Limited</span></td>
                   <td><span class="partial">Limited</span></td>
-                  <td><span class="check-note">✓<span class="cell-note">Local only</span></span></td>
+                  <td><span class="check-note">✓</span></td>
                 </tr>
                 <tr>
                   <td>Real-Time Collaboration</td>
@@ -446,7 +481,7 @@
                   <td class="highlight-col"><span class="check">✓</span></td>
                   <td><span class="partial">Limited</span></td>
                   <td><span class="partial">Limited</span></td>
-                  <td><span class="check-note">✓<span class="cell-note">Local plugins only</span></span></td>
+                  <td><span class="check-note">✓</span></td>
                 </tr>
                 <tr>
                   <td>Free Tier</td>

@@ -12,6 +12,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.test import TransactionTestCase
 
 from backend.asgi import application
+from collab.tests import assert_ws_rejected
 from pages.tests.factories import PageFactory, ProjectFactory
 from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory
 
@@ -87,8 +88,12 @@ class TestWebSocketJoin(TransactionTestCase):
         )
         communicator.scope["user"] = unauthorized_user
 
+        # Connection is initially accepted, then rejected with close code
         connected, _ = await communicator.connect()
-        self.assertFalse(connected, "Unauthorized user should not be able to connect")
+        self.assertTrue(connected, "Connection is initially accepted to allow error message")
+
+        # Verify the connection is then rejected with proper error
+        await assert_ws_rejected(communicator, expected_close_code=4003, expected_error_code="access_denied")
 
     async def test_unauthenticated_user_cannot_join(self):
         """Test that an unauthenticated user cannot connect."""
@@ -103,8 +108,12 @@ class TestWebSocketJoin(TransactionTestCase):
         )
         communicator.scope["user"] = AnonymousUser()
 
+        # Connection is initially accepted, then rejected with close code
         connected, _ = await communicator.connect()
-        self.assertFalse(connected, "Unauthenticated user should not be able to connect")
+        self.assertTrue(connected, "Connection is initially accepted to allow error message")
+
+        # Verify the connection is then rejected with proper error
+        await assert_ws_rejected(communicator, expected_close_code=4003, expected_error_code="access_denied")
 
     async def test_nonexistent_page_connection_fails(self):
         """Test that connecting to a non-existent page fails."""
@@ -118,8 +127,12 @@ class TestWebSocketJoin(TransactionTestCase):
         )
         communicator.scope["user"] = user
 
+        # Connection is initially accepted, then rejected with close code
         connected, _ = await communicator.connect()
-        self.assertFalse(connected, "Should not be able to connect to non-existent page")
+        self.assertTrue(connected, "Connection is initially accepted to allow error message")
+
+        # Verify the connection is then rejected with proper error
+        await assert_ws_rejected(communicator, expected_close_code=4003, expected_error_code="access_denied")
 
     async def test_multiple_clients_can_join_same_page(self):
         """Test that multiple clients can connect to the same page simultaneously."""
@@ -198,9 +211,13 @@ class TestWebSocketJoin(TransactionTestCase):
         )
         communicator.scope["user"] = unauthorized_user
 
-        connected, close_code = await communicator.connect()
+        # Connection is initially accepted to allow sending the close code to the client
+        connected, _ = await communicator.connect()
+        self.assertTrue(connected, "Connection is initially accepted to allow error message")
 
-        # Should be rejected
-        self.assertFalse(connected, "Unauthorized user should be rejected")
-        # Close code 4003 is used for access denied (see consumers.py:60)
+        # Verify the connection is then closed with proper code
+        # Close code 4003 is used for access denied (see consumers.py)
+        _, close_code = await assert_ws_rejected(
+            communicator, expected_close_code=4003, expected_error_code="access_denied"
+        )
         self.assertEqual(close_code, 4003, f"Expected close code 4003, got {close_code}")
