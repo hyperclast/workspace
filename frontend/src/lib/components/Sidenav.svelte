@@ -349,6 +349,7 @@
               onclick={() => handlePageClick(page.external_id, project.external_id)}
             >
               <span class="page-title">{page.title || "Untitled"}</span>
+              <span class="page-filetype">{page.filetype || "md"}</span>
               {#if page.access_code}
                 <button
                   class="page-shared-indicator"
@@ -358,7 +359,6 @@
                   {@html globeIcon}
                 </button>
               {/if}
-              <span class="page-filetype">{page.filetype || "md"}</span>
               <div class="page-menu">
                 <button
                   class="page-menu-btn"

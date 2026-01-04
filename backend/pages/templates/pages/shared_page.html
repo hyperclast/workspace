@@ -1,4 +1,4 @@
-{% load static %}
+{% load static vite %}
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% if error %}Page not available{% else %}{{ title }}{% endif %} | {{ brand_name }}</title>
     {% include 'core/partials/_favicon.html' %}
+    {% vite_css "src/viewer.js" %}
     <style>
       * {
         margin: 0;
@@ -51,15 +52,6 @@
         color: #667eea;
       }
 
-      .shared-nav-badge {
-        font-size: 0.75rem;
-        font-weight: 500;
-        color: #92400e;
-        background: #fef3c7;
-        padding: 0.25rem 0.5rem;
-        border-radius: 4px;
-      }
-
       .shared-main {
         flex: 1;
         padding: 2rem 1.5rem;
@@ -72,19 +64,51 @@
         border-radius: 12px;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         padding: 2rem;
+        position: relative;
+      }
+
+      .shared-badge {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: #059669;
+        background: #d1fae5;
+        padding: 0.25rem 0.75rem;
+        border-radius: 999px;
       }
 
       .shared-header {
-        margin-bottom: 2rem;
-        padding-bottom: 1.5rem;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
         border-bottom: 1px solid #e5e7eb;
+      }
+
+      .shared-title-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
       }
 
       .shared-title {
         font-size: 2rem;
         font-weight: 700;
         color: #1f2937;
-        margin: 0 0 0.5rem 0;
+        margin: 0;
+      }
+
+      .shared-title-type {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: #4b5563;
+        background: #f3f4f6;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        text-transform: uppercase;
+        font-family: 'SF Mono', Monaco, Consolas, monospace;
+        flex-shrink: 0;
       }
 
       .shared-updated {
@@ -92,18 +116,29 @@
         color: #6b7280;
       }
 
-      .shared-content {
-        font-size: 1rem;
-        line-height: 1.75;
-        color: #374151;
+      /* Viewer container */
+      #viewer {
+        min-height: 100px;
       }
 
-      .shared-content p {
-        margin: 0 0 1rem 0;
+      #viewer .cm-editor {
+        background: transparent;
       }
 
-      .shared-content p:last-child {
-        margin-bottom: 0;
+      #viewer .cm-scroller {
+        overflow: visible;
+      }
+
+      #viewer .cm-content {
+        padding: 0;
+      }
+
+      #viewer .cm-gutters {
+        display: none;
+      }
+
+      #viewer .cm-activeLine {
+        background: transparent;
       }
 
       .shared-footer {
@@ -162,9 +197,6 @@
       <nav class="shared-nav">
         <div class="shared-nav-container">
           <a href="/" class="shared-nav-brand">{{ brand_name }}</a>
-          {% if not error %}
-            <span class="shared-nav-badge">Read-only</span>
-          {% endif %}
         </div>
       </nav>
 
@@ -177,13 +209,15 @@
           </div>
         {% else %}
           <article class="shared-article">
+            <span class="shared-badge">Public View</span>
             <header class="shared-header">
-              <h1 class="shared-title">{{ title }}</h1>
+              <div class="shared-title-row">
+                <h1 class="shared-title">{{ title }}</h1>
+                <span class="shared-title-type">.{{ filetype }}</span>
+              </div>
               <time class="shared-updated">Last updated: {{ updated|date:"F j, Y, g:i A" }}</time>
             </header>
-            <div class="shared-content">
-              {{ content_html|safe }}
-            </div>
+            <div id="viewer"></div>
           </article>
         {% endif %}
       </main>
@@ -192,5 +226,10 @@
         <p>Shared via <a href="/">{{ brand_name }}</a></p>
       </footer>
     </div>
+
+    {% if not error %}
+      <script id="page-data" type="application/json">{{ page_json|safe }}</script>
+      <script type="module" src="{% vite_asset 'src/viewer.js' %}"></script>
+    {% endif %}
   </body>
 </html>

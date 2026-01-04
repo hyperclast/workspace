@@ -53,7 +53,7 @@ class TestUserAIProvidersAPI(BaseAuthenticatedViewTestCase):
         self.assertNotIn("api_key", payload)
         self.assertEqual(payload["key_hint"], "sk-...mnop")
 
-    @patch("ask.helpers.validate_key.validate_and_update_config")
+    @patch("users.api.ai.validate_and_update_config")
     def test_create_provider_success(self, mock_validate):
         """Can create a new provider config."""
         mock_validate.return_value = (True, None)
@@ -79,7 +79,7 @@ class TestUserAIProvidersAPI(BaseAuthenticatedViewTestCase):
         self.assertEqual(config.user, self.user)
         self.assertEqual(config.api_key, "sk-test-key")
 
-    @patch("ask.helpers.validate_key.validate_and_update_config")
+    @patch("users.api.ai.validate_and_update_config")
     def test_create_provider_validates_key(self, mock_validate):
         """Creating provider with key triggers validation."""
         mock_validate.return_value = (True, None)
@@ -95,7 +95,7 @@ class TestUserAIProvidersAPI(BaseAuthenticatedViewTestCase):
 
         mock_validate.assert_called_once()
 
-    @patch("ask.helpers.validate_key.validate_and_update_config")
+    @patch("users.api.ai.validate_and_update_config")
     def test_create_provider_validation_failure_returns_400(self, mock_validate):
         """Returns 400 if key validation fails."""
         mock_validate.return_value = (False, "Invalid API key")
@@ -167,7 +167,7 @@ class TestUserAIProvidersAPI(BaseAuthenticatedViewTestCase):
 
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
 
-    @patch("ask.helpers.validate_key.validate_and_update_config")
+    @patch("users.api.ai.validate_and_update_config")
     def test_update_provider_config(self, mock_validate):
         """Can update an existing config."""
         mock_validate.return_value = (True, None)
@@ -189,7 +189,7 @@ class TestUserAIProvidersAPI(BaseAuthenticatedViewTestCase):
         self.assertTrue(config.is_enabled)
         self.assertEqual(config.api_key, "sk-new-key")
 
-    @patch("ask.helpers.validate_key.validate_and_update_config")
+    @patch("users.api.ai.validate_and_update_config")
     def test_update_provider_revalidates_on_key_change(self, mock_validate):
         """Updating API key triggers revalidation."""
         mock_validate.return_value = (True, None)
@@ -256,7 +256,7 @@ class TestUserAIProvidersAPI(BaseAuthenticatedViewTestCase):
 
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
 
-    @patch("ask.helpers.validate_key.validate_and_update_config")
+    @patch("users.api.ai.validate_and_update_config")
     def test_validate_provider_endpoint(self, mock_validate):
         """Can manually trigger validation."""
         mock_validate.return_value = (True, None)
@@ -330,7 +330,7 @@ class TestOrgAIProvidersAPI(BaseAuthenticatedViewTestCase):
 
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
 
-    @patch("ask.helpers.validate_key.validate_and_update_config")
+    @patch("users.api.ai.validate_and_update_config")
     def test_create_org_provider(self, mock_validate):
         """Admin can create org provider."""
         mock_validate.return_value = (True, None)
@@ -363,7 +363,7 @@ class TestOrgAIProvidersAPI(BaseAuthenticatedViewTestCase):
 
         self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
 
-    @patch("ask.helpers.validate_key.validate_and_update_config")
+    @patch("users.api.ai.validate_and_update_config")
     def test_update_org_provider(self, mock_validate):
         """Admin can update org provider."""
         mock_validate.return_value = (True, None)
@@ -399,7 +399,7 @@ class TestOrgAIProvidersAPI(BaseAuthenticatedViewTestCase):
         self.assertEqual(response.status_code, HTTPStatus.NO_CONTENT)
         self.assertFalse(AIProviderConfig.objects.filter(pk=config.pk).exists())
 
-    @patch("ask.helpers.validate_key.validate_and_update_config")
+    @patch("users.api.ai.validate_and_update_config")
     def test_validate_org_provider(self, mock_validate):
         """Admin can validate org provider."""
         mock_validate.return_value = (True, None)

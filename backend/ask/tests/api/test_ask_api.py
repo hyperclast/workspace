@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from django.test import override_settings
 
@@ -45,7 +45,9 @@ class TestAskAPI(BaseAuthenticatedViewTestCase):
         self.assertIn("pages", payload)
 
         # Verify process_query was called correctly
-        mock_process_query.assert_called_once_with(query=query, user=self.user, page_ids=[])
+        mock_process_query.assert_called_once_with(
+            query=query, user=ANY, page_ids=[], provider=None, config_id=None, model=None
+        )
 
     @patch("ask.models.AskRequest.objects.process_query")
     def test_ask_returns_error_for_empty_question(self, mock_process_query):
@@ -234,7 +236,9 @@ class TestAskAPI(BaseAuthenticatedViewTestCase):
         self.assertEqual(payload["answer"], "These pages are about testing.")
 
         # Verify process_query was called with page_ids
-        mock_process_query.assert_called_once_with(query=query, user=self.user, page_ids=page_ids)
+        mock_process_query.assert_called_once_with(
+            query=query, user=ANY, page_ids=page_ids, provider=None, config_id=None, model=None
+        )
 
     @patch("ask.models.AskRequest.objects.process_query")
     def test_ask_with_empty_page_ids_list(self, mock_process_query):
@@ -256,7 +260,9 @@ class TestAskAPI(BaseAuthenticatedViewTestCase):
         self.assertIn("answer", payload)
 
         # Verify process_query was called with empty page_ids
-        mock_process_query.assert_called_once_with(query=query, user=self.user, page_ids=[])
+        mock_process_query.assert_called_once_with(
+            query=query, user=ANY, page_ids=[], provider=None, config_id=None, model=None
+        )
 
 
 @override_settings(ASK_FEATURE_ENABLED=False)

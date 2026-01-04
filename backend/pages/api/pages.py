@@ -143,10 +143,14 @@ def update_page(
             else:
                 page.details = {**payload.details, "content": merged_content}
         else:
-            content = payload.details.get("content", "")
+            if page.details:
+                merged_details = {**page.details, **payload.details}
+            else:
+                merged_details = payload.details
+            content = merged_details.get("content", "")
             if not validate_content_size(content):
                 return 413, {"message": f"Content too large (max {MAX_CONTENT_SIZE // (1024 * 1024)} MB)"}
-            page.details = payload.details
+            page.details = merged_details
 
     page.save(update_fields=["title", "details", "modified"])
 

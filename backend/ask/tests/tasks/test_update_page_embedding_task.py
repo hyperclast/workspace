@@ -18,7 +18,7 @@ class TestUpdatePageEmbeddingTask(TestCase):
 
         update_page_embedding(page.external_id)
 
-        mocked_update.assert_called_once_with(page)
+        mocked_update.assert_called_once_with(page, user=page.creator)
 
     def test_update_page_embedding_task_updated(self, mocked_update):
         """Test task when embedding is updated."""
@@ -28,7 +28,7 @@ class TestUpdatePageEmbeddingTask(TestCase):
 
         update_page_embedding(page.external_id)
 
-        mocked_update.assert_called_once_with(page)
+        mocked_update.assert_called_once_with(page, user=page.creator)
 
     def test_update_page_embedding_task_skipped(self, mocked_update):
         """Test task when embedding computation is skipped (content hash matches)."""
@@ -38,7 +38,7 @@ class TestUpdatePageEmbeddingTask(TestCase):
 
         update_page_embedding(page.external_id)
 
-        mocked_update.assert_called_once_with(page)
+        mocked_update.assert_called_once_with(page, user=page.creator)
 
     def test_update_page_embedding_task_no_matching_page(self, mocked_update):
         update_page_embedding("x")

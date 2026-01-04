@@ -57,10 +57,7 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function createPanel(view) {
-  const mode = view.state.field(largeFileModeField, false);
-  if (mode === "normal") return null;
-
+function createPanelDom(mode, docLength) {
   const dom = document.createElement("div");
   dom.className = "cm-large-file-indicator";
 
@@ -70,7 +67,7 @@ function createPanel(view) {
 
   const text = document.createElement("span");
   text.className = "cm-large-file-text";
-  const size = formatSize(view.state.doc.length);
+  const size = formatSize(docLength);
 
   if (mode === "huge") {
     text.textContent = `Large file mode (${size}) - Minimal decorations enabled`;
@@ -83,10 +80,17 @@ function createPanel(view) {
   dom.appendChild(icon);
   dom.appendChild(text);
 
-  return { dom, top: true };
+  return dom;
 }
 
-export const largeFilePanelExtension = showPanel.of((view) => createPanel(view));
+export const largeFilePanelExtension = showPanel.compute([largeFileModeField], (state) => {
+  const mode = state.field(largeFileModeField, false);
+  if (mode === "normal") return null;
+  return (view) => ({
+    dom: createPanelDom(mode, view.state.doc.length),
+    top: true,
+  });
+});
 
 const largeFilePanelPlugin = ViewPlugin.fromClass(
   class {

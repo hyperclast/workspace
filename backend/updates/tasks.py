@@ -229,6 +229,71 @@ def send_update_to_subscribers(update_id: int) -> None:
     logger.info(f"Sent update '{update.title}' to {sent_count} subscribers")
 
 
+def send_update_to_new_subscribers(update_id: int) -> int:
+    """Send update to subscribers who haven't received it yet.
+
+    Only works for updates that have already been sent once (emailed_at is set).
+    Returns the number of emails sent.
+    """
+    try:
+        update = Update.objects.get(pk=update_id)
+    except Update.DoesNotExist:
+        logger.error(f"Update {update_id} not found")
+        return 0
+
+    if not update.emailed_at:
+        logger.warning(f"Update {update_id} hasn't been sent yet, use send_update_to_subscribers instead")
+        return 0
+
+    thirty_days_ago = timezone.now() - timedelta(days=30)
+
+    already_received_user_ids = SentEmail.objects.filter(
+        related_update=update,
+        recipient__isnull=False,
+    ).values_list("recipient_id", flat=True)
+
+    new_subscribers = (
+        User.objects.filter(
+            profile__receive_product_updates=True,
+            profile__last_active__gte=thirty_days_ago,
+        )
+        .exclude(id__in=already_received_user_ids)
+        .values_list("id", "email")
+    )
+
+    if not new_subscribers:
+        logger.info(f"No new subscribers for update '{update.title}'")
+        return 0
+
+    content_html = markdown2.markdown(
+        update.content,
+        extras={
+            "fenced-code-blocks": {"cssclass": ""},
+            "tables": None,
+        },
+    )
+
+    subject, html_body, text_body = render_update_email(update, content_html)
+
+    sent_count = 0
+    for user_id, email in new_subscribers:
+        try:
+            send_broadcast_email(
+                to_email=email,
+                subject=subject,
+                html_body=html_body,
+                text_body=text_body,
+                related_update=update,
+                recipient_user=User(pk=user_id),
+            )
+            sent_count += 1
+        except Exception as e:
+            logger.error(f"Failed to send update to {email}: {e}")
+
+    logger.info(f"Sent update '{update.title}' to {sent_count} new subscribers")
+    return sent_count
+
+
 def send_test_update_email(update_id: int, test_email: str, fetch_spam_score: bool = False) -> dict:
     """Send a test email to a specific address without marking the update as sent.
 

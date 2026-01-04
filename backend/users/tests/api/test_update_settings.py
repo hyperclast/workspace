@@ -49,15 +49,22 @@ class TestUpdateSettingsAPI(BaseAuthenticatedViewTestCase):
 
         self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
 
-    @patch.object(Profile, "save")
-    def test_update_settings_handles_errors(self, mocked_save):
-        mocked_save.side_effect = ValueError("TEST ERROR")
+    @patch("users.api.users.log_error")
+    def test_update_settings_handles_errors(self, mocked_log_error):
+        from django.utils import timezone
+
         user = self.user
         orig_profile = Profile.objects.get(user=user)
         orig_tz = orig_profile.tz
         data = {"tz": "US/Pacific"}
 
-        response = self.send_update_settings_api_request(data)
+        # Set last_active to now so LastActiveMiddleware won't call save()
+        orig_profile.last_active = timezone.now()
+        orig_profile.save(update_fields=["last_active"])
+
+        with patch.object(Profile, "save", side_effect=ValueError("TEST ERROR")):
+            response = self.send_update_settings_api_request(data)
+
         payload = response.json()
         updated_profile = Profile.objects.get(user=user)
 
@@ -65,3 +72,4 @@ class TestUpdateSettingsAPI(BaseAuthenticatedViewTestCase):
         self.assertIn("message", payload)
         self.assertNotIn("details", payload)
         self.assertEqual(updated_profile.tz, orig_tz)
+        mocked_log_error.assert_called_once()

@@ -145,26 +145,86 @@ def accept_project_invitation(request, token):
     return redirect(signup_url)
 
 
-def render_markdown_simple(content):
-    """Convert markdown-like content to simple HTML for read-only display.
+def render_markdown(content):
+    """Convert markdown content to HTML for read-only display."""
+    import re
 
-    Only handles basic formatting - paragraphs and line breaks.
-    Content is already escaped before this function is called.
-    """
+    import markdown2
+
     if not content:
         return ""
 
-    # Split by double newlines for paragraphs
-    paragraphs = content.split("\n\n")
-    html_parts = []
+    html = markdown2.markdown(
+        content,
+        extras=["fenced-code-blocks", "tables", "task_list", "strike", "header-ids"],
+    )
 
-    for para in paragraphs:
-        if para.strip():
-            # Convert single newlines to <br>
-            para_html = para.replace("\n", "<br>")
-            html_parts.append(f"<p>{para_html}</p>")
+    html = re.sub(
+        r'<li>(\s*<input[^>]*class="task-list-item-checkbox"[^>]*>)',
+        r'<li class="has-checkbox">\1',
+        html,
+    )
 
-    return "".join(html_parts)
+    return html
+
+
+def render_csv_as_table(content):
+    """Convert CSV content to an HTML table for read-only display.
+
+    Content is already escaped before this function is called.
+    """
+    import csv
+    from io import StringIO
+
+    if not content:
+        return "<p>No data</p>"
+
+    try:
+        reader = csv.reader(StringIO(content))
+        rows = list(reader)
+
+        if not rows:
+            return "<p>No data</p>"
+
+        html_parts = ['<div class="csv-table-wrapper"><table class="csv-table">']
+
+        for i, row in enumerate(rows):
+            if i == 0:
+                html_parts.append("<thead><tr>")
+                for cell in row:
+                    html_parts.append(f"<th>{escape(cell)}</th>")
+                html_parts.append("</tr></thead><tbody>")
+            else:
+                html_parts.append("<tr>")
+                for cell in row:
+                    html_parts.append(f"<td>{escape(cell)}</td>")
+                html_parts.append("</tr>")
+
+        html_parts.append("</tbody></table></div>")
+        return "".join(html_parts)
+
+    except Exception:
+        return f"<pre>{content}</pre>"
+
+
+def render_content_for_filetype(content, filetype):
+    """Render page content based on filetype.
+
+    Args:
+        content: The raw page content
+        filetype: One of 'md', 'txt', 'csv', 'log'
+
+    Returns:
+        HTML string appropriate for the filetype
+    """
+    if filetype == "csv":
+        return render_csv_as_table(content)
+    elif filetype == "txt":
+        return f'<pre class="txt-content">{escape(content)}</pre>'
+    elif filetype == "log":
+        return f'<pre class="log-content">{escape(content)}</pre>'
+    else:
+        return render_markdown(content)
 
 
 def shared_page(request, access_code):
@@ -173,7 +233,6 @@ def shared_page(request, access_code):
     This view is public (no authentication required).
     Security is provided by the unguessable 43-character access code.
     """
-    # Get the page
     try:
         page = Page.objects.get(access_code=access_code, is_deleted=False)
     except Page.DoesNotExist:
@@ -188,8 +247,12 @@ def shared_page(request, access_code):
             status=404,
         )
 
-    # Get page content
+    import json
+
     content = page.details.get("content", "") if page.details else ""
+    filetype = page.details.get("filetype", "md") if page.details else "md"
+
+    page_json = json.dumps({"content": content, "filetype": filetype})
 
     return render(
         request,
@@ -197,7 +260,8 @@ def shared_page(request, access_code):
         {
             "page": page,
             "title": escape(page.title or "Untitled"),
-            "content_html": render_markdown_simple(escape(content)),
+            "filetype": filetype,
+            "page_json": page_json,
             "updated": page.updated,
             "brand_name": settings.BRAND_NAME,
         },

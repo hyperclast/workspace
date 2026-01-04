@@ -357,6 +357,8 @@ LANDING_TEMPLATE = config("WS_LANDING_TEMPLATE", default="core/landing.html")
 UPDATES_TEST_EMAIL = config("WS_UPDATES_TEST_EMAIL", default="test@example.com")
 UPDATES_FROM_EMAIL = config("WS_UPDATES_FROM_EMAIL", default=DEFAULT_FROM_EMAIL)
 UPDATES_POSTMARK_TOKEN = config("WS_UPDATES_POSTMARK_TOKEN", default=None)
+UPDATE_DEFAULT_AUTHOR_NAME = config("WS_UPDATE_DEFAULT_AUTHOR_NAME", default="")
+UPDATE_DEFAULT_AUTHOR_PICTURE = config("WS_UPDATE_DEFAULT_AUTHOR_PICTURE", default="")
 
 # Private features (not included in OSS release)
 # Comma-separated list of private features to enable, e.g., "feature1,feature2"

@@ -1,6 +1,15 @@
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
+
+
+def get_default_author_name():
+    return getattr(settings, "UPDATE_DEFAULT_AUTHOR_NAME", "")
+
+
+def get_default_author_picture():
+    return getattr(settings, "UPDATE_DEFAULT_AUTHOR_PICTURE", "")
 
 
 class Update(models.Model):
@@ -8,6 +17,8 @@ class Update(models.Model):
     slug = models.SlugField(max_length=200, unique=True, blank=True)
     content = models.TextField(help_text="Markdown content")
     image_url = models.URLField(blank=True, help_text="Optional image URL")
+    author_name = models.CharField(max_length=100, blank=True, default=get_default_author_name)
+    author_picture_url = models.CharField(max_length=500, blank=True, default=get_default_author_picture)
     is_published = models.BooleanField(default=False)
     published_at = models.DateTimeField(null=True, blank=True)
     emailed_at = models.DateTimeField(null=True, blank=True)

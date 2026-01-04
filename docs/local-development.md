@@ -8,6 +8,10 @@ For development without Docker.
 cd backend
 cp .env-template .env   # then edit with your values
 uv sync --group dev
+
+# Required: generate an encryption key for API key storage
+python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# Add the output to WS_ENCRYPTION_KEY in .env
 uv run pre-commit install
 git config core.hooksPath backend/.githooks
 uv run manage.py migrate

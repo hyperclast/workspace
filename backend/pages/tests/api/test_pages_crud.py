@@ -647,6 +647,7 @@ class TestProjectEditorAccessAPI(BaseAuthenticatedViewTestCase):
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
 
 
+@override_settings(DATA_UPLOAD_MAX_MEMORY_SIZE=15 * 1024 * 1024)  # 15 MB to allow testing beyond 10 MB limit
 class TestContentSizeLimit(BaseAuthenticatedViewTestCase):
     """Test content size limit enforcement (10 MB max)."""
 

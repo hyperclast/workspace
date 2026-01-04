@@ -248,17 +248,42 @@
         border-bottom: 1px solid #e5e7eb;
       }
 
-      .update-date {
-        font-size: 0.9rem;
-        color: #888;
-        margin-bottom: 0.75rem;
-      }
-
       .update-title {
         font-size: 2.5rem;
         font-weight: 700;
         color: #1a1a1a;
         line-height: 1.2;
+      }
+
+      .update-author {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-top: 1.25rem;
+      }
+
+      .update-author-picture {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        object-fit: cover;
+      }
+
+      .update-author-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.125rem;
+      }
+
+      .update-author-name {
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: #555;
+      }
+
+      .update-date {
+        font-size: 0.85rem;
+        color: #888;
       }
 
       .update-content {
@@ -549,7 +574,7 @@
                 {% endif %}
               </span>
               {% if update.emailed_at %}
-                <span class="admin-panel-status sent">✓ Email sent on {{ update.emailed_at|date:"F j, Y \a\t g:i A" }}</span>
+                <span class="admin-panel-status sent">✓ Sent to {{ sent_count }} subscriber{{ sent_count|pluralize }}{% if new_subscriber_count > 0 %} · {{ new_subscriber_count }} new since then{% endif %}</span>
               {% else %}
                 <span class="admin-panel-status">Email not sent yet · {{ subscriber_count }} active subscriber{{ subscriber_count|pluralize }}</span>
               {% endif %}
@@ -568,6 +593,11 @@
                 </button>
               {% else %}
                 <button type="button" class="admin-btn" disabled>Already Sent</button>
+                {% if new_subscriber_count > 0 %}
+                  <button type="button" class="admin-btn" id="sendToNewBtn" onclick="sendToNew()">
+                    Send to {{ new_subscriber_count }} new
+                  </button>
+                {% endif %}
               {% endif %}
             </div>
           </div>
@@ -585,8 +615,18 @@
           </nav>
 
           <header class="update-header">
-            <div class="update-date">{{ update.published_at|date:"F j, Y" }}</div>
             <h1 class="update-title">{{ update.title }}</h1>
+            {% if update.author_name %}
+              <div class="update-author">
+                {% if update.author_picture_url %}
+                  <img src="{{ update.author_picture_url }}" alt="{{ update.author_name }}" class="update-author-picture" />
+                {% endif %}
+                <div class="update-author-info">
+                  <span class="update-author-name">{{ update.author_name }}</span>
+                  <span class="update-date">{{ update.published_at|date:"M j, Y" }}</span>
+                </div>
+              </div>
+            {% endif %}
           </header>
 
           {% if update.image_url %}
@@ -617,6 +657,23 @@
           <div class="modal-actions">
             <button type="button" class="modal-btn modal-btn-cancel" onclick="closeModal()">Cancel</button>
             <button type="button" class="modal-btn modal-btn-confirm" id="confirmSendBtn" onclick="confirmSendEmail()">
+              Send Now
+            </button>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if is_superuser and update.emailed_at and new_subscriber_count > 0 %}
+      <div class="modal-overlay" id="confirmNewModal">
+        <div class="modal">
+          <div class="modal-title">Send to new subscribers?</div>
+          <div class="modal-message">
+            You're about to send "<strong>{{ update.title }}</strong>" to <strong>{{ new_subscriber_count }} new subscriber{{ new_subscriber_count|pluralize }}</strong> who joined after the original send.
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="modal-btn modal-btn-cancel" onclick="closeNewModal()">Cancel</button>
+            <button type="button" class="modal-btn modal-btn-confirm" id="confirmSendNewBtn" onclick="confirmSendToNew()">
               Send Now
             </button>
           </div>
@@ -762,6 +819,63 @@
 
           document.getElementById('confirmModal').addEventListener('click', function(e) {
             if (e.target === this) closeModal();
+          });
+        {% endif %}
+
+        {% if update.emailed_at and new_subscriber_count > 0 %}
+          function sendToNew() {
+            document.getElementById('confirmNewModal').classList.add('show');
+          }
+
+          function closeNewModal() {
+            document.getElementById('confirmNewModal').classList.remove('show');
+          }
+
+          function confirmSendToNew() {
+            const btn = document.getElementById('sendToNewBtn');
+            const confirmBtn = document.getElementById('confirmSendNewBtn');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Sending...';
+
+            fetch('{% url "updates:send_to_new" update.slug %}', {
+              method: 'POST',
+              headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+              },
+            })
+              .then(response => response.json())
+              .then(data => {
+              closeNewModal();
+              if (data.success) {
+                showToast(data.message, 'success');
+                btn.textContent = 'Sent!';
+                setTimeout(() => {
+                  location.reload();
+                }, 1500);
+              } else {
+                showToast(data.error || 'Failed to send email', 'error');
+                btn.disabled = false;
+                btn.textContent = originalText;
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Send Now';
+              }
+            })
+              .catch(err => {
+              closeNewModal();
+              showToast('Failed to send email', 'error');
+              btn.disabled = false;
+              btn.textContent = originalText;
+              confirmBtn.disabled = false;
+              confirmBtn.textContent = 'Send Now';
+            });
+          }
+
+          document.getElementById('confirmNewModal').addEventListener('click', function(e) {
+            if (e.target === this) closeNewModal();
           });
         {% endif %}
       </script>

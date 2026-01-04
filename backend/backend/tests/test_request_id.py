@@ -5,6 +5,7 @@ Tests for request ID generation and logging context.
 import logging
 import time
 
+from django.conf import settings
 from django.test import TestCase, RequestFactory, override_settings
 
 from backend.utils import (
@@ -52,7 +53,8 @@ class TestRequestIdGeneration(TestCase):
         self.assertEqual(len(ids), len(set(ids)), "Generated IDs should be unique")
 
     def test_generate_request_id_performance(self):
-        """Request ID generation should be fast (< 1µs average)."""
+        """Request ID generation should be fast (configurable threshold)."""
+        threshold_ns = getattr(settings, "WS_PERF_REQUEST_ID_GEN_NS", 1000)
         iterations = 10000
         start = time.perf_counter_ns()
         for _ in range(iterations):
@@ -60,7 +62,9 @@ class TestRequestIdGeneration(TestCase):
         elapsed_ns = time.perf_counter_ns() - start
         avg_ns = elapsed_ns / iterations
 
-        self.assertLess(avg_ns, 1000, f"Average generation time {avg_ns}ns exceeds 1µs")
+        self.assertLess(
+            avg_ns, threshold_ns, f"Average generation time {avg_ns:.0f}ns exceeds threshold {threshold_ns}ns"
+        )
 
 
 class TestRequestIdContext(TestCase):
@@ -236,7 +240,8 @@ class TestRequestIDMiddleware(TestCase):
         self.assertIsNone(get_request_id())
 
     def test_middleware_performance(self):
-        """Middleware overhead should be minimal."""
+        """Middleware overhead should be minimal (configurable threshold)."""
+        threshold_ns = getattr(settings, "WS_PERF_MIDDLEWARE_NS", 10000)
         request = self.factory.get("/")
 
         iterations = 1000
@@ -247,8 +252,9 @@ class TestRequestIDMiddleware(TestCase):
         elapsed_ns = time.perf_counter_ns() - start
         avg_ns = elapsed_ns / iterations
 
-        # Should be under 10µs on average (including mock response)
-        self.assertLess(avg_ns, 10000, f"Average middleware time {avg_ns}ns exceeds 10µs")
+        self.assertLess(
+            avg_ns, threshold_ns, f"Average middleware time {avg_ns:.0f}ns exceeds threshold {threshold_ns}ns"
+        )
 
 
 class TestLoggingHelpers(TestCase):
@@ -310,7 +316,8 @@ class TestLoggingHelpers(TestCase):
         self.assertTrue(any("Test message" in msg for msg in cm.output))
 
     def test_logging_helpers_performance(self):
-        """Logging helpers should have minimal overhead."""
+        """Logging helpers should have minimal overhead (configurable threshold)."""
+        threshold_ns = getattr(settings, "WS_PERF_LOGGING_NS", 1000)
         # Suppress actual output for performance test
         logger = logging.getLogger()
         original_level = logger.level
@@ -324,7 +331,6 @@ class TestLoggingHelpers(TestCase):
             elapsed_ns = time.perf_counter_ns() - start
             avg_ns = elapsed_ns / iterations
 
-            # Should be under 1µs on average (when suppressed)
-            self.assertLess(avg_ns, 1000, f"Average log time {avg_ns}ns exceeds 1µs")
+            self.assertLess(avg_ns, threshold_ns, f"Average log time {avg_ns:.0f}ns exceeds threshold {threshold_ns}ns")
         finally:
             logger.setLevel(original_level)

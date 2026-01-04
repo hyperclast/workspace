@@ -153,7 +153,7 @@ class TestAskRequestProcessQuery(TestCase):
         self.assertEqual(ask_request.answer, "This is the answer to your question.")
 
         # Verify compute_embedding was called (since no mentions)
-        mock_compute_embedding.assert_called_once_with("What is relevant?")
+        mock_compute_embedding.assert_called_once_with("What is relevant?", user=self.user)
 
         # Verify build_messages was called with pages from similarity search
         mock_build_messages.assert_called_once()

@@ -54,7 +54,10 @@ export function initSidebar() {
 
 async function loadPrivateFeatures() {
   try {
-    const { setupPrivateFeatures } = await import("../private/index.js");
+    // Construct path dynamically to prevent Vite's static analysis
+    // This allows the OSS build to succeed when private/ directory doesn't exist
+    const modulePath = [".", ".", "private", "index.js"].join("/");
+    const { setupPrivateFeatures } = await import(/* @vite-ignore */ modulePath);
     await setupPrivateFeatures();
   } catch {
     // Private module not available (OSS version)

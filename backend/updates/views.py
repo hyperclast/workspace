@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from core.models import SentEmail
 from core.views.utils import get_user_nav_context
 from users.models import User
 
@@ -20,6 +21,34 @@ def get_subscriber_count():
         profile__receive_product_updates=True,
         profile__last_active__gte=thirty_days_ago,
     ).count()
+
+
+def get_update_email_counts(update):
+    """Get sent count and new subscriber count for an update."""
+    if not update.emailed_at:
+        return 0, 0
+
+    sent_count = SentEmail.objects.filter(
+        related_update=update,
+        recipient__isnull=False,
+    ).count()
+
+    thirty_days_ago = timezone.now() - timedelta(days=30)
+    already_received_ids = SentEmail.objects.filter(
+        related_update=update,
+        recipient__isnull=False,
+    ).values_list("recipient_id", flat=True)
+
+    new_subscriber_count = (
+        User.objects.filter(
+            profile__receive_product_updates=True,
+            profile__last_active__gte=thirty_days_ago,
+        )
+        .exclude(id__in=already_received_ids)
+        .count()
+    )
+
+    return sent_count, new_subscriber_count
 
 
 def update_list(request):
@@ -47,14 +76,17 @@ def update_detail(request, slug):
         },
     )
 
+    is_superuser = request.user.is_authenticated and request.user.is_superuser
+    sent_count, new_subscriber_count = get_update_email_counts(update) if is_superuser else (0, 0)
+
     context = {
         "update": update,
         "content_html": content_html,
         "brand_name": getattr(settings, "BRAND_NAME", "Hyperclast"),
-        "is_superuser": request.user.is_authenticated and request.user.is_superuser,
-        "subscriber_count": get_subscriber_count()
-        if request.user.is_authenticated and request.user.is_superuser
-        else 0,
+        "is_superuser": is_superuser,
+        "subscriber_count": get_subscriber_count() if is_superuser else 0,
+        "sent_count": sent_count,
+        "new_subscriber_count": new_subscriber_count,
         **get_user_nav_context(request),
     }
     return render(request, "updates/detail.html", context)
@@ -131,3 +163,23 @@ def check_spam_score(request, slug):
             "spam_score": spam_info,
         }
     )
+
+
+@require_POST
+def send_to_new_subscribers(request, slug):
+    if not request.user.is_authenticated or not request.user.is_superuser:
+        return JsonResponse({"error": "Unauthorized"}, status=403)
+
+    update = get_object_or_404(Update, slug=slug)
+
+    if not update.emailed_at:
+        return JsonResponse({"error": "Update hasn't been sent yet"}, status=400)
+
+    _, new_count = get_update_email_counts(update)
+    if new_count == 0:
+        return JsonResponse({"error": "No new subscribers to send to"}, status=400)
+
+    queue = django_rq.get_queue(settings.JOB_EMAIL_QUEUE)
+    queue.enqueue("updates.tasks.send_update_to_new_subscribers", update.id)
+
+    return JsonResponse({"success": True, "message": f"Email queued for {new_count} new subscriber(s)"})

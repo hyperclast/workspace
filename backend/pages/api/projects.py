@@ -97,6 +97,7 @@ def serialize_project(project, include_pages=False):
                 "updated": page.updated,
                 "modified": page.modified,
                 "created": page.created,
+                "access_code": page.access_code,
             }
             for page in project.pages.all()
         ]

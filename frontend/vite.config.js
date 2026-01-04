@@ -16,6 +16,7 @@ export default defineConfig({
       input: {
         app: "src/app.js",
         commandPalette: "src/commandPaletteStandalone.js",
+        viewer: "src/viewer.js",
       },
       output: {
         entryFileNames: "assets/js/[name]-[hash].js",

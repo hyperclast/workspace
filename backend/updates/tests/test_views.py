@@ -144,7 +144,7 @@ class TestUpdateDetailView(TestCase):
         response = self.client.get(reverse("updates:detail", args=[update.slug]))
 
         self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertContains(response, "Email sent on")
+        self.assertContains(response, "Sent to")
         self.assertContains(response, "Already Sent")
 
     def test_detail_view_shows_image_when_present(self):

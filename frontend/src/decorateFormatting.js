@@ -5,12 +5,12 @@ import { CODE_FENCE_SCAN_LIMIT_LINES } from "./config/performance.js";
 const BOLD_REGEX = /\*\*(.+?)\*\*/g;
 const UNDERLINE_REGEX = /__(.+?)__/g;
 const INLINE_CODE_REGEX = /`([^`\n]+)`/g;
-const HEADING_REGEX = /^(#{1,6})\s+(.*)$/;
+export const HEADING_REGEX = /^(#{1,6})\s+(.*)$/;
 const HR_REGEX = /^(\s*)(-{3,}|\*{3,}|_{3,})(\s*)$/;
-const BULLET_REGEX = /^(\s*)- (.*)$/;
+export const BULLET_REGEX = /^(\s*)- (.*)$/;
 const ORDERED_REGEX = /^(\s*)(\d+)\. (.*)$/;
 const LIST_REGEX = /^(\s*)(?:- |\d+\. )/;
-const CHECKBOX_REGEX = /^(\s*)- \[([ xX])\] (.*)$/;
+export const CHECKBOX_REGEX = /^(\s*)- \[([ xX])\] (.*)$/;
 const BLOCKQUOTE_REGEX = /^(\s*)> (.*)$/;
 const CODE_FENCE_REGEX = /^```(\w*)$/;
 

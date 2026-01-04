@@ -10,4 +10,5 @@ urlpatterns = [
     path("<slug:slug>/send-email/", views.send_update_email, name="send_email"),
     path("<slug:slug>/send-test-email/", views.send_test_update_email, name="send_test_email"),
     path("<slug:slug>/check-spam/", views.check_spam_score, name="check_spam"),
+    path("<slug:slug>/send-to-new/", views.send_to_new_subscribers, name="send_to_new"),
 ]
