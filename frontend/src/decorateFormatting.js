@@ -225,6 +225,24 @@ export const decorateFormatting = ViewPlugin.fromClass(
               builder.push(
                 Decoration.replace({ widget: new HrWidget() }).range(line.from, line.to)
               );
+
+              // Collapse blank lines adjacent to HR
+              if (i > 1) {
+                const prevLine = state.doc.line(i - 1);
+                if (prevLine.text.trim() === "") {
+                  builder.push(
+                    Decoration.line({ class: "format-hr-adjacent-blank" }).range(prevLine.from)
+                  );
+                }
+              }
+              if (i < state.doc.lines) {
+                const nextLine = state.doc.line(i + 1);
+                if (nextLine.text.trim() === "") {
+                  builder.push(
+                    Decoration.line({ class: "format-hr-adjacent-blank" }).range(nextLine.from)
+                  );
+                }
+              }
             }
             continue;
           }

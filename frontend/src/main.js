@@ -148,9 +148,9 @@ function renderAppHTML() {
                 <div id="readonly-indicator" class="readonly-indicator" style="display: none;">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
                   <div class="indicator-popover readonly-popover">
-                    <div class="indicator-popover-header">Public Link</div>
+                    <div class="indicator-popover-header">View-Only Link</div>
                     <div class="indicator-popover-text">Anyone with the link can view this page without signing in.</div>
-                    <button class="indicator-popover-btn" id="readonly-popover-btn">Manage link</button>
+                    <button class="indicator-popover-btn" id="readonly-popover-btn">Manage</button>
                   </div>
                 </div>
                 <div id="presence-indicator" class="presence-indicator" title="Users currently editing">
@@ -180,7 +180,7 @@ function renderAppHTML() {
                     </button>
                     <button id="readonly-link-btn" class="actions-dropdown-item">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-                      Get public link
+                      Get view-only link
                     </button>
                     <button id="change-type-btn" class="actions-dropdown-item">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M9 15l2 2 4-4"></path></svg>
@@ -365,7 +365,7 @@ function setPageTitle(title, filetype = "md") {
 }
 
 /**
- * Update the read-only indicator visibility based on access_code.
+ * Update the view-only link indicator visibility based on access_code.
  */
 function updateReadonlyIndicator(accessCode) {
   const indicator = document.getElementById("readonly-indicator");
@@ -560,7 +560,7 @@ async function loadPage(page) {
     access_code: page.access_code,
   };
 
-  // Update the read-only indicator
+  // Update the view-only link indicator
   updateReadonlyIndicator(page.access_code);
 
   // Store the project ID for this page
@@ -1566,12 +1566,12 @@ function setupNoteActions() {
         updateReadonlyIndicator(access_code);
       } catch (err) {
         console.error("Error generating access code:", err);
-        showToast("Failed to generate read-only link", "error");
+        showToast("Failed to create view-only link", "error");
       }
     });
   }
 
-  // Setup hover popover for the read-only indicator
+  // Setup hover popover for the view-only link indicator
   const readonlyIndicator = document.getElementById("readonly-indicator");
   const readonlyPopover = readonlyIndicator?.querySelector(".readonly-popover");
   const readonlyPopoverBtn = document.getElementById("readonly-popover-btn");

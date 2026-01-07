@@ -46,7 +46,7 @@
       confirmingRemove = false;
       open = false;
       onremove();
-      showToast('Read-only access removed');
+      showToast('View-only link deactivated');
     } catch (e) {
       console.error('Error removing access:', e);
       error = 'Failed to remove access. Please try again.';
@@ -68,10 +68,10 @@
   }
 </script>
 
-<Modal bind:open title="Public Link" onclose={handleClose}>
+<Modal bind:open title="View-Only Link" onclose={handleClose}>
   {#snippet children()}
     <p class="modal-description">
-      Share this link to let anyone view <strong>{pageTitle}</strong>.
+      Anyone with this link can view <strong>{pageTitle}</strong>.
     </p>
 
     <div class="link-section">
@@ -105,7 +105,7 @@
           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
           <circle cx="12" cy="12" r="3"></circle>
         </svg>
-        <span>This page is publicly viewable</span>
+        <span>View-only link is active</span>
       </div>
       {#if confirmingRemove}
         <div class="inline-confirm">
@@ -123,7 +123,7 @@
             onclick={confirmRemove}
             disabled={removing}
           >
-            {removing ? 'Removing...' : 'Remove access'}
+            {removing ? 'Deactivating...' : 'Deactivate'}
           </button>
         </div>
       {:else}
@@ -132,7 +132,7 @@
           class="remove-link-btn"
           onclick={startRemove}
         >
-          Remove access
+          Deactivate
         </button>
       {/if}
     </div>

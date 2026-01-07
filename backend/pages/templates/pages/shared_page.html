@@ -7,6 +7,7 @@
     <title>{% if error %}Page not available{% else %}{{ title }}{% endif %} | {{ brand_name }}</title>
     {% include 'core/partials/_favicon.html' %}
     {% vite_css "src/viewer.js" %}
+    <link rel="stylesheet" href="{% static 'core/css/docs.css' %}?v={{ deployment_id }}" />
     <style>
       * {
         margin: 0;
@@ -27,34 +28,13 @@
         background: #fafafa;
       }
 
-      .shared-nav {
-        background: white;
-        border-bottom: 1px solid #e5e7eb;
-        padding: 0.75rem 1.5rem;
-      }
-
-      .shared-nav-container {
+      .shared-page .site-nav-container {
         max-width: 800px;
-        margin: 0 auto;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
-
-      .shared-nav-brand {
-        font-weight: 600;
-        font-size: 1.1rem;
-        color: #1f2937;
-        text-decoration: none;
-      }
-
-      .shared-nav-brand:hover {
-        color: #667eea;
       }
 
       .shared-main {
         flex: 1;
-        padding: 2rem 1.5rem;
+        padding: 2rem 1rem;
       }
 
       .shared-article {
@@ -73,10 +53,18 @@
         right: 1rem;
         font-size: 0.75rem;
         font-weight: 500;
-        color: #059669;
-        background: #d1fae5;
+        color: #6b7280;
+        background: #f3f4f6;
         padding: 0.25rem 0.75rem;
         border-radius: 999px;
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+      }
+
+      .shared-badge svg {
+        width: 12px;
+        height: 12px;
       }
 
       .shared-header {
@@ -141,20 +129,14 @@
         background: transparent;
       }
 
-      .shared-footer {
-        text-align: center;
-        padding: 1.5rem;
-        color: #6b7280;
-        font-size: 0.875rem;
+      {% include 'core/partials/_footer_styles.html' %}
+
+      .shared-page .landing-footer {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       }
 
-      .shared-footer a {
-        color: #667eea;
-        text-decoration: none;
-      }
-
-      .shared-footer a:hover {
-        text-decoration: underline;
+      .shared-page .landing-footer-content {
+        max-width: 800px;
       }
 
       .shared-error {
@@ -190,15 +172,32 @@
         transform: translateY(-1px);
         box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
       }
+
+      @media (max-width: 768px) {
+        .shared-main {
+          padding: 1rem;
+        }
+
+        .shared-article {
+          padding: 1.25rem;
+          border-radius: 8px;
+        }
+
+        .shared-title {
+          font-size: 1.5rem;
+        }
+
+        .shared-badge {
+          position: static;
+          margin-bottom: 1rem;
+          display: inline-flex;
+        }
+      }
     </style>
   </head>
   <body>
     <div class="shared-page">
-      <nav class="shared-nav">
-        <div class="shared-nav-container">
-          <a href="/" class="shared-nav-brand">{{ brand_name }}</a>
-        </div>
-      </nav>
+      {% include 'core/partials/site_nav.html' %}
 
       <main class="shared-main">
         {% if error %}
@@ -209,7 +208,13 @@
           </div>
         {% else %}
           <article class="shared-article">
-            <span class="shared-badge">Public View</span>
+            <span class="shared-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+              View Only
+            </span>
             <header class="shared-header">
               <div class="shared-title-row">
                 <h1 class="shared-title">{{ title }}</h1>
@@ -222,9 +227,7 @@
         {% endif %}
       </main>
 
-      <footer class="shared-footer">
-        <p>Shared via <a href="/">{{ brand_name }}</a></p>
-      </footer>
+      {% include 'core/partials/_footer.html' %}
     </div>
 
     {% if not error %}

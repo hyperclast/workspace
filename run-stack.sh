@@ -33,4 +33,5 @@ if [[ ! -f .env-docker ]]; then
     fi
 fi
 
-docker compose --env-file .env-docker -p "$PROJECT_NAME" up --build
+# --pull missing: only pull images if not cached (enables offline dev)
+docker compose --env-file .env-docker -p "$PROJECT_NAME" up --build --pull missing

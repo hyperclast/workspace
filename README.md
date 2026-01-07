@@ -29,7 +29,9 @@ EOF
 Run:
 
 ```sh
-./run-stack.sh 9800     # webapp available at localhost:9800
+./run-stack.sh 9800           # Start stack (webapp at localhost:9800)
+./restart-stack.sh backend    # Restart Django after code changes
+./restart-stack.sh ls         # List running stacks
 ```
 
 See `backend/.env-template` for all configuration options.

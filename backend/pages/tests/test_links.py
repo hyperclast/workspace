@@ -106,6 +106,22 @@ class PageLinkModelTests(TestCase):
         self.assertEqual(self.page2.outgoing_links.count(), 0)
         self.assertEqual(self.page2.incoming_links.count(), 1)
 
+    def test_sync_links_returns_changed_flag(self):
+        """Test that sync returns changed=True when links are added/removed, False otherwise."""
+        content = f"Check out [Target](/pages/{self.page2.external_id}/)"
+
+        _, changed = PageLink.objects.sync_links_for_page(self.page1, content)
+        self.assertTrue(changed)
+
+        _, changed = PageLink.objects.sync_links_for_page(self.page1, content)
+        self.assertFalse(changed)
+
+        _, changed = PageLink.objects.sync_links_for_page(self.page1, "no links")
+        self.assertTrue(changed)
+
+        _, changed = PageLink.objects.sync_links_for_page(self.page1, "still no links")
+        self.assertFalse(changed)
+
 
 class PageLinksAPITests(TestCase):
     def setUp(self):

@@ -126,12 +126,12 @@ export function commandPalette(options = {}) {
 }
 
 /**
- * Show a read-only link modal for sharing a page publicly
+ * Show a view-only link modal for creating/managing anonymous view access
  * @param {Object} options
  * @param {string} options.pageExternalId - Page external ID
  * @param {string} options.pageTitle - Page title
- * @param {string} options.accessCode - The access code for the read-only link
- * @param {Function} options.onremove - Callback when access is removed
+ * @param {string} options.accessCode - The access code for the view-only link
+ * @param {Function} options.onremove - Callback when view-only link is removed
  */
 export function readonlyLinkModal(options = {}) {
   initModals();

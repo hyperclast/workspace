@@ -44,10 +44,13 @@ def sync_snapshot_with_page(room_id: str):
         log_info("Synced snapshot for %s", room_id)
 
         content = snapshot.content or ""
-        PageLink.objects.sync_links_for_page(page, content)
-        log_info("Synced links for %s", room_id)
+        _, links_changed = PageLink.objects.sync_links_for_page(page, content)
 
-        broadcast_links_updated(room_id, page_id)
+        if links_changed:
+            log_info("Links changed for %s, broadcasting update", room_id)
+            broadcast_links_updated(room_id, page_id)
+        else:
+            log_info("Links unchanged for %s, skipping broadcast", room_id)
 
         if not settings.ASK_FEATURE_ENABLED:
             log_info("Skipping embedding compute ask ask feature is disabled.")

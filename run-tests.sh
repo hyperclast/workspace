@@ -218,7 +218,7 @@ start_stack() {
     cd "$BACKEND_DIR"
 
     # Clean up any stale containers
-    docker compose -f docker-compose.yaml -f docker-compose.e2e.yaml -f docker-compose.tests.yaml \
+    docker compose -f docker-compose.yaml -f docker-compose.tests.yaml \
         -p "$PROJECT_NAME" \
         --env-file .env-tests \
         down --remove-orphans 2>/dev/null || true
@@ -228,7 +228,7 @@ start_stack() {
         build_flag="--build"
     fi
 
-    docker compose -f docker-compose.yaml -f docker-compose.e2e.yaml -f docker-compose.tests.yaml \
+    docker compose -f docker-compose.yaml -f docker-compose.tests.yaml \
         -p "$PROJECT_NAME" \
         --env-file .env-tests \
         up -d $build_flag
@@ -259,7 +259,7 @@ wait_for_health() {
     echo ""
     log_error "Services did not become healthy within ${max_wait}s"
     cd "$BACKEND_DIR"
-    docker compose -f docker-compose.yaml -f docker-compose.e2e.yaml -f docker-compose.tests.yaml \
+    docker compose -f docker-compose.yaml -f docker-compose.tests.yaml \
         -p "$PROJECT_NAME" \
         --env-file .env-tests \
         logs --tail=50
@@ -292,13 +292,13 @@ cleanup() {
 
     log_info "Cleaning up test stack..."
     cd "$BACKEND_DIR"
-    docker compose -f docker-compose.yaml -f docker-compose.e2e.yaml -f docker-compose.tests.yaml \
+    docker compose -f docker-compose.yaml -f docker-compose.tests.yaml \
         -p "$PROJECT_NAME" \
         --env-file .env-tests \
         down -v --remove-orphans 2>/dev/null || true
 
-    # Clean up generated files
-    rm -f "$BACKEND_DIR/docker-compose.tests.yaml" "$BACKEND_DIR/.env-tests"
+    # Clean up generated env file (keep docker-compose.tests.yaml as it's tracked in git)
+    rm -f "$BACKEND_DIR/.env-tests"
     log_success "Test stack cleaned up"
 }
 
@@ -308,9 +308,9 @@ run_backend_tests() {
 
     local container=$(get_web_container)
     log_info "Running tests in container: $container"
-    log_info "Command: python manage.py test --parallel"
+    log_info "Command: python manage.py test --parallel --noinput"
 
-    if docker exec "$container" python manage.py test --parallel; then
+    if docker exec "$container" python manage.py test --parallel --noinput; then
         log_success "Backend tests passed!"
         return 0
     else

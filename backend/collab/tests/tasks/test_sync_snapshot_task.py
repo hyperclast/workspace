@@ -327,17 +327,18 @@ class TestSyncSnapshotWithPage(TestCase):
 @patch("collab.tasks.broadcast_links_updated")
 @patch("collab.tasks.update_page_embedding")
 class TestSyncSnapshotBroadcastsLinksUpdated(TestCase):
-    """Test that sync_snapshot_with_page broadcasts links_updated to connected clients."""
+    """Test that sync_snapshot_with_page broadcasts links_updated only when links change."""
 
-    def test_sync_snapshot_broadcasts_links_updated(self, mocked_compute, mocked_broadcast):
-        """Test that syncing a snapshot broadcasts links_updated via WebSocket."""
-        page = PageFactory()
+    def test_sync_snapshot_broadcasts_when_links_change(self, mocked_compute, mocked_broadcast):
+        """Test that syncing a snapshot broadcasts links_updated when links are added."""
+        target_page = PageFactory()
+        page = PageFactory(project=target_page.project)
         room_id = f"page_{page.external_id}"
 
         doc = Doc()
         ytext = Text()
         doc["codemirror"] = ytext
-        ytext += "Content with a [link](/pages/abc123/)"
+        ytext += f"Content with a [link](/pages/{target_page.external_id}/)"
         snapshot_bytes = doc.get_update()
 
         YSnapshot.objects.create(
@@ -350,10 +351,38 @@ class TestSyncSnapshotBroadcastsLinksUpdated(TestCase):
 
         mocked_broadcast.assert_called_once_with(room_id, page.external_id)
 
-    def test_sync_snapshot_broadcasts_even_without_links(self, mocked_compute, mocked_broadcast):
-        """Test that links_updated is broadcast even when content has no links."""
+    def test_sync_snapshot_no_broadcast_when_links_unchanged(self, mocked_compute, mocked_broadcast):
+        """Test that links_updated is NOT broadcast when links haven't changed."""
         page = PageFactory()
         room_id = f"page_{page.external_id}"
+
+        doc = Doc()
+        ytext = Text()
+        doc["codemirror"] = ytext
+        ytext += "Plain content without links"
+        snapshot_bytes = doc.get_update()
+
+        YSnapshot.objects.create(
+            room_id=room_id,
+            snapshot=snapshot_bytes,
+            last_update_id=1,
+        )
+
+        sync_snapshot_with_page(room_id)
+        mocked_broadcast.assert_not_called()
+
+        sync_snapshot_with_page(room_id)
+        mocked_broadcast.assert_not_called()
+
+    def test_sync_snapshot_broadcasts_when_links_removed(self, mocked_compute, mocked_broadcast):
+        """Test that links_updated is broadcast when links are removed."""
+        target_page = PageFactory()
+        page = PageFactory(project=target_page.project)
+        room_id = f"page_{page.external_id}"
+
+        from pages.models import PageLink
+
+        PageLink.objects.create(source_page=page, target_page=target_page, link_text="old link")
 
         doc = Doc()
         ytext = Text()

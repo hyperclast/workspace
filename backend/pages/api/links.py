@@ -89,17 +89,19 @@ def sync_page_links(request: HttpRequest, external_id: str, payload: SyncLinksIn
     synced = False
 
     if payload.content is not None:
-        PageLink.objects.sync_links_for_page(page, payload.content)
-        log_info("Immediate link sync completed for %s (from request content)", external_id)
-        broadcast_links_updated(room_id, external_id)
+        _, links_changed = PageLink.objects.sync_links_for_page(page, payload.content)
+        log_info("Immediate link sync for %s (from request content), changed=%s", external_id, links_changed)
+        if links_changed:
+            broadcast_links_updated(room_id, external_id)
         synced = True
     else:
         try:
             snapshot = YSnapshot.objects.get(room_id=room_id)
             content = snapshot.content or ""
-            PageLink.objects.sync_links_for_page(page, content)
-            log_info("Immediate link sync completed for %s (from snapshot)", external_id)
-            broadcast_links_updated(room_id, external_id)
+            _, links_changed = PageLink.objects.sync_links_for_page(page, content)
+            log_info("Immediate link sync for %s (from snapshot), changed=%s", external_id, links_changed)
+            if links_changed:
+                broadcast_links_updated(room_id, external_id)
             synced = True
         except YSnapshot.DoesNotExist:
             log_info("No snapshot found for %s, skipping link sync", external_id)

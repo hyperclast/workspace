@@ -174,10 +174,10 @@ export async function triggerIndexing() {
   return response.json();
 }
 
-// Access Code API (Read-only sharing)
+// Access Code API (View-Only Links)
 
 /**
- * Generate or retrieve a read-only access code for a page.
+ * Generate or retrieve an access code for a view-only link.
  * @param {string} pageExternalId - External ID of the page
  * @returns {Promise<{access_code: string}>}
  */
@@ -192,7 +192,7 @@ export async function generateAccessCode(pageExternalId) {
 }
 
 /**
- * Remove the read-only access code from a page.
+ * Remove the view-only link access code from a page.
  * @param {string} pageExternalId - External ID of the page
  * @returns {Promise<void>}
  */

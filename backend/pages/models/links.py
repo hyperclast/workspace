@@ -11,7 +11,8 @@ class PageLinkManager(models.Manager):
     def sync_links_for_page(self, source_page, content):
         """
         Parse content for internal links and sync the PageLink table.
-        Removes old links and creates new ones in a single transaction.
+        Only modifies DB if links have actually changed.
+        Returns (created_links, changed) tuple where changed indicates if any modifications were made.
         """
         from pages.models import Page
 
@@ -21,37 +22,48 @@ class PageLinkManager(models.Manager):
             target_external_id = match.group(2)
             parsed_links.append((link_text, target_external_id))
 
-        self.filter(source_page=source_page).delete()
-
-        if not parsed_links:
-            return []
-
         target_ids = [ext_id for _, ext_id in parsed_links]
-        target_pages = {
-            p.external_id: p
-            for p in Page.objects.filter(
-                external_id__in=target_ids,
-                is_deleted=False,
-                project__is_deleted=False,
-            )
-        }
+        target_pages = (
+            {
+                p.external_id: p
+                for p in Page.objects.filter(
+                    external_id__in=target_ids,
+                    is_deleted=False,
+                    project__is_deleted=False,
+                )
+            }
+            if target_ids
+            else {}
+        )
 
-        links_to_create = []
+        desired_links = set()
         for link_text, target_external_id in parsed_links:
             target_page = target_pages.get(target_external_id)
             if target_page and target_page.id != source_page.id:
-                links_to_create.append(
-                    PageLink(
-                        source_page=source_page,
-                        target_page=target_page,
-                        link_text=link_text,
-                    )
-                )
+                desired_links.add((target_page.id, link_text))
 
-        if links_to_create:
-            self.bulk_create(links_to_create, ignore_conflicts=True)
+        existing_links = set(self.filter(source_page=source_page).values_list("target_page_id", "link_text"))
 
-        return links_to_create
+        if desired_links == existing_links:
+            return ([], False)
+
+        self.filter(source_page=source_page).delete()
+
+        if not desired_links:
+            return ([], True)
+
+        links_to_create = [
+            PageLink(
+                source_page=source_page,
+                target_page_id=target_page_id,
+                link_text=link_text,
+            )
+            for target_page_id, link_text in desired_links
+        ]
+
+        self.bulk_create(links_to_create, ignore_conflicts=True)
+
+        return (links_to_create, True)
 
 
 class PageLink(TimeStampedModel):

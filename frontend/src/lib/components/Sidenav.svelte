@@ -217,7 +217,7 @@
       });
     } catch (err) {
       console.error("Error generating access code:", err);
-      showToast("Failed to generate read-only link", "error");
+      showToast("Failed to create view-only link", "error");
     }
   }
 
@@ -353,7 +353,7 @@
               {#if page.access_code}
                 <button
                   class="page-shared-indicator"
-                  title="Public link enabled"
+                  title="View-only link active"
                   onclick={(e) => handleReadonlyLink(e, page.external_id, page.title, page.access_code)}
                 >
                   {@html globeIcon}
@@ -394,7 +394,7 @@
                     onclick={(e) => handleReadonlyLink(e, page.external_id, page.title, page.access_code)}
                   >
                     {@html globeIcon}
-                    Get public link
+                    Get view-only link
                   </button>
                   <button
                     class="page-menu-item page-menu-delete"

@@ -42,6 +42,17 @@ projects_router = Router(auth=[token_auth, session_auth])
 # ========================================
 
 
+def _get_project_select_related():
+    """Return the fields to select_related for project queries.
+
+    Conditionally includes org__billing only when the billing feature is enabled.
+    """
+    fields = ["org", "creator"]
+    if "billing" in getattr(settings, "PRIVATE_FEATURES", []):
+        fields.append("org__billing")
+    return fields
+
+
 def notify_project_access_revoked(project_external_id: str, user_id: int):
     """
     Send a WebSocket message to notify a user that their access to a project has been revoked.
@@ -128,9 +139,7 @@ def list_projects(
     """
 
     # Base queryset: projects user can access (org membership OR project editor)
-    queryset = Project.objects.get_user_accessible_projects(request.user).select_related(
-        "org", "org__billing", "creator"
-    )
+    queryset = Project.objects.get_user_accessible_projects(request.user).select_related(*_get_project_select_related())
 
     # Filter by org if org_id provided
     if query.org_id:
@@ -156,9 +165,7 @@ def get_project(request: HttpRequest, external_id: str, query: ProjectListQuery 
 
     Access is granted via org membership OR project editor.
     """
-    queryset = Project.objects.get_user_accessible_projects(request.user).select_related(
-        "org", "org__billing", "creator"
-    )
+    queryset = Project.objects.get_user_accessible_projects(request.user).select_related(*_get_project_select_related())
 
     # Prefetch pages if details=full
     if query.details == "full":
@@ -191,7 +198,7 @@ def create_project(request: HttpRequest, payload: ProjectIn):
     log_info(f"User {request.user.email} created project {project.external_id} in org {org.external_id}")
 
     # Reload with select_related to get creator and org
-    project = Project.objects.select_related("org", "org__billing", "creator").get(id=project.id)
+    project = Project.objects.select_related(*_get_project_select_related()).get(id=project.id)
     return 201, serialize_project(project, include_pages=False)
 
 
@@ -202,7 +209,7 @@ def update_project(request: HttpRequest, external_id: str, payload: ProjectUpdat
     Access is granted via org membership OR project editor.
     """
     project = get_object_or_404(
-        Project.objects.get_user_accessible_projects(request.user).select_related("org", "org__billing", "creator"),
+        Project.objects.get_user_accessible_projects(request.user).select_related(*_get_project_select_related()),
         external_id=external_id,
     )
 

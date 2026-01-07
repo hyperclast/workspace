@@ -2288,6 +2288,10 @@ body.sidebar-resizing .chat-sidebar {
   width: 100%;
 }
 
+.format-hr-adjacent-blank {
+  line-height: 0.2;
+}
+
 /* List item formatting */
 .format-list-item {
   line-height: 1.4;
