@@ -110,6 +110,135 @@
   .app-nav .user-dropdown-item:hover {
     background: #f1f5f9;
   }
+
+  /* Theme Toggle */
+  .app-nav .theme-toggle-wrapper {
+    position: relative;
+    margin-right: 1rem;
+  }
+  .app-nav .theme-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    border-radius: 6px;
+    color: white;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .app-nav .theme-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+  }
+  .app-nav .theme-icon-moon {
+    display: none;
+  }
+  .app-nav .theme-popover {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 0.5rem;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+    min-width: 140px;
+    padding: 0.375rem;
+    z-index: 1000;
+    display: none;
+  }
+  .app-nav .theme-popover.open {
+    display: block;
+  }
+  .app-nav .theme-popover-item {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    width: 100%;
+    padding: 0.5rem 0.625rem;
+    background: none;
+    border: none;
+    border-radius: 5px;
+    font-size: 0.875rem;
+    color: #37352f;
+    cursor: pointer;
+    transition: background 0.15s;
+    text-align: left;
+    font-family: inherit;
+  }
+  .app-nav .theme-popover-item:hover {
+    background: rgba(0, 0, 0, 0.04);
+  }
+  .app-nav .theme-popover-item.active {
+    color: #529cca;
+  }
+  .app-nav .theme-radio {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(55, 53, 47, 0.2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .app-nav .theme-popover-item.active .theme-radio {
+    border-color: #529cca;
+  }
+  .app-nav .theme-radio::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: #529cca;
+    border-radius: 50%;
+    display: none;
+  }
+  .app-nav .theme-popover-item.active .theme-radio::after {
+    display: block;
+  }
+  .app-nav .theme-label {
+    font-weight: 500;
+  }
+
+  /* Dark mode theme popover */
+  :root.dark .app-nav .theme-popover,
+  :root[data-theme="dark"] .app-nav .theme-popover {
+    background: #2d2d2d;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  }
+  :root.dark .app-nav .theme-popover-item,
+  :root[data-theme="dark"] .app-nav .theme-popover-item {
+    color: #ebebeb;
+  }
+  :root.dark .app-nav .theme-popover-item:hover,
+  :root[data-theme="dark"] .app-nav .theme-popover-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+  :root.dark .app-nav .theme-radio,
+  :root[data-theme="dark"] .app-nav .theme-radio {
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+  :root.dark .app-nav .user-dropdown,
+  :root[data-theme="dark"] .app-nav .user-dropdown {
+    background: #2d2d2d;
+  }
+  :root.dark .app-nav .user-dropdown-header,
+  :root[data-theme="dark"] .app-nav .user-dropdown-header {
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+  }
+  :root.dark .app-nav .user-dropdown-email,
+  :root.dark .app-nav .user-dropdown-item,
+  :root[data-theme="dark"] .app-nav .user-dropdown-email,
+  :root[data-theme="dark"] .app-nav .user-dropdown-item {
+    color: #ebebeb;
+  }
+  :root.dark .app-nav .user-dropdown-item:hover,
+  :root[data-theme="dark"] .app-nav .user-dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
   @media (max-width: 768px) {
     .app-nav {
       padding: 0.75rem 1rem;

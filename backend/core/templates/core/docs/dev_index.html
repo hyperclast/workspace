@@ -135,6 +135,47 @@
       margin-bottom: 0.5rem;
       font-weight: 500;
     }
+
+    /* Dark mode */
+    :root.dark .dev-highlight-card,
+    :root[data-theme="dark"] .dev-highlight-card {
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+      border-color: rgba(102, 126, 234, 0.3);
+    }
+    :root.dark .dev-highlight-card:hover,
+    :root[data-theme="dark"] .dev-highlight-card:hover {
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+    :root.dark .dev-highlight-card h3,
+    :root[data-theme="dark"] .dev-highlight-card h3 {
+      color: #f0f0f0;
+    }
+    :root.dark .dev-highlight-card p,
+    :root[data-theme="dark"] .dev-highlight-card p {
+      color: #b0b0b0;
+    }
+    :root.dark .use-case,
+    :root[data-theme="dark"] .use-case {
+      background: #242424;
+    }
+    :root.dark .use-case h4,
+    :root[data-theme="dark"] .use-case h4 {
+      color: #f0f0f0;
+    }
+    :root.dark .use-case p,
+    :root[data-theme="dark"] .use-case p {
+      color: #999;
+    }
+    :root.dark .dev-cta-secondary,
+    :root[data-theme="dark"] .dev-cta-secondary {
+      background: #2d2d2d;
+      border-color: #444;
+      color: #e5e5e5;
+    }
+    :root.dark .dev-cta-secondary:hover,
+    :root[data-theme="dark"] .dev-cta-secondary:hover {
+      background: #3d3d3d;
+    }
   </style>
 {% endblock %}
 

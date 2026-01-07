@@ -4,14 +4,80 @@
   Error
 {% endblock %}
 
+{% block extra_styles %}
+  <style>
+    .error-page {
+      min-height: calc(100vh - 100px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      background: #f5f5f5;
+      text-align: center;
+    }
+
+    .error-page h2 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 1rem;
+    }
+
+    .error-page p {
+      color: #666;
+      font-size: 1.1rem;
+      line-height: 1.6;
+      max-width: 500px;
+      margin: 0 0 1.5rem 0;
+    }
+
+    .error-page a {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 600;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .error-page a:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    /* Dark mode */
+    :root.dark .error-page,
+    :root[data-theme="dark"] .error-page {
+      background: #1a1a1a;
+    }
+
+    :root.dark .error-page h2,
+    :root[data-theme="dark"] .error-page h2 {
+      color: #f0f0f0;
+    }
+
+    :root.dark .error-page p,
+    :root[data-theme="dark"] .error-page p {
+      color: #b0b0b0;
+    }
+  </style>
+{% endblock %}
+
 {% block content_body %}
-  <h2>{% block content_error_title %}Error{% endblock %}</h2>
+  <div class="error-page">
+    <h2>{% block content_error_title %}Error{% endblock %}</h2>
 
-  {% block content_error_text %}{% endblock %}
+    {% block content_error_text %}{% endblock %}
 
-  {% block content_error_cta %}
-    <div>
-      <a href="/" class="" role="button"> Back to Home </a>
-    </div>
-  {% endblock %}
+    {% block content_error_cta %}
+      <div>
+        <a href="/" role="button"> Back to Home </a>
+      </div>
+    {% endblock %}
+  </div>
 {% endblock %}

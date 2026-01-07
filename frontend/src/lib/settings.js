@@ -5,6 +5,7 @@
 import { mount } from "svelte";
 import { setupCommandPalette } from "./commandPaletteSetup.js";
 import { fetchProjectsWithPages } from "../api.js";
+import { initTheme } from "../theme.js";
 
 let mounted = false;
 let cachedProjects = [];
@@ -13,6 +14,8 @@ let cachedProjects = [];
  * Initialize the settings page by mounting the Svelte component.
  */
 export default async function initSettingsPage() {
+  initTheme();
+
   // Check if already mounted and DOM element exists with content
   const existingRoot = document.getElementById("settings-page-root");
   if (mounted && existingRoot && existingRoot.children.length > 0) {

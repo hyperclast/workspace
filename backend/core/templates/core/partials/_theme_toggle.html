@@ -1,0 +1,208 @@
+<div class="theme-toggle-wrapper">
+  <button class="theme-toggle-btn" aria-label="Change theme" title="Change theme">
+    <svg class="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+    <svg class="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+    </svg>
+  </button>
+  <div class="theme-popover">
+    <button class="theme-popover-item" data-theme="light">
+      <span class="theme-radio"><span class="theme-radio-dot"></span></span>
+      Light
+    </button>
+    <button class="theme-popover-item" data-theme="dark">
+      <span class="theme-radio"><span class="theme-radio-dot"></span></span>
+      Dark
+    </button>
+    <button class="theme-popover-item" data-theme="system">
+      <span class="theme-radio"><span class="theme-radio-dot"></span></span>
+      System
+    </button>
+  </div>
+</div>
+
+<style>
+  .theme-toggle-wrapper {
+    position: relative;
+  }
+  .theme-toggle-btn {
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    border-radius: 6px;
+    padding: 0.4rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    transition: background 0.2s;
+  }
+  .theme-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+  }
+  .theme-icon-sun {
+    display: block;
+  }
+  .theme-icon-moon {
+    display: none;
+  }
+  :root.dark .theme-icon-sun,
+  :root[data-theme="dark"] .theme-icon-sun {
+    display: none;
+  }
+  :root.dark .theme-icon-moon,
+  :root[data-theme="dark"] .theme-icon-moon {
+    display: block;
+  }
+  .theme-popover {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    padding: 0.5rem;
+    min-width: 140px;
+    display: none;
+    z-index: 100;
+  }
+  .theme-popover.show {
+    display: block;
+  }
+  .theme-popover-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: #333;
+    border-radius: 4px;
+    transition: background 0.15s;
+  }
+  .theme-popover-item:hover {
+    background: #f3f4f6;
+  }
+  .theme-radio {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #d1d5db;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .theme-radio-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: transparent;
+  }
+  .theme-popover-item.selected .theme-radio {
+    border-color: #667eea;
+  }
+  .theme-popover-item.selected .theme-radio-dot {
+    background: #667eea;
+  }
+  :root.dark .theme-popover,
+  :root[data-theme="dark"] .theme-popover {
+    background: #2d2d2d;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+  :root.dark .theme-popover-item,
+  :root[data-theme="dark"] .theme-popover-item {
+    color: #e5e5e5;
+  }
+  :root.dark .theme-popover-item:hover,
+  :root[data-theme="dark"] .theme-popover-item:hover {
+    background: #3d3d3d;
+  }
+  :root.dark .theme-radio,
+  :root[data-theme="dark"] .theme-radio {
+    border-color: #555;
+  }
+  :root.dark .theme-popover-item.selected .theme-radio,
+  :root[data-theme="dark"] .theme-popover-item.selected .theme-radio {
+    border-color: #818cf8;
+  }
+  :root.dark .theme-popover-item.selected .theme-radio-dot,
+  :root[data-theme="dark"] .theme-popover-item.selected .theme-radio-dot {
+    background: #818cf8;
+  }
+</style>
+
+<script>
+  (function() {
+    const wrapper = document.querySelector('.theme-toggle-wrapper');
+    if (!wrapper) return;
+    const btn = wrapper.querySelector('.theme-toggle-btn');
+    const popover = wrapper.querySelector('.theme-popover');
+    const items = wrapper.querySelectorAll('.theme-popover-item');
+
+    function getStoredTheme() {
+      return localStorage.getItem('theme') || 'system';
+    }
+
+    function getSystemTheme() {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+
+    function applyTheme(theme) {
+      const effective = theme === 'system' ? getSystemTheme() : theme;
+      document.documentElement.setAttribute('data-theme', effective);
+      document.documentElement.classList.remove('light', 'dark');
+      document.documentElement.classList.add(effective);
+    }
+
+    function updateSelection() {
+      const stored = getStoredTheme();
+      items.forEach(item => {
+        item.classList.toggle('selected', item.getAttribute('data-theme') === stored);
+      });
+    }
+
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      popover.classList.toggle('show');
+      updateSelection();
+    });
+
+    items.forEach(item => {
+      item.addEventListener('click', function() {
+        const theme = this.getAttribute('data-theme');
+        localStorage.setItem('theme', theme);
+        applyTheme(theme);
+        updateSelection();
+        popover.classList.remove('show');
+      });
+    });
+
+    document.addEventListener('click', function(e) {
+      if (!wrapper.contains(e.target)) {
+        popover.classList.remove('show');
+      }
+    });
+
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+      if (getStoredTheme() === 'system') {
+        applyTheme('system');
+      }
+    });
+
+    updateSelection();
+  })();
+</script>

@@ -1,4 +1,4 @@
-import { Prec, StateField } from "@codemirror/state";
+import { EditorState, Prec, StateField } from "@codemirror/state";
 import { Decoration, ViewPlugin, WidgetType, keymap, EditorView } from "@codemirror/view";
 import { CODE_FENCE_SCAN_LIMIT_LINES } from "./config/performance.js";
 
@@ -10,7 +10,7 @@ const HR_REGEX = /^(\s*)(-{3,}|\*{3,}|_{3,})(\s*)$/;
 export const BULLET_REGEX = /^(\s*)- (.*)$/;
 const ORDERED_REGEX = /^(\s*)(\d+)\. (.*)$/;
 const LIST_REGEX = /^(\s*)(?:- |\d+\. )/;
-export const CHECKBOX_REGEX = /^(\s*)- \[([ xX])\] (.*)$/;
+export const CHECKBOX_REGEX = /^(\s*)- \[([ xX])\]( (.*))?$/;
 const BLOCKQUOTE_REGEX = /^(\s*)> (.*)$/;
 const CODE_FENCE_REGEX = /^```(\w*)$/;
 
@@ -138,8 +138,9 @@ export const decorateFormatting = ViewPlugin.fromClass(
       const builder = [];
       const { state } = view;
 
+      const isReadOnly = state.facet(EditorState.readOnly);
       const cursorPos = state.selection.main.head;
-      const cursorLine = state.doc.lineAt(cursorPos).number;
+      const cursorLine = isReadOnly ? -1 : state.doc.lineAt(cursorPos).number;
 
       const globalFences = state.field(codeFenceField, false) || [];
       const useGlobalFences =
@@ -275,6 +276,7 @@ export const decorateFormatting = ViewPlugin.fromClass(
                 line.from
               )
             );
+            this.decorateInlinePatterns(line, cursorLine, builder, isInCodeBlock);
             continue;
           }
 
@@ -284,8 +286,9 @@ export const decorateFormatting = ViewPlugin.fromClass(
             const indentLevel = Math.floor(indent / 2);
             const checked = checkboxMatch[2].toLowerCase() === "x";
             const checkboxStart = line.from + indent;
-            const checkboxEnd = checkboxStart + 6;
-            const textStart = checkboxEnd;
+            const hasTrailingSpace = checkboxMatch[3] !== undefined;
+            const checkboxEnd = checkboxStart + 5;
+            const textStart = hasTrailingSpace ? checkboxStart + 6 : checkboxEnd;
             const showRawSyntax = cursorOnLine && cursorPos < checkboxEnd;
 
             if (!showRawSyntax) {
@@ -319,6 +322,8 @@ export const decorateFormatting = ViewPlugin.fromClass(
               builder.push(
                 Decoration.mark({ class: "format-checkbox-checked" }).range(textStart, line.to)
               );
+            } else {
+              this.decorateInlinePatterns(line, cursorLine, builder, isInCodeBlock);
             }
             continue;
           }
@@ -354,6 +359,7 @@ export const decorateFormatting = ViewPlugin.fromClass(
                 class: `format-list-item format-bullet-item${indentClass}${rawClass}`,
               }).range(line.from)
             );
+            this.decorateInlinePatterns(line, cursorLine, builder, isInCodeBlock);
             continue;
           }
 
@@ -385,6 +391,7 @@ export const decorateFormatting = ViewPlugin.fromClass(
                 class: `format-list-item format-ordered-item${indentClass}${rawClass}`,
               }).range(line.from)
             );
+            this.decorateInlinePatterns(line, cursorLine, builder, isInCodeBlock);
             continue;
           }
 
@@ -398,6 +405,7 @@ export const decorateFormatting = ViewPlugin.fromClass(
             }
 
             builder.push(Decoration.line({ class: "format-blockquote" }).range(line.from));
+            this.decorateInlinePatterns(line, cursorLine, builder, isInCodeBlock);
             continue;
           }
 

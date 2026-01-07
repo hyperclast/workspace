@@ -15,6 +15,7 @@
   import { showToast } from "../toast.js";
   import { validateUsername } from "../validators.js";
   import AISettingsTab from "./settings/AISettingsTab.svelte";
+  import ThemeToggle from "./ThemeToggle.svelte";
 
   const brandName = getBrandName();
   const pricingEnabled = isPrivateFeatureEnabled("pricing");
@@ -285,6 +286,7 @@
     </div>
     <div class="nav-main">
       <div class="nav-actions">
+        <ThemeToggle />
         <a href="/" class="nav-link">Home</a>
         <div class="user-menu">
           <button id="user-avatar" class="user-avatar" title="Account menu" onclick={toggleUserMenu}>

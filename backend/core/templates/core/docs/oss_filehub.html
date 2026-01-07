@@ -13,6 +13,16 @@
       --fh-bg-subtle: #f9fafb;
     }
 
+    :root.dark .filehub-page,
+    :root[data-theme="dark"] .filehub-page {
+      --fh-accent: #818cf8;
+      --fh-accent-subtle: #1e1b4b;
+      --fh-text: #e5e5e5;
+      --fh-muted: #a3a3a3;
+      --fh-border: #3d3d3d;
+      --fh-bg-subtle: #2d2d2d;
+    }
+
     .filehub-page .oss-breadcrumb {
       margin-bottom: 1.25rem;
     }
@@ -77,6 +87,11 @@
       border-radius: 4px;
     }
 
+    :root.dark .fh-tag,
+    :root[data-theme="dark"] .fh-tag {
+      background: #3d3d3d;
+    }
+
     .fh-github {
       display: inline-flex;
       align-items: center;
@@ -122,6 +137,11 @@
       line-height: 1.6;
     }
 
+    :root.dark .fh-section p,
+    :root[data-theme="dark"] .fh-section p {
+      color: #b0b0b0;
+    }
+
     .fh-callout {
       display: flex;
       align-items: flex-start;
@@ -133,6 +153,13 @@
       margin: 1rem 0;
       font-size: 0.875rem;
       color: #92400e;
+    }
+
+    :root.dark .fh-callout,
+    :root[data-theme="dark"] .fh-callout {
+      background: #422006;
+      border-color: #854d0e;
+      color: #fef3c7;
     }
 
     .fh-callout-icon {
@@ -276,6 +303,17 @@
       padding: 0.1rem 0.35rem;
       border-radius: 3px;
       font-size: 0.75rem;
+    }
+
+    :root.dark .fh-faq-a,
+    :root[data-theme="dark"] .fh-faq-a {
+      color: #b0b0b0;
+    }
+
+    :root.dark .fh-faq-a code,
+    :root[data-theme="dark"] .fh-faq-a code {
+      background: #3d3d3d;
+      color: #e5e5e5;
     }
 
     .fh-cta {

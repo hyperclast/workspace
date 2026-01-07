@@ -11,6 +11,7 @@ import { decorateEmails } from "./decorateEmails.js";
 import { codeFenceField, decorateFormatting } from "./decorateFormatting.js";
 import { decorateLinks } from "./decorateLinks.js";
 import { markdownTableExtension } from "./markdownTable.js";
+import { initTheme } from "./theme.js";
 
 import "./style.css";
 
@@ -18,21 +19,21 @@ function initializeViewer(content, container, filetype = "md") {
   const simpleTheme = EditorView.theme(
     {
       "&": {
-        color: "black",
-        backgroundColor: "white",
+        color: "var(--text-primary)",
+        backgroundColor: "var(--bg-primary)",
       },
       ".cm-content": {
-        caretColor: "black",
-        color: "black",
+        caretColor: "var(--text-primary)",
+        color: "var(--text-primary)",
       },
       ".cm-line": {
-        color: "black",
+        color: "var(--text-primary)",
       },
       ".cm-cursor": {
         display: "none",
       },
       ".cm-selectionBackground": {
-        backgroundColor: "#b3d7ff",
+        backgroundColor: "var(--selection-bg)",
       },
     },
     { dark: false }
@@ -76,6 +77,8 @@ function initializeViewer(content, container, filetype = "md") {
 
 // Initialize viewer when DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
+  initTheme();
+
   const container = document.getElementById("viewer");
   const dataEl = document.getElementById("page-data");
 

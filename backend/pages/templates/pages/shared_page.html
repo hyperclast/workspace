@@ -4,6 +4,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script>
+      (function() {
+        var theme = 'system';
+        try { theme = localStorage.getItem('hyperclast-theme') || 'system'; } catch(e) {}
+        var effective = theme === 'system'
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : theme;
+        document.documentElement.setAttribute('data-theme', effective);
+        document.documentElement.classList.add(effective);
+      })();
+    </script>
     <title>{% if error %}Page not available{% else %}{{ title }}{% endif %} | {{ brand_name }}</title>
     {% include 'core/partials/_favicon.html' %}
     {% vite_css "src/viewer.js" %}
@@ -19,6 +30,11 @@
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
         line-height: 1.5;
         color: #1f2937;
+      }
+
+      :root.dark body,
+      :root[data-theme="dark"] body {
+        color: #e5e5e5;
       }
 
       .shared-page {
@@ -60,11 +76,78 @@
         display: flex;
         align-items: center;
         gap: 0.375rem;
+        cursor: pointer;
       }
 
       .shared-badge svg {
         width: 12px;
         height: 12px;
+      }
+
+      .shared-badge-wrapper {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+      }
+
+      .shared-badge-wrapper .shared-badge {
+        position: static;
+      }
+
+      .shared-badge-tooltip {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        margin-top: 0.5rem;
+        background: white;
+        color: #374151;
+        font-size: 0.8125rem;
+        font-weight: 400;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-4px);
+        transition: opacity 0.15s, transform 0.15s, visibility 0.15s;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05);
+        z-index: 100;
+        width: 240px;
+        line-height: 1.5;
+      }
+
+      .shared-badge-tooltip::before {
+        content: '';
+        position: absolute;
+        bottom: 100%;
+        right: 1rem;
+        border: 6px solid transparent;
+        border-bottom-color: white;
+        filter: drop-shadow(0 -1px 1px rgba(0, 0, 0, 0.05));
+      }
+
+      .shared-badge-wrapper:hover .shared-badge-tooltip {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+      }
+
+      .shared-badge-wrapper:hover .shared-badge {
+        background: #e5e7eb;
+        color: #374151;
+      }
+
+      /* Dark mode tooltip */
+      .dark .shared-badge-tooltip,
+      [data-theme="dark"] .shared-badge-tooltip {
+        background: #2d2d2d;
+        color: #e5e7eb;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
+      }
+
+      .dark .shared-badge-tooltip::before,
+      [data-theme="dark"] .shared-badge-tooltip::before {
+        border-bottom-color: #2d2d2d;
+        filter: none;
       }
 
       .shared-header {
@@ -135,6 +218,11 @@
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       }
 
+      .dark .shared-page .landing-footer,
+      [data-theme="dark"] .shared-page .landing-footer {
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+      }
+
       .shared-page .landing-footer-content {
         max-width: 800px;
       }
@@ -173,6 +261,82 @@
         box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
       }
 
+      /* Dark mode styles */
+      :root.dark,
+      :root[data-theme="dark"] {
+        background-color: #1a1a1a;
+      }
+
+      :root.dark body,
+      :root[data-theme="dark"] body {
+        background-color: #1a1a1a;
+      }
+
+      :root.dark .shared-page,
+      :root[data-theme="dark"] .shared-page {
+        background: #1a1a1a;
+      }
+
+      :root.dark .site-nav,
+      :root[data-theme="dark"] .site-nav {
+        background: linear-gradient(135deg, #2d2d2d 0%, #1f1f1f 100%);
+      }
+
+      :root.dark .shared-article,
+      :root[data-theme="dark"] .shared-article {
+        background: #242424;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      }
+
+      :root.dark .shared-title,
+      :root[data-theme="dark"] .shared-title {
+        color: #f0f0f0;
+      }
+
+      :root.dark .shared-title-type,
+      :root[data-theme="dark"] .shared-title-type {
+        color: #888;
+      }
+
+      :root.dark .shared-updated,
+      :root[data-theme="dark"] .shared-updated {
+        color: #888;
+      }
+
+      :root.dark .shared-badge,
+      :root[data-theme="dark"] .shared-badge {
+        background: #333;
+        color: #999;
+      }
+
+      :root.dark .shared-badge-wrapper:hover .shared-badge,
+      :root[data-theme="dark"] .shared-badge-wrapper:hover .shared-badge {
+        background: #3d3d3d;
+        color: #b0b0b0;
+      }
+
+      :root.dark .shared-badge-tooltip,
+      :root[data-theme="dark"] .shared-badge-tooltip {
+        background: #2d2d2d;
+        color: #e5e5e5;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
+      }
+
+      :root.dark .shared-badge-tooltip::before,
+      :root[data-theme="dark"] .shared-badge-tooltip::before {
+        border-bottom-color: #2d2d2d;
+      }
+
+      :root.dark .shared-error h1,
+      :root[data-theme="dark"] .shared-error h1 {
+        color: #f0f0f0;
+      }
+
+      :root.dark .shared-error p,
+      :root[data-theme="dark"] .shared-error p {
+        color: #999;
+      }
+
       @media (max-width: 768px) {
         .shared-main {
           padding: 1rem;
@@ -187,10 +351,20 @@
           font-size: 1.5rem;
         }
 
-        .shared-badge {
+        .shared-badge-wrapper {
           position: static;
           margin-bottom: 1rem;
-          display: inline-flex;
+          display: inline-block;
+        }
+
+        .shared-badge-tooltip {
+          right: auto;
+          left: 0;
+        }
+
+        .shared-badge-tooltip::before {
+          right: auto;
+          left: 1rem;
         }
       }
     </style>
@@ -208,13 +382,18 @@
           </div>
         {% else %}
           <article class="shared-article">
-            <span class="shared-badge">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                <circle cx="12" cy="12" r="3"/>
-              </svg>
-              View Only
-            </span>
+            <div class="shared-badge-wrapper">
+              <span class="shared-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                View Only
+              </span>
+              <div class="shared-badge-tooltip">
+                Anyone with a link to this page can view it without needing to log in.
+              </div>
+            </div>
             <header class="shared-header">
               <div class="shared-title-row">
                 <h1 class="shared-title">{{ title }}</h1>

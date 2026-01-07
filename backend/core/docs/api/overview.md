@@ -126,10 +126,10 @@ All timestamps use ISO 8601 format in UTC:
 
 ## Resources
 
-| Resource              | Description                      |
-| --------------------- | -------------------------------- |
-| [Ask](ask)            | AI-powered Q&A about your pages  |
-| [Organizations](orgs) | Manage organizations and members |
-| [Projects](projects)  | Manage projects and sharing      |
-| [Pages](pages)        | Manage pages and content         |
-| [Users](users)        | User info and tokens             |
+| Resource                  | Description                      |
+| ------------------------- | -------------------------------- |
+| [Ask](../ask/)            | AI-powered Q&A about your pages  |
+| [Organizations](../orgs/) | Manage organizations and members |
+| [Projects](../projects/)  | Manage projects and sharing      |
+| [Pages](../pages/)        | Manage pages and content         |
+| [Users](../users/)        | User info and tokens             |

@@ -9,6 +9,17 @@
     <meta name="description" content="{{ update.content|truncatewords:30|striptags }}" />
     {% include 'core/partials/_favicon.html' %}
 
+    <script>
+      (function() {
+        const stored = localStorage.getItem('theme') || 'system';
+        const effective = stored === 'system'
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : stored;
+        document.documentElement.setAttribute('data-theme', effective);
+        document.documentElement.classList.add(effective);
+      })();
+    </script>
+
     {% include 'core/partials/_app_nav_styles.html' %}
     <style>
       * {
@@ -34,7 +45,7 @@
 
       .site-nav {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 0.75rem 2rem;
+        padding: 1rem 2rem;
       }
 
       .site-nav-container {
@@ -64,24 +75,40 @@
       .site-nav-actions {
         display: flex;
         align-items: center;
-        gap: 1.5rem;
+        gap: 1.75rem;
       }
 
       .site-nav-link {
         color: rgba(255, 255, 255, 0.9);
         text-decoration: none;
         font-weight: 500;
-        transition: color 0.2s;
+        position: relative;
+        padding-bottom: 2px;
+      }
+
+      .site-nav-link::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        width: 0;
+        height: 1px;
+        background: white;
+        transition: width 0.25s ease;
       }
 
       .site-nav-link:hover {
         color: white;
       }
 
+      .site-nav-link:hover::after {
+        width: 100%;
+      }
+
       .site-nav-btn {
         background: white;
         color: #667eea;
-        padding: 0.5rem 1rem;
+        padding: 0.6rem 1.25rem;
         border-radius: 6px;
         text-decoration: none;
         font-weight: 600;
@@ -379,6 +406,136 @@
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       }
 
+      /* Dark Mode */
+      :root.dark body,
+      :root[data-theme="dark"] body {
+        background: #1a1a1a;
+        color: #e5e5e5;
+      }
+
+      :root.dark .site-nav,
+      :root[data-theme="dark"] .site-nav {
+        background: #1a1a1a;
+      }
+
+      :root.dark .site-nav-link::after,
+      :root[data-theme="dark"] .site-nav-link::after {
+        background: rgba(255, 255, 255, 0.8);
+      }
+
+      :root.dark .breadcrumb a,
+      :root[data-theme="dark"] .breadcrumb a {
+        color: #818cf8;
+      }
+
+      :root.dark .breadcrumb-separator,
+      :root[data-theme="dark"] .breadcrumb-separator {
+        color: #666;
+      }
+
+      :root.dark .breadcrumb-current,
+      :root[data-theme="dark"] .breadcrumb-current {
+        color: #999;
+      }
+
+      :root.dark .update-header,
+      :root[data-theme="dark"] .update-header {
+        border-color: #333;
+      }
+
+      :root.dark .update-title,
+      :root[data-theme="dark"] .update-title {
+        color: #f0f0f0;
+      }
+
+      :root.dark .update-author-name,
+      :root[data-theme="dark"] .update-author-name {
+        color: #b0b0b0;
+      }
+
+      :root.dark .update-date,
+      :root[data-theme="dark"] .update-date {
+        color: #888;
+      }
+
+      :root.dark .update-content,
+      :root[data-theme="dark"] .update-content {
+        color: #d4d4d4;
+      }
+
+      :root.dark .update-content h1,
+      :root.dark .update-content h2,
+      :root.dark .update-content h3,
+      :root[data-theme="dark"] .update-content h1,
+      :root[data-theme="dark"] .update-content h2,
+      :root[data-theme="dark"] .update-content h3 {
+        color: #f0f0f0;
+      }
+
+      :root.dark .update-content a,
+      :root[data-theme="dark"] .update-content a {
+        color: #818cf8;
+      }
+
+      :root.dark .update-content code,
+      :root[data-theme="dark"] .update-content code {
+        background: #2d2d2d;
+        color: #e5e5e5;
+      }
+
+      :root.dark .update-content blockquote,
+      :root[data-theme="dark"] .update-content blockquote {
+        border-color: #667eea;
+        color: #b0b0b0;
+      }
+
+      :root.dark .modal,
+      :root[data-theme="dark"] .modal {
+        background: #2d2d2d;
+      }
+
+      :root.dark .modal-title,
+      :root[data-theme="dark"] .modal-title {
+        color: #f0f0f0;
+      }
+
+      :root.dark .modal-message,
+      :root[data-theme="dark"] .modal-message {
+        color: #b0b0b0;
+      }
+
+      :root.dark .modal-message strong,
+      :root[data-theme="dark"] .modal-message strong {
+        color: #f0f0f0;
+      }
+
+      :root.dark .modal-btn-cancel,
+      :root[data-theme="dark"] .modal-btn-cancel {
+        background: #3d3d3d;
+        color: #e5e5e5;
+      }
+
+      :root.dark .modal-btn-cancel:hover,
+      :root[data-theme="dark"] .modal-btn-cancel:hover {
+        background: #4d4d4d;
+      }
+
+      :root.dark .landing-footer,
+      :root[data-theme="dark"] .landing-footer {
+        background: #242424;
+      }
+
+      :root.dark .site-nav-btn,
+      :root[data-theme="dark"] .site-nav-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        color: white !important;
+      }
+
+      :root.dark .site-nav-btn:hover,
+      :root[data-theme="dark"] .site-nav-btn:hover {
+        box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+      }
+
       .toast {
         position: fixed;
         bottom: 2rem;
@@ -550,6 +707,7 @@
           <div class="site-nav-container">
             <a href="/" class="site-logo">{% include 'core/partials/_logo_icon.html' %} {{ brand_name }}</a>
             <div class="site-nav-actions">
+              {% include 'core/partials/_theme_toggle.html' %}
               <a href="/" class="site-nav-link">Home</a>
               <a href="/login/" class="site-nav-link">Log in</a>
               <a href="/signup/" class="site-nav-btn">Get Started</a>

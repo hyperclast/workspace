@@ -5,6 +5,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script>
+      (function() {
+        var theme = 'system';
+        try { theme = localStorage.getItem('hyperclast-theme') || 'system'; } catch(e) {}
+        var effective = theme === 'system'
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : theme;
+        document.documentElement.setAttribute('data-theme', effective);
+        document.documentElement.classList.add(effective);
+      })();
+    </script>
     <title>{% block title %}Home{% endblock %} | {{ brand_name }}</title>
     {% include 'core/partials/_favicon.html' %}
 

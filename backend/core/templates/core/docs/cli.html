@@ -419,6 +419,153 @@
         justify-content: center;
       }
     }
+
+    /* Dark mode */
+    :root.dark .cli-tag,
+    :root[data-theme="dark"] .cli-tag {
+      background: rgba(255, 255, 255, 0.1);
+      color: #d4d4d4;
+    }
+
+    :root.dark .cli-download-section,
+    :root[data-theme="dark"] .cli-download-section {
+      background: #2a2a2a;
+      border-color: #404040;
+    }
+
+    :root.dark .download-tabs,
+    :root[data-theme="dark"] .download-tabs {
+      background: #252525;
+      border-color: #404040;
+    }
+
+    :root.dark .download-tab,
+    :root[data-theme="dark"] .download-tab {
+      color: #a0a0a0;
+    }
+
+    :root.dark .download-tab:hover,
+    :root[data-theme="dark"] .download-tab:hover {
+      color: #f0f0f0;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    :root.dark .download-tab.active,
+    :root[data-theme="dark"] .download-tab.active {
+      color: #8b9cf7;
+      border-bottom-color: #8b9cf7;
+      background: transparent;
+    }
+
+    :root.dark .download-tab-content,
+    :root[data-theme="dark"] .download-tab-content {
+      background: #2a2a2a;
+    }
+
+    :root.dark .download-note,
+    :root[data-theme="dark"] .download-note {
+      color: #a0a0a0;
+    }
+
+    :root.dark .download-note code,
+    :root[data-theme="dark"] .download-note code {
+      background: rgba(255, 255, 255, 0.1);
+      color: #e5e7eb;
+    }
+
+    :root.dark .source-step-num,
+    :root[data-theme="dark"] .source-step-num {
+      background: #404040;
+      color: #d4d4d4;
+    }
+
+    :root.dark .source-step-content p,
+    :root[data-theme="dark"] .source-step-content p {
+      color: #b0b0b0;
+    }
+
+    :root.dark .source-step-content code,
+    :root[data-theme="dark"] .source-step-content code {
+      background: #1a1a2e;
+      color: #e5e7eb;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      display: block;
+    }
+
+    :root.dark .cli-section h2,
+    :root[data-theme="dark"] .cli-section h2 {
+      color: #f0f0f0;
+    }
+
+    :root.dark .step-content h4,
+    :root[data-theme="dark"] .step-content h4 {
+      color: #f0f0f0;
+    }
+
+    :root.dark .step-content p,
+    :root[data-theme="dark"] .step-content p {
+      color: #b0b0b0;
+    }
+
+    :root.dark .step-content p a,
+    :root[data-theme="dark"] .step-content p a {
+      color: #8b9cf7;
+    }
+
+    :root.dark .command-group h3,
+    :root[data-theme="dark"] .command-group h3 {
+      color: #f0f0f0;
+    }
+
+    :root.dark .command-item,
+    :root[data-theme="dark"] .command-item {
+      background: #2a2a2a;
+    }
+
+    :root.dark .command-item code,
+    :root[data-theme="dark"] .command-item code {
+      color: #8b9cf7;
+    }
+
+    :root.dark .command-item p,
+    :root[data-theme="dark"] .command-item p {
+      color: #b0b0b0;
+    }
+
+    :root.dark .flags-table th,
+    :root[data-theme="dark"] .flags-table th {
+      background: #2a2a2a;
+      color: #f0f0f0;
+    }
+
+    :root.dark .flags-table td,
+    :root[data-theme="dark"] .flags-table td {
+      color: #d4d4d4;
+      border-color: #404040;
+    }
+
+    :root.dark .flags-table th,
+    :root[data-theme="dark"] .flags-table th {
+      border-color: #404040;
+    }
+
+    :root.dark .flags-table code,
+    :root[data-theme="dark"] .flags-table code {
+      background: rgba(139, 156, 247, 0.15);
+      color: #8b9cf7;
+    }
+
+    :root.dark .cli-section > p,
+    :root[data-theme="dark"] .cli-section > p {
+      color: #b0b0b0;
+    }
+
+    :root.dark .cli-section > p code,
+    :root[data-theme="dark"] .cli-section > p code {
+      background: rgba(255, 255, 255, 0.1);
+      color: #e5e7eb;
+    }
   </style>
 {% endblock %}
 

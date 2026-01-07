@@ -6,6 +6,38 @@
     </div>
     <div class="app-nav-main">
       <div class="app-nav-actions">
+        <div class="theme-toggle-wrapper">
+          <button class="theme-toggle-btn" id="theme-toggle-btn" title="Change theme" aria-label="Change theme">
+            <svg class="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="4"></circle>
+              <path d="M12 2v2"></path>
+              <path d="M12 20v2"></path>
+              <path d="m4.93 4.93 1.41 1.41"></path>
+              <path d="m17.66 17.66 1.41 1.41"></path>
+              <path d="M2 12h2"></path>
+              <path d="M20 12h2"></path>
+              <path d="m6.34 17.66-1.41 1.41"></path>
+              <path d="m19.07 4.93-1.41 1.41"></path>
+            </svg>
+            <svg class="theme-icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+            </svg>
+          </button>
+          <div class="theme-popover" id="theme-popover">
+            <button class="theme-popover-item" data-theme="light">
+              <span class="theme-radio"></span>
+              <span class="theme-label">Light</span>
+            </button>
+            <button class="theme-popover-item" data-theme="dark">
+              <span class="theme-radio"></span>
+              <span class="theme-label">Dark</span>
+            </button>
+            <button class="theme-popover-item" data-theme="system">
+              <span class="theme-radio"></span>
+              <span class="theme-label">System</span>
+            </button>
+          </div>
+        </div>
         <div class="user-menu">
           <button id="user-avatar" class="user-avatar" title="Account menu">
             <span id="user-initial">{{ user_initial }}</span>
@@ -27,3 +59,110 @@
     </div>
   </div>
 </nav>
+<script>
+  (function() {
+    var THEME_KEY = 'hyperclast-theme';
+
+    function getStoredTheme() {
+      try { return localStorage.getItem(THEME_KEY) || 'system'; } catch(e) { return 'system'; }
+    }
+
+    function setStoredTheme(theme) {
+      try { localStorage.setItem(THEME_KEY, theme); } catch(e) {}
+    }
+
+    function getSystemTheme() {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+
+    function getEffectiveTheme(stored) {
+      return stored === 'system' ? getSystemTheme() : stored;
+    }
+
+    function applyTheme(theme) {
+      var effective = getEffectiveTheme(theme);
+      document.documentElement.setAttribute('data-theme', effective);
+      document.documentElement.classList.remove('light', 'dark');
+      document.documentElement.classList.add(effective);
+      updateToggleIcons(effective);
+      updatePopoverSelections(theme);
+    }
+
+    function updateToggleIcons(effective) {
+      var btns = document.querySelectorAll('.theme-toggle-btn');
+      btns.forEach(function(btn) {
+        var sunIcon = btn.querySelector('.theme-icon-sun');
+        var moonIcon = btn.querySelector('.theme-icon-moon');
+        if (sunIcon) sunIcon.style.display = effective === 'dark' ? 'none' : 'block';
+        if (moonIcon) moonIcon.style.display = effective === 'dark' ? 'block' : 'none';
+      });
+    }
+
+    function updatePopoverSelections(theme) {
+      var popovers = document.querySelectorAll('.theme-popover');
+      popovers.forEach(function(popover) {
+        popover.querySelectorAll('.theme-popover-item').forEach(function(item) {
+          var isActive = item.getAttribute('data-theme') === theme;
+          if (isActive) {
+            item.classList.add('active');
+          } else {
+            item.classList.remove('active');
+          }
+        });
+      });
+    }
+
+    function init() {
+      var stored = getStoredTheme();
+      applyTheme(stored);
+
+      document.querySelectorAll('.theme-toggle-wrapper').forEach(function(wrapper) {
+        var btn = wrapper.querySelector('.theme-toggle-btn');
+        var popover = wrapper.querySelector('.theme-popover');
+
+        if (btn && popover) {
+          btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var isOpen = popover.classList.contains('open');
+            document.querySelectorAll('.theme-popover.open').forEach(function(p) {
+              p.classList.remove('open');
+            });
+            if (!isOpen) {
+              popover.classList.add('open');
+            }
+          });
+
+          popover.querySelectorAll('.theme-popover-item').forEach(function(item) {
+            item.addEventListener('click', function(e) {
+              e.preventDefault();
+              e.stopPropagation();
+              var theme = this.getAttribute('data-theme');
+              setStoredTheme(theme);
+              applyTheme(theme);
+              popover.classList.remove('open');
+            });
+          });
+        }
+      });
+
+      document.addEventListener('click', function(e) {
+        if (!e.target.closest('.theme-toggle-wrapper')) {
+          document.querySelectorAll('.theme-popover.open').forEach(function(p) {
+            p.classList.remove('open');
+          });
+        }
+      });
+
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+        if (getStoredTheme() === 'system') applyTheme('system');
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  })();
+</script>

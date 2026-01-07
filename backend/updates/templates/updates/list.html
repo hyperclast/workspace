@@ -9,6 +9,17 @@
     <meta name="description" content="Latest updates and improvements from {{ brand_name }}" />
     {% include 'core/partials/_favicon.html' %}
 
+    <script>
+      (function() {
+        const stored = localStorage.getItem('theme') || 'system';
+        const effective = stored === 'system'
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : stored;
+        document.documentElement.setAttribute('data-theme', effective);
+        document.documentElement.classList.add(effective);
+      })();
+    </script>
+
     {% include 'core/partials/_app_nav_styles.html' %}
     <style>
       * {
@@ -34,7 +45,7 @@
 
       .site-nav {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 0.75rem 2rem;
+        padding: 1rem 2rem;
       }
 
       .site-nav-container {
@@ -64,24 +75,40 @@
       .site-nav-actions {
         display: flex;
         align-items: center;
-        gap: 1.5rem;
+        gap: 1.75rem;
       }
 
       .site-nav-link {
         color: rgba(255, 255, 255, 0.9);
         text-decoration: none;
         font-weight: 500;
-        transition: color 0.2s;
+        position: relative;
+        padding-bottom: 2px;
+      }
+
+      .site-nav-link::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        width: 0;
+        height: 1px;
+        background: white;
+        transition: width 0.25s ease;
       }
 
       .site-nav-link:hover {
         color: white;
       }
 
+      .site-nav-link:hover::after {
+        width: 100%;
+      }
+
       .site-nav-btn {
         background: white;
         color: #667eea;
-        padding: 0.5rem 1rem;
+        padding: 0.6rem 1.25rem;
         border-radius: 6px;
         text-decoration: none;
         font-weight: 600;
@@ -205,6 +232,101 @@
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       }
 
+      /* Dark Mode */
+      :root.dark body,
+      :root[data-theme="dark"] body {
+        background: #1a1a1a;
+        color: #e5e5e5;
+      }
+
+      :root.dark .site-nav,
+      :root[data-theme="dark"] .site-nav {
+        background: #1a1a1a;
+      }
+
+      :root.dark .site-nav-link::after,
+      :root[data-theme="dark"] .site-nav-link::after {
+        background: rgba(255, 255, 255, 0.8);
+      }
+
+      :root.dark .updates-header h1,
+      :root[data-theme="dark"] .updates-header h1 {
+        color: #f0f0f0;
+      }
+
+      :root.dark .updates-header p,
+      :root[data-theme="dark"] .updates-header p {
+        color: #999;
+      }
+
+      :root.dark .breadcrumb a,
+      :root[data-theme="dark"] .breadcrumb a {
+        color: #818cf8;
+      }
+
+      :root.dark .breadcrumb-separator,
+      :root[data-theme="dark"] .breadcrumb-separator {
+        color: #666;
+      }
+
+      :root.dark .breadcrumb-current,
+      :root[data-theme="dark"] .breadcrumb-current {
+        color: #999;
+      }
+
+      :root.dark .update-card,
+      :root[data-theme="dark"] .update-card {
+        background: #242424;
+        border-color: #333;
+      }
+
+      :root.dark .update-card:hover,
+      :root[data-theme="dark"] .update-card:hover {
+        border-color: #4d4d4d;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      }
+
+      :root.dark .update-date,
+      :root[data-theme="dark"] .update-date {
+        color: #888;
+      }
+
+      :root.dark .update-title,
+      :root[data-theme="dark"] .update-title {
+        color: #f0f0f0;
+      }
+
+      :root.dark .update-title:hover,
+      :root[data-theme="dark"] .update-title:hover {
+        color: #818cf8;
+      }
+
+      :root.dark .update-preview,
+      :root[data-theme="dark"] .update-preview {
+        color: #b0b0b0;
+      }
+
+      :root.dark .no-updates,
+      :root[data-theme="dark"] .no-updates {
+        color: #999;
+      }
+
+      :root.dark .landing-footer,
+      :root[data-theme="dark"] .landing-footer {
+        background: #242424;
+      }
+
+      :root.dark .site-nav-btn,
+      :root[data-theme="dark"] .site-nav-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        color: white !important;
+      }
+
+      :root.dark .site-nav-btn:hover,
+      :root[data-theme="dark"] .site-nav-btn:hover {
+        box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+      }
+
       @media (max-width: 768px) {
         .site-nav {
           padding: 0.75rem 1rem;
@@ -245,6 +367,7 @@
           <div class="site-nav-container">
             <a href="/" class="site-logo">{% include 'core/partials/_logo_icon.html' %} {{ brand_name }}</a>
             <div class="site-nav-actions">
+              {% include 'core/partials/_theme_toggle.html' %}
               <a href="/" class="site-nav-link">Home</a>
               <a href="/login/" class="site-nav-link">Log in</a>
               <a href="/signup/" class="site-nav-btn">Get Started</a>

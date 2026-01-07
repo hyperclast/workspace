@@ -73,6 +73,9 @@ import {
 import { updatePageAccessCode } from "./lib/stores/sidenav.svelte.js";
 import { setupToolbar, resetToolbar } from "./toolbar.js";
 import { getPageIdFromPath } from "./router.js";
+import { initTheme } from "./theme.js";
+import { mount } from "svelte";
+import ThemeToggle from "./lib/components/ThemeToggle.svelte";
 
 /**
  * Render the main app HTML structure into #app
@@ -93,6 +96,7 @@ function renderAppHTML() {
       <div class="nav-main">
         <div class="nav-actions">
           <a href="/pricing/" id="upgrade-pill" class="upgrade-pill" style="display: none;">Upgrade</a>
+          <div id="theme-toggle-root"></div>
           <a href="/settings/" class="nav-link">Settings</a>
           <div class="user-menu">
             <button id="user-avatar" class="user-avatar" title="Account menu">
@@ -1244,34 +1248,33 @@ function showError(message) {
  * @param {string} filetype - The page filetype (md, txt, csv)
  */
 function initializeEditor(pageContent = "", additionalExtensions = [], filetype = "md") {
-  // Create a simple theme to ensure text is visible
-  // Using EditorView.theme() instead of baseTheme() to override any defaults
+  // Create a simple theme using CSS variables for dark/light mode support
   const simpleTheme = EditorView.theme(
     {
       "&": {
-        color: "black",
-        backgroundColor: "white",
+        color: "var(--text-primary)",
+        backgroundColor: "var(--bg-primary)",
       },
       ".cm-content": {
-        caretColor: "black",
-        color: "black",
+        caretColor: "var(--text-primary)",
+        color: "var(--text-primary)",
       },
       ".cm-line": {
-        color: "black",
+        color: "var(--text-primary)",
       },
       "&.cm-focused .cm-cursor": {
-        borderLeftColor: "black",
+        borderLeftColor: "var(--text-primary)",
         borderLeftWidth: "2px",
       },
       ".cm-cursor": {
-        borderLeftColor: "black",
+        borderLeftColor: "var(--text-primary)",
         borderLeftWidth: "2px",
       },
       "&.cm-focused .cm-selectionBackground, ::selection": {
-        backgroundColor: "#6fa8dc",
+        backgroundColor: "var(--selection-bg)",
       },
       ".cm-selectionBackground": {
-        backgroundColor: "#b3d7ff",
+        backgroundColor: "var(--selection-bg)",
       },
     },
     { dark: false }
@@ -1726,6 +1729,8 @@ async function initializePageView() {
  * Start the application.
  */
 async function startApp() {
+  initTheme();
+
   const appSpan = metrics.startSpan("app_startup", {
     url: window.location.pathname,
     timestamp: Date.now(),
@@ -1733,6 +1738,12 @@ async function startApp() {
 
   renderAppHTML();
   appSpan.addEvent("html_rendered");
+
+  // Mount theme toggle
+  const themeToggleRoot = document.getElementById("theme-toggle-root");
+  if (themeToggleRoot) {
+    mount(ThemeToggle, { target: themeToggleRoot });
+  }
 
   // Expose openPage for sidebar components to navigate between pages
   window.openPage = openPage;

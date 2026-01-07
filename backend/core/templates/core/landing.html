@@ -5,6 +5,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script>
+      (function() {
+        var theme = 'system';
+        try { theme = localStorage.getItem('hyperclast-theme') || 'system'; } catch(e) {}
+        var effective = theme === 'system'
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : theme;
+        document.documentElement.setAttribute('data-theme', effective);
+        document.documentElement.classList.add(effective);
+      })();
+    </script>
     <title>{{ brand_name }} Collaborative Workspace</title>
     <meta name="description" content="Fast collaborative workspace that respects your freedom" />
     {% include 'core/partials/_favicon.html' %}
@@ -106,6 +117,98 @@
         transform: translateY(-1px);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       }
+
+      /* Theme toggle */
+      .theme-toggle-wrapper {
+        position: relative;
+      }
+      .theme-toggle-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        background: rgba(255, 255, 255, 0.15);
+        border: none;
+        border-radius: 6px;
+        color: white;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      .theme-toggle-btn:hover {
+        background: rgba(255, 255, 255, 0.25);
+      }
+      .theme-icon-moon { display: none; }
+      :root.dark .theme-icon-sun,
+      :root[data-theme="dark"] .theme-icon-sun { display: none; }
+      :root.dark .theme-icon-moon,
+      :root[data-theme="dark"] .theme-icon-moon { display: block; }
+      .theme-popover {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        margin-top: 0.5rem;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+        min-width: 140px;
+        padding: 0.375rem;
+        z-index: 1000;
+        display: none;
+      }
+      .theme-popover.open { display: block; }
+      .theme-popover-item {
+        display: flex;
+        align-items: center;
+        gap: 0.625rem;
+        width: 100%;
+        padding: 0.5rem 0.625rem;
+        background: none;
+        border: none;
+        border-radius: 5px;
+        font-size: 0.875rem;
+        color: #37352f;
+        cursor: pointer;
+        transition: background 0.15s;
+        text-align: left;
+        font-family: inherit;
+      }
+      .theme-popover-item:hover { background: rgba(0, 0, 0, 0.04); }
+      .theme-popover-item.active { color: #529cca; }
+      .theme-radio {
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(55, 53, 47, 0.2);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .theme-popover-item.active .theme-radio { border-color: #529cca; }
+      .theme-radio::after {
+        content: '';
+        width: 6px;
+        height: 6px;
+        background: #529cca;
+        border-radius: 50%;
+        display: none;
+      }
+      .theme-popover-item.active .theme-radio::after { display: block; }
+      :root.dark .theme-popover,
+      :root[data-theme="dark"] .theme-popover {
+        background: #2d2d2d;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+      }
+      :root.dark .theme-popover-item,
+      :root[data-theme="dark"] .theme-popover-item { color: #ebebeb; }
+      :root.dark .theme-popover-item:hover,
+      :root[data-theme="dark"] .theme-popover-item:hover { background: rgba(255, 255, 255, 0.08); }
+      :root.dark .theme-radio,
+      :root[data-theme="dark"] .theme-radio { border-color: rgba(255, 255, 255, 0.3); }
+      :root.dark .theme-popover-item.active .theme-radio,
+      :root[data-theme="dark"] .theme-popover-item.active .theme-radio { border-color: #529cca; }
 
       .landing-btn-secondary {
         background: rgba(255, 255, 255, 0.15);
@@ -387,6 +490,106 @@
           font-size: 0.65rem;
         }
       }
+
+      /* Dark mode */
+      :root.dark .landing-page,
+      :root[data-theme="dark"] .landing-page {
+        background: linear-gradient(135deg, #2d2d2d 0%, #1f1f1f 100%);
+      }
+
+      :root.dark .landing-features,
+      :root[data-theme="dark"] .landing-features {
+        background: #1a1a1a;
+        color: #e5e5e5;
+      }
+
+      :root.dark .landing-feature h3,
+      :root[data-theme="dark"] .landing-feature h3 {
+        color: #f0f0f0;
+      }
+
+      :root.dark .landing-feature p,
+      :root[data-theme="dark"] .landing-feature p {
+        color: #b0b0b0;
+      }
+
+      :root.dark .landing-comparison,
+      :root[data-theme="dark"] .landing-comparison {
+        background: #242424;
+        color: #e5e5e5;
+      }
+
+      :root.dark .landing-comparison h2,
+      :root[data-theme="dark"] .landing-comparison h2 {
+        color: #f0f0f0;
+      }
+
+      :root.dark .landing-comparison-subtitle,
+      :root[data-theme="dark"] .landing-comparison-subtitle {
+        color: #999;
+      }
+
+      :root.dark .comparison-table,
+      :root[data-theme="dark"] .comparison-table {
+        background: #1f1f1f;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+      }
+
+      :root.dark .comparison-table th,
+      :root[data-theme="dark"] .comparison-table th {
+        background: #667eea;
+      }
+
+      :root.dark .comparison-table th.highlight-col,
+      :root[data-theme="dark"] .comparison-table th.highlight-col {
+        background: #5a6fd6;
+      }
+
+      :root.dark .comparison-table td,
+      :root[data-theme="dark"] .comparison-table td {
+        border-bottom-color: #333;
+      }
+
+      :root.dark .comparison-table td:first-child,
+      :root[data-theme="dark"] .comparison-table td:first-child {
+        color: #e5e5e5;
+      }
+
+      :root.dark .comparison-table .highlight-col,
+      :root[data-theme="dark"] .comparison-table .highlight-col {
+        background: rgba(102, 126, 234, 0.15);
+      }
+
+      :root.dark .comparison-table tbody tr:hover,
+      :root[data-theme="dark"] .comparison-table tbody tr:hover {
+        background: #2a2a2a;
+      }
+
+      :root.dark .cross,
+      :root[data-theme="dark"] .cross {
+        color: #555;
+      }
+
+      :root.dark .cell-note,
+      :root[data-theme="dark"] .cell-note {
+        color: #777;
+      }
+
+      :root.dark .landing-btn-primary,
+      :root[data-theme="dark"] .landing-btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+      }
+
+      :root.dark .landing-btn-primary:hover,
+      :root[data-theme="dark"] .landing-btn-primary:hover {
+        box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+      }
+
+      :root.dark .landing-footer,
+      :root[data-theme="dark"] .landing-footer {
+        background: rgba(0, 0, 0, 0.3);
+      }
     </style>
   </head>
 
@@ -396,6 +599,17 @@
         <div class="landing-nav-container">
           <a href="/" class="landing-logo">{% include 'core/partials/_logo_icon.html' %} {{ brand_name }}</a>
           <div class="landing-nav-actions">
+            <div class="theme-toggle-wrapper">
+              <button class="theme-toggle-btn" id="theme-toggle-btn" title="Change theme" aria-label="Change theme">
+                <svg class="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
+                <svg class="theme-icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
+              </button>
+              <div class="theme-popover" id="theme-popover">
+                <button class="theme-popover-item" data-theme="light"><span class="theme-radio"></span><span>Light</span></button>
+                <button class="theme-popover-item" data-theme="dark"><span class="theme-radio"></span><span>Dark</span></button>
+                <button class="theme-popover-item" data-theme="system"><span class="theme-radio"></span><span>System</span></button>
+              </div>
+            </div>
             <a href="{% url 'core:dev_index' %}" class="landing-link hide-mobile">Developers</a>
             <a href="/login" class="landing-link">Log in</a>
             <a href="/signup" class="landing-btn-primary">Get Started</a>
@@ -523,5 +737,59 @@
 
         {% include 'core/partials/_footer.html' %}
       </div>
+      <script>
+        (function() {
+          const THEME_KEY = 'hyperclast-theme';
+          function getStoredTheme() {
+            try { return localStorage.getItem(THEME_KEY) || 'system'; } catch(e) { return 'system'; }
+          }
+          function setStoredTheme(theme) {
+            try { localStorage.setItem(THEME_KEY, theme); } catch(e) {}
+          }
+          function getEffectiveTheme(stored) {
+            return stored === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : stored;
+          }
+          function applyTheme(theme) {
+            var effective = getEffectiveTheme(theme);
+            document.documentElement.setAttribute('data-theme', effective);
+            document.documentElement.classList.remove('light', 'dark');
+            document.documentElement.classList.add(effective);
+            var sunIcon = document.querySelector('.theme-icon-sun');
+            var moonIcon = document.querySelector('.theme-icon-moon');
+            if (sunIcon) sunIcon.style.display = effective === 'dark' ? 'none' : 'block';
+            if (moonIcon) moonIcon.style.display = effective === 'dark' ? 'block' : 'none';
+            document.querySelectorAll('.theme-popover-item').forEach(function(item) {
+              item.classList.toggle('active', item.getAttribute('data-theme') === theme);
+            });
+          }
+          var stored = getStoredTheme();
+          applyTheme(stored);
+          var btn = document.getElementById('theme-toggle-btn');
+          var popover = document.getElementById('theme-popover');
+          if (btn && popover) {
+            btn.addEventListener('click', function(e) {
+              e.stopPropagation();
+              popover.classList.toggle('open');
+            });
+            popover.querySelectorAll('.theme-popover-item').forEach(function(item) {
+              item.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var theme = this.getAttribute('data-theme');
+                setStoredTheme(theme);
+                applyTheme(theme);
+                popover.classList.remove('open');
+              });
+            });
+          }
+          document.addEventListener('click', function(e) {
+            if (!e.target.closest('.theme-toggle-wrapper')) {
+              popover.classList.remove('open');
+            }
+          });
+          window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+            if (getStoredTheme() === 'system') applyTheme('system');
+          });
+        })();
+      </script>
     </body>
   </html>

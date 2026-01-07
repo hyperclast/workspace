@@ -3,6 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function () {
+        var theme = "system";
+        try {
+          theme = localStorage.getItem("hyperclast-theme") || "system";
+        } catch (e) {}
+        var effective =
+          theme === "system"
+            ? window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light"
+            : theme;
+        document.documentElement.setAttribute("data-theme", effective);
+        document.documentElement.classList.add(effective);
+      })();
+    </script>
     <title>Processing Invitation - Hyperclast</title>
     <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
