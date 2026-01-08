@@ -250,7 +250,10 @@
     });
   }
 
-  function handleGlobalClick() {
+  function handleGlobalClick(e) {
+    if (e.target.closest("[data-theme-toggle]")) {
+      return;
+    }
     closeUserMenu();
   }
 

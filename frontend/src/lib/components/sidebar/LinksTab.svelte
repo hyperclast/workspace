@@ -236,7 +236,7 @@
           {/each}
         </div>
       {:else}
-        <div class="links-none">None</div>
+        <div class="links-none">No other pages link to this page</div>
       {/if}
     </div>
 
@@ -270,7 +270,7 @@
           {/each}
         </div>
       {:else}
-        <div class="links-none">None</div>
+        <div class="links-none">This page doesn't link to any other pages</div>
       {/if}
     </div>
 
@@ -307,7 +307,7 @@
           {/each}
         </div>
       {:else}
-        <div class="links-none">None</div>
+        <div class="links-none">No external URLs on this page</div>
       {/if}
     </div>
   {/if}

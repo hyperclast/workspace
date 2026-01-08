@@ -133,8 +133,19 @@
   .app-nav .theme-toggle-btn:hover {
     background: rgba(255, 255, 255, 0.25);
   }
+  .app-nav .theme-icon-sun {
+    display: block;
+  }
   .app-nav .theme-icon-moon {
     display: none;
+  }
+  :root.dark .app-nav .theme-icon-sun,
+  :root[data-theme="dark"] .app-nav .theme-icon-sun {
+    display: none;
+  }
+  :root.dark .app-nav .theme-icon-moon,
+  :root[data-theme="dark"] .app-nav .theme-icon-moon {
+    display: block;
   }
   .app-nav .theme-popover {
     position: absolute;

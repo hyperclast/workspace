@@ -5,6 +5,7 @@
   let currentTheme = $state("system");
   let effectiveTheme = $state("light");
   let popoverOpen = $state(false);
+  let wrapperEl = $state(null);
 
   const themes = [
     { id: "light", label: "Light" },
@@ -21,16 +22,16 @@
     };
     window.addEventListener("themechange", handleThemeChange);
 
-    const handleClick = (e) => {
-      if (!e.target.closest(".theme-toggle")) {
+    const handleClickOutside = (e) => {
+      if (wrapperEl && !wrapperEl.contains(e.target)) {
         popoverOpen = false;
       }
     };
-    document.addEventListener("click", handleClick);
+    document.addEventListener("click", handleClickOutside);
 
     return () => {
       window.removeEventListener("themechange", handleThemeChange);
-      document.removeEventListener("click", handleClick);
+      document.removeEventListener("click", handleClickOutside);
     };
   });
 
@@ -47,7 +48,7 @@
   }
 </script>
 
-<div class="theme-toggle">
+<div class="theme-toggle" bind:this={wrapperEl} data-theme-toggle>
   <button
     class="theme-toggle-btn"
     onclick={togglePopover}
@@ -105,18 +106,18 @@
     background: transparent;
     border: none;
     border-radius: 6px;
-    color: var(--text-secondary);
+    color: var(--text-secondary, #787774);
     cursor: pointer;
     transition: background 0.15s, color 0.15s;
   }
 
   .theme-toggle-btn:hover {
     background: rgba(0, 0, 0, 0.05);
-    color: var(--text-primary);
+    color: var(--text-primary, #37352f);
   }
 
-  :global(.dark) .theme-toggle-btn:hover,
-  :global([data-theme="dark"]) .theme-toggle-btn:hover {
+  :global(:root.dark) .theme-toggle-btn:hover,
+  :global(:root[data-theme="dark"]) .theme-toggle-btn:hover {
     background: rgba(255, 255, 255, 0.1);
   }
 
@@ -125,12 +126,18 @@
     top: 100%;
     right: 0;
     margin-top: 0.5rem;
-    background: var(--bg-primary);
+    background: var(--bg-primary, white);
     border-radius: 8px;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--border-light);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--border-light, #e9e9e7);
     min-width: 140px;
     padding: 0.375rem;
     z-index: 1000;
+  }
+
+  :global(:root.dark) .theme-popover,
+  :global(:root[data-theme="dark"]) .theme-popover {
+    background: #2d2d2d;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
   }
 
   .theme-popover-item {
@@ -143,7 +150,7 @@
     border: none;
     border-radius: 5px;
     font-size: 0.875rem;
-    color: var(--text-primary);
+    color: var(--text-primary, #37352f);
     cursor: pointer;
     transition: background 0.15s;
     text-align: left;
@@ -154,19 +161,24 @@
     background: rgba(0, 0, 0, 0.04);
   }
 
-  :global(.dark) .theme-popover-item:hover,
-  :global([data-theme="dark"]) .theme-popover-item:hover {
+  :global(:root.dark) .theme-popover-item,
+  :global(:root[data-theme="dark"]) .theme-popover-item {
+    color: #ebebeb;
+  }
+
+  :global(:root.dark) .theme-popover-item:hover,
+  :global(:root[data-theme="dark"]) .theme-popover-item:hover {
     background: rgba(255, 255, 255, 0.08);
   }
 
   .theme-popover-item.active {
-    color: var(--accent-color);
+    color: var(--accent-color, #529cca);
   }
 
   .theme-radio {
     width: 14px;
     height: 14px;
-    border: 2px solid var(--border-medium);
+    border: 2px solid var(--border-medium, rgba(55, 53, 47, 0.2));
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -174,15 +186,20 @@
     flex-shrink: 0;
   }
 
+  :global(:root.dark) .theme-radio,
+  :global(:root[data-theme="dark"]) .theme-radio {
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
   .theme-popover-item.active .theme-radio {
-    border-color: var(--accent-color);
+    border-color: var(--accent-color, #529cca);
   }
 
   .theme-radio::after {
     content: '';
     width: 6px;
     height: 6px;
-    background: var(--accent-color);
+    background: var(--accent-color, #529cca);
     border-radius: 50%;
     display: none;
   }
