@@ -7,6 +7,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 
+import { decorateCodeBlocks } from "./decorateCodeBlocks.js";
 import { decorateEmails } from "./decorateEmails.js";
 import { codeFenceField, decorateFormatting } from "./decorateFormatting.js";
 import { decorateLinks } from "./decorateLinks.js";
@@ -60,6 +61,7 @@ function initializeViewer(content, container, filetype = "md") {
     EditorState.readOnly.of(true),
     ...(isTxt ? [] : [markdown(), markdownTableExtension]),
     ...(isTxt ? [] : [codeFenceField, decorateFormatting]),
+    ...(isTxt ? [] : [decorateCodeBlocks]),
     decorateEmails,
     decorateLinks,
   ];
