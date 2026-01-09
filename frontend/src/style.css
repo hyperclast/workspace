@@ -2718,12 +2718,14 @@ body.sidebar-resizing .chat-sidebar {
   border-radius: 6px;
   padding-top: 0.5em !important;
   padding-bottom: 0.5em !important;
+  position: relative;
 }
 
 .format-code-block-first {
   border-top-left-radius: 6px;
   border-top-right-radius: 6px;
   padding-top: 0.5em !important;
+  position: relative;
 }
 
 .format-code-block-middle {
@@ -2734,6 +2736,44 @@ body.sidebar-resizing .chat-sidebar {
   border-bottom-left-radius: 6px;
   border-bottom-right-radius: 6px;
   padding-bottom: 0.5em !important;
+}
+
+.code-block-copy-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  padding: 4px 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: opacity 0.15s, background-color 0.15s;
+  z-index: 10;
+  color: var(--text-secondary);
+}
+
+.format-code-block-first:hover .code-block-copy-btn,
+.format-code-block-single:hover .code-block-copy-btn,
+.code-block-copy-btn:hover,
+.code-block-copy-btn:focus {
+  opacity: 1;
+}
+
+.code-block-copy-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.code-block-copy-btn.copied {
+  color: var(--success-color, #22c55e);
+}
+
+.code-block-copy-btn svg {
+  display: block;
 }
 
 .format-code-fence {
@@ -4686,123 +4726,6 @@ body.sidebar-resizing .chat-sidebar {
 :root.dark .settings-footer,
 :root[data-theme="dark"] .settings-footer {
   background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
-}
-
-/* Theme toggle in authenticated nav */
-nav .theme-toggle {
-  position: relative;
-}
-
-nav .theme-toggle-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-nav .theme-toggle-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--text-primary);
-}
-
-:root.dark nav .theme-toggle-btn:hover,
-:root[data-theme="dark"] nav .theme-toggle-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-nav .theme-popover {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 0.5rem;
-  background: var(--bg-primary);
-  border-radius: 8px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--border-light);
-  min-width: 140px;
-  padding: 0.375rem;
-  z-index: 1000;
-}
-
-:root.dark nav .theme-popover,
-:root[data-theme="dark"] nav .theme-popover {
-  background: #2d2d2d;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-}
-
-nav .theme-popover-item {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  width: 100%;
-  padding: 0.5rem 0.625rem;
-  background: none;
-  border: none;
-  border-radius: 5px;
-  font-size: 0.875rem;
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: background 0.15s;
-  text-align: left;
-  font-family: inherit;
-}
-
-nav .theme-popover-item:hover {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-:root.dark nav .theme-popover-item,
-:root[data-theme="dark"] nav .theme-popover-item {
-  color: #ebebeb;
-}
-
-:root.dark nav .theme-popover-item:hover,
-:root[data-theme="dark"] nav .theme-popover-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-nav .theme-popover-item.active {
-  color: var(--accent-color);
-}
-
-nav .theme-radio {
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--border-medium);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-:root.dark nav .theme-radio,
-:root[data-theme="dark"] nav .theme-radio {
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-nav .theme-popover-item.active .theme-radio {
-  border-color: var(--accent-color);
-}
-
-nav .theme-radio::after {
-  content: "";
-  width: 6px;
-  height: 6px;
-  background: var(--accent-color);
-  border-radius: 50%;
-  display: none;
-}
-
-nav .theme-popover-item.active .theme-radio::after {
-  display: block;
 }
 
 .btn-secondary {

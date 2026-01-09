@@ -81,9 +81,28 @@ else
   PROJECT_NAME="backend-${WORKTREE_NAME}-${PORT}"
 fi
 
-cd "$(dirname "$0")/backend"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+FRONTEND_DIST="$SCRIPT_DIR/frontend/dist"
+
+cd "$SCRIPT_DIR/backend"
 
 DC="docker compose --env-file .env-docker -p $PROJECT_NAME"
+
+rebuild_frontend() {
+  echo "Clearing frontend dist for clean rebuild..."
+  rm -rf "$FRONTEND_DIST"
+  echo "Restarting frontend ($PROJECT_NAME)..."
+  $DC restart ws-frontend
+  echo "Waiting for frontend rebuild..."
+  for i in {1..30}; do
+    if [ -f "$FRONTEND_DIST/.vite/manifest.json" ]; then
+      echo "Frontend rebuild complete."
+      return 0
+    fi
+    sleep 1
+  done
+  echo "Warning: Frontend rebuild may not have completed (timeout after 30s)"
+}
 
 case "$SERVICE" in
   backend)
@@ -95,14 +114,11 @@ case "$SERVICE" in
     $DC restart ws-rq
     ;;
   frontend)
-    echo "Restarting frontend ($PROJECT_NAME)..."
-    $DC restart ws-frontend
+    rebuild_frontend
     ;;
   web)
     echo "Restarting backend + frontend ($PROJECT_NAME)..."
-    $DC restart ws-frontend
-    echo "Waiting for frontend volume sync..."
-    sleep 3
+    rebuild_frontend
     $DC restart ws-web
     ;;
   db)

@@ -4,6 +4,7 @@
 
 import { mount } from "svelte";
 import Sidebar from "./components/Sidebar.svelte";
+import { getPrivateFeatures } from "../config.js";
 import {
   openSidebar,
   closeSidebar,
@@ -53,11 +54,13 @@ export function initSidebar() {
 }
 
 async function loadPrivateFeatures() {
+  const privateFeatures = getPrivateFeatures();
+  if (!privateFeatures || privateFeatures.length === 0) {
+    return;
+  }
+
   try {
-    // Construct path dynamically to prevent Vite's static analysis
-    // This allows the OSS build to succeed when private/ directory doesn't exist
-    const modulePath = [".", ".", "private", "index.js"].join("/");
-    const { setupPrivateFeatures } = await import(/* @vite-ignore */ modulePath);
+    const { setupPrivateFeatures } = await import("../private/index.js");
     await setupPrivateFeatures();
   } catch {
     // Private module not available (OSS version)

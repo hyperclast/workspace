@@ -21,6 +21,7 @@ import {
 } from "./collaboration.js";
 import { API_BASE_URL, getBrandName, getUserInfo } from "./config.js";
 import { csrfFetch } from "./csrf.js";
+import { decorateCodeBlocks } from "./decorateCodeBlocks.js";
 import { decorateEmails } from "./decorateEmails.js";
 import {
   decorateFormatting,
@@ -1347,7 +1348,14 @@ function initializeEditor(pageContent = "", additionalExtensions = [], filetype 
     titleNavigationKeymap,
     ...(isTxt
       ? []
-      : [codeFenceField, listKeymap, blockquoteKeymap, checkboxClickHandler, decorateFormatting]),
+      : [
+          codeFenceField,
+          listKeymap,
+          blockquoteKeymap,
+          checkboxClickHandler,
+          decorateFormatting,
+          decorateCodeBlocks,
+        ]),
     decorateEmails,
     decorateLinks,
     linkClickHandler,
