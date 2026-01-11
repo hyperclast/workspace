@@ -17,7 +17,54 @@
       })();
     </script>
     <title>{{ brand_name }} Collaborative Workspace</title>
-    <meta name="description" content="Fast collaborative workspace that respects your freedom" />
+    <meta name="description" content="Team workspace that stays fast no matter how much you write. Real-time markdown collaboration that doesn't slow down as your knowledge base grows." />
+    <link rel="canonical" href="https://hyperclast.com/" />
+
+    {# Open Graph tags #}
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="{{ brand_name }}" />
+    <meta property="og:title" content="{{ brand_name }} - Team Workspace That Stays Fast" />
+    <meta property="og:description" content="Real-time collaboration for teams who write. Unlike other tools, Hyperclast doesn't slow down as your knowledge base grows. Open source." />
+    <meta property="og:url" content="https://hyperclast.com/" />
+    <meta property="og:image" content="https://hyperclast.com{% static 'core/img/og-image.png' %}" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    {# Twitter Card tags #}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="{{ brand_name }} - Team Workspace That Stays Fast" />
+    <meta name="twitter:description" content="Real-time collaboration for teams who write. Unlike other tools, Hyperclast doesn't slow down as your knowledge base grows. Open source." />
+    <meta name="twitter:image" content="https://hyperclast.com{% static 'core/img/og-image.png' %}" />
+
+    {# JSON-LD Organization Schema #}
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Hyperclast",
+        "url": "https://hyperclast.com",
+        "logo": "https://hyperclast.com{% static 'core/img/favicon/web-app-manifest-512x512.png' %}",
+        "description": "Team workspace that stays fast as your knowledge base grows"
+      }
+    </script>
+
+    {# JSON-LD SoftwareApplication Schema #}
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Hyperclast",
+        "applicationCategory": "ProductivityApplication",
+        "operatingSystem": "Web",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "description": "Real-time markdown collaboration for teams. Doesn't slow down as your knowledge base grows. Open source."
+      }
+    </script>
+
     {% include 'core/partials/_favicon.html' %}
 
     <style>
@@ -306,6 +353,26 @@
         line-height: 1.6;
       }
 
+      .landing-inline-link {
+        color: #667eea;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+
+      .landing-inline-link:hover {
+        color: #5a6fd6;
+      }
+
+      :root.dark .landing-inline-link,
+      :root[data-theme="dark"] .landing-inline-link {
+        color: #7c8ce8;
+      }
+
+      :root.dark .landing-inline-link:hover,
+      :root[data-theme="dark"] .landing-inline-link:hover {
+        color: #9aa8f0;
+      }
+
       {% include 'core/partials/_footer_styles.html' %}
 
       .landing-comparison {
@@ -403,7 +470,7 @@
       }
 
       .cross {
-        color: #cbd5e1;
+        color: #e57373;
         font-size: 1.25rem;
       }
 
@@ -567,7 +634,7 @@
 
       :root.dark .cross,
       :root[data-theme="dark"] .cross {
-        color: #555;
+        color: #f87171;
       }
 
       :root.dark .cell-note,
@@ -610,7 +677,6 @@
                 <button class="theme-popover-item" data-theme="system"><span class="theme-radio"></span><span>System</span></button>
               </div>
             </div>
-            <a href="{% url 'core:dev_index' %}" class="landing-link hide-mobile">Developers</a>
             <a href="/login" class="landing-link">Log in</a>
             <a href="/signup" class="landing-btn-primary">Get Started</a>
           </div>
@@ -619,10 +685,10 @@
 
       <main class="landing-hero">
         <div class="landing-hero-content">
-          <h1>Collaborative Workspace<br />Fast · Open · Extensible</h1>
+          <h1>Team Workspace<br />That Stays Fast</h1>
           <p class="landing-hero-subtitle">
-            Performance focused team knowledge app that respects your freedom.<br />
-            Self-host it, own your data, build on top of it.
+            The only knowledge base that doesn't slow down as you grow.<br />
+            Real-time markdown. Open source.
           </p>
           <div class="landing-cta">
             <a href="/signup" class="landing-btn-primary landing-btn-large">Get Started Free</a>
@@ -634,8 +700,7 @@
         <div class="landing-comparison-container">
           <h2>The {{ brand_name }} Advantage</h2>
           <p class="landing-comparison-subtitle">
-            Here is what we're working towards, creating
-            the complete package for modern teams.
+            How we compare to the alternatives.
           </p>
           <table class="comparison-table">
             <thead>
@@ -729,8 +794,8 @@
               <div class="landing-feature-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
               </div>
-              <h3>API First</h3>
-              <p>Full REST API access. Build integrations, automate workflows, own your data.</p>
+              <h3>Open by Design</h3>
+              <p>Simple to use. Powerful to extend. <a href="{% url 'core:dev_index' %}" class="landing-inline-link">Explore</a> our API, CLI, and open source codebase.</p>
             </div>
           </div>
         </section>

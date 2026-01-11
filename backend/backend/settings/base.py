@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "core",
     "collab",
     "pages.apps.PagesConfig",
+    "pulse",
     "updates",
     "users",
 ]

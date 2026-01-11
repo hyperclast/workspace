@@ -14,6 +14,21 @@ from users.utils import generate_username_from_email
 class CustomAccountAdapter(DefaultAccountAdapter):
     """Account adapter class with custom email sending and invitation handling."""
 
+    def populate_username(self, request, user):
+        """Override allauth's username generation to use our own logic.
+
+        Allauth's default rejects short email prefixes (like 'w' from 'w@example.com')
+        because our MinLengthValidator(4) runs during clean_username. We bypass this
+        by generating the username ourselves with appended digits.
+        """
+        from allauth.account.utils import user_email, user_username
+
+        email = user_email(user)
+        username = user_username(user)
+
+        if not username and email:
+            user_username(user, generate_username_from_email(email))
+
     def send_mail(self, template_prefix, email, context):
         emailer = Emailer(
             template_prefix=template_prefix,

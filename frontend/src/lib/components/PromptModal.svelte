@@ -152,6 +152,7 @@
     border: 1px solid #d1d5db;
     border-radius: 6px;
     background: white;
+    color: #1a1a1a;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
 
@@ -187,5 +188,40 @@
     color: #dc2626;
     font-size: 0.8rem;
     margin-top: 0.25rem;
+  }
+
+  /* Dark mode */
+  :global(:root.dark) .modal-field label,
+  :global(:root[data-theme="dark"]) .modal-field label {
+    color: #d4d4d4;
+  }
+
+  :global(:root.dark) .modal-input,
+  :global(:root[data-theme="dark"]) .modal-input {
+    background: #1f1f1f;
+    border-color: #444;
+    color: #e5e5e5;
+  }
+
+  :global(:root.dark) .modal-input:focus,
+  :global(:root[data-theme="dark"]) .modal-input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+  }
+
+  :global(:root.dark) .modal-input:disabled,
+  :global(:root[data-theme="dark"]) .modal-input:disabled {
+    background: #2a2a2a;
+  }
+
+  :global(:root.dark) .modal-error,
+  :global(:root[data-theme="dark"]) .modal-error {
+    background: #3b1515;
+    color: #fca5a5;
+  }
+
+  :global(:root.dark) .field-error,
+  :global(:root[data-theme="dark"]) .field-error {
+    color: #f87171;
   }
 </style>

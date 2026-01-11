@@ -52,6 +52,8 @@ def dev_index(request):
     context = {
         "is_dev_index": True,
         "page_title": "Developer Portal",
+        "seo_title": "Developer Portal - Hyperclast",
+        "seo_description": "Hyperclast REST API and developer tools. Build integrations, automate workflows, or self-host the entire open-source platform.",
         **_get_dev_context(request),
     }
     return render(request, "core/docs/dev_index.html", context)
@@ -80,10 +82,21 @@ def api_docs(request, doc_name="overview"):
         },
     )
 
+    seo_descriptions = {
+        "overview": "Hyperclast REST API documentation. Authentication, rate limits, and getting started guide.",
+        "ask": "AI-powered Q&A API. Ask questions in natural language and get answers grounded in your pages.",
+        "orgs": "Organizations API reference. Create and manage organizations and team members.",
+        "projects": "Projects API reference. Manage projects and their settings.",
+        "pages": "Pages API reference. Create, read, update, and delete pages programmatically.",
+        "users": "Users API reference. User profile and settings management.",
+    }
+
     context = {
         "content": html_content,
         "doc_name": doc_name,
         "page_title": f"API Documentation - {doc_name.title()}",
+        "seo_title": f"{doc_name.title()} API - Hyperclast Developer Docs",
+        "seo_description": seo_descriptions.get(doc_name, f"Hyperclast {doc_name.title()} API documentation."),
         **_get_dev_context(request),
     }
     return render(request, "core/docs/api_docs.html", context)
@@ -94,6 +107,8 @@ def oss_index(request):
     context = {
         "is_oss_index": True,
         "page_title": "Open Source",
+        "seo_title": "Open Source - Hyperclast",
+        "seo_description": "Hyperclast is fully open source. Self-host on your infrastructure, fork the codebase, or contribute. No vendor lock-in.",
         **_get_dev_context(request),
     }
     return render(request, "core/docs/oss_index.html", context)
@@ -105,9 +120,17 @@ def oss_repo(request, repo_name):
     if repo_name not in allowed_repos:
         raise Http404("Repository not found")
 
+    seo_descriptions = {
+        "workspace": "Hyperclast Workspace - the main collaborative workspace application. Django backend, Svelte frontend.",
+        "firebreak": "Firebreak - lightweight rate limiting and circuit breaker library for Python.",
+        "filehub": "FileHub - simple file storage abstraction for Django applications.",
+    }
+
     context = {
         "repo_name": repo_name,
         "page_title": f"Open Source - {repo_name.title()}",
+        "seo_title": f"{repo_name.title()} - Hyperclast Open Source",
+        "seo_description": seo_descriptions.get(repo_name, f"Hyperclast {repo_name.title()} open source repository."),
         **_get_dev_context(request),
     }
     return render(request, f"core/docs/oss_{repo_name}.html", context)
@@ -118,6 +141,8 @@ def cli_docs(request):
     context = {
         "is_cli_docs": True,
         "page_title": "CLI",
+        "seo_title": "CLI Tool - Hyperclast",
+        "seo_description": "Hyperclast command-line interface. Capture notes from your terminal. Available for macOS, Linux, and Windows.",
         "cli_platforms": CLI_PLATFORMS,
         "root_url": settings.WS_ROOT_URL,
         **_get_dev_context(request),

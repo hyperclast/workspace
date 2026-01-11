@@ -19,7 +19,9 @@
     <title>{% block title %}Home{% endblock %} | {{ brand_name }}</title>
     {% include 'core/partials/_favicon.html' %}
 
-    {% block meta %}{% endblock %}
+    {% block meta %}
+      {% include 'core/partials/_seo_meta.html' %}
+    {% endblock %}
 
     <link rel="stylesheet" href="{% static 'core/css/base.css' %}?v={{ deployment_id }}" />
     {% block extra_styles %}{% endblock %}

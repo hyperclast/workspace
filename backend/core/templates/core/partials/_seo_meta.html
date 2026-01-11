@@ -1,0 +1,49 @@
+{% load static %}
+{# SEO Meta Partial - Include in {% block meta %} of templates #}
+
+{# Meta description #}
+{% if seo_description %}
+  <meta name="description" content="{{ seo_description }}" />
+{% endif %}
+
+{# Canonical URL #}
+{% if seo_canonical %}
+  <link rel="canonical" href="{{ seo_canonical }}" />
+{% else %}
+  <link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}" />
+{% endif %}
+
+{# Open Graph tags #}
+<meta property="og:type" content="{{ seo_og_type|default:'website' }}" />
+<meta property="og:site_name" content="{{ brand_name }}" />
+<meta property="og:title" content="{{ seo_title|default:brand_name }}" />
+{% if seo_description %}
+  <meta property="og:description" content="{{ seo_description }}" />
+{% endif %}
+<meta property="og:url" content="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}" />
+{% if seo_og_image %}
+  <meta property="og:image" content="{{ seo_og_image }}" />
+{% else %}
+  <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'core/img/og-image.png' %}" />
+{% endif %}
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+
+{# Twitter Card tags #}
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="{{ seo_title|default:brand_name }}" />
+{% if seo_description %}
+  <meta name="twitter:description" content="{{ seo_description }}" />
+{% endif %}
+{% if seo_og_image %}
+  <meta name="twitter:image" content="{{ seo_og_image }}" />
+{% else %}
+  <meta name="twitter:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'core/img/og-image.png' %}" />
+{% endif %}
+
+{# JSON-LD Structured Data (passed via seo_jsonld context variable) #}
+{% if seo_jsonld %}
+  <script type="application/ld+json">
+    {{ seo_jsonld|safe }}
+  </script>
+{% endif %}

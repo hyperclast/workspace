@@ -87,3 +87,17 @@ class TestUpdateUserAPI(BaseAuthenticatedViewTestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
         self.user.refresh_from_db()
         self.assertEqual(self.user.username, "abcd")
+
+    def test_update_username_rejects_reserved_username(self):
+        response = self.send_update_user_request({"username": "admin"})
+
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        payload = response.json()
+        self.assertIn("reserved", payload["message"].lower())
+
+    def test_update_username_rejects_reserved_username_case_insensitive(self):
+        response = self.send_update_user_request({"username": "HYPERCLAST"})
+
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        payload = response.json()
+        self.assertIn("reserved", payload["message"].lower())

@@ -1,0 +1,779 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pulse | Admin Dashboard</title>
+    {% include 'core/partials/_favicon.html' %}
+
+    <script>
+      (function() {
+        const stored = localStorage.getItem('theme') || 'system';
+        const effective = stored === 'system'
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : stored;
+        document.documentElement.setAttribute('data-theme', effective);
+        document.documentElement.classList.add(effective);
+      })();
+    </script>
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      :root {
+        --bg-color: #fafafa;
+        --card-bg: white;
+        --text-color: #333;
+        --text-muted: #666;
+        --border-color: #e0e0e0;
+        --accent-color: #667eea;
+        --success-color: #22c55e;
+        --warning-color: #f59e0b;
+      }
+
+      [data-theme="dark"] {
+        --bg-color: #1a1a2e;
+        --card-bg: #16213e;
+        --text-color: #e0e0e0;
+        --text-muted: #a0a0a0;
+        --border-color: #2a2a4a;
+        --accent-color: #7c8ce8;
+        --success-color: #4ade80;
+        --warning-color: #fbbf24;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+        -webkit-font-smoothing: antialiased;
+        background: var(--bg-color);
+        color: var(--text-color);
+        line-height: 1.6;
+        min-height: 100vh;
+      }
+
+      .pulse-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1rem 2rem;
+        color: white;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+
+      .pulse-header-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .pulse-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+      }
+
+      .pulse-title a {
+        color: white;
+        text-decoration: none;
+      }
+
+      .pulse-nav {
+        display: flex;
+        gap: 1rem;
+      }
+
+      .pulse-nav a {
+        color: rgba(255, 255, 255, 0.85);
+        text-decoration: none;
+        font-size: 0.9rem;
+      }
+
+      .pulse-nav a:hover {
+        color: white;
+      }
+
+      .pulse-layout {
+        display: flex;
+        max-width: 1400px;
+        margin: 0 auto;
+        min-height: calc(100vh - 60px);
+      }
+
+      .pulse-sidenav {
+        width: 200px;
+        padding: 1.5rem 1rem;
+        position: sticky;
+        top: 60px;
+        height: calc(100vh - 60px);
+        display: flex;
+        flex-direction: column;
+      }
+
+      .pulse-sidenav-links {
+        flex: 1;
+      }
+
+      .pulse-sidenav a {
+        display: block;
+        padding: 0.5rem 0.75rem;
+        color: var(--text-muted);
+        text-decoration: none;
+        font-size: 0.9rem;
+        border-radius: 6px;
+        margin-bottom: 0.25rem;
+        transition: all 0.15s ease;
+      }
+
+      .pulse-sidenav a:hover {
+        color: var(--text-color);
+        background: var(--border-color);
+      }
+
+      .btn-recompute {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        width: 100%;
+        padding: 0.6rem 1rem;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        cursor: pointer;
+        transition: all 0.15s ease;
+        background: var(--card-bg);
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        font-weight: 500;
+      }
+
+      .btn-recompute:hover {
+        background: var(--border-color);
+        color: var(--text-color);
+      }
+
+      .btn-recompute:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .btn-recompute svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      .btn-recompute.loading svg {
+        animation: spin 0.8s linear infinite;
+      }
+
+      .pulse-content {
+        flex: 1;
+        padding: 1.5rem 2rem;
+        max-width: 1100px;
+      }
+
+      .section {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid var(--border-color);
+        scroll-margin-top: 80px;
+      }
+
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+      }
+
+      .section-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+      }
+
+      .section-meta {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+      }
+
+      .chart-container {
+        position: relative;
+        height: 250px;
+        width: 100%;
+      }
+
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+      /* Table styles */
+      .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+      }
+
+      .data-table th,
+      .data-table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .data-table th {
+        font-weight: 600;
+        color: var(--text-muted);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .data-table tr:last-child td {
+        border-bottom: none;
+      }
+
+      .data-table tr:hover td {
+        background: var(--bg-color);
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+      }
+
+      .badge-success {
+        background: rgba(34, 197, 94, 0.15);
+        color: var(--success-color);
+      }
+
+      .badge-warning {
+        background: rgba(245, 158, 11, 0.15);
+        color: var(--warning-color);
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-muted);
+      }
+
+      .table-scroll {
+        overflow-x: auto;
+      }
+
+      .toast {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        background: #333;
+        color: white;
+        padding: 0.75rem 1.25rem;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        opacity: 0;
+        transform: translateY(10px);
+        transition: all 0.3s ease;
+        z-index: 1000;
+      }
+
+      .toast.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      [data-theme="dark"] .toast {
+        background: #444;
+      }
+
+      .count-badge {
+        display: inline-block;
+        background: var(--border-color);
+        color: var(--text-muted);
+        padding: 0.1rem 0.4rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        margin-left: 0.5rem;
+      }
+
+      /* Growth metrics cards */
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+
+      .metric-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 1.25rem;
+        text-align: center;
+      }
+
+      .metric-label {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.5rem;
+      }
+
+      .metric-value {
+        font-size: 2rem;
+        font-weight: 700;
+        line-height: 1.2;
+      }
+
+      .metric-value.positive {
+        color: var(--success-color);
+      }
+
+      .metric-value.negative {
+        color: #ef4444;
+      }
+
+      .metric-value.neutral {
+        color: var(--accent-color);
+      }
+
+      .metric-subtitle {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 0.25rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="pulse-header">
+      <div class="pulse-header-container">
+        <h1 class="pulse-title">
+          <a href="/pulse/">Pulse</a>
+        </h1>
+        <nav class="pulse-nav">
+          <a href="/pulse/growth/">Growth</a>
+          <a href="/admin/">Django Admin</a>
+          <a href="/rq_dashboard/">RQ Dashboard</a>
+          <a href="/">App</a>
+        </nav>
+      </div>
+    </header>
+
+    <div class="pulse-layout">
+      <nav class="pulse-sidenav">
+        <div class="pulse-sidenav-links">
+          <a href="#growth">Growth Metrics</a>
+          <a href="#mau">Monthly Active Users</a>
+          <a href="#signups">New Signups</a>
+          <a href="#new-users">New Users</a>
+          <a href="#inactive-users">Inactive Users</a>
+          <a href="#dau">Daily Active Users</a>
+        </div>
+        <button type="button" class="btn-recompute" id="recompute-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+            <path d="M21 3v5h-5"/>
+          </svg>
+          Recompute
+        </button>
+      </nav>
+
+      <main class="pulse-content">
+        <!-- Growth Metrics Section -->
+        <section class="section" id="growth">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Growth Metrics</h2>
+            </div>
+          </div>
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-label">MoM MAU Growth</div>
+              <div class="metric-value {% if mom_growth is not None %}{% if mom_growth > 0 %}positive{% elif mom_growth < 0 %}negative{% else %}neutral{% endif %}{% else %}neutral{% endif %}">
+                {% if mom_growth is not None %}
+                  {% if mom_growth > 0 %}+{% endif %}{{ mom_growth }}%
+                {% else %}
+                  --
+                {% endif %}
+              </div>
+              <div class="metric-subtitle">vs. 30 days ago</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">DAU/MAU Ratio</div>
+              <div class="metric-value neutral">
+                {% if dau_mau_ratio is not None %}
+                  {{ dau_mau_ratio }}%
+                {% else %}
+                  --
+                {% endif %}
+              </div>
+              <div class="metric-subtitle">Stickiness (avg daily engagement)</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Current MAU</div>
+              <div class="metric-value neutral">
+                {% if current_mau is not None %}
+                  {{ current_mau }}
+                {% else %}
+                  --
+                {% endif %}
+              </div>
+              <div class="metric-subtitle">30-day active users</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- MAU Section -->
+        <section class="section" id="mau">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Monthly Active Users (90 days)</h2>
+            </div>
+          </div>
+          <div class="chart-container">
+            {% if mau_data_json == '[]' %}
+              <div class="empty-state">
+                <p>No data yet.</p>
+              </div>
+            {% else %}
+              <canvas id="mau-chart"></canvas>
+            {% endif %}
+          </div>
+        </section>
+
+        <!-- Signups Section -->
+        <section class="section" id="signups">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">New Signups (90 days)</h2>
+            </div>
+          </div>
+          <div class="chart-container">
+            {% if signups_data_json == '[]' %}
+              <div class="empty-state">
+                <p>No data yet.</p>
+              </div>
+            {% else %}
+              <canvas id="signups-chart"></canvas>
+            {% endif %}
+          </div>
+        </section>
+
+        <!-- New Users Section -->
+        <section class="section" id="new-users">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">New Users <span class="count-badge">{{ new_users|length }}</span></h2>
+              <p class="section-meta">Last 7 days</p>
+            </div>
+          </div>
+          {% if new_users %}
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Username</th>
+                    <th>Name</th>
+                    <th>Verified</th>
+                    <th>Projects</th>
+                    <th>Pages</th>
+                    <th>Joined</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for user in new_users %}
+                    <tr>
+                      <td>{{ user.email }}</td>
+                      <td>{{ user.username }}</td>
+                      <td>{{ user.first_name }} {{ user.last_name }}</td>
+                      <td>
+                        {% if user.email_verified %}
+                          <span class="badge badge-success">Yes</span>
+                        {% else %}
+                          <span class="badge badge-warning">No</span>
+                        {% endif %}
+                      </td>
+                      <td>{{ user.num_projects }}</td>
+                      <td>{{ user.num_pages }}</td>
+                      <td>{{ user.date_joined }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="empty-state">
+              <p>No new users in the last 7 days.</p>
+            </div>
+          {% endif %}
+        </section>
+
+        <!-- Inactive Users Section -->
+        <section class="section" id="inactive-users">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Inactive Users <span class="count-badge">{{ inactive_users|length }}</span></h2>
+              <p class="section-meta">Active in last 90 days, but not in last 7 days</p>
+            </div>
+          </div>
+          {% if inactive_users %}
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Username</th>
+                    <th>Name</th>
+                    <th>Verified</th>
+                    <th>Projects</th>
+                    <th>Pages</th>
+                    <th>Last Active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for user in inactive_users %}
+                    <tr>
+                      <td>{{ user.email }}</td>
+                      <td>{{ user.username }}</td>
+                      <td>{{ user.first_name }} {{ user.last_name }}</td>
+                      <td>
+                        {% if user.email_verified %}
+                          <span class="badge badge-success">Yes</span>
+                        {% else %}
+                          <span class="badge badge-warning">No</span>
+                        {% endif %}
+                      </td>
+                      <td>{{ user.num_projects }}</td>
+                      <td>{{ user.num_pages }}</td>
+                      <td>{{ user.last_active }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="empty-state">
+              <p>No inactive users found.</p>
+            </div>
+          {% endif %}
+        </section>
+
+        <!-- DAU Section -->
+        <section class="section" id="dau">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Daily Active Users (90 days)</h2>
+              {% if last_computed %}
+                <p class="section-meta">Last computed: {{ last_computed|timesince }} ago</p>
+              {% else %}
+                <p class="section-meta">Not yet computed</p>
+              {% endif %}
+            </div>
+          </div>
+          <div class="chart-container">
+            {% if dau_data_json == '[]' %}
+              <div class="empty-state">
+                <p>No data yet. Click "Recompute" in the sidebar to compute metrics.</p>
+              </div>
+            {% else %}
+              <canvas id="dau-chart"></canvas>
+            {% endif %}
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="{% static 'pulse/js/chart.min.js' %}"></script>
+    <script>
+      const dauData = {{ dau_data_json|safe }};
+      const signupsData = {{ signups_data_json|safe }};
+      const mauData = {{ mau_data_json|safe }};
+
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+      const textColor = isDark ? '#a0a0a0' : '#666';
+
+      const commonOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: (items) => {
+                const date = new Date(items[0].label);
+                return date.toLocaleDateString('en-US', {
+                  weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
+                });
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: gridColor },
+            ticks: {
+              color: textColor,
+              maxTicksLimit: 10,
+              callback: function(value) {
+                const date = new Date(this.getLabelForValue(value));
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              }
+            }
+          },
+          y: {
+            beginAtZero: true,
+            grid: { color: gridColor },
+            ticks: { color: textColor, precision: 0 }
+          }
+        }
+      };
+
+      // DAU Chart
+      if (dauData.length > 0) {
+        new Chart(document.getElementById('dau-chart').getContext('2d'), {
+          type: 'line',
+          data: {
+            labels: dauData.map(d => d.date),
+            datasets: [{
+              label: 'DAU',
+              data: dauData.map(d => d.value),
+              borderColor: '#667eea',
+              backgroundColor: 'rgba(102, 126, 234, 0.1)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 2,
+              pointHoverRadius: 5,
+            }]
+          },
+          options: {
+              ...commonOptions,
+            plugins: {
+                ...commonOptions.plugins,
+              tooltip: {
+                callbacks: {
+                    ...commonOptions.plugins.tooltip.callbacks,
+                  label: (item) => `${item.raw} active users`
+                }
+              }
+            }
+          }
+        });
+      }
+
+      // MAU Chart
+      if (mauData.length > 0) {
+        new Chart(document.getElementById('mau-chart').getContext('2d'), {
+          type: 'line',
+          data: {
+            labels: mauData.map(d => d.date),
+            datasets: [{
+              label: 'MAU',
+              data: mauData.map(d => d.value),
+              borderColor: '#f59e0b',
+              backgroundColor: 'rgba(245, 158, 11, 0.1)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 2,
+              pointHoverRadius: 5,
+            }]
+          },
+          options: {
+              ...commonOptions,
+            plugins: {
+                ...commonOptions.plugins,
+              tooltip: {
+                callbacks: {
+                    ...commonOptions.plugins.tooltip.callbacks,
+                  label: (item) => `${item.raw} monthly active users`
+                }
+              }
+            }
+          }
+        });
+      }
+
+      // Signups Chart
+      if (signupsData.length > 0) {
+        new Chart(document.getElementById('signups-chart').getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: signupsData.map(d => d.date),
+            datasets: [{
+              label: 'Signups',
+              data: signupsData.map(d => d.value),
+              backgroundColor: 'rgba(34, 197, 94, 0.6)',
+              borderColor: '#22c55e',
+              borderWidth: 1,
+              borderRadius: 4,
+            }]
+          },
+          options: {
+              ...commonOptions,
+            plugins: {
+                ...commonOptions.plugins,
+              tooltip: {
+                callbacks: {
+                    ...commonOptions.plugins.tooltip.callbacks,
+                  label: (item) => `${item.raw} new signups`
+                }
+              }
+            }
+          }
+        });
+      }
+
+      // Recompute button handler
+      const recomputeBtn = document.getElementById('recompute-btn');
+      const toast = document.getElementById('toast');
+
+      function showToast(message) {
+        toast.textContent = message;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+      }
+
+      recomputeBtn.addEventListener('click', async () => {
+        recomputeBtn.disabled = true;
+        recomputeBtn.classList.add('loading');
+
+        try {
+          const response = await fetch('/pulse/recompute/', {
+            method: 'POST',
+            headers: {
+              'X-CSRFToken': '{{ csrf_token }}',
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (response.ok) {
+            showToast('Recompute job queued. Refresh in a few seconds.');
+            setTimeout(() => {
+              recomputeBtn.classList.remove('loading');
+              recomputeBtn.disabled = false;
+            }, 2000);
+          } else {
+            throw new Error('Request failed');
+          }
+        } catch (error) {
+          showToast('Failed to queue recompute job');
+          recomputeBtn.classList.remove('loading');
+          recomputeBtn.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

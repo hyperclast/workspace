@@ -18,7 +18,6 @@
     </a>
     <div class="site-nav-actions">
       <ThemeToggle />
-      <a href="/dev/" class="site-nav-link hide-mobile">Developers</a>
       <a href="/login" class="site-nav-link" class:site-nav-link-active={path === '/login'}>Log in</a>
       <a href="/signup" class="site-nav-btn" class:site-nav-btn-active={path === '/signup'}>Get Started</a>
     </div>
@@ -65,5 +64,13 @@
   :global(:root.dark body:has(.auth-container) .site-nav-btn:hover),
   :global(:root[data-theme="dark"] body:has(.auth-container) .site-nav-btn:hover) {
     box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+  }
+  /* Theme toggle on gradient background */
+  :global(body:has(.auth-container) .theme-toggle-btn) {
+    color: white !important;
+    background: rgba(255, 255, 255, 0.15) !important;
+  }
+  :global(body:has(.auth-container) .theme-toggle-btn:hover) {
+    background: rgba(255, 255, 255, 0.25) !important;
   }
 </style>

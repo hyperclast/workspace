@@ -5,8 +5,24 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Updates | {{ brand_name }}</title>
-    <meta name="description" content="Latest updates and improvements from {{ brand_name }}" />
+    <title>{{ seo_title|default:"Updates" }} | {{ brand_name }}</title>
+    <meta name="description" content="{{ seo_description }}" />
+    <link rel="canonical" href="https://hyperclast.com/updates/" />
+
+    {# Open Graph tags #}
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="{{ brand_name }}" />
+    <meta property="og:title" content="{{ seo_title }} - {{ brand_name }}" />
+    <meta property="og:description" content="{{ seo_description }}" />
+    <meta property="og:url" content="https://hyperclast.com/updates/" />
+    <meta property="og:image" content="https://hyperclast.com{% static 'core/img/og-image.png' %}" />
+
+    {# Twitter Card tags #}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="{{ seo_title }} - {{ brand_name }}" />
+    <meta name="twitter:description" content="{{ seo_description }}" />
+    <meta name="twitter:image" content="https://hyperclast.com{% static 'core/img/og-image.png' %}" />
+
     {% include 'core/partials/_favicon.html' %}
 
     <script>

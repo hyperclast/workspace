@@ -1,0 +1,365 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hyperclast Key Metrics</title>
+    {% include 'core/partials/_favicon.html' %}
+
+    <script>
+      (function() {
+        const stored = localStorage.getItem('theme') || 'system';
+        const effective = stored === 'system'
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : stored;
+        document.documentElement.setAttribute('data-theme', effective);
+        document.documentElement.classList.add(effective);
+      })();
+    </script>
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      :root {
+        --bg-color: #fafafa;
+        --card-bg: white;
+        --text-color: #333;
+        --text-muted: #666;
+        --border-color: #e0e0e0;
+        --accent-color: #667eea;
+        --success-color: #22c55e;
+        --warning-color: #f59e0b;
+      }
+
+      [data-theme="dark"] {
+        --bg-color: #1a1a2e;
+        --card-bg: #16213e;
+        --text-color: #e0e0e0;
+        --text-muted: #a0a0a0;
+        --border-color: #2a2a4a;
+        --accent-color: #7c8ce8;
+        --success-color: #4ade80;
+        --warning-color: #fbbf24;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+        -webkit-font-smoothing: antialiased;
+        background: var(--bg-color);
+        color: var(--text-color);
+        line-height: 1.6;
+        min-height: 100vh;
+      }
+
+      .page {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 3rem 2rem;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .page-header {
+        text-align: center;
+        margin-bottom: 3rem;
+      }
+
+      .page-logo {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .page-logo svg {
+        width: 40px;
+        height: 40px;
+        color: var(--accent-color);
+      }
+
+      .page-title {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text-color);
+        text-decoration: none;
+      }
+
+      .page-subtitle {
+        color: var(--text-muted);
+        font-size: 1rem;
+        margin-top: 0.25rem;
+      }
+
+      .section {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid var(--border-color);
+      }
+
+      .section-header {
+        margin-bottom: 1rem;
+      }
+
+      .section-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-muted);
+      }
+
+      .chart-container {
+        position: relative;
+        height: 280px;
+        width: 100%;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-muted);
+      }
+
+      /* Growth metrics cards */
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+      }
+
+      @media (max-width: 640px) {
+        .metrics-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .metric-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 1.5rem;
+        text-align: center;
+      }
+
+      .metric-label {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.5rem;
+      }
+
+      .metric-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        line-height: 1.2;
+      }
+
+      .metric-value.positive {
+        color: var(--success-color);
+      }
+
+      .metric-value.negative {
+        color: #ef4444;
+      }
+
+      .metric-value.neutral {
+        color: var(--accent-color);
+      }
+
+      .metric-subtitle {
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        margin-top: 0.25rem;
+      }
+
+      .page-footer {
+        text-align: center;
+        margin-top: auto;
+        padding-top: 2rem;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      .page-footer span {
+        margin: 0 0.5rem;
+      }
+
+      .page-footer a {
+        color: var(--text-muted);
+        text-decoration: none;
+      }
+
+      .page-footer a:hover {
+        color: var(--accent-color);
+      }
+
+      @media print {
+        @page {
+          size: letter;
+          margin: 0.5in;
+        }
+
+        body {
+          min-height: auto;
+        }
+
+        .page {
+          min-height: auto;
+          padding: 1rem 0;
+        }
+
+        .page-footer {
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          padding-bottom: 0.5in;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="page-header">
+        <div class="page-logo">
+          <svg viewBox="0 0 90 90">
+            <path d="M 10,80 L 10,70 L 20,70 L 20,80 L 30,80 L 40,80 L 40,70 L 30,70 L 30,60 L 40,60 L 40,50 L 30,50 L 20,50 L 20,60 L 10,60 L 10,50 L 10,40 L 20,40 L 20,30 L 10,30 L 10,20 L 10,10 L 20,10 L 20,20 L 30,20 L 30,10 L 40,10 L 40,20 L 40,30 L 30,30 L 30,40 L 40,40 L 50,40 L 60,40 L 60,30 L 50,30 L 50,20 L 50,10 L 60,10 L 60,20 L 70,20 L 70,10 L 80,10 L 80,20 L 80,30 L 70,30 L 70,40 L 80,40 L 80,50 L 80,60 L 70,60 L 70,50 L 60,50 L 50,50 L 50,60 L 60,60 L 60,70 L 50,70 L 50,80 L 60,80 L 70,80 L 70,70 L 80,70 L 80,80" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <a href="/pulse/" class="page-title">Hyperclast</a>
+        </div>
+        <p class="page-subtitle">Key Metrics <span style="margin:0 0.5em;">·</span> {% now "N j, Y" %}</p>
+      </header>
+
+      <!-- Growth Metrics Section -->
+      <section class="section">
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-label">MoM MAU Growth</div>
+            <div class="metric-value {% if mom_growth is not None %}{% if mom_growth > 0 %}positive{% elif mom_growth < 0 %}negative{% else %}neutral{% endif %}{% else %}neutral{% endif %}">
+              {% if mom_growth is not None %}
+                {% if mom_growth > 0 %}+{% endif %}{{ mom_growth }}%
+              {% else %}
+                --
+              {% endif %}
+            </div>
+            <div class="metric-subtitle">vs. 30 days ago</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">DAU/MAU Ratio</div>
+            <div class="metric-value neutral">
+              {% if dau_mau_ratio is not None %}
+                {{ dau_mau_ratio }}%
+              {% else %}
+                --
+              {% endif %}
+            </div>
+            <div class="metric-subtitle">Stickiness</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Current MAU</div>
+            <div class="metric-value neutral">
+              {% if current_mau is not None %}
+                {{ current_mau }}
+              {% else %}
+                --
+              {% endif %}
+            </div>
+            <div class="metric-subtitle">30-day active users</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- MAU Chart Section -->
+      <section class="section">
+        <div class="section-header">
+          <h2 class="section-title">Monthly Active Users (90 days)</h2>
+        </div>
+        <div class="chart-container">
+          {% if mau_data_json == '[]' %}
+            <div class="empty-state">
+              <p>No data yet.</p>
+            </div>
+          {% else %}
+            <canvas id="mau-chart"></canvas>
+          {% endif %}
+        </div>
+      </section>
+
+      <footer class="page-footer">
+        <span>histre inc</span><span>·</span><span>hyperclast.com</span><span>·</span><span>ir@hyperclast.com</span>
+      </footer>
+    </main>
+
+    <script src="{% static 'pulse/js/chart.min.js' %}"></script>
+    <script>
+      const mauData = {{ mau_data_json|safe }};
+
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+      const textColor = isDark ? '#a0a0a0' : '#666';
+
+      if (mauData.length > 0) {
+        new Chart(document.getElementById('mau-chart').getContext('2d'), {
+          type: 'line',
+          data: {
+            labels: mauData.map(d => d.date),
+            datasets: [{
+              label: 'MAU',
+              data: mauData.map(d => d.value),
+              borderColor: '#f59e0b',
+              backgroundColor: 'rgba(245, 158, 11, 0.1)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 2,
+              pointHoverRadius: 5,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  title: (items) => {
+                    const date = new Date(items[0].label);
+                    return date.toLocaleDateString('en-US', {
+                      weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
+                    });
+                  },
+                  label: (item) => `${item.raw} monthly active users`
+                }
+              }
+            },
+            scales: {
+              x: {
+                grid: { color: gridColor },
+                ticks: {
+                  color: textColor,
+                  maxTicksLimit: 10,
+                  callback: function(value) {
+                    const date = new Date(this.getLabelForValue(value));
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                  }
+                }
+              },
+              y: {
+                beginAtZero: true,
+                grid: { color: gridColor },
+                ticks: { color: textColor, precision: 0 }
+              }
+            }
+          }
+        });
+      }
+    </script>
+  </body>
+</html>

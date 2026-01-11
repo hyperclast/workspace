@@ -6,7 +6,25 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ update.title }} | Updates | {{ brand_name }}</title>
-    <meta name="description" content="{{ update.content|truncatewords:30|striptags }}" />
+    <meta name="description" content="{{ seo_description|default:update.content|truncatewords:30|striptags }}" />
+    <link rel="canonical" href="https://hyperclast.com/updates/{{ update.slug }}/" />
+
+    {# Open Graph tags #}
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="{{ brand_name }}" />
+    <meta property="og:title" content="{{ update.title }} - {{ brand_name }} Updates" />
+    <meta property="og:description" content="{{ seo_description|default:update.content|truncatewords:30|striptags }}" />
+    <meta property="og:url" content="https://hyperclast.com/updates/{{ update.slug }}/" />
+    <meta property="og:image" content="https://hyperclast.com{% static 'core/img/og-image.png' %}" />
+    <meta property="article:published_time" content="{{ update.created_at|date:'c' }}" />
+    <meta property="article:modified_time" content="{{ update.updated_at|date:'c' }}" />
+
+    {# Twitter Card tags #}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="{{ update.title }} - {{ brand_name }} Updates" />
+    <meta name="twitter:description" content="{{ seo_description|default:update.content|truncatewords:30|striptags }}" />
+    <meta name="twitter:image" content="https://hyperclast.com{% static 'core/img/og-image.png' %}" />
+
     {% include 'core/partials/_favicon.html' %}
 
     <script>

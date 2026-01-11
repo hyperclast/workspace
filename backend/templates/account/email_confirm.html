@@ -185,6 +185,33 @@
     .expired-support a:hover {
       text-decoration: underline;
     }
+
+    /* Dark mode */
+    :root.dark .verifying-text,
+    :root[data-theme="dark"] .verifying-text {
+      color: #a0a0a0;
+    }
+
+    :root.dark .expired-text,
+    :root[data-theme="dark"] .expired-text {
+      color: #f0f0f0;
+    }
+
+    :root.dark .expired-subtext,
+    :root[data-theme="dark"] .expired-subtext {
+      color: #a0a0a0;
+    }
+
+    :root.dark .expired-support,
+    :root[data-theme="dark"] .expired-support {
+      color: #a0a0a0;
+    }
+
+    :root.dark .spinner,
+    :root[data-theme="dark"] .spinner {
+      border-color: #444;
+      border-top-color: #667eea;
+    }
   </style>
 {% endblock %}
 

@@ -56,6 +56,8 @@ def update_list(request):
     context = {
         "updates": updates,
         "brand_name": getattr(settings, "BRAND_NAME", "Hyperclast"),
+        "seo_title": "Product Updates - Hyperclast",
+        "seo_description": "What's new in Hyperclast. Performance improvements, new features, and fixes for the team workspace that stays fast.",
         **get_user_nav_context(request),
     }
     return render(request, "updates/list.html", context)
@@ -79,6 +81,10 @@ def update_detail(request, slug):
     is_superuser = request.user.is_authenticated and request.user.is_superuser
     sent_count, new_subscriber_count = get_update_email_counts(update) if is_superuser else (0, 0)
 
+    seo_description = update.content[:160].strip()
+    if len(update.content) > 160:
+        seo_description = seo_description.rsplit(" ", 1)[0] + "..."
+
     context = {
         "update": update,
         "content_html": content_html,
@@ -87,6 +93,8 @@ def update_detail(request, slug):
         "subscriber_count": get_subscriber_count() if is_superuser else 0,
         "sent_count": sent_count,
         "new_subscriber_count": new_subscriber_count,
+        "seo_title": f"{update.title} - Hyperclast Updates",
+        "seo_description": seo_description,
         **get_user_nav_context(request),
     }
     return render(request, "updates/detail.html", context)

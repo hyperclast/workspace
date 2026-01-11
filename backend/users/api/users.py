@@ -52,9 +52,13 @@ def update_current_user(request: HttpRequest, payload: UpdateUserSchema):
     if payload.username is not None:
         from django.contrib.auth import get_user_model
 
+        from users.validators import RESERVED_USERNAMES
+
         User = get_user_model()
         if User.objects.filter(username__iexact=payload.username).exclude(pk=user.pk).exists():
             return Response({"message": "Username is already taken"}, status=400)
+        if payload.username.lower() in RESERVED_USERNAMES:
+            return Response({"message": "This username is reserved and cannot be used"}, status=400)
         user.username = payload.username
         update_fields.append("username")
 
