@@ -306,6 +306,18 @@
         margin-bottom: 2.5rem;
       }
 
+      .landing-subtle-link {
+        color: inherit;
+        text-decoration: underline;
+        text-decoration-color: rgba(255, 255, 255, 0.4);
+        text-underline-offset: 2px;
+        transition: text-decoration-color 0.15s;
+      }
+
+      .landing-subtle-link:hover {
+        text-decoration-color: rgba(255, 255, 255, 0.9);
+      }
+
       .landing-cta {
         display: flex;
         gap: 1rem;
@@ -416,12 +428,12 @@
 
       .comparison-table th:first-child,
       .comparison-table td:first-child {
-        width: 28%;
+        width: 40%;
       }
 
       .comparison-table th:not(:first-child),
       .comparison-table td:not(:first-child) {
-        width: 18%;
+        width: 20%;
       }
 
       .comparison-table th,
@@ -493,6 +505,37 @@
 
       .check-note .cell-note {
         color: #16a34a;
+      }
+
+      .clickable-col {
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+
+      .comparison-table th.clickable-col:hover {
+        background: #5a6fd6;
+      }
+
+      .comparison-table td.clickable-col:hover {
+        background: rgba(102, 126, 234, 0.12);
+      }
+
+      .comparison-more-btn {
+        display: inline-block;
+        background: transparent;
+        color: #667eea;
+        padding: 0.75rem 1.5rem;
+        border: 2px solid #667eea;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.95rem;
+        transition: all 0.2s;
+      }
+
+      .comparison-more-btn:hover {
+        background: #667eea;
+        color: white;
       }
 
       @media (max-width: 768px) {
@@ -657,6 +700,24 @@
       :root[data-theme="dark"] .landing-footer {
         background: rgba(0, 0, 0, 0.3);
       }
+
+      :root.dark .comparison-table td.clickable-col:hover,
+      :root[data-theme="dark"] .comparison-table td.clickable-col:hover {
+        background: rgba(102, 126, 234, 0.2);
+      }
+
+      :root.dark .comparison-more-btn,
+      :root[data-theme="dark"] .comparison-more-btn {
+        color: #8b9cf4;
+        border-color: #8b9cf4;
+      }
+
+      :root.dark .comparison-more-btn:hover,
+      :root[data-theme="dark"] .comparison-more-btn:hover {
+        background: #667eea;
+        border-color: #667eea;
+        color: white;
+      }
     </style>
   </head>
 
@@ -687,8 +748,8 @@
         <div class="landing-hero-content">
           <h1>Team Workspace<br />That Stays Fast</h1>
           <p class="landing-hero-subtitle">
-            The only knowledge base that doesn't slow down as you grow.<br />
-            Real-time markdown. Open source.
+            Think, build, and ship together. In real-time.<br />
+            <a href="/dev/" class="landing-subtle-link">Open source</a>.
           </p>
           <div class="landing-cta">
             <a href="/signup" class="landing-btn-primary landing-btn-large">Get Started Free</a>
@@ -702,159 +763,144 @@
           <p class="landing-comparison-subtitle">
             How we compare to the alternatives.
           </p>
-          <table class="comparison-table">
+          <table class="comparison-table" id="comparison-table">
             <thead>
               <tr>
                 <th>Feature</th>
                 <th class="highlight-col">{{ brand_name }}</th>
-                <th>Notion</th>
-                <th>Confluence</th>
-                <th>Obsidian</th>
+                <th class="clickable-col" data-href="{% url 'core:vs_notion' %}">Notion</th>
+                <th class="clickable-col" data-href="{% url 'core:vs_confluence' %}">Confluence</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td>Blazing-Fast at Scale</td>
-                <td class="highlight-col"><span class="check">✓</span></td>
-                <td><span class="partial">Slow</span></td>
-                <td><span class="partial">Slow</span></td>
-                <td><span class="check-note">✓</span></td>
+                <td>Blazing Fast at Scale</td>
+                <td class="highlight-col"><span class="check">&#10003;</span></td>
+                <td class="clickable-col" data-href="{% url 'core:vs_notion' %}"><span class="partial">Slow</span></td>
+                <td class="clickable-col" data-href="{% url 'core:vs_confluence' %}"><span class="partial">Slow</span></td>
               </tr>
               <tr>
                 <td>Open Source</td>
-                <td class="highlight-col"><span class="check">✓</span></td>
-                <td><span class="cross">✗</span></td>
-                <td><span class="cross">✗</span></td>
-                <td><span class="cross">✗</td>
-                </tr>
-                <tr>
-                  <td>Self-Hostable</td>
-                  <td class="highlight-col"><span class="check">✓</span></td>
-                  <td><span class="cross">✗</span></td>
-                  <td><span class="partial">Limited</span></td>
-                  <td><span class="check-note">✓</span></td>
-                </tr>
-                <tr>
-                  <td>Full Data Ownership</td>
-                  <td class="highlight-col"><span class="check">✓</span></td>
-                  <td><span class="partial">Limited</span></td>
-                  <td><span class="partial">Limited</span></td>
-                  <td><span class="check-note">✓</span></td>
-                </tr>
-                <tr>
-                  <td>Real-Time Collaboration</td>
-                  <td class="highlight-col"><span class="check">✓</span></td>
-                  <td><span class="check">✓</span></td>
-                  <td><span class="check">✓</span></td>
-                  <td><span class="cross">✗</span></td>
-                </tr>
-                <tr>
-                  <td>Powerful API + Webhooks</td>
-                  <td class="highlight-col"><span class="check">✓</span></td>
-                  <td><span class="partial">Limited</span></td>
-                  <td><span class="check">✓</span></td>
-                  <td><span class="cross">✗</span></td>
-                </tr>
-                <tr>
-                  <td>Extensible Architecture</td>
-                  <td class="highlight-col"><span class="check">✓</span></td>
-                  <td><span class="partial">Limited</span></td>
-                  <td><span class="partial">Limited</span></td>
-                  <td><span class="check-note">✓</span></td>
-                </tr>
-                <tr>
-                  <td>Free Tier</td>
-                  <td class="highlight-col"><span class="check">✓</span></td>
-                  <td><span class="check">✓</span></td>
-                  <td><span class="partial">Limited</span></td>
-                  <td><span class="check">✓</span></td>
-                </tr>
-              </tbody>
-            </table>
+                <td class="highlight-col"><span class="check">&#10003;</span></td>
+                <td class="clickable-col" data-href="{% url 'core:vs_notion' %}"><span class="cross">&#10007;</span></td>
+                <td class="clickable-col" data-href="{% url 'core:vs_confluence' %}"><span class="cross">&#10007;</span></td>
+              </tr>
+              <tr>
+                <td>Self-Hostable</td>
+                <td class="highlight-col"><span class="check">&#10003;</span></td>
+                <td class="clickable-col" data-href="{% url 'core:vs_notion' %}"><span class="cross">&#10007;</span></td>
+                <td class="clickable-col" data-href="{% url 'core:vs_confluence' %}"><span class="partial">Limited</span></td>
+              </tr>
+              <tr>
+                <td>Powerful API + Webhooks</td>
+                <td class="highlight-col"><span class="check">&#10003;</span></td>
+                <td class="clickable-col" data-href="{% url 'core:vs_notion' %}"><span class="partial">Limited</span></td>
+                <td class="clickable-col" data-href="{% url 'core:vs_confluence' %}"><span class="check">&#10003;</span></td>
+              </tr>
+              <tr>
+                <td>Extensible Architecture</td>
+                <td class="highlight-col"><span class="check">&#10003;</span></td>
+                <td class="clickable-col" data-href="{% url 'core:vs_notion' %}"><span class="partial">Limited</span></td>
+                <td class="clickable-col" data-href="{% url 'core:vs_confluence' %}"><span class="partial">Limited</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="text-align: center; margin-top: 2rem;">
+            <a href="{% url 'core:vs_index' %}" class="comparison-more-btn">View More Comparisons</a>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section class="landing-features">
-          <div class="landing-features-grid">
-            <div class="landing-feature">
-              <div class="landing-feature-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-              </div>
-              <h3>Lightning Fast</h3>
-              <p>Instant sync powered by CRDTs. Your changes appear in real-time, no refresh needed.</p>
+      <section class="landing-features">
+        <div class="landing-features-grid">
+          <div class="landing-feature">
+            <div class="landing-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
             </div>
-            <div class="landing-feature">
-              <div class="landing-feature-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              </div>
-              <h3>Real-Time Collaboration</h3>
-              <p>Work together with your team. See who's editing and where, with live presence indicators.</p>
-            </div>
-            <div class="landing-feature">
-              <div class="landing-feature-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-              </div>
-              <h3>Open by Design</h3>
-              <p>Simple to use. Powerful to extend. <a href="{% url 'core:dev_index' %}" class="landing-inline-link">Explore</a> our API, CLI, and open source codebase.</p>
-            </div>
+            <h3>Lightning Fast</h3>
+            <p>Instant sync powered by CRDTs. Your changes appear in real-time, no refresh needed.</p>
           </div>
-        </section>
+          <div class="landing-feature">
+            <div class="landing-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <h3>Real-Time Collaboration</h3>
+            <p>Work together with your team. See who's editing and where, with live presence indicators.</p>
+          </div>
+          <div class="landing-feature">
+            <div class="landing-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            </div>
+            <h3>Open by Design</h3>
+            <p>Simple to use. Powerful to extend. <a href="{% url 'core:dev_index' %}" class="landing-inline-link">Explore</a> our API, CLI, and open source codebase.</p>
+          </div>
+        </div>
+      </section>
 
-        {% include 'core/partials/_footer.html' %}
-      </div>
-      <script>
-        (function() {
-          const THEME_KEY = 'hyperclast-theme';
-          function getStoredTheme() {
-            try { return localStorage.getItem(THEME_KEY) || 'system'; } catch(e) { return 'system'; }
-          }
-          function setStoredTheme(theme) {
-            try { localStorage.setItem(THEME_KEY, theme); } catch(e) {}
-          }
-          function getEffectiveTheme(stored) {
-            return stored === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : stored;
-          }
-          function applyTheme(theme) {
-            var effective = getEffectiveTheme(theme);
-            document.documentElement.setAttribute('data-theme', effective);
-            document.documentElement.classList.remove('light', 'dark');
-            document.documentElement.classList.add(effective);
-            var sunIcon = document.querySelector('.theme-icon-sun');
-            var moonIcon = document.querySelector('.theme-icon-moon');
-            if (sunIcon) sunIcon.style.display = effective === 'dark' ? 'none' : 'block';
-            if (moonIcon) moonIcon.style.display = effective === 'dark' ? 'block' : 'none';
-            document.querySelectorAll('.theme-popover-item').forEach(function(item) {
-              item.classList.toggle('active', item.getAttribute('data-theme') === theme);
-            });
-          }
-          var stored = getStoredTheme();
-          applyTheme(stored);
-          var btn = document.getElementById('theme-toggle-btn');
-          var popover = document.getElementById('theme-popover');
-          if (btn && popover) {
-            btn.addEventListener('click', function(e) {
+      {% include 'core/partials/_footer.html' %}
+    </div>
+    <script>
+      (function() {
+        const THEME_KEY = 'hyperclast-theme';
+        function getStoredTheme() {
+          try { return localStorage.getItem(THEME_KEY) || 'system'; } catch(e) { return 'system'; }
+        }
+        function setStoredTheme(theme) {
+          try { localStorage.setItem(THEME_KEY, theme); } catch(e) {}
+        }
+        function getEffectiveTheme(stored) {
+          return stored === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : stored;
+        }
+        function applyTheme(theme) {
+          var effective = getEffectiveTheme(theme);
+          document.documentElement.setAttribute('data-theme', effective);
+          document.documentElement.classList.remove('light', 'dark');
+          document.documentElement.classList.add(effective);
+          var sunIcon = document.querySelector('.theme-icon-sun');
+          var moonIcon = document.querySelector('.theme-icon-moon');
+          if (sunIcon) sunIcon.style.display = effective === 'dark' ? 'none' : 'block';
+          if (moonIcon) moonIcon.style.display = effective === 'dark' ? 'block' : 'none';
+          document.querySelectorAll('.theme-popover-item').forEach(function(item) {
+            item.classList.toggle('active', item.getAttribute('data-theme') === theme);
+          });
+        }
+        var stored = getStoredTheme();
+        applyTheme(stored);
+        var btn = document.getElementById('theme-toggle-btn');
+        var popover = document.getElementById('theme-popover');
+        if (btn && popover) {
+          btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            popover.classList.toggle('open');
+          });
+          popover.querySelectorAll('.theme-popover-item').forEach(function(item) {
+            item.addEventListener('click', function(e) {
               e.stopPropagation();
-              popover.classList.toggle('open');
-            });
-            popover.querySelectorAll('.theme-popover-item').forEach(function(item) {
-              item.addEventListener('click', function(e) {
-                e.stopPropagation();
-                var theme = this.getAttribute('data-theme');
-                setStoredTheme(theme);
-                applyTheme(theme);
-                popover.classList.remove('open');
-              });
-            });
-          }
-          document.addEventListener('click', function(e) {
-            if (!e.target.closest('.theme-toggle-wrapper')) {
+              var theme = this.getAttribute('data-theme');
+              setStoredTheme(theme);
+              applyTheme(theme);
               popover.classList.remove('open');
-            }
+            });
           });
-          window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
-            if (getStoredTheme() === 'system') applyTheme('system');
-          });
-        })();
-      </script>
-    </body>
-  </html>
+        }
+        document.addEventListener('click', function(e) {
+          if (!e.target.closest('.theme-toggle-wrapper')) {
+            popover.classList.remove('open');
+          }
+        });
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+          if (getStoredTheme() === 'system') applyTheme('system');
+        });
+      })();
+    </script>
+    <script>
+      // Clickable comparison table columns
+      document.querySelectorAll('.clickable-col').forEach(function(cell) {
+        cell.addEventListener('click', function() {
+          var href = this.getAttribute('data-href');
+          if (href) window.location.href = href;
+        });
+      });
+    </script>
+  </body>
+</html>

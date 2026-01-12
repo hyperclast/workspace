@@ -18,6 +18,11 @@ urlpatterns = [
     path("web-app-manifest-512x512.png", serve, {"document_root": FAVICON_DIR, "path": "web-app-manifest-512x512.png"}),
     #
     path("about/", views.about, name="about"),
+    # Comparison pages
+    path("vs/", views.vs_index, name="vs_index"),
+    path("vs/notion/", views.vs_notion, name="vs_notion"),
+    path("vs/confluence/", views.vs_confluence, name="vs_confluence"),
+    path("vs/obsidian/", views.vs_obsidian, name="vs_obsidian"),
     path("dev/", views.dev_index, name="dev_index"),
     path("dev/cli/", views.cli_docs, name="cli_docs"),
     path("dev/api/", views.api_docs, name="api_docs_index"),

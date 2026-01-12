@@ -1,0 +1,887 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}{{ brand_name }} vs Confluence{% endblock %}
+
+{% block extra_styles %}
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .vs-wrapper {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .landing-nav {
+      padding: 1.5rem 2rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .landing-nav-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .landing-logo {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: white;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .landing-logo .logo-icon {
+      width: 28px;
+      height: 28px;
+    }
+
+    .landing-nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 1.75rem;
+    }
+
+    .landing-link {
+      color: rgba(255, 255, 255, 0.9);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .landing-link:hover {
+      color: white;
+    }
+
+    .landing-btn-primary {
+      background: white;
+      color: #667eea;
+      padding: 0.6rem 1.25rem;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .landing-btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    /* Theme toggle */
+    .theme-toggle-wrapper { position: relative; }
+    .theme-toggle-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px; padding: 0;
+      background: rgba(255, 255, 255, 0.15); border: none; border-radius: 6px;
+      color: white; cursor: pointer; transition: background 0.15s;
+    }
+    .theme-toggle-btn:hover { background: rgba(255, 255, 255, 0.25); }
+    .theme-icon-moon { display: none; }
+    :root.dark .theme-icon-sun, :root[data-theme="dark"] .theme-icon-sun { display: none; }
+    :root.dark .theme-icon-moon, :root[data-theme="dark"] .theme-icon-moon { display: block; }
+    .theme-popover {
+      position: absolute; top: 100%; right: 0; margin-top: 0.5rem;
+      background: white; border-radius: 8px; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+      min-width: 140px; padding: 0.375rem; z-index: 1000; display: none;
+    }
+    .theme-popover.open { display: block; }
+    .theme-popover-item {
+      display: flex; align-items: center; gap: 0.625rem; width: 100%;
+      padding: 0.5rem 0.625rem; background: none; border: none; border-radius: 5px;
+      font-size: 0.875rem; color: #37352f; cursor: pointer; text-align: left; font-family: inherit;
+    }
+    .theme-popover-item:hover { background: rgba(0, 0, 0, 0.04); }
+    .theme-popover-item.active { color: #529cca; }
+    .theme-radio {
+      width: 14px; height: 14px; border: 2px solid rgba(55, 53, 47, 0.2);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .theme-popover-item.active .theme-radio { border-color: #529cca; }
+    .theme-radio::after { content: ''; width: 6px; height: 6px; background: #529cca; border-radius: 50%; display: none; }
+    .theme-popover-item.active .theme-radio::after { display: block; }
+    :root.dark .theme-popover, :root[data-theme="dark"] .theme-popover { background: #2d2d2d; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4); }
+    :root.dark .theme-popover-item, :root[data-theme="dark"] .theme-popover-item { color: #ebebeb; }
+    :root.dark .theme-popover-item:hover, :root[data-theme="dark"] .theme-popover-item:hover { background: rgba(255, 255, 255, 0.08); }
+    :root.dark .theme-radio, :root[data-theme="dark"] .theme-radio { border-color: rgba(255, 255, 255, 0.3); }
+    :root.dark .theme-popover-item.active .theme-radio, :root[data-theme="dark"] .theme-popover-item.active .theme-radio { border-color: #529cca; }
+
+    /* Hero */
+    .vs-hero {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 4rem 2rem 5rem;
+      text-align: center;
+    }
+
+    .vs-hero-breadcrumb {
+      font-size: 0.9rem;
+      opacity: 0.8;
+      margin-bottom: 1rem;
+    }
+
+    .vs-hero-breadcrumb a {
+      color: white;
+      text-decoration: none;
+    }
+
+    .vs-hero-breadcrumb a:hover {
+      text-decoration: underline;
+    }
+
+    .vs-hero h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+
+    .vs-hero-problem {
+      font-size: 1.3rem;
+      opacity: 0.95;
+      max-width: 700px;
+      margin: 0 auto 1.5rem;
+    }
+
+    .vs-hero-solution {
+      font-size: 1.1rem;
+      opacity: 0.85;
+      max-width: 600px;
+      margin: 0 auto 2rem;
+    }
+
+    .vs-hero-cta {
+      display: inline-block;
+      background: white;
+      color: #667eea;
+      padding: 0.875rem 2rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1rem;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .vs-hero-cta:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Main content */
+    .vs-main {
+      flex: 1;
+      background: #fafafa;
+    }
+
+    .vs-content {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 4rem 2rem;
+    }
+
+    .vs-section {
+      margin-bottom: 4rem;
+    }
+
+    .vs-section-title {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 1.5rem;
+    }
+
+    /* Comparison table */
+    .comparison-table-wrapper {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+      padding: 1rem 1.5rem;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+
+    .comparison-table th {
+      background: #667eea;
+      color: white;
+      font-weight: 600;
+    }
+
+    .comparison-table th:first-child {
+      width: 40%;
+    }
+
+    .comparison-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .comparison-table tbody tr:hover {
+      background: #f8f9fa;
+    }
+
+    .comparison-table .highlight-col {
+      background: rgba(102, 126, 234, 0.08);
+    }
+
+    .comparison-table th.highlight-col {
+      background: #5a6fd6;
+    }
+
+    .check {
+      color: #22c55e;
+      font-size: 1.25rem;
+    }
+
+    .cross {
+      color: #e57373;
+      font-size: 1.25rem;
+    }
+
+    .partial {
+      color: #f59e0b;
+      font-size: 0.9rem;
+    }
+
+    /* Pain points */
+    .pain-points {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+    }
+
+    .pain-point {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    }
+
+    .pain-point-icon {
+      width: 40px;
+      height: 40px;
+      background: rgba(102, 126, 234, 0.1);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1rem;
+      color: #667eea;
+    }
+
+    .pain-point h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 0.5rem;
+    }
+
+    .pain-point p {
+      color: #666;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    /* When to choose */
+    .choose-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 2rem;
+    }
+
+    .choose-box {
+      background: white;
+      border-radius: 12px;
+      padding: 2rem;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    }
+
+    .choose-box h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .choose-box.confluence h3 {
+      color: #0052CC;
+    }
+
+    .choose-box.hyperclast h3 {
+      color: #667eea;
+    }
+
+    .choose-box ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .choose-box li {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      color: #555;
+      font-size: 0.95rem;
+      margin-bottom: 0.75rem;
+      line-height: 1.5;
+    }
+
+    .choose-box li::before {
+      content: ">";
+      color: #888;
+      flex-shrink: 0;
+    }
+
+    .choose-box.hyperclast li::before {
+      color: #667eea;
+    }
+
+    /* FAQ */
+    .faq-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .faq-item {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    }
+
+    .faq-question {
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 0.75rem;
+    }
+
+    .faq-answer {
+      color: #666;
+      line-height: 1.6;
+    }
+
+    .faq-answer a {
+      color: #667eea;
+      text-decoration: none;
+    }
+
+    .faq-answer a:hover {
+      text-decoration: underline;
+    }
+
+    /* Final CTA */
+    .vs-final-cta {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 16px;
+      padding: 3rem 2rem;
+      text-align: center;
+      color: white;
+    }
+
+    .vs-final-cta h2 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+
+    .vs-final-cta p {
+      opacity: 0.9;
+      margin-bottom: 1.5rem;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .vs-final-cta-btn {
+      display: inline-block;
+      background: white;
+      color: #667eea;
+      padding: 0.875rem 2rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1rem;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .vs-final-cta-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Other comparisons */
+    .other-comparisons {
+      margin-top: 4rem;
+      text-align: center;
+    }
+
+    .other-comparisons h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #888;
+      margin-bottom: 1rem;
+    }
+
+    .other-comparisons-links {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .other-comparisons-links a {
+      color: #667eea;
+      text-decoration: none;
+      font-weight: 500;
+      padding: 0.5rem 1rem;
+      border: 1px solid #667eea;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+
+    .other-comparisons-links a:hover {
+      background: #667eea;
+      color: white;
+    }
+
+    {% include 'core/partials/_footer_styles.html' %}
+
+    .landing-footer {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    @media (max-width: 768px) {
+      .landing-nav {
+        padding: 1rem;
+      }
+
+      .landing-nav-actions {
+        gap: 0.75rem;
+      }
+
+      .hide-mobile {
+        display: none;
+      }
+
+      .landing-btn-primary {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+      }
+
+      .vs-hero h1 {
+        font-size: 2rem;
+      }
+
+      .vs-hero-problem {
+        font-size: 1.1rem;
+      }
+
+      .vs-content {
+        padding: 2.5rem 1.25rem;
+      }
+
+      .pain-points,
+      .choose-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .comparison-table {
+        font-size: 0.9rem;
+      }
+
+      .comparison-table th,
+      .comparison-table td {
+        padding: 0.75rem 1rem;
+      }
+    }
+
+    /* Dark mode */
+    :root.dark body,
+    :root[data-theme="dark"] body {
+      background: #1a1a1a;
+    }
+
+    :root.dark .landing-nav,
+    :root[data-theme="dark"] .landing-nav,
+    :root.dark .vs-hero,
+    :root[data-theme="dark"] .vs-hero {
+      background: linear-gradient(135deg, #2d2d2d 0%, #1f1f1f 100%);
+    }
+
+    :root.dark .vs-main,
+    :root[data-theme="dark"] .vs-main {
+      background: #1a1a1a;
+    }
+
+    :root.dark .vs-section-title,
+    :root[data-theme="dark"] .vs-section-title {
+      color: #f0f0f0;
+    }
+
+    :root.dark .comparison-table,
+    :root[data-theme="dark"] .comparison-table {
+      background: #1f1f1f;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    :root.dark .comparison-table th,
+    :root[data-theme="dark"] .comparison-table th {
+      background: #667eea;
+    }
+
+    :root.dark .comparison-table th.highlight-col,
+    :root[data-theme="dark"] .comparison-table th.highlight-col {
+      background: #5a6fd6;
+    }
+
+    :root.dark .comparison-table td,
+    :root[data-theme="dark"] .comparison-table td {
+      border-bottom-color: #333;
+      color: #e5e5e5;
+    }
+
+    :root.dark .comparison-table .highlight-col,
+    :root[data-theme="dark"] .comparison-table .highlight-col {
+      background: rgba(102, 126, 234, 0.15);
+    }
+
+    :root.dark .comparison-table tbody tr:hover,
+    :root[data-theme="dark"] .comparison-table tbody tr:hover {
+      background: #2a2a2a;
+    }
+
+    :root.dark .cross,
+    :root[data-theme="dark"] .cross {
+      color: #f87171;
+    }
+
+    :root.dark .pain-point,
+    :root.dark .choose-box,
+    :root.dark .faq-item,
+    :root[data-theme="dark"] .pain-point,
+    :root[data-theme="dark"] .choose-box,
+    :root[data-theme="dark"] .faq-item {
+      background: #242424;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    :root.dark .pain-point h3,
+    :root.dark .choose-box h3,
+    :root.dark .faq-question,
+    :root[data-theme="dark"] .pain-point h3,
+    :root[data-theme="dark"] .choose-box h3,
+    :root[data-theme="dark"] .faq-question {
+      color: #f0f0f0;
+    }
+
+    :root.dark .pain-point p,
+    :root.dark .choose-box li,
+    :root.dark .faq-answer,
+    :root[data-theme="dark"] .pain-point p,
+    :root[data-theme="dark"] .choose-box li,
+    :root[data-theme="dark"] .faq-answer {
+      color: #b0b0b0;
+    }
+
+    :root.dark .choose-box.confluence h3,
+    :root[data-theme="dark"] .choose-box.confluence h3 {
+      color: #6db3f2;
+    }
+
+    :root.dark .vs-final-cta,
+    :root[data-theme="dark"] .vs-final-cta {
+      background: linear-gradient(135deg, #3d3d3d 0%, #2a2a2a 100%);
+    }
+
+    :root.dark .other-comparisons h3,
+    :root[data-theme="dark"] .other-comparisons h3 {
+      color: #888;
+    }
+
+    :root.dark .landing-footer,
+    :root[data-theme="dark"] .landing-footer {
+      background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+    }
+  </style>
+{% endblock %}
+
+{% block content_body %}
+  <div class="vs-wrapper">
+    {% if user.is_authenticated %}
+      {% include 'core/partials/app_nav.html' %}
+    {% else %}
+      <nav class="landing-nav">
+        <div class="landing-nav-container">
+          <a href="/" class="landing-logo">{% include 'core/partials/_logo_icon.html' %} {{ brand_name }}</a>
+          <div class="landing-nav-actions">
+            <div class="theme-toggle-wrapper">
+              <button class="theme-toggle-btn" id="theme-toggle-btn" title="Change theme" aria-label="Change theme">
+                <svg class="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
+                <svg class="theme-icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
+              </button>
+              <div class="theme-popover" id="theme-popover">
+                <button class="theme-popover-item" data-theme="light"><span class="theme-radio"></span><span>Light</span></button>
+                <button class="theme-popover-item" data-theme="dark"><span class="theme-radio"></span><span>Dark</span></button>
+                <button class="theme-popover-item" data-theme="system"><span class="theme-radio"></span><span>System</span></button>
+              </div>
+            </div>
+            <a href="/login/" class="landing-link">Log in</a>
+            <a href="/signup/" class="landing-btn-primary">Get Started</a>
+          </div>
+        </div>
+      </nav>
+
+      <section class="vs-hero">
+        <p class="vs-hero-breadcrumb"><a href="{% url 'core:vs_index' %}">Compare</a> / Confluence</p>
+        <h1>{{ brand_name }} vs Confluence</h1>
+        <p class="vs-hero-problem">Enterprise power without the enterprise headaches</p>
+        <p class="vs-hero-solution">{{ brand_name }} gives you real-time collaboration and team knowledge management without the complexity, slow performance, and per-user pricing that comes with Confluence.</p>
+        <a href="/signup/" class="vs-hero-cta">Try {{ brand_name }} Free</a>
+      </section>
+    {% endif %}
+
+    <main class="vs-main">
+      <div class="vs-content">
+
+        <!-- Feature Comparison -->
+        <section class="vs-section">
+          <h2 class="vs-section-title">Feature Comparison</h2>
+          <div class="comparison-table-wrapper">
+            <table class="comparison-table">
+              <thead>
+                <tr>
+                  <th>Feature</th>
+                  <th class="highlight-col">{{ brand_name }}</th>
+                  <th>Confluence</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Performance</td>
+                  <td class="highlight-col"><span class="check">&#10003;</span> Fast, instant sync</td>
+                  <td><span class="partial">Notoriously slow</span></td>
+                </tr>
+                <tr>
+                  <td>User Interface</td>
+                  <td class="highlight-col"><span class="check">&#10003;</span> Modern, clean</td>
+                  <td><span class="partial">Dated, cluttered</span></td>
+                </tr>
+                <tr>
+                  <td>Pricing Model</td>
+                  <td class="highlight-col"><span class="check">&#10003;</span> Simple, generous free tier</td>
+                  <td><span class="partial">Per-user, adds up fast</span></td>
+                </tr>
+                <tr>
+                  <td>Open Source</td>
+                  <td class="highlight-col"><span class="check">&#10003;</span> Elastic License</td>
+                  <td><span class="cross">&#10007;</span> Proprietary</td>
+                </tr>
+                <tr>
+                  <td>Self-Hosting</td>
+                  <td class="highlight-col"><span class="check">&#10003;</span> Easy setup</td>
+                  <td><span class="partial">Data Center (complex)</span></td>
+                </tr>
+                <tr>
+                  <td>Real-Time Collaboration</td>
+                  <td class="highlight-col"><span class="check">&#10003;</span> CRDT-powered</td>
+                  <td><span class="check">&#10003;</span> Yes</td>
+                </tr>
+                <tr>
+                  <td>Setup Complexity</td>
+                  <td class="highlight-col"><span class="check">&#10003;</span> Minutes to start</td>
+                  <td><span class="partial">Requires admin setup</span></td>
+                </tr>
+                <tr>
+                  <td>Learning Curve</td>
+                  <td class="highlight-col"><span class="check">&#10003;</span> Minimal</td>
+                  <td><span class="partial">Steep for new users</span></td>
+                </tr>
+                <tr>
+                  <td>API Access</td>
+                  <td class="highlight-col"><span class="check">&#10003;</span> Full REST API</td>
+                  <td><span class="check">&#10003;</span> Yes</td>
+                </tr>
+                <tr>
+                  <td>Admin Overhead</td>
+                  <td class="highlight-col"><span class="check">&#10003;</span> Self-service</td>
+                  <td><span class="partial">Needs dedicated admin</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Pain Points -->
+        <section class="vs-section">
+          <h2 class="vs-section-title">Problems We Solve</h2>
+          <div class="pain-points">
+            <div class="pain-point">
+              <div class="pain-point-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <h3>Slow Performance</h3>
+              <p>Confluence is notorious for being slow, especially with large spaces. {{ brand_name }} uses CRDT-powered real-time sync - your changes appear instantly, no page refresh required.</p>
+            </div>
+            <div class="pain-point">
+              <div class="pain-point-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </div>
+              <h3>Per-User Pricing</h3>
+              <p>Atlassian's pricing scales linearly with team size. A growing team can quickly face substantial costs. {{ brand_name }} offers a generous free tier and pricing that doesn't punish growth.</p>
+            </div>
+            <div class="pain-point">
+              <div class="pain-point-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+              </div>
+              <h3>Enterprise Bloat</h3>
+              <p>Confluence is designed for massive enterprises, which shows. Too many features, confusing navigation, complex permissions. {{ brand_name }} is built for focus - fast first, features second.</p>
+            </div>
+            <div class="pain-point">
+              <div class="pain-point-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              </div>
+              <h3>Admin Overhead</h3>
+              <p>Confluence requires dedicated administrators for permissions, spaces, and configuration. {{ brand_name }} has a simple permission model - less administration, more actual work.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- When to Choose -->
+        <section class="vs-section">
+          <h2 class="vs-section-title">When to Choose Each</h2>
+          <div class="choose-grid">
+            <div class="choose-box confluence">
+              <h3>Choose Confluence if...</h3>
+              <ul>
+                <li>You're already deep in the Atlassian ecosystem (Jira, etc.)</li>
+                <li>You need complex, hierarchical space permissions</li>
+                <li>You require extensive audit trails and compliance features</li>
+                <li>Your enterprise IT already supports it</li>
+              </ul>
+            </div>
+            <div class="choose-box hyperclast">
+              <h3>Choose {{ brand_name }} if...</h3>
+              <ul>
+                <li>You're frustrated with Confluence's slow performance</li>
+                <li>You want simple pricing that doesn't punish growth</li>
+                <li>You prefer a modern, clean interface without bloat</li>
+                <li>You value open source and data ownership</li>
+                <li>You want to self-host without complex infrastructure</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- FAQ -->
+        <section class="vs-section">
+          <h2 class="vs-section-title">Frequently Asked Questions</h2>
+          <div class="faq-list">
+            <div class="faq-item">
+              <p class="faq-question">Can I migrate from Confluence to {{ brand_name }}?</p>
+              <p class="faq-answer">Yes! Export your Confluence spaces and import them into {{ brand_name }}. We support standard formats, so most content transfers cleanly. Complex macros and Confluence-specific features may need manual adjustment.</p>
+            </div>
+            <div class="faq-item">
+              <p class="faq-question">Does {{ brand_name }} integrate with Jira?</p>
+              <p class="faq-answer">{{ brand_name }} has a full REST API and webhooks, so you can build custom integrations with Jira or any other tool. We're also working on native integrations for popular tools.</p>
+            </div>
+            <div class="faq-item">
+              <p class="faq-question">What about enterprise compliance features?</p>
+              <p class="faq-answer">{{ brand_name }} is designed for teams that value speed and simplicity. If you need extensive audit trails, SOC 2 compliance, HIPAA, or complex governance features, Confluence might be a better fit for now. We plan to get the compliance certifications soon.</p>
+            </div>
+            <div class="faq-item">
+              <p class="faq-question">How does self-hosting compare to Confluence Data Center?</p>
+              <p class="faq-answer">{{ brand_name }} self-hosting is dramatically simpler. No dedicated infrastructure team required. Deploy with Docker in minutes. Confluence Data Center requires significant resources and expertise to maintain.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Final CTA -->
+        <div class="vs-final-cta">
+          <h2>Ready for a Modern Alternative?</h2>
+          <p>Start free, no credit card required. Experience the speed and simplicity your team deserves.</p>
+          <a href="/signup/" class="vs-final-cta-btn">Get Started Free</a>
+        </div>
+
+        <!-- Other comparisons -->
+        <div class="other-comparisons">
+          <h3>Other Comparisons</h3>
+          <div class="other-comparisons-links">
+            <a href="{% url 'core:vs_notion' %}">{{ brand_name }} vs Notion</a>
+            <a href="{% url 'core:vs_obsidian' %}">{{ brand_name }} vs Obsidian</a>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    {% include 'core/partials/_footer.html' %}
+  </div>
+
+  {% if not user.is_authenticated %}
+    <script>
+      (function() {
+        const THEME_KEY = 'hyperclast-theme';
+        function getStoredTheme() { try { return localStorage.getItem(THEME_KEY) || 'system'; } catch(e) { return 'system'; } }
+        function setStoredTheme(theme) { try { localStorage.setItem(THEME_KEY, theme); } catch(e) {} }
+        function getEffectiveTheme(stored) { return stored === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : stored; }
+        function applyTheme(theme) {
+          var effective = getEffectiveTheme(theme);
+          document.documentElement.setAttribute('data-theme', effective);
+          document.documentElement.classList.remove('light', 'dark');
+          document.documentElement.classList.add(effective);
+          var sunIcon = document.querySelector('.theme-icon-sun');
+          var moonIcon = document.querySelector('.theme-icon-moon');
+          if (sunIcon) sunIcon.style.display = effective === 'dark' ? 'none' : 'block';
+          if (moonIcon) moonIcon.style.display = effective === 'dark' ? 'block' : 'none';
+          document.querySelectorAll('.theme-popover-item').forEach(function(item) {
+            item.classList.toggle('active', item.getAttribute('data-theme') === theme);
+          });
+        }
+        applyTheme(getStoredTheme());
+        var btn = document.getElementById('theme-toggle-btn');
+        var popover = document.getElementById('theme-popover');
+        if (btn && popover) {
+          btn.addEventListener('click', function(e) { e.stopPropagation(); popover.classList.toggle('open'); });
+          popover.querySelectorAll('.theme-popover-item').forEach(function(item) {
+            item.addEventListener('click', function(e) {
+              e.stopPropagation();
+              setStoredTheme(this.getAttribute('data-theme'));
+              applyTheme(this.getAttribute('data-theme'));
+              popover.classList.remove('open');
+            });
+          });
+        }
+        document.addEventListener('click', function(e) { if (!e.target.closest('.theme-toggle-wrapper') && popover) popover.classList.remove('open'); });
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() { if (getStoredTheme() === 'system') applyTheme('system'); });
+      })();
+    </script>
+  {% endif %}
+  {% include 'core/partials/_app_nav_scripts.html' %}
+{% endblock %}
