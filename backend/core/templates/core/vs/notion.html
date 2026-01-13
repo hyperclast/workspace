@@ -144,6 +144,11 @@
       text-decoration: underline;
     }
 
+    .vs-hero-breadcrumb .breadcrumb-sep {
+      margin: 0 0.25rem;
+      opacity: 0.6;
+    }
+
     .vs-hero h1 {
       font-size: 2.5rem;
       font-weight: 700;
@@ -659,7 +664,7 @@
       </nav>
 
       <section class="vs-hero">
-        <p class="vs-hero-breadcrumb"><a href="{% url 'core:vs_index' %}">Compare</a> / Notion</p>
+        <p class="vs-hero-breadcrumb"><a href="{% url 'core:vs_index' %}">Compare</a> <span class="breadcrumb-sep">›</span> Notion</p>
         <h1>{{ brand_name }} vs Notion</h1>
         <p class="vs-hero-problem">Tired of waiting for Notion to load?</p>
         <p class="vs-hero-solution">{{ brand_name }} gives you the collaboration features you love without the performance tax. Fast at any scale, open source, and your data is always yours.</p>

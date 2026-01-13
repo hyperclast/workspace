@@ -29,6 +29,7 @@ class Profile(TimeStampedModel):
     access_token = models.TextField(unique=True, default=token_urlsafe)
     last_active = models.DateTimeField(null=True, blank=True)
     receive_product_updates = models.BooleanField(default=True)
+    demo_visits = models.JSONField(default=list, blank=True)
 
     def __str__(self):
         return f"{self.user.email}"

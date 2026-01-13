@@ -4,6 +4,7 @@
   import { showToast } from "../../toast.js";
   import { csrfFetch } from "../../../csrf.js";
   import { API_BASE_URL } from "../../../config.js";
+  import { isDemoMode } from "../../../demo/index.js";
 
   const LANG_STORAGE_KEY = "ws-dev-tab-lang";
 
@@ -660,7 +661,12 @@ func main() {
   }
 
   onMount(() => {
-    fetchApiToken();
+    // Skip API token fetch in demo mode
+    if (isDemoMode()) {
+      loading = false;
+    } else {
+      fetchApiToken();
+    }
 
     registerPageChangeHandler((pageId) => {
       currentPageId = pageId;
@@ -733,7 +739,23 @@ func main() {
       </div>
     </div>
 
-    {#if !apiToken}
+    {#if isDemoMode()}
+      <a href="/signup/" class="dev-demo-prompt">
+        <div class="demo-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </div>
+        <div class="demo-text">
+          <span class="demo-title">API Access</span>
+          <span class="demo-desc">Log in to get your token</span>
+        </div>
+        <svg class="demo-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </a>
+    {:else if !apiToken}
       <div class="dev-warning">
         <span class="warning-icon">⚠️</span>
         <span>API token not available. Visit <a href="/settings#developer">Settings</a> to view your token.</span>
@@ -1087,5 +1109,64 @@ func main() {
   .api-docs-link svg {
     width: 16px;
     height: 16px;
+  }
+
+  /* Demo mode styles */
+  .dev-demo-prompt {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+    border: 1px solid rgba(102, 126, 234, 0.2);
+    border-radius: 8px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  }
+
+  .dev-demo-prompt:hover {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+    border-color: rgba(102, 126, 234, 0.35);
+  }
+
+  .dev-demo-prompt:hover .demo-arrow {
+    transform: translateX(2px);
+  }
+
+  .demo-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 6px;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .demo-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    flex: 1;
+  }
+
+  .demo-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .demo-desc {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .demo-arrow {
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+    transition: transform 0.15s;
   }
 </style>

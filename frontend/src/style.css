@@ -5678,3 +5678,47 @@ body.sidebar-resizing .chat-sidebar {
 .sidebar-new-btn:active {
   transform: translateY(0);
 }
+
+/* ===== Demo Mode Styles ===== */
+
+body.demo-mode {
+  padding-top: 44px;
+}
+
+body.demo-mode #app {
+  height: calc(100vh - 44px);
+}
+
+body.demo-mode nav {
+  top: 44px;
+}
+
+/* Align nav elements in demo mode - only theme toggle is visible */
+body.demo-mode .nav-main {
+  padding-right: 1rem;
+}
+
+body.demo-mode .nav-actions .user-menu,
+body.demo-mode .nav-actions .upgrade-pill,
+body.demo-mode .nav-actions > a[href="/settings/"] {
+  display: none;
+}
+
+/* Remove gap around hidden elements */
+body.demo-mode .nav-actions {
+  gap: 0;
+}
+
+@media (max-width: 600px) {
+  body.demo-mode {
+    padding-top: 60px; /* taller banner on mobile */
+  }
+
+  body.demo-mode #app {
+    height: calc(100vh - 60px);
+  }
+
+  body.demo-mode nav {
+    top: 60px;
+  }
+}

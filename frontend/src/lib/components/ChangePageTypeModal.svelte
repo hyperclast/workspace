@@ -4,6 +4,7 @@
   import { csrfFetch } from '../../csrf.js';
   import { showToast } from '../toast.js';
   import { looksLikeCsv } from '../../csv/detect.js';
+  import { isDemoMode, setDemoFiletype } from '../../demo/index.js';
 
   const PAGE_TYPES = [
     {
@@ -56,6 +57,16 @@
     }
 
     loading = true;
+
+    // In demo mode, store filetype locally and reload
+    if (isDemoMode()) {
+      setDemoFiletype(pageId, selectedType);
+      showToast(`Page type changed to ${PAGE_TYPES.find(t => t.id === selectedType)?.label}`);
+      open = false;
+      onchanged(selectedType);
+      window.location.reload();
+      return;
+    }
 
     try {
       const response = await csrfFetch(`${API_BASE_URL}/api/pages/${pageId}/`, {
@@ -190,15 +201,20 @@
     transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
   }
 
-  .type-card:hover:not(:disabled) {
-    border-color: var(--border-medium, #ccc);
-    background: var(--bg-secondary, #fafafa);
+  .type-card:hover:not(:disabled):not(.selected) {
+    border-color: rgba(35, 131, 226, 0.4);
+    background: rgba(35, 131, 226, 0.02);
   }
 
   .type-card.selected {
     border-color: #2383e2;
     background: rgba(35, 131, 226, 0.04);
     box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.1);
+  }
+
+  .type-card.selected:hover:not(:disabled) {
+    border-color: #2383e2;
+    background: rgba(35, 131, 226, 0.08);
   }
 
   .type-card:disabled {

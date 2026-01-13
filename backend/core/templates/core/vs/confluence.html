@@ -144,6 +144,11 @@
       text-decoration: underline;
     }
 
+    .vs-hero-breadcrumb .breadcrumb-sep {
+      margin: 0 0.25rem;
+      opacity: 0.6;
+    }
+
     .vs-hero h1 {
       font-size: 2.5rem;
       font-weight: 700;
@@ -659,7 +664,7 @@
       </nav>
 
       <section class="vs-hero">
-        <p class="vs-hero-breadcrumb"><a href="{% url 'core:vs_index' %}">Compare</a> / Confluence</p>
+        <p class="vs-hero-breadcrumb"><a href="{% url 'core:vs_index' %}">Compare</a> <span class="breadcrumb-sep">›</span> Confluence</p>
         <h1>{{ brand_name }} vs Confluence</h1>
         <p class="vs-hero-problem">Enterprise power without the enterprise headaches</p>
         <p class="vs-hero-solution">{{ brand_name }} gives you real-time collaboration and team knowledge management without the complexity, slow performance, and per-user pricing that comes with Confluence.</p>

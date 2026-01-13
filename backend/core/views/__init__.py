@@ -1,4 +1,4 @@
-from .home import email_confirm, email_verification_sent, homepage, spa
+from .home import demo, email_confirm, email_verification_sent, homepage, spa
 from .onboarding import welcome
 from .pages import about, privacy, terms, vs_confluence, vs_index, vs_notion, vs_obsidian
 from .pricing import pricing

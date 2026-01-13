@@ -15,7 +15,7 @@
   let password = $state("");
   let error = $state("");
   let loading = $state(false);
-  let successMessage = $state(justVerified ? "Email verified! Please sign in." : "");
+  let successMessage = $state(justVerified ? "Email verified! Please log in." : "");
 
   let passwordInput = $state(null);
 
@@ -52,7 +52,7 @@
   }
 </script>
 
-<AuthLayout title="Welcome back" subtitle="Sign in to continue to {brandName}">
+<AuthLayout title="Welcome back" subtitle="Log in to continue to {brandName}">
   {#if successMessage}
     <div class="success-message">{successMessage}</div>
   {/if}
@@ -89,15 +89,15 @@
     </div>
 
     <p class="auth-forgot">
-      <a href="/forgot-password">Forgot password?</a>
+      <a href="/forgot-password/">Forgot password?</a>
     </p>
 
     <button type="submit" class="primary-btn" disabled={loading}>
-      {loading ? "Signing in..." : "Sign In"}
+      {loading ? "Logging in..." : "Log In"}
     </button>
 
     <p class="auth-switch">
-      Don't have an account? <a href="/signup">Create one</a>
+      Don't have an account? <a href="/signup/">Create one</a>
     </p>
   </form>
 </AuthLayout>

@@ -14,6 +14,7 @@ const routes = {
   "/reset-password/": () => import("./resetPasswordPage.js"),
   "/forgot-password/": () => import("./forgotPasswordPage.js"),
   "/settings/": () => import("./settingsPage.js"),
+  "/demo/": () => import("./main.js"),
 };
 
 /**

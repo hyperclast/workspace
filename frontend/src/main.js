@@ -11,6 +11,12 @@ import {
   fetchProjectsWithPages,
   generateAccessCode,
 } from "./api.js";
+import { isDemoMode, showDemoPrompt } from "./demo/index.js";
+import {
+  fetchProjectsWithPages as fetchDemoProjects,
+  fetchPage as fetchDemoPage,
+} from "./demo/demoApi.js";
+import { getDemoPage } from "./demo/demoContent.js";
 import { metrics } from "./lib/metrics.js";
 import { getSession, logout } from "./auth.js";
 import { clickToEndPlugin } from "./clickToEndPlugin.js";
@@ -108,7 +114,7 @@ function renderAppHTML() {
                 <div id="user-email" class="user-dropdown-email"></div>
               </div>
               <div class="user-dropdown-menu">
-                <a href="/settings" class="user-dropdown-item">Settings</a>
+                <a href="/settings/" class="user-dropdown-item">Settings</a>
                 <button id="logout-btn" class="user-dropdown-item">Log out</button>
               </div>
             </div>
@@ -266,9 +272,13 @@ async function checkAuthentication() {
 
 /**
  * Fetch all projects with their pages.
+ * Uses demo data when in demo mode.
  */
 async function fetchProjects() {
   try {
+    if (isDemoMode()) {
+      return await fetchDemoProjects();
+    }
     const projects = await fetchProjectsWithPages();
     return projects || [];
   } catch (error) {
@@ -279,9 +289,13 @@ async function fetchProjects() {
 
 /**
  * Fetch a specific page by external_id.
+ * Uses demo data when in demo mode.
  */
 async function fetchPage(external_id) {
   try {
+    if (isDemoMode()) {
+      return await fetchDemoPage(external_id);
+    }
     const page = await fetchPageApi(external_id);
     return page;
   } catch (error) {
@@ -408,9 +422,31 @@ function updateBreadcrumb(projectId) {
 }
 
 /**
- * Update page title via API.
+ * Update page title via API (or locally in demo mode).
  */
 async function updatePageTitle(external_id, newTitle) {
+  // Update cached projects - find the page in the nested structure
+  for (let i = 0; i < cachedProjects.length; i++) {
+    const project = cachedProjects[i];
+    const pageIndex = project.pages?.findIndex((p) => p.external_id === external_id);
+    if (pageIndex !== -1) {
+      // Create new page object to trigger reactivity
+      const updatedPage = { ...project.pages[pageIndex], title: newTitle };
+      // Create new pages array
+      const updatedPages = [...project.pages];
+      updatedPages[pageIndex] = updatedPage;
+      // Create new project object
+      cachedProjects[i] = { ...project, pages: updatedPages };
+      renderSidenav(cachedProjects, external_id);
+      break;
+    }
+  }
+
+  // In demo mode, skip API call - changes are local only
+  if (isDemoMode()) {
+    return true;
+  }
+
   try {
     const response = await csrfFetch(`${API_BASE_URL}/api/pages/${external_id}/`, {
       method: "PUT",
@@ -422,23 +458,6 @@ async function updatePageTitle(external_id, newTitle) {
     if (!response.ok) {
       console.error("Failed to update page title");
       return false;
-    }
-
-    // Update cached projects - find the page in the nested structure
-    for (let i = 0; i < cachedProjects.length; i++) {
-      const project = cachedProjects[i];
-      const pageIndex = project.pages?.findIndex((p) => p.external_id === external_id);
-      if (pageIndex !== -1) {
-        // Create new page object to trigger reactivity
-        const updatedPage = { ...project.pages[pageIndex], title: newTitle };
-        // Create new pages array
-        const updatedPages = [...project.pages];
-        updatedPages[pageIndex] = updatedPage;
-        // Create new project object
-        cachedProjects[i] = { ...project, pages: updatedPages };
-        renderSidenav(cachedProjects, external_id);
-        break;
-      }
     }
 
     return true;
@@ -608,26 +627,28 @@ async function loadPage(page) {
     const editorEl = document.getElementById("editor");
     editorEl.style.paddingLeft = "16px";
 
-    // Show loading state with REST content (likely empty)
+    // Show REST content
     mountCsvViewer(content, editorEl);
     window.csvViewerCleanup = unmountCsvViewer;
 
-    // Sync with Yjs to get the actual content
-    const userInfo = getUserInfo();
-    const displayName = userInfo.user?.username || currentUser?.email || "Anonymous";
-    const csvCollabObjects = createCollaborationObjects(pageId, displayName);
+    // Sync with Yjs to get the actual content (skip in demo mode)
+    if (!isDemoMode()) {
+      const userInfo = getUserInfo();
+      const displayName = userInfo.user?.username || currentUser?.email || "Anonymous";
+      const csvCollabObjects = createCollaborationObjects(pageId, displayName);
 
-    pageLoadSpan.addEvent("csv_yjs_sync_start");
-    const syncResult = await csvCollabObjects.syncPromise;
+      pageLoadSpan.addEvent("csv_yjs_sync_start");
+      const syncResult = await csvCollabObjects.syncPromise;
 
-    if (syncResult.synced && syncResult.ytextHasContent) {
-      const ytextContent = csvCollabObjects.ytext.toString();
-      mountCsvViewer(ytextContent, document.getElementById("editor"));
-      pageLoadSpan.addEvent("csv_yjs_sync_complete", { contentLength: ytextContent.length });
+      if (syncResult.synced && syncResult.ytextHasContent) {
+        const ytextContent = csvCollabObjects.ytext.toString();
+        mountCsvViewer(ytextContent, document.getElementById("editor"));
+        pageLoadSpan.addEvent("csv_yjs_sync_complete", { contentLength: ytextContent.length });
+      }
+
+      // Disconnect from Yjs - CSV view is read-only
+      destroyCollaboration(csvCollabObjects);
     }
-
-    // Disconnect from Yjs - CSV view is read-only
-    destroyCollaboration(csvCollabObjects);
 
     pageLoadSpan.addEvent("csv_viewer_init_complete");
     pageLoadSpan.end({ status: "success", phase: "csv_visible" });
@@ -648,26 +669,28 @@ async function loadPage(page) {
 
     const editorEl = document.getElementById("editor");
 
-    // Show loading state with REST content (likely empty)
+    // Show REST content
     mountLogViewer(content, editorEl);
     window.logViewerCleanup = unmountLogViewer;
 
-    // Sync with Yjs to get the actual content
-    const userInfo = getUserInfo();
-    const displayName = userInfo.user?.username || currentUser?.email || "Anonymous";
-    const logCollabObjects = createCollaborationObjects(pageId, displayName);
+    // Sync with Yjs to get the actual content (skip in demo mode)
+    if (!isDemoMode()) {
+      const userInfo = getUserInfo();
+      const displayName = userInfo.user?.username || currentUser?.email || "Anonymous";
+      const logCollabObjects = createCollaborationObjects(pageId, displayName);
 
-    pageLoadSpan.addEvent("log_yjs_sync_start");
-    const syncResult = await logCollabObjects.syncPromise;
+      pageLoadSpan.addEvent("log_yjs_sync_start");
+      const syncResult = await logCollabObjects.syncPromise;
 
-    if (syncResult.synced && syncResult.ytextHasContent) {
-      const ytextContent = logCollabObjects.ytext.toString();
-      mountLogViewer(ytextContent, document.getElementById("editor"));
-      pageLoadSpan.addEvent("log_yjs_sync_complete", { contentLength: ytextContent.length });
+      if (syncResult.synced && syncResult.ytextHasContent) {
+        const ytextContent = logCollabObjects.ytext.toString();
+        mountLogViewer(ytextContent, document.getElementById("editor"));
+        pageLoadSpan.addEvent("log_yjs_sync_complete", { contentLength: ytextContent.length });
+      }
+
+      // Disconnect from Yjs - Log view is read-only
+      destroyCollaboration(logCollabObjects);
     }
-
-    // Disconnect from Yjs - Log view is read-only
-    destroyCollaboration(logCollabObjects);
 
     pageLoadSpan.addEvent("log_viewer_init_complete");
     pageLoadSpan.end({ status: "success", phase: "log_visible" });
@@ -708,7 +731,10 @@ async function loadPage(page) {
 
   // STEP 2: Setup collaboration in background and upgrade editor when ready
   // This is tracked separately from page_load since it's async
-  setupCollaborationAsync(page, content, filetype);
+  // Skip in demo mode - local editing only
+  if (!isDemoMode()) {
+    setupCollaborationAsync(page, content, filetype);
+  }
 }
 
 /**
@@ -1503,6 +1529,10 @@ function setupNoteActions() {
   if (shareProjectBtn) {
     shareProjectBtn.addEventListener("click", () => {
       actionsDropdown.style.display = "none";
+      if (isDemoMode()) {
+        showToast("Not available in demo", "error");
+        return;
+      }
       if (!currentPage || !currentProjectId) return;
       const project = cachedProjects.find((p) => p.external_id === currentProjectId);
       shareProject({
@@ -1527,6 +1557,21 @@ function setupNoteActions() {
     downloadPageBtn.addEventListener("click", () => {
       actionsDropdown.style.display = "none";
       if (!currentPage) return;
+
+      if (isDemoMode()) {
+        // Client-side download for demo pages
+        const content = currentPage.details?.content || "";
+        const filename = `${currentPage.title || "untitled"}.md`;
+        const blob = new Blob([content], { type: "text/markdown" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
+
       window.location.href = `${API_BASE_URL}/api/pages/${currentPage.external_id}/download/`;
     });
   }
@@ -1535,6 +1580,10 @@ function setupNoteActions() {
     deleteNoteBtn.addEventListener("click", () => {
       if (deleteNoteBtn.disabled) return;
       actionsDropdown.style.display = "none";
+      if (isDemoMode()) {
+        showToast("Not available in demo", "error");
+        return;
+      }
       if (!currentPage) return;
       openDeleteModal();
     });
@@ -1544,11 +1593,17 @@ function setupNoteActions() {
     changeTypeBtn.addEventListener("click", () => {
       actionsDropdown.style.display = "none";
       if (!currentPage) return;
+      // In demo mode, get content from demo data source
+      let pageContent = currentPage.details?.content || "";
+      if (isDemoMode()) {
+        const demoPage = getDemoPage(currentPage.external_id);
+        pageContent = demoPage?.details?.content || "";
+      }
       changePageType({
         pageId: currentPage.external_id,
         pageTitle: currentPage.title || "Untitled",
         currentType: currentPage.details?.filetype || "md",
-        pageContent: currentPage.details?.content || "",
+        pageContent,
       });
     });
   }
@@ -1557,6 +1612,10 @@ function setupNoteActions() {
   if (readonlyLinkBtn) {
     readonlyLinkBtn.addEventListener("click", async () => {
       actionsDropdown.style.display = "none";
+      if (isDemoMode()) {
+        showToast("Not available in demo", "error");
+        return;
+      }
       if (!currentPage) return;
       try {
         const { access_code } = await generateAccessCode(currentPage.external_id);
@@ -1594,6 +1653,10 @@ function setupNoteActions() {
   // Click handler for "Manage link" button in popover
   if (readonlyPopoverBtn) {
     readonlyPopoverBtn.addEventListener("click", () => {
+      if (isDemoMode()) {
+        showToast("Not available in demo", "error");
+        return;
+      }
       if (!currentPage?.access_code) return;
       readonlyPopover.style.display = "none";
       readonlyLinkModal({
@@ -1620,11 +1683,17 @@ function setupNoteActions() {
   if (breadcrumbFiletype) {
     breadcrumbFiletype.addEventListener("click", () => {
       if (!currentPage) return;
+      // In demo mode, get content from demo data source
+      let pageContent = currentPage.details?.content || "";
+      if (isDemoMode()) {
+        const demoPage = getDemoPage(currentPage.external_id);
+        pageContent = demoPage?.details?.content || "";
+      }
       changePageType({
         pageId: currentPage.external_id,
         pageTitle: currentPage.title || "Untitled",
         currentType: currentPage.details?.filetype || "md",
-        pageContent: currentPage.details?.content || "",
+        pageContent,
       });
     });
   }
@@ -1667,6 +1736,10 @@ async function openDeleteModal() {
 function setupCreateProjectButton() {
   const newProjectBtn = document.getElementById("sidebar-new-project-btn");
   newProjectBtn?.addEventListener("click", () => {
+    if (isDemoMode()) {
+      showToast("Not available in demo", "error");
+      return;
+    }
     createProjectModal({
       oncreated: async (newProject) => {
         // Create a default page under the new project
@@ -1734,6 +1807,51 @@ async function initializePageView() {
 }
 
 /**
+ * Mount the demo banner at the top of the page.
+ */
+async function mountDemoBanner() {
+  const { default: DemoBanner } = await import("./lib/components/DemoBanner.svelte");
+
+  // Create banner container
+  const bannerContainer = document.createElement("div");
+  bannerContainer.id = "demo-banner-root";
+  document.body.insertBefore(bannerContainer, document.body.firstChild);
+
+  // Add demo mode class to body for CSS adjustments
+  document.body.classList.add("demo-mode");
+
+  mount(DemoBanner, { target: bannerContainer });
+}
+
+/**
+ * Setup demo mode UI - hide auth elements, show demo indicators.
+ */
+function setupDemoModeUI() {
+  // Hide the user avatar/menu in demo mode (banner has the CTAs)
+  const userAvatar = document.getElementById("user-avatar");
+  const userDropdown = document.getElementById("user-dropdown");
+
+  if (userAvatar) {
+    userAvatar.style.display = "none";
+  }
+  if (userDropdown) {
+    userDropdown.style.display = "none";
+  }
+
+  // Hide upgrade pill
+  const upgradePill = document.getElementById("upgrade-pill");
+  if (upgradePill) {
+    upgradePill.style.display = "none";
+  }
+
+  // Hide settings link in demo mode
+  const settingsLink = document.querySelector('a[href="/settings/"]');
+  if (settingsLink) {
+    settingsLink.style.display = "none";
+  }
+}
+
+/**
  * Start the application.
  */
 async function startApp() {
@@ -1755,6 +1873,65 @@ async function startApp() {
 
   // Expose openPage for sidebar components to navigate between pages
   window.openPage = openPage;
+
+  // Demo mode: skip authentication, use mock data
+  if (isDemoMode()) {
+    appSpan.addEvent("demo_mode_init");
+    await mountDemoBanner();
+    setupDemoModeUI();
+
+    // Set a mock user for demo
+    currentUser = { email: "demo@example.com", username: "Demo User" };
+
+    // Continue with app setup (skip auth-specific UI)
+    setupCreateProjectButton();
+    setupTitleEditing();
+    setupSidebar();
+
+    setNavigateCallback(async (externalId) => {
+      if (externalId !== currentPage?.external_id) {
+        if (currentPage) {
+          closePageWithoutNavigate();
+        }
+        await openPage(externalId);
+      }
+    });
+
+    setupSidenav(async (projectId) => {
+      currentProjectId = projectId;
+      showDemoPrompt("create pages");
+    });
+
+    setProjectDeletedHandler(() => {
+      showDemoPrompt("delete projects");
+    });
+
+    setProjectRenamedHandler(() => {
+      // Allow rename UI to work but it won't persist
+    });
+
+    setupCommandPalette({
+      getProjects: () => cachedProjects,
+      getCurrentPageId: () => currentPage?.external_id,
+      getCurrentProjectId: () => currentProjectId,
+      onNavigate: async (pageId) => {
+        if (currentPage) {
+          closePageWithoutNavigate();
+        }
+        await openPage(pageId);
+      },
+      onCreatePage: (projectId) => {
+        showDemoPrompt("create pages");
+      },
+    });
+
+    setupNoteActions();
+
+    appSpan.addEvent("demo_setup_complete");
+    await initializePageView();
+    appSpan.end({ status: "success", mode: "demo" });
+    return;
+  }
 
   appSpan.addEvent("auth_check_start");
   const user = await checkAuthentication();
@@ -1858,6 +2035,10 @@ async function startApp() {
       }
     },
     onCreateProject: () => {
+      if (isDemoMode()) {
+        showToast("Not available in demo", "error");
+        return;
+      }
       createProjectModal({
         oncreated: async (newProject) => {
           const result = await createPage(newProject.external_id, "Untitled");
@@ -1873,6 +2054,10 @@ async function startApp() {
       });
     },
     onDeletePage: () => {
+      if (isDemoMode()) {
+        showToast("Not available in demo", "error");
+        return;
+      }
       if (currentPage?.is_owner) {
         openDeleteModal();
       } else if (currentPage) {

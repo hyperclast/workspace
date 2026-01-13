@@ -99,7 +99,7 @@
     </button>
 
     <p class="auth-switch">
-      Already have an account? <a href="/login">Sign in</a>
+      Already have an account? <a href="/login/">Log in</a>
     </p>
   </form>
 </AuthLayout>

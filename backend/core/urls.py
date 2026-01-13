@@ -31,6 +31,7 @@ urlpatterns = [
     path("dev/oss/<str:repo_name>/", views.oss_repo, name="oss_repo"),
     path("downloads/cli/<str:platform>/", views.cli_download, name="cli_download"),
     path("welcome/", views.welcome, name="welcome"),
+    path("demo/", views.demo, name="demo"),
     path("pricing/", views.pricing, name="pricing"),
     path("privacy/", views.privacy, name="privacy"),
     path("terms/", views.terms, name="terms"),

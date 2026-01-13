@@ -60,6 +60,9 @@
 
       const featureFlagsEl = document.getElementById('feature-flags');
       window._featureFlags = featureFlagsEl ? JSON.parse(featureFlagsEl.textContent) : {};
+
+      // Demo mode flag (set by /demo/ route)
+      window._isDemoMode = {{ is_demo_mode|yesno:"true,false" }};
     </script>
 
     <script type="module" crossorigin src="{% vite_asset 'src/app.js' %}"></script>

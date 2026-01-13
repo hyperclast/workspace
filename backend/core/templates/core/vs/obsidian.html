@@ -144,6 +144,11 @@
       text-decoration: underline;
     }
 
+    .vs-hero-breadcrumb .breadcrumb-sep {
+      margin: 0 0.25rem;
+      opacity: 0.6;
+    }
+
     .vs-hero h1 {
       font-size: 2.5rem;
       font-weight: 700;
@@ -690,7 +695,7 @@
       </nav>
 
       <section class="vs-hero">
-        <p class="vs-hero-breadcrumb"><a href="{% url 'core:vs_index' %}">Compare</a> / Obsidian</p>
+        <p class="vs-hero-breadcrumb"><a href="{% url 'core:vs_index' %}">Compare</a> <span class="breadcrumb-sep">›</span> Obsidian</p>
         <h1>{{ brand_name }} vs Obsidian</h1>
         <p class="vs-hero-problem">What if Obsidian had real-time collaboration?</p>
         <p class="vs-hero-solution">{{ brand_name }} shares Obsidian's philosophy of speed and data ownership, but adds real-time team collaboration, a full API, and zero plugin dependency.</p>

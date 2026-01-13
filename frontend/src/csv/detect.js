@@ -12,15 +12,15 @@
  * @returns {boolean} - True if content appears to be CSV
  *
  * Detection criteria:
- * - Empty content returns true (user can paste CSV later)
+ * - Empty content returns false (nothing to analyze)
  * - First line must have at least one comma or tab
  * - Must result in 2+ columns (1+ delimiters)
  */
 export function looksLikeCsv(content) {
-  if (!content || content.trim() === "") return true;
+  if (!content || content.trim() === "") return false;
 
   const lines = content.split(/\r?\n/).filter((line) => line.trim() !== "");
-  if (lines.length === 0) return true;
+  if (lines.length === 0) return false;
 
   const firstLine = lines[0];
   const hasComma = firstLine.includes(",");

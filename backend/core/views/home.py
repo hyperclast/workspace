@@ -35,10 +35,46 @@ def homepage(request):
 
 def spa(request, **kwargs):
     """Serves the SPA template for all frontend routes."""
+    # Check if this is a demo page (page_id starts with "demo-")
+    page_id = kwargs.get("page_id", "")
+    is_demo = page_id.startswith("demo-")
+
+    # Redirect authenticated users away from login/signup/demo pages
+    if request.user.is_authenticated:
+        if request.path in ("/login/", "/signup/") or is_demo:
+            return redirect("core:home")
+
     context = {
         "feature_flags": get_feature_flags(),
+        "is_demo_mode": is_demo,
     }
     return render(request, "core/spa.html", context)
+
+
+def demo(request):
+    """Serves the demo mode SPA - redirect authenticated users to home."""
+    if request.user.is_authenticated:
+        return redirect("core:home")
+
+    context = {
+        "feature_flags": get_feature_flags(),
+        "is_demo_mode": True,
+    }
+    response = render(request, "core/spa.html", context)
+
+    # Set first demo visit timestamp if not already set
+    if "demo_first_visit" not in request.COOKIES:
+        from django.utils import timezone
+
+        response.set_cookie(
+            "demo_first_visit",
+            timezone.now().isoformat(),
+            max_age=60 * 60 * 24 * 365,  # 1 year
+            httponly=True,
+            samesite="Lax",
+        )
+
+    return response
 
 
 def email_verification_sent(request):

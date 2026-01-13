@@ -18,8 +18,8 @@
     </a>
     <div class="site-nav-actions">
       <ThemeToggle />
-      <a href="/login" class="site-nav-link" class:site-nav-link-active={path === '/login'}>Log in</a>
-      <a href="/signup" class="site-nav-btn" class:site-nav-btn-active={path === '/signup'}>Get Started</a>
+      <a href="/login/" class="site-nav-link" class:site-nav-link-active={path === '/login/' || path === '/login'}>Log in</a>
+      <a href="/signup/" class="site-nav-btn" class:site-nav-btn-active={path === '/signup/' || path === '/signup'}>Get Started</a>
     </div>
   </div>
 </nav>

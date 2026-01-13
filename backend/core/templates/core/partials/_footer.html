@@ -19,9 +19,9 @@
       <h4>Learn More</h4>
       <a href="{% url 'core:about' %}">About Us</a>
       <a href="{% url 'core:vs_index' %}">Compare</a>
-      <a href="{% url 'updates:list' %}">Updates</a>
       <a href="{% url 'core:dev_index' %}">Developer Portal</a>
       {% if pricing_enabled %}<a href="{% url 'pricing:pricing' %}">Pricing</a>{% endif %}
+      <a href="{% url 'updates:list' %}">Updates</a>
     </div>
     <div class="landing-footer-column">
       <h4>Community</h4>

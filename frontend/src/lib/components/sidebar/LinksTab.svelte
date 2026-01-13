@@ -2,6 +2,11 @@
   import { onMount, onDestroy } from "svelte";
   import { registerTabHandler, registerPageChangeHandler } from "../../stores/sidebar.svelte.js";
   import { fetchPageLinks, syncPageLinks } from "../../../api.js";
+  import { isDemoMode } from "../../../demo/index.js";
+  import {
+    fetchPageLinks as fetchDemoPageLinks,
+    syncPageLinks as syncDemoPageLinks,
+  } from "../../../demo/demoApi.js";
 
   let serverOutgoingLinks = $state([]);
   let incomingLinks = $state([]);
@@ -122,7 +127,9 @@
     updateLocalLinks();
 
     try {
-      const data = await fetchPageLinks(currentPageId);
+      // Use demo API in demo mode
+      const fetcher = isDemoMode() ? fetchDemoPageLinks : fetchPageLinks;
+      const data = await fetcher(currentPageId);
       serverOutgoingLinks = data.outgoing || [];
       incomingLinks = data.incoming || [];
     } catch (e) {
@@ -152,7 +159,9 @@
 
     try {
       const content = window.editorView?.state?.doc?.toString() || "";
-      const result = await syncPageLinks(currentPageId, content);
+      // Use demo API in demo mode
+      const syncer = isDemoMode() ? syncDemoPageLinks : syncPageLinks;
+      const result = await syncer(currentPageId, content);
       if (result.synced) {
         serverOutgoingLinks = result.outgoing || [];
         incomingLinks = result.incoming || [];

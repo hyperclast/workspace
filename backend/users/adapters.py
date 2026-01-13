@@ -11,6 +11,14 @@ from core.emailer import Emailer
 from users.utils import generate_username_from_email
 
 
+def _save_demo_visits_from_cookie(request, user):
+    """Save demo visit timestamp from cookie to user profile."""
+    demo_first_visit = request.COOKIES.get("demo_first_visit")
+    if demo_first_visit:
+        user.profile.demo_visits = [demo_first_visit]
+        user.profile.save(update_fields=["demo_visits"])
+
+
 class CustomAccountAdapter(DefaultAccountAdapter):
     """Account adapter class with custom email sending and invitation handling."""
 
@@ -152,6 +160,9 @@ class CustomAccountAdapter(DefaultAccountAdapter):
                 if settings.PROJECT_INVITATION_PENDING_EMAIL_SESSION_KEY in request.session:
                     del request.session[settings.PROJECT_INVITATION_PENDING_EMAIL_SESSION_KEY]
 
+        # Save demo visit timestamp if present
+        _save_demo_visits_from_cookie(request, user)
+
         return user
 
     def login(self, request, user):
@@ -262,6 +273,9 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         if picture_url:
             user.profile.picture = picture_url
             user.profile.save(update_fields=["picture"])
+
+        # Save demo visit timestamp if present
+        _save_demo_visits_from_cookie(request, user)
 
         return user
 

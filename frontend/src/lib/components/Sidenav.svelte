@@ -5,6 +5,8 @@
   import { confirm, prompt, shareProject, changePageType, readonlyLinkModal } from "../modal.js";
   import { showToast } from "../toast.js";
   import { validateProjectName } from "../validation.js";
+  import { isDemoMode } from "../../demo/index.js";
+  import { getDemoPage } from "../../demo/demoContent.js";
   import {
     getProjects,
     getActivePageId,
@@ -49,12 +51,20 @@
 
   function handleNewPageClick(e, projectId) {
     e.stopPropagation();
+    if (isDemoMode()) {
+      showToast("Not available in demo", "error");
+      return;
+    }
     createNewPage(projectId);
   }
 
   function handleNewPageFromMenu(e, projectId) {
     e.stopPropagation();
     closeAllMenus();
+    if (isDemoMode()) {
+      showToast("Not available in demo", "error");
+      return;
+    }
     createNewPage(projectId);
   }
 
@@ -90,12 +100,20 @@
   async function handleShare(e, projectId, projectName) {
     e.stopPropagation();
     closeAllMenus();
+    if (isDemoMode()) {
+      showToast("Not available in demo", "error");
+      return;
+    }
     shareProject({ projectId, projectName });
   }
 
   async function handleRename(e, projectId, projectName) {
     e.stopPropagation();
     closeAllMenus();
+    if (isDemoMode()) {
+      showToast("Not available in demo", "error");
+      return;
+    }
 
     const newName = await prompt({
       title: "Rename Project",
@@ -130,6 +148,10 @@
   async function handleDelete(e, projectId, projectName) {
     e.stopPropagation();
     closeAllMenus();
+    if (isDemoMode()) {
+      showToast("Not available in demo", "error");
+      return;
+    }
 
     const confirmed = await confirm({
       title: "Delete Project",
@@ -163,12 +185,31 @@
   function handleDownload(e, projectId) {
     e.stopPropagation();
     closeAllMenus();
+    if (isDemoMode()) {
+      showToast("Project download not available in demo", "error");
+      return;
+    }
     window.location.href = `${API_BASE_URL}/api/projects/${projectId}/download/`;
   }
 
   function handlePageDownload(e, pageId) {
     e.stopPropagation();
     closeAllMenus();
+    if (isDemoMode()) {
+      const page = getDemoPage(pageId);
+      if (page) {
+        const content = page.details?.content || "";
+        const filename = `${page.title || "untitled"}.md`;
+        const blob = new Blob([content], { type: "text/markdown" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+      return;
+    }
     window.location.href = `${API_BASE_URL}/api/pages/${pageId}/download/`;
   }
 
@@ -186,16 +227,27 @@
   function handleChangePageType(e, pageId, pageTitle, filetype) {
     e.stopPropagation();
     closeAllMenus();
+    // Get page content for the modal (needed for CSV detection)
+    let pageContent = "";
+    if (isDemoMode()) {
+      const demoPage = getDemoPage(pageId);
+      pageContent = demoPage?.details?.content || "";
+    }
     changePageType({
       pageId,
       pageTitle: pageTitle || "Untitled",
       currentType: filetype || "md",
+      pageContent,
     });
   }
 
   async function handleReadonlyLink(e, pageId, pageTitle, existingAccessCode) {
     e.stopPropagation();
     closeAllMenus();
+    if (isDemoMode()) {
+      showToast("Not available in demo", "error");
+      return;
+    }
 
     try {
       // If page already has an access code, show the modal directly
@@ -224,6 +276,10 @@
   async function handlePageDelete(e, pageId, pageTitle) {
     e.stopPropagation();
     closeAllMenus();
+    if (isDemoMode()) {
+      showToast("Not available in demo", "error");
+      return;
+    }
 
     const confirmed = await confirm({
       title: "Delete Page",

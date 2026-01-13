@@ -3,6 +3,7 @@
   import { askQuestion, AskError, autocompletePages, fetchAvailableProviders, fetchProviderModels } from "../../../ask.js";
   import { getState, setCurrentPageId } from "../../stores/sidebar.svelte.js";
   import IndexDataPrompt from "../IndexDataPrompt.svelte";
+  import { isDemoMode } from "../../../demo/index.js";
 
   const sidebarState = getState();
 
@@ -43,18 +44,21 @@
   );
 
   onMount(async () => {
-    await loadProviders();
+    // Skip loading providers in demo mode
+    if (!isDemoMode()) {
+      await loadProviders();
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        loadProviders();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === "visible") {
+          loadProviders();
+        }
+      };
+      document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
+      return () => {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      };
+    }
   });
 
   async function loadProviders() {
@@ -381,7 +385,25 @@
   });
 </script>
 
-{#if showMissingKeyPrompt}
+{#if isDemoMode()}
+  <div class="missing-key-prompt demo-ask-prompt">
+    <div class="missing-key-icon demo-icon">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path>
+      </svg>
+    </div>
+    <h3 class="missing-key-title">Chat with Your Pages</h3>
+    <p class="missing-key-text">
+      Ask questions, get summaries, and brainstorm ideas.
+    </p>
+    <a href="/signup/" class="missing-key-btn demo-signup-btn">
+      Sign up to enable
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="9 18 15 12 9 6"></polyline>
+      </svg>
+    </a>
+  </div>
+{:else if showMissingKeyPrompt}
   <div class="missing-key-prompt">
     <div class="missing-key-icon">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -708,5 +730,28 @@
 
   .missing-key-dismiss:hover {
     color: var(--text-primary);
+  }
+
+  /* Demo mode styles */
+  .demo-ask-prompt {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+    border: 1px solid rgba(102, 126, 234, 0.2);
+  }
+
+  .demo-ask-prompt .demo-icon {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    padding: 0.75rem;
+    color: white;
+  }
+
+  .demo-signup-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+  }
+
+  .demo-signup-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
   }
 </style>

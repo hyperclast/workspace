@@ -85,7 +85,7 @@
         </button>
 
         <p class="auth-switch">
-          <a href="/login">← Back to sign in</a>
+          <a href="/login/">← Back to login</a>
         </p>
       </form>
     {:else}
