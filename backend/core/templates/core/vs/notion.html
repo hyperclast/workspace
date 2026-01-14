@@ -186,6 +186,30 @@
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     }
 
+    .vs-hero-cta-secondary {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.15);
+      color: white;
+      padding: 0.875rem 2rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      transition: background 0.2s;
+    }
+
+    .vs-hero-cta-secondary:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .vs-hero-cta-buttons {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
     /* Main content */
     .vs-main {
       flex: 1;
@@ -441,6 +465,30 @@
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     }
 
+    .vs-final-cta-btn-secondary {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.15);
+      color: white;
+      padding: 0.875rem 2rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      transition: background 0.2s;
+    }
+
+    .vs-final-cta-btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .vs-final-cta-buttons {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
     /* Other comparisons */
     .other-comparisons {
       margin-top: 4rem;
@@ -668,7 +716,10 @@
         <h1>{{ brand_name }} vs Notion</h1>
         <p class="vs-hero-problem">Tired of waiting for Notion to load?</p>
         <p class="vs-hero-solution">{{ brand_name }} gives you the collaboration features you love without the performance tax. Fast at any scale, open source, and your data is always yours.</p>
-        <a href="/signup/" class="vs-hero-cta">Try {{ brand_name }} Free</a>
+        <div class="vs-hero-cta-buttons">
+          <a href="/signup/" class="vs-hero-cta">Try {{ brand_name }} Free</a>
+          <a href="/demo/" class="vs-hero-cta-secondary">Try Demo</a>
+        </div>
       </section>
     {% endif %}
 
@@ -831,7 +882,10 @@
         <div class="vs-final-cta">
           <h2>Ready to Experience the Difference?</h2>
           <p>Start free, no credit card required. See for yourself why teams are switching from Notion.</p>
-          <a href="/signup/" class="vs-final-cta-btn">Get Started Free</a>
+          <div class="vs-final-cta-buttons">
+            <a href="/signup/" class="vs-final-cta-btn">Get Started Free</a>
+            <a href="/demo/" class="vs-final-cta-btn-secondary">Try Demo</a>
+          </div>
         </div>
 
         <!-- Other comparisons -->

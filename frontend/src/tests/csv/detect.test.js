@@ -44,22 +44,22 @@ describe("looksLikeCsv", () => {
   });
 
   describe("empty and whitespace content", () => {
-    test("returns true for empty string (user can paste CSV later)", () => {
-      expect(looksLikeCsv("")).toBe(true);
+    test("returns false for empty string (nothing to analyze)", () => {
+      expect(looksLikeCsv("")).toBe(false);
     });
 
-    test("returns true for null", () => {
-      expect(looksLikeCsv(null)).toBe(true);
+    test("returns false for null", () => {
+      expect(looksLikeCsv(null)).toBe(false);
     });
 
-    test("returns true for undefined", () => {
-      expect(looksLikeCsv(undefined)).toBe(true);
+    test("returns false for undefined", () => {
+      expect(looksLikeCsv(undefined)).toBe(false);
     });
 
-    test("returns true for whitespace only", () => {
-      expect(looksLikeCsv("   ")).toBe(true);
-      expect(looksLikeCsv("\n\n")).toBe(true);
-      expect(looksLikeCsv("\t\t")).toBe(true);
+    test("returns false for whitespace only", () => {
+      expect(looksLikeCsv("   ")).toBe(false);
+      expect(looksLikeCsv("\n\n")).toBe(false);
+      expect(looksLikeCsv("\t\t")).toBe(false);
     });
   });
 

@@ -157,14 +157,18 @@ describe("csrfFetch", () => {
     await csrfFetch("/api/test", { method: "GET" });
 
     const callArgs = fetchSpy.mock.calls[0][1];
-    expect(callArgs.headers).toBeUndefined();
+    expect(callArgs.headers["X-CSRFToken"]).toBeUndefined();
+    // X-Hyperclast-Client header should still be present
+    expect(callArgs.headers["X-Hyperclast-Client"]).toBeDefined();
   });
 
   test("does not include X-CSRFToken header when no method specified (defaults to GET)", async () => {
     await csrfFetch("/api/test");
 
     const callArgs = fetchSpy.mock.calls[0][1];
-    expect(callArgs.headers).toBeUndefined();
+    expect(callArgs.headers["X-CSRFToken"]).toBeUndefined();
+    // X-Hyperclast-Client header should still be present
+    expect(callArgs.headers["X-Hyperclast-Client"]).toBeDefined();
   });
 
   test("preserves existing headers when adding CSRF token", async () => {

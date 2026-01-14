@@ -305,10 +305,6 @@
 
     .contact-simple a {
       color: #667eea;
-      text-decoration: none;
-    }
-
-    .contact-simple a:hover {
       text-decoration: underline;
     }
 
@@ -546,10 +542,17 @@
         </div>
 
         <div class="contact-simple">
-          <p>
-            Questions? <a href="mailto:support@hyperclast.com">support@hyperclast.com</a><br>
-            Code: <a href="https://github.com/hyperclast" target="_blank" rel="noopener">github.com/hyperclast</a>
-          </p>
+          {% if not user.is_authenticated %}
+            <p>
+              <a href="/signup/">Sign up</a> free, or <a href="/demo/">try the demo</a> first. Code's on <a href="https://github.com/hyperclast" target="_blank" rel="noopener">GitHub</a>.<br />
+              Questions? <a href="mailto:support@hyperclast.com">support@hyperclast.com</a>
+            </p>
+          {% else %}
+            <p>
+              Code: <a href="https://github.com/hyperclast" target="_blank" rel="noopener">github.com/hyperclast</a><br />
+              Questions? <a href="mailto:support@hyperclast.com">support@hyperclast.com</a>
+            </p>
+          {% endif %}
         </div>
 
       </div>

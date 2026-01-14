@@ -194,7 +194,10 @@ describe("AI Settings - Custom provider wizard validation", () => {
       return { valid: false, error: "API Base URL is required" };
     }
     try {
-      new URL(url);
+      const parsed = new URL(url);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return { valid: false, error: "URL must use http or https protocol" };
+      }
       return { valid: true, error: null };
     } catch {
       return { valid: false, error: "Please enter a valid URL" };

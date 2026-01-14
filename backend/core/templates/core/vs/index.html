@@ -407,6 +407,30 @@
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     }
 
+    .vs-cta-btn-secondary {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.15);
+      color: white;
+      padding: 0.875rem 2rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      transition: background 0.2s;
+    }
+
+    .vs-cta-btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .vs-cta-buttons {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
     {% include 'core/partials/_footer_styles.html' %}
 
     .landing-footer {
@@ -759,7 +783,10 @@
         <div class="vs-cta">
           <h2>Ready to Try {{ brand_name }}?</h2>
           <p>Start free. No credit card required. See for yourself why teams are switching.</p>
-          <a href="/signup/" class="vs-cta-btn">Get Started Free</a>
+          <div class="vs-cta-buttons">
+            <a href="/signup/" class="vs-cta-btn">Get Started Free</a>
+            <a href="/demo/" class="vs-cta-btn-secondary">Try Demo</a>
+          </div>
         </div>
 
       </div>
