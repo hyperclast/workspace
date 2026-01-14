@@ -484,7 +484,7 @@
                   <tr>
                     <th>Email</th>
                     <th>Username</th>
-                    <th>Name</th>
+                    <th>Demo</th>
                     <th>Verified</th>
                     <th>Projects</th>
                     <th>Pages</th>
@@ -496,7 +496,13 @@
                     <tr>
                       <td>{{ user.email }}</td>
                       <td>{{ user.username }}</td>
-                      <td>{{ user.first_name }} {{ user.last_name }}</td>
+                      <td>
+                        {% if user.tried_demo %}
+                          <span class="badge badge-success">Yes</span>
+                        {% else %}
+                          <span class="badge badge-warning">No</span>
+                        {% endif %}
+                      </td>
                       <td>
                         {% if user.email_verified %}
                           <span class="badge badge-success">Yes</span>

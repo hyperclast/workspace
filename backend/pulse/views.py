@@ -86,18 +86,19 @@ def dashboard(request):
         .values(
             "email",
             "username",
-            "first_name",
-            "last_name",
             "email_verified",
             "num_projects",
             "num_pages",
             "date_joined",
+            "profile__demo_visits",
         )
     )
 
-    # Convert date_joined to string for template
+    # Convert date_joined to string and check demo visits for template
     for user in new_users:
         user["date_joined"] = user["date_joined"].strftime("%Y-%m-%d %H:%M")
+        demo_visits = user.pop("profile__demo_visits")
+        user["tried_demo"] = bool(demo_visits and len(demo_visits) > 0)
 
     # Inactive users: active in last 90 days but NOT in last 7 days
     inactive_users = list(

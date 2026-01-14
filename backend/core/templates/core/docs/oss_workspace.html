@@ -166,7 +166,7 @@ cp backend/.env-template backend/.env-docker
       </div>
     </section>
 
-    <section class="oss-section oss-faq">
+    <section class="oss-section oss-faq" id="faq">
       <h2>FAQ</h2>
 
       <div class="faq-item-open" id="license">
@@ -288,8 +288,8 @@ cp backend/.env-template backend/.env-docker
 {% block extra_toc_scripts %}
   <script>
     (function() {
-      function highlightFaqItem() {
-        // Remove any existing highlight
+      function highlightFaqItems() {
+        // Remove any existing highlights
         document.querySelectorAll('.faq-item-open.highlighted').forEach(function(el) {
           el.classList.remove('highlighted');
         });
@@ -297,21 +297,31 @@ cp backend/.env-template backend/.env-docker
         var hash = window.location.hash.slice(1);
         if (!hash) return;
 
-        var target = document.getElementById(hash);
-        if (target && target.classList.contains('faq-item-open')) {
-          target.classList.add('highlighted');
-          // Scroll into view with offset for fixed header
+        // Support comma-separated IDs (e.g., #license,opensource)
+        var ids = hash.split(',');
+        var firstTarget = null;
+
+        ids.forEach(function(id) {
+          var target = document.getElementById(id);
+          if (target && target.classList.contains('faq-item-open')) {
+            target.classList.add('highlighted');
+            if (!firstTarget) firstTarget = target;
+          }
+        });
+
+        // Scroll to the first highlighted item
+        if (firstTarget) {
           setTimeout(function() {
-            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            firstTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }, 100);
         }
       }
 
       // Run on page load
-      highlightFaqItem();
+      highlightFaqItems();
 
       // Listen for hash changes (e.g., clicking anchor links)
-      window.addEventListener('hashchange', highlightFaqItem);
+      window.addEventListener('hashchange', highlightFaqItems);
     })();
   </script>
 {% endblock %}
