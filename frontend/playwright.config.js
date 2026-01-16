@@ -15,6 +15,15 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
 
+  // Visual regression snapshot settings
+  expect: {
+    toHaveScreenshot: {
+      maxDiffPixelRatio: 0.01,
+      threshold: 0.2,
+      animations: "disabled",
+    },
+  },
+
   projects: [
     {
       name: "chromium",
@@ -22,6 +31,22 @@ export default defineConfig({
         browserName: "chromium",
         // Use a clean context each time
         storageState: undefined,
+      },
+      // Exclude visual regression tests from default project
+      testIgnore: "**/visual-regression/**",
+    },
+    {
+      name: "visual-regression",
+      testMatch: "**/visual-regression/**/*.spec.js",
+      use: {
+        browserName: "chromium",
+        storageState: undefined,
+        // Consistent viewport for visual tests
+        viewport: { width: 1280, height: 800 },
+        // Disable animations for stable screenshots
+        reducedMotion: "reduce",
+        // Consistent pixel ratio
+        deviceScaleFactor: 1,
       },
     },
   ],

@@ -128,6 +128,46 @@ Measures how long it takes from page load to content appearing in the editor.
 npm run test:load-time
 ```
 
+### Visual Regression Tests
+
+**Directory**: `frontend/tests/e2e/visual-regression/`
+
+Tests visual fidelity by measuring actual pixel positions and capturing screenshot baselines. Catches alignment issues, spacing inconsistencies, and styling bugs.
+
+**Test categories**:
+
+- **Alignment tests** - Verify elements align correctly (list items, headings, tables)
+- **Spacing tests** - Check consistent heights and gaps between elements
+- **Link tests** - Verify link styling consistency
+- **Snapshot tests** - Screenshot comparison for visual regressions
+
+```bash
+cd frontend
+
+# Run all visual regression tests
+npx playwright test --project=visual-regression
+
+# Run with visible browser
+npx playwright test --project=visual-regression --headed
+
+# Run specific test file
+npx playwright test --project=visual-regression alignment.spec.js
+
+# Update screenshot baselines after intentional CSS changes
+npx playwright test --project=visual-regression --update-snapshots
+
+# View test results with screenshots and diffs
+npx playwright show-report
+```
+
+**When tests fail**, check the HTML report for:
+
+- Measurement data showing exact pixel values
+- Screenshot diffs highlighting visual changes
+- Videos showing test execution
+
+Screenshot baselines are stored in `tests/e2e/visual-regression/snapshots.spec.js-snapshots/`.
+
 ## Environment Variables
 
 | Variable         | Description                   | Default                   |
