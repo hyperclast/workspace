@@ -67,6 +67,8 @@
 
     {% include 'core/partials/_favicon.html' %}
 
+    <link rel="preload" href="{% static 'core/img/app-screenshot-max.png' %}" as="image" />
+
     <style>
       * {
         margin: 0;
@@ -413,53 +415,73 @@
         font-size: 1.1rem;
       }
 
-      .landing-roadmap-steps {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 2rem;
+      .landing-screenshot {
+        margin-top: 2rem;
       }
 
-      .landing-roadmap-step {
-        text-align: center;
-        padding: 1.5rem;
+      .landing-screenshot img {
+        width: 100%;
+        max-width: 100%;
+        border-radius: 8px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
       }
 
-      .landing-roadmap-step-number {
-        width: 48px;
-        height: 48px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-radius: 50%;
+      .landing-screenshot img:hover {
+        transform: scale(1.01);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
+      }
+
+      .screenshot-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+      }
+
+      .screenshot-modal.open {
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.25rem;
-        font-weight: 700;
-        margin: 0 auto 1rem;
       }
 
-      .landing-roadmap-step h3 {
-        font-size: 1.1rem;
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-        color: #1a1a1a;
+      .screenshot-modal-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.85);
       }
 
-      .landing-roadmap-step p {
-        color: #666;
-        font-size: 0.95rem;
-        line-height: 1.5;
+      .screenshot-modal-content {
+        position: relative;
+        max-width: 95vw;
+        max-height: 95vh;
       }
 
-      @media (max-width: 768px) {
-        .landing-roadmap-steps {
-          grid-template-columns: 1fr;
-          gap: 1.5rem;
-        }
+      .screenshot-modal-content img {
+        max-width: 95vw;
+        max-height: 90vh;
+        border-radius: 8px;
+        box-shadow: 0 16px 64px rgba(0, 0, 0, 0.4);
+      }
 
-        .landing-roadmap-step {
-          padding: 1rem;
-        }
+      .screenshot-modal-close {
+        position: absolute;
+        top: -40px;
+        right: 0;
+        background: none;
+        border: none;
+        color: white;
+        font-size: 2rem;
+        cursor: pointer;
+        opacity: 0.8;
+        transition: opacity 0.15s;
+        padding: 0.25rem 0.5rem;
+        line-height: 1;
+      }
+
+      .screenshot-modal-close:hover {
+        opacity: 1;
       }
 
       :root.dark .landing-roadmap,
@@ -476,16 +498,6 @@
       :root.dark .landing-roadmap-subtitle,
       :root[data-theme="dark"] .landing-roadmap-subtitle {
         color: #999;
-      }
-
-      :root.dark .landing-roadmap-step h3,
-      :root[data-theme="dark"] .landing-roadmap-step h3 {
-        color: #f0f0f0;
-      }
-
-      :root.dark .landing-roadmap-step p,
-      :root[data-theme="dark"] .landing-roadmap-step p {
-        color: #b0b0b0;
       }
 
       .landing-comparison {
@@ -849,8 +861,8 @@
         <div class="landing-hero-content">
           <h1>Grow Without the Chaos</h1>
           <p class="landing-hero-subtitle">
-            A workspace that scales with you.<br />
-            Fast, organized, and <a href="/dev/" class="landing-subtle-link">open source</a>.
+            Spend less time organizing. More time collaborating.<br />
+            Fast, <a href="/dev/" class="landing-subtle-link">open source</a>, and scales with you.
           </p>
           <div class="landing-cta">
             <a href="/signup/" class="landing-btn-primary landing-btn-large">Start Free Today</a>
@@ -861,23 +873,17 @@
 
       <section class="landing-roadmap">
         <div class="landing-roadmap-container">
-          <h2>From Chaos to Clarity</h2>
-          <p class="landing-roadmap-subtitle">Get your team aligned in minutes.</p>
-          <div class="landing-roadmap-steps">
-            <div class="landing-roadmap-step">
-              <div class="landing-roadmap-step-number">1</div>
-              <h3>Sign Up Free</h3>
-              <p>Create your workspace in seconds. No credit card required.</p>
-            </div>
-            <div class="landing-roadmap-step">
-              <div class="landing-roadmap-step-number">2</div>
-              <h3>Bring Your Team</h3>
-              <p>Invite collaborators and import existing docs from Notion.</p>
-            </div>
-            <div class="landing-roadmap-step">
-              <div class="landing-roadmap-step-number">3</div>
-              <h3>Stay Organized at Scale</h3>
-              <p>Real-time sync keeps everyone on the same page, no matter how fast you grow.</p>
+          <h2>The Team Workspace</h2>
+          <p class="landing-roadmap-subtitle">Real-time knowledge base that doesn't slow down at scale.</p>
+          <div class="landing-screenshot">
+            <img src="{% static 'core/img/app-screenshot-min.png' %}" alt="Hyperclast workspace showing the editor with sidebar navigation, formatting toolbar, and backlinks panel" id="screenshot-thumb" />
+          </div>
+
+          <div class="screenshot-modal" id="screenshot-modal">
+            <div class="screenshot-modal-backdrop"></div>
+            <div class="screenshot-modal-content">
+              <button class="screenshot-modal-close" aria-label="Close">&times;</button>
+              <img src="{% static 'core/img/app-screenshot-max.png' %}" alt="Hyperclast workspace" />
             </div>
           </div>
         </div>
@@ -1027,6 +1033,35 @@
           if (href) window.location.href = href;
         });
       });
+    </script>
+    <script>
+      // Screenshot lightbox
+      (function() {
+        var thumb = document.getElementById('screenshot-thumb');
+        var modal = document.getElementById('screenshot-modal');
+        var backdrop = modal.querySelector('.screenshot-modal-backdrop');
+        var closeBtn = modal.querySelector('.screenshot-modal-close');
+
+        function openModal() {
+          modal.classList.add('open');
+          document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+          modal.classList.remove('open');
+          document.body.style.overflow = '';
+        }
+
+        thumb.addEventListener('click', openModal);
+        backdrop.addEventListener('click', closeModal);
+        closeBtn.addEventListener('click', closeModal);
+
+        document.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape' && modal.classList.contains('open')) {
+            closeModal();
+          }
+        });
+      })();
     </script>
   </body>
 </html>

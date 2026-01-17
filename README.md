@@ -2,6 +2,8 @@
 
 Collaborative workspace with real-time editing, bidirectional links, and AI-powered search.
 
+![Hyperclast workspace](backend/core/static/core/img/app-screenshot-min.png)
+
 - **Real-time collaboration**: Conflict-free sync via Yjs CRDT
 - **Fast editor**: Built on CodeMirror 6
 - **Bidirectional links**: Automatic backlinks between pages
