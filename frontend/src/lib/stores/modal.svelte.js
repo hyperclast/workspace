@@ -232,3 +232,19 @@ export function openSharePage(options = {}) {
 export function closeSharePage() {
   sharePageState.open = false;
 }
+
+let helpState = $state({
+  open: false,
+});
+
+export function getHelpState() {
+  return helpState;
+}
+
+export function openHelp() {
+  helpState.open = true;
+}
+
+export function closeHelp() {
+  helpState.open = false;
+}

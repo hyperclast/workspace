@@ -1,6 +1,7 @@
-import { EditorState, Prec, StateField } from "@codemirror/state";
+import { EditorState, Prec, StateField, Compartment } from "@codemirror/state";
 import { Decoration, ViewPlugin, WidgetType, keymap, EditorView } from "@codemirror/view";
 import { CODE_FENCE_SCAN_LIMIT_LINES } from "./config/performance.js";
+import { getShortcut, isShortcutDisabled, onShortcutChange } from "./lib/keyboardShortcuts.js";
 
 const BOLD_REGEX = /\*\*(.+?)\*\*/g;
 const UNDERLINE_REGEX = /__(.+?)__/g;
@@ -826,22 +827,53 @@ function handleBlockquoteShiftEnter(view) {
   return false;
 }
 
-export const listKeymap = Prec.high(
-  keymap.of([
+// Compartment for dynamic checkbox shortcut reconfiguration
+const checkboxShortcutCompartment = new Compartment();
+
+// Build the checkbox keymap based on current settings
+function buildCheckboxKeymap() {
+  const shortcut = getShortcut("toggleCheckbox");
+  if (shortcut === "disabled") {
+    return keymap.of([]);
+  }
+  return keymap.of([
     {
-      key: "Tab",
-      run: handleListIndent,
-    },
-    {
-      key: "Shift-Tab",
-      run: handleListUnindent,
-    },
-    {
-      key: "Mod-l",
+      key: shortcut,
       run: toggleCheckbox,
     },
-  ])
-);
+  ]);
+}
+
+// Listen for shortcut changes and reconfigure editors
+onShortcutChange((actionId) => {
+  if (actionId === "toggleCheckbox") {
+    // Find all CodeMirror editors and reconfigure them
+    document.querySelectorAll(".cm-editor").forEach((editorEl) => {
+      const view = EditorView.findFromDOM(editorEl);
+      if (view) {
+        view.dispatch({
+          effects: checkboxShortcutCompartment.reconfigure(buildCheckboxKeymap()),
+        });
+      }
+    });
+  }
+});
+
+export const listKeymap = [
+  Prec.high(
+    keymap.of([
+      {
+        key: "Tab",
+        run: handleListIndent,
+      },
+      {
+        key: "Shift-Tab",
+        run: handleListUnindent,
+      },
+    ])
+  ),
+  checkboxShortcutCompartment.of(buildCheckboxKeymap()),
+];
 
 export const blockquoteKeymap = Prec.highest(
   keymap.of([

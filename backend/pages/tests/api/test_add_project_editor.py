@@ -1,8 +1,9 @@
 from http import HTTPStatus
 
 from core.tests.common import BaseAuthenticatedViewTestCase
+from pages.constants import ProjectEditorRole
 from pages.models import ProjectEditorAddEvent, ProjectInvitation
-from pages.tests.factories import ProjectFactory
+from pages.tests.factories import ProjectEditorFactory, ProjectFactory
 from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory
 
 
@@ -20,7 +21,11 @@ class TestAddProjectEditorAPI(BaseAuthenticatedViewTestCase):
         return self.send_api_request(url=url, method="post", data={"email": email})
 
     def test_add_existing_user_as_editor(self):
-        """Test adding an existing user as project editor returns user info."""
+        """Test adding an existing user as project editor returns user info.
+
+        Note: Response always shows is_pending=True to prevent email enumeration attacks.
+        The actual state is verified via database queries below.
+        """
         new_editor = UserFactory(email="neweditor@example.com")
 
         response = self.send_add_editor_request(self.project.external_id, new_editor.email)
@@ -30,10 +35,14 @@ class TestAddProjectEditorAPI(BaseAuthenticatedViewTestCase):
         self.assertEqual(payload["external_id"], new_editor.external_id)
         self.assertEqual(payload["email"], new_editor.email)
         self.assertEqual(payload["is_creator"], False)
-        self.assertFalse(payload.get("is_pending", False))
+        # Response always shows is_pending=True to prevent email enumeration
+        self.assertTrue(payload.get("is_pending", False))
 
-        # Verify user was added as editor
+        # Verify actual state via database - user was immediately added as editor
         self.assertTrue(self.project.editors.filter(id=new_editor.id).exists())
+
+        # No invitation should exist for existing users
+        self.assertFalse(ProjectInvitation.objects.filter(project=self.project, email=new_editor.email).exists())
 
         # Verify event was logged
         self.assertTrue(
@@ -124,17 +133,34 @@ class TestAddProjectEditorAPI(BaseAuthenticatedViewTestCase):
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
 
     def test_project_editor_can_add_other_editors(self):
-        """Test that any project editor can add other editors."""
-        # Create a project where self.user is just a project editor (not org member)
+        """Test that project editors (with 'editor' role) can add other editors."""
+        # Create a project where self.user is a project editor with 'editor' role (not org member)
         other_org = OrgFactory()
         project = ProjectFactory(org=other_org)
-        project.editors.add(self.user)  # Current user is a project editor
+        # Use ProjectEditorFactory with explicit editor role (viewers cannot add editors)
+        ProjectEditorFactory(project=project, user=self.user, role=ProjectEditorRole.EDITOR.value)
 
         email = "newperson@example.com"
 
         response = self.send_add_editor_request(project.external_id, email)
 
         self.assertEqual(response.status_code, HTTPStatus.CREATED)
+
+    def test_project_viewer_cannot_add_editors(self):
+        """Test that project viewers (with 'viewer' role) cannot add other editors."""
+        # Create a project where self.user is a project viewer (not org member)
+        other_org = OrgFactory()
+        project = ProjectFactory(org=other_org)
+        # Use ProjectEditorFactory with viewer role
+        ProjectEditorFactory(project=project, user=self.user, role=ProjectEditorRole.VIEWER.value)
+
+        email = "newperson@example.com"
+
+        response = self.send_add_editor_request(project.external_id, email)
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        self.assertIn("permission", payload["message"].lower())
 
     def test_invalid_project_returns_404(self):
         """Test adding editor to non-existent project returns 404."""

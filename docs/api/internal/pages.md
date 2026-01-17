@@ -185,7 +185,11 @@ None
 
 ### Authorization
 
-Requires authentication. User must have access to the specified project (be a member of the project's organization).
+Requires authentication. User must have **write access** to the specified project:
+
+- Org admin or org member (when `org_members_can_access=True`)
+- Project editor with `editor` or `admin` role
+- **Note:** Project viewers (`viewer` role) cannot create pages
 
 ### Request Headers
 
@@ -214,10 +218,11 @@ See [Overview](./overview.md)
 
 - Pages must belong to a project, which in turn belongs to an organization
 - The authenticated user becomes the creator/owner of the page
-- The user must be a member of the organization that owns the project
+- User must have write access (not just view access) to create pages
 
 **Error Responses:**
 
+- Status Code: 403 - User has view-only access to the project (viewer role)
 - Status Code: 404 - Project not found or user doesn't have access to the project
 - Status Code: 422 - Invalid input (e.g., title is empty or too long)
 
@@ -624,3 +629,75 @@ Remove a collaborator from a page.
 ### Response
 
 - Status Code: 204 (No Content)
+
+---
+
+## Access Codes (Read-Only Public Sharing)
+
+### Generate access code
+
+Generate or retrieve a read-only access code for a page.
+
+### URL
+
+`/api/pages/{external_id}/access-code/`
+
+### HTTP Method
+
+`POST`
+
+### Authorization
+
+Requires authentication. User must have **write access** to the page:
+
+- Org admin or org member (when `org_members_can_access=True`)
+- Project editor with `editor` or `admin` role
+- Page editor with `editor` or `admin` role
+- **Note:** Viewers cannot generate access codes
+
+### Response
+
+- Status Code: 200
+- Schema:
+
+```json
+{
+  "access_code": "abc123xyz..."
+}
+```
+
+**Notes:**
+
+- If an access code already exists, returns the existing code
+- Access codes are 43-character secure tokens
+- Anyone with the code can view (not edit) the page without authentication
+
+**Error Responses:**
+
+- Status Code: 403 - User has view-only access to the page
+
+---
+
+### Remove access code
+
+Remove the read-only access code from a page, revoking public access.
+
+### URL
+
+`/api/pages/{external_id}/access-code/`
+
+### HTTP Method
+
+`DELETE`
+
+### Authorization
+
+Requires authentication. User must have **write access** to the page (same requirements as generating).
+
+### Response
+
+- Status Code: 204 (No Content)
+
+**Error Responses:**
+
+- Status Code: 403 - User has view-only access to the page

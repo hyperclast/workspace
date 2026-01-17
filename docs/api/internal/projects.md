@@ -4,10 +4,23 @@
 
 Projects use a three-tier access control model:
 
-- **Tier 1 (Org)**: User is a member of the project's organization
-- **Tier 2 (Project)**: User is a project editor (directly added to project.editors)
+- **Tier 1 (Org)**: User is org admin, or org member (when `org_members_can_access=True`)
+- **Tier 2 (Project)**: User is a project editor with role: `admin`, `editor`, or `viewer`
+- **Tier 3 (Page)**: User is a page editor (only grants access to specific pages)
 
 Access is granted if ANY tier condition is true (additive/union model).
+
+### Role-Based Permissions
+
+Within Tier 2 (project level), roles control what actions are allowed:
+
+| Role     | View Pages | Edit Pages | Create Pages | Add/Remove Editors |
+| -------- | :--------: | :--------: | :----------: | :----------------: |
+| `admin`  |     ✓      |     ✓      |      ✓       |         ✓          |
+| `editor` |     ✓      |     ✓      |      ✓       |         ✓          |
+| `viewer` |     ✓      |            |              |                    |
+
+**Note:** Org admins and org members (when enabled) have implicit `editor`-equivalent permissions.
 
 ## Table of Contents
 
@@ -548,10 +561,15 @@ None
 ### Data Params
 
 - `email` (String, required): Email address of the user to add as editor
+- `role` (String, optional): Role for the new editor. One of `"viewer"`, `"editor"`, or `"admin"`. Default: `"viewer"`
 
 ### Authorization
 
-Requires authentication. User must have access to the project (org member or project editor).
+Requires authentication. User must have **write access** to the project:
+
+- Org admin or org member (when `org_members_can_access=True`)
+- Project editor with `editor` or `admin` role
+- **Note:** Project viewers cannot add editors
 
 ### Request Headers
 
@@ -601,6 +619,7 @@ External invitations (non-org members) are rate limited:
 **Error Responses:**
 
 - Status Code: 400 - User already has access to this project
+- Status Code: 403 - User has view-only access (viewer role)
 - Status Code: 404 - Project not found or user has no access
 - Status Code: 422 - Invalid email format
 - Status Code: 429 - Rate limit exceeded for external invitations
@@ -634,7 +653,11 @@ None
 
 ### Authorization
 
-Requires authentication. User must have access to the project (org member or project editor).
+Requires authentication. User must have **write access** to the project:
+
+- Org admin or org member (when `org_members_can_access=True`)
+- Project editor with `editor` or `admin` role
+- **Exception:** Users can always remove themselves, regardless of role
 
 ### Request Headers
 
@@ -647,7 +670,7 @@ See [Overview](./overview.md)
 **Notes:**
 
 - The project creator cannot be removed
-- Any editor can remove other editors (including themselves)
+- Editors can remove other editors (viewers cannot remove others, but can remove themselves)
 - For pending invitations, use the invitation external_id
 - An email notification is sent to the removed user
 - When a project editor is removed, they immediately lose access to all pages in the project
@@ -655,6 +678,7 @@ See [Overview](./overview.md)
 **Error Responses:**
 
 - Status Code: 400 - Cannot remove the project creator, or user is not an editor
+- Status Code: 403 - User has view-only access and is trying to remove someone else
 - Status Code: 404 - Project not found, user/invitation not found, or user has no access
 
 ---

@@ -18,6 +18,8 @@ from pages.models import Page, PageEditor, PageInvitation, Project
 from pages.permissions import (
     get_user_page_access_label,
     user_can_access_page,
+    user_can_edit_in_page,
+    user_can_edit_in_project,
     user_can_manage_page_sharing,
     user_can_modify_page,
 )
@@ -77,17 +79,21 @@ def autocomplete_pages(request: HttpRequest, q: str = ""):
     return PagesAutocompleteOut(pages=list(pages))
 
 
-@pages_router.post("/", response={201: PageOut, 413: dict})
+@pages_router.post("/", response={201: PageOut, 403: dict, 413: dict})
 def create_page(request: HttpRequest, payload: PageIn):
     """Create a new page for the current user.
 
-    Project access is granted via org membership OR project editor.
+    Requires write access to the project (editor role).
     If copy_from is provided, copies content and filetype from the source page.
     """
     project = get_object_or_404(
         Project.objects.get_user_accessible_projects(request.user),
         external_id=payload.project_id,
     )
+
+    # Verify user has write permission (not just read/viewer access)
+    if not user_can_edit_in_project(request.user, project):
+        return 403, {"message": "You don't have permission to create pages in this project"}
 
     default_details = {"content": "", "filetype": "md", "schema_version": 1}
 
@@ -241,12 +247,12 @@ def generate_access_code(request: HttpRequest, external_id: str):
     """Generate or retrieve a read-only access code for a page.
 
     Returns existing access code if one exists, otherwise creates a new one.
-    Requires edit access to the page (org member or project editor).
+    Requires write access to the page (editor role).
     """
     page = get_object_or_404(Page, external_id=external_id, is_deleted=False)
 
-    if not user_can_access_page(request.user, page):
-        return 403, {"message": "You don't have access to this page"}
+    if not user_can_edit_in_page(request.user, page):
+        return 403, {"message": "You don't have permission to generate access codes for this page"}
 
     if not page.access_code:
         page.access_code = secrets.token_urlsafe(32)
@@ -259,12 +265,12 @@ def generate_access_code(request: HttpRequest, external_id: str):
 def remove_access_code(request: HttpRequest, external_id: str):
     """Remove the read-only access code from a page.
 
-    Requires edit access to the page (org member or project editor).
+    Requires write access to the page (editor role).
     """
     page = get_object_or_404(Page, external_id=external_id, is_deleted=False)
 
-    if not user_can_access_page(request.user, page):
-        return 403, {"message": "You don't have access to this page"}
+    if not user_can_edit_in_page(request.user, page):
+        return 403, {"message": "You don't have permission to remove access codes from this page"}
 
     page.access_code = None
     page.save(update_fields=["access_code"])
@@ -476,6 +482,11 @@ def remove_page_editor(request: HttpRequest, external_id: str, user_external_id:
 
         # Remove editor
         page.editors.remove(user_to_remove)
+
+        # Notify WebSocket to re-check access and close if needed
+        from collab.utils import notify_page_access_revoked
+
+        notify_page_access_revoked(page.external_id, user_to_remove.id)
 
         log_info(
             "Page editor removed: user=%s, page=%s, removed_by=%s",

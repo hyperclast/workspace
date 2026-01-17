@@ -6,7 +6,8 @@ from django.test import override_settings
 from collab.models import YSnapshot, YUpdate
 from core.tests.common import BaseAuthenticatedViewTestCase
 from pages.models import Page
-from pages.tests.factories import PageFactory, ProjectFactory
+from pages.constants import ProjectEditorRole
+from pages.tests.factories import PageFactory, ProjectEditorFactory, ProjectFactory
 from users.constants import OrgMemberRole
 from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory
 
@@ -537,8 +538,8 @@ class TestProjectEditorAccessAPI(BaseAuthenticatedViewTestCase):
         # Create project in org
         self.project = ProjectFactory(org=self.org, creator=self.org_member)
 
-        # Add self.user as project editor (not org member)
-        self.project.editors.add(self.user)
+        # Add self.user as project editor with 'editor' role (not org member)
+        ProjectEditorFactory(project=self.project, user=self.user, role=ProjectEditorRole.EDITOR.value)
 
     def test_project_editor_can_list_project_pages(self):
         """Test that project editors can list pages in their shared projects."""

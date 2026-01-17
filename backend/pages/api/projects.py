@@ -369,14 +369,17 @@ def get_project_editors(request: HttpRequest, external_id: str):
     return editors
 
 
-@projects_router.post("/projects/{external_id}/editors/", response={201: ProjectEditorOut, 429: dict})
+@projects_router.post(
+    "/projects/{external_id}/editors/", response={201: ProjectEditorOut, 403: ErrorResponse, 429: dict}
+)
 def add_project_editor(
     request: HttpRequest,
     external_id: str,
     payload: ProjectEditorIn,
 ):
-    """Add an editor to the project by email. Any editor can add new editors.
+    """Add an editor to the project by email.
 
+    Only users with edit access (not viewers) can add new editors.
     Rate limiting: External invitations (non-org members, non-existent users) are rate limited.
     Org members inviting each other = high trust, no limit.
     """
@@ -387,12 +390,17 @@ def add_project_editor(
         increment_external_invitation_count,
         notify_admin_of_invitation_abuse,
     )
+    from pages.permissions import user_can_edit_in_project
 
     # Get project and verify current user has access
     project = get_object_or_404(
         Project.objects.get_user_accessible_projects(request.user),
         external_id=external_id,
     )
+
+    # Only users with edit access can add editors (not viewers)
+    if not user_can_edit_in_project(request.user, project):
+        return 403, {"error": "forbidden", "message": "You don't have permission to add editors to this project"}
 
     # Use the role from payload, defaulting to 'viewer'
     role = payload.role or ProjectEditorRole.VIEWER.value
@@ -492,17 +500,33 @@ def add_project_editor(
         }
 
 
-@projects_router.delete("/projects/{external_id}/editors/{user_external_id}/", response={204: None})
+@projects_router.delete("/projects/{external_id}/editors/{user_external_id}/", response={204: None, 403: ErrorResponse})
 def remove_project_editor(request: HttpRequest, external_id: str, user_external_id: str):
     """Remove an editor or cancel a pending invitation.
 
-    Any editor can remove others or themselves, but not the project creator.
+    Only users with edit access (not viewers) can remove others.
+    Users can always remove themselves. Cannot remove the project creator.
     """
+    from pages.permissions import user_can_edit_in_project
+
     # Get project and verify current user has access
     project = get_object_or_404(
         Project.objects.get_user_accessible_projects(request.user),
         external_id=external_id,
     )
+
+    # Check if user is trying to remove themselves (always allowed)
+    is_removing_self = False
+    try:
+        target_user = User.objects.get(external_id=user_external_id)
+        is_removing_self = target_user.id == request.user.id
+    except User.DoesNotExist:
+        pass  # Could be a pending invitation
+
+    # Only users with edit access can remove others (not viewers)
+    # Exception: users can always remove themselves
+    if not is_removing_self and not user_can_edit_in_project(request.user, project):
+        return 403, {"error": "forbidden", "message": "You don't have permission to remove editors from this project"}
 
     # Try to find a user first
     try:

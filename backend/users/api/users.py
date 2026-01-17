@@ -38,6 +38,7 @@ def get_current_user(request: HttpRequest):
         "last_name": request.user.last_name,
         "is_authenticated": True,
         "access_token": request.user.profile.access_token,
+        "keyboard_shortcuts": request.user.profile.keyboard_shortcuts or {},
     }
 
 
@@ -82,6 +83,7 @@ def update_current_user(request: HttpRequest, payload: UpdateUserSchema):
         "last_name": user.last_name,
         "is_authenticated": True,
         "access_token": user.profile.access_token,
+        "keyboard_shortcuts": user.profile.keyboard_shortcuts or {},
     }
 
 

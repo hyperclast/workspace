@@ -296,6 +296,31 @@ nav {
   width: 100%;
 }
 
+/* Nav icon button (help, etc.) */
+.nav-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.nav-icon-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary, rgba(0, 0, 0, 0.05));
+}
+
+.nav-icon-btn svg {
+  flex-shrink: 0;
+}
+
 /* App Navigation (purple gradient - for settings, pricing, etc.) */
 .app-nav {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);

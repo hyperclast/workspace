@@ -51,7 +51,9 @@ import {
   newPageModal,
   changePageType,
   readonlyLinkModal,
+  helpModal,
 } from "./lib/modal.js";
+import { initShortcuts } from "./lib/keyboardShortcuts.js";
 import { setupCommandPalette } from "./lib/commandPaletteSetup.js";
 import { showToast } from "./lib/toast.js";
 import {
@@ -83,6 +85,31 @@ import { getPageIdFromPath } from "./router.js";
 import { initTheme } from "./theme.js";
 import { mount } from "svelte";
 import ThemeToggle from "./lib/components/ThemeToggle.svelte";
+
+/**
+ * Check if focus is currently in an input element where ? should be typed.
+ */
+function isInputFocused() {
+  const activeEl = document.activeElement;
+  if (!activeEl) return false;
+
+  // Check for input, textarea, or contenteditable
+  if (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA") {
+    return true;
+  }
+
+  // Check for contenteditable or CodeMirror editor
+  if (activeEl.isContentEditable || activeEl.classList.contains("cm-content")) {
+    return true;
+  }
+
+  // Check if inside CodeMirror editor
+  if (activeEl.closest(".cm-editor")) {
+    return true;
+  }
+
+  return false;
+}
 
 /**
  * Render the main app HTML structure into #app
@@ -243,6 +270,7 @@ function renderAppHTML() {
 /**
  * Check if user is authenticated.
  * Returns user object if authenticated, redirects to login page if not.
+ * Also fetches full user profile including keyboard shortcuts.
  */
 async function checkAuthentication() {
   const session = await getSession();
@@ -266,6 +294,19 @@ async function checkAuthentication() {
     document.getElementById("user-avatar"),
     document.getElementById("user-initial")
   );
+
+  // Fetch full user profile including keyboard shortcuts
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/users/me/`, {
+      credentials: "same-origin",
+    });
+    if (response.ok) {
+      const profile = await response.json();
+      initShortcuts(profile.keyboard_shortcuts || {});
+    }
+  } catch (error) {
+    console.error("Failed to load user profile:", error);
+  }
 
   return session.user;
 }
@@ -1376,7 +1417,7 @@ function initializeEditor(pageContent = "", additionalExtensions = [], filetype 
       ? []
       : [
           codeFenceField,
-          listKeymap,
+          ...listKeymap,
           blockquoteKeymap,
           checkboxClickHandler,
           decorateFormatting,
@@ -1871,6 +1912,14 @@ async function startApp() {
   if (themeToggleRoot) {
     mount(ThemeToggle, { target: themeToggleRoot });
   }
+
+  // Setup global keyboard shortcut for help modal
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "?" && !isInputFocused()) {
+      e.preventDefault();
+      helpModal();
+    }
+  });
 
   // Expose openPage for sidebar components to navigate between pages
   window.openPage = openPage;

@@ -74,6 +74,7 @@ class OrgMemberList(Schema):
 
 class UpdateSettingsSchema(Schema):
     tz: Optional[str] = None
+    keyboard_shortcuts: Optional[dict] = None
 
 
 class CurrentUserSchema(Schema):
@@ -87,6 +88,7 @@ class CurrentUserSchema(Schema):
     last_name: str
     is_authenticated: bool = True
     access_token: str
+    keyboard_shortcuts: dict = {}
 
 
 class UpdateUserSchema(Schema):

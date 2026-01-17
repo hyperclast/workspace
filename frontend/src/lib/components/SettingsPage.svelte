@@ -9,13 +9,16 @@
     loadSettings,
     logout,
     regenerateToken,
+    updateKeyboardShortcuts,
     updateOrgName,
     updateUserField,
   } from "../stores/settings.svelte.js";
   import { showToast } from "../toast.js";
   import { validateUsername } from "../validators.js";
   import AISettingsTab from "./settings/AISettingsTab.svelte";
+  import EditorSettingsTab from "./settings/EditorSettingsTab.svelte";
   import ThemeToggle from "./ThemeToggle.svelte";
+  import { helpModal } from "../modal.js";
 
   const brandName = getBrandName();
   const pricingEnabled = isPrivateFeatureEnabled("pricing");
@@ -36,6 +39,7 @@
   const navItems = [
     { id: "account", label: "Account", icon: "user" },
     { id: "org", label: "Organizations", icon: "building" },
+    { id: "editor", label: "Editor", icon: "keyboard" },
     { id: "ai", label: "AI", icon: "sparkles" },
     { id: "developer", label: "Developer", icon: "code" },
   ];
@@ -56,10 +60,20 @@
       activeTab = getTabFromHash();
     };
 
+    const handleKeydown = (e) => {
+      // Open help modal with ? key when not in an input
+      if (e.key === "?" && !e.target.closest("input, textarea, [contenteditable]")) {
+        e.preventDefault();
+        helpModal();
+      }
+    };
+
     window.addEventListener("hashchange", handleHashChange);
+    document.addEventListener("keydown", handleKeydown);
 
     return () => {
       window.removeEventListener("hashchange", handleHashChange);
+      document.removeEventListener("keydown", handleKeydown);
     };
   });
 
@@ -272,6 +286,7 @@
     const icons = {
       user: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`,
       building: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><path d="M9 22v-4h6v4"></path><path d="M8 6h.01"></path><path d="M16 6h.01"></path><path d="M12 6h.01"></path><path d="M12 10h.01"></path><path d="M12 14h.01"></path><path d="M16 10h.01"></path><path d="M16 14h.01"></path><path d="M8 10h.01"></path><path d="M8 14h.01"></path></svg>`,
+      keyboard: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><path d="M6 8h.001"></path><path d="M10 8h.001"></path><path d="M14 8h.001"></path><path d="M18 8h.001"></path><path d="M8 12h.001"></path><path d="M12 12h.001"></path><path d="M16 12h.001"></path><path d="M7 16h10"></path></svg>`,
       sparkles: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path><path d="M5 3v4"></path><path d="M19 17v4"></path><path d="M3 5h4"></path><path d="M17 19h4"></path></svg>`,
       code: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>`,
     };
@@ -536,6 +551,15 @@
               {/if}
             </div>
           </section>
+        </div>
+
+        <!-- Editor Tab -->
+        <div class="settings-tab-content" class:active={activeTab === "editor"}>
+          <h2 class="settings-page-title">Editor</h2>
+          <EditorSettingsTab
+            keyboardShortcuts={data.user?.keyboard_shortcuts || {}}
+            onUpdate={updateKeyboardShortcuts}
+          />
         </div>
 
         <!-- AI Tab -->

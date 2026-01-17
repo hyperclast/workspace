@@ -168,6 +168,49 @@ When a user exceeds the limit:
 - `backend/pages/api/pages.py` - Page editor endpoint (uses rate limiting)
 - `backend/pages/api/projects.py` - Project editor endpoint (uses rate limiting)
 
+## WebSocket Write Permissions (Real-Time Collaboration)
+
+The collaboration layer enforces role-based write permissions on WebSocket connections. This ensures that viewers cannot modify page content even through the real-time editing interface.
+
+**How it works:**
+
+1. On WebSocket connection, the server checks both read and write permissions
+2. `can_access_page()` - Determines if user can connect (read access via any tier)
+3. `can_edit_page()` - Determines if user can send updates (write access requires editor role)
+4. Viewers can connect and receive updates but cannot send edits
+
+**Message Filtering:**
+
+| Message Type                  | Viewers | Editors |
+| ----------------------------- | :-----: | :-----: |
+| SYNC_STEP1 (initial sync)     |    ✓    |    ✓    |
+| SYNC_STEP2 (state response)   |    ✓    |    ✓    |
+| SYNC_UPDATE (content changes) |    ✗    |    ✓    |
+| Awareness updates             |    ✓    |    ✓    |
+
+**Error Handling:**
+
+When a viewer attempts to send an update:
+
+1. Server rejects the message BEFORE broadcasting
+2. Client receives: `{"type":"error","code":"read_only","message":"You have view-only access to this page"}`
+3. No state divergence occurs (update never reaches other clients or database)
+
+**Access Revocation:**
+
+When a user's access is revoked (e.g., removed as page editor):
+
+1. `notify_page_access_revoked()` sends a message via channel layer
+2. WebSocket consumer receives `access_revoked` event
+3. Server re-checks if user still has access via other tiers
+4. If no access remains, connection is closed
+
+**Related Files:**
+
+- `backend/collab/permissions.py` - `can_access_page()`, `can_edit_page()`
+- `backend/collab/consumers.py` - WebSocket consumer with write filtering
+- `backend/collab/utils.py` - `notify_page_access_revoked()`
+
 ## Access Code (Read-Only Public Sharing)
 
 Pages have an `access_code` field for unauthenticated read-only access:

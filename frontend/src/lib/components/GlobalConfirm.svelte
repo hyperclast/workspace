@@ -8,7 +8,8 @@
   import ChangePageTypeModal from './ChangePageTypeModal.svelte';
   import CommandPalette from './CommandPalette.svelte';
   import ReadOnlyLinkModal from './ReadOnlyLinkModal.svelte';
-  import { getConfirmState, getPromptState, getShareProjectState, getCreateProjectState, getNewPageState, getChangePageTypeState, getCommandPaletteState, getReadonlyLinkState, getSharePageState } from '../stores/modal.svelte.js';
+  import HelpModal from './HelpModal.svelte';
+  import { getConfirmState, getPromptState, getShareProjectState, getCreateProjectState, getNewPageState, getChangePageTypeState, getCommandPaletteState, getReadonlyLinkState, getSharePageState, getHelpState } from '../stores/modal.svelte.js';
 
   const confirmState = getConfirmState();
   const promptState = getPromptState();
@@ -19,6 +20,7 @@
   const changePageTypeState = getChangePageTypeState();
   const commandPaletteState = getCommandPaletteState();
   const readonlyLinkState = getReadonlyLinkState();
+  const helpState = getHelpState();
 </script>
 
 <ConfirmModal
@@ -98,3 +100,5 @@
   pageTitle={sharePageState.pageTitle}
   onAccessCodeChange={sharePageState.onAccessCodeChange}
 />
+
+<HelpModal bind:open={helpState.open} />

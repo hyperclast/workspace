@@ -1,8 +1,9 @@
 from http import HTTPStatus
 
 from core.tests.common import BaseAuthenticatedViewTestCase
+from pages.constants import ProjectEditorRole
 from pages.models import ProjectEditorRemoveEvent, ProjectInvitation
-from pages.tests.factories import ProjectFactory, ProjectInvitationFactory
+from pages.tests.factories import ProjectEditorFactory, ProjectFactory, ProjectInvitationFactory
 from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory
 
 
@@ -95,10 +96,11 @@ class TestRemoveProjectEditorAPI(BaseAuthenticatedViewTestCase):
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
 
     def test_project_editor_can_remove_other_editors(self):
-        """Test that project editors can remove other editors."""
+        """Test that project editors (with 'editor' role) can remove other editors."""
         other_org = OrgFactory()
         project = ProjectFactory(org=other_org)
-        project.editors.add(self.user)  # Current user is a project editor
+        # Use ProjectEditorFactory with explicit editor role (viewers cannot remove others)
+        ProjectEditorFactory(project=project, user=self.user, role=ProjectEditorRole.EDITOR.value)
 
         other_editor = UserFactory()
         project.editors.add(other_editor)
@@ -109,6 +111,39 @@ class TestRemoveProjectEditorAPI(BaseAuthenticatedViewTestCase):
 
         # Verify editor was removed
         self.assertFalse(project.editors.filter(id=other_editor.id).exists())
+
+    def test_project_viewer_cannot_remove_other_editors(self):
+        """Test that project viewers (with 'viewer' role) cannot remove other editors."""
+        other_org = OrgFactory()
+        project = ProjectFactory(org=other_org)
+        # Use ProjectEditorFactory with viewer role
+        ProjectEditorFactory(project=project, user=self.user, role=ProjectEditorRole.VIEWER.value)
+
+        other_editor = UserFactory()
+        project.editors.add(other_editor)
+
+        response = self.send_remove_editor_request(project.external_id, other_editor.external_id)
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        self.assertIn("permission", payload["message"].lower())
+
+        # Verify editor was NOT removed
+        self.assertTrue(project.editors.filter(id=other_editor.id).exists())
+
+    def test_project_viewer_can_remove_themselves(self):
+        """Test that project viewers can still remove themselves from a project."""
+        other_org = OrgFactory()
+        project = ProjectFactory(org=other_org)
+        # Use ProjectEditorFactory with viewer role
+        ProjectEditorFactory(project=project, user=self.user, role=ProjectEditorRole.VIEWER.value)
+
+        response = self.send_remove_editor_request(project.external_id, self.user.external_id)
+
+        self.assertEqual(response.status_code, HTTPStatus.NO_CONTENT)
+
+        # Verify self was removed
+        self.assertFalse(project.editors.filter(id=self.user.id).exists())
 
     def test_project_editor_can_remove_themselves(self):
         """Test that project editors can remove themselves from a project."""

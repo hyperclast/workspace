@@ -6,11 +6,23 @@ Pages are documents within projects. Access is granted through organization memb
 
 Access uses an additive three-tier model—access is granted if **any** tier applies:
 
-| Tier    | Description                                 |
-| ------- | ------------------------------------------- |
-| Org     | Member of the page's project's organization |
-| Project | Added as editor on the page's project       |
-| Page    | Explicitly shared as page editor            |
+| Tier    | Description                                                 |
+| ------- | ----------------------------------------------------------- |
+| Org     | Org admin, or org member (when enabled)                     |
+| Project | Added as project editor (admin/editor/viewer role)          |
+| Page    | Explicitly shared as page editor (admin/editor/viewer role) |
+
+### Role-Based Permissions
+
+Within each tier, roles control what actions are allowed:
+
+| Role     | Read | Write | Manage Sharing |
+| -------- | :--: | :---: | :------------: |
+| `admin`  |  ✓   |   ✓   |       ✓        |
+| `editor` |  ✓   |   ✓   |       ✓        |
+| `viewer` |  ✓   |       |                |
+
+**Note:** Viewers can read pages but cannot create pages, edit content, generate access codes, or add collaborators.
 
 ---
 

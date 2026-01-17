@@ -1,8 +1,9 @@
 from http import HTTPStatus
 
 from core.tests.common import BaseAuthenticatedViewTestCase
+from pages.constants import ProjectEditorRole
 from pages.models import Page
-from pages.tests.factories import PageFactory, ProjectFactory
+from pages.tests.factories import PageFactory, ProjectEditorFactory, ProjectFactory
 from users.constants import OrgMemberRole
 from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory
 
@@ -208,7 +209,8 @@ class TestPageCopyAccessControl(BaseAuthenticatedViewTestCase):
         OrgMemberFactory(org=other_org, user=other_user, role=OrgMemberRole.MEMBER.value)
         other_project = ProjectFactory(org=other_org, creator=other_user)
 
-        other_project.editors.add(self.user)
+        # Add self.user as project editor with 'editor' role (has write access)
+        ProjectEditorFactory(project=other_project, user=self.user, role=ProjectEditorRole.EDITOR.value)
 
         source_page = PageFactory(
             project=other_project,

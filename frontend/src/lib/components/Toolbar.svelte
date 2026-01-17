@@ -17,10 +17,12 @@
     FileCode,
     Link2,
     Undo2,
-    Redo2
+    Redo2,
+    CircleHelp
   } from "lucide-static";
   import { openSidebar, setActiveTab } from "../stores/sidebar.svelte.js";
   import { toggleCheckbox } from "../../decorateFormatting.js";
+  import { helpModal } from "../modal.js";
   import LinkModal from "./LinkModal.svelte";
 
   let { editorView = $bindable(null), tableUtils = null } = $props();
@@ -450,6 +452,9 @@
       </button>
       <button class="toolbar-btn" title="Insert table" onmousedown={(e) => { e.preventDefault(); insertTable(); }}>
         {@html Table2}
+      </button>
+      <button class="toolbar-btn" title="Keyboard shortcuts (?)" onmousedown={(e) => { e.preventDefault(); helpModal(); }}>
+        {@html CircleHelp}
       </button>
     </div>
   </div>

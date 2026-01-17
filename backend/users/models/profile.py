@@ -30,6 +30,7 @@ class Profile(TimeStampedModel):
     last_active = models.DateTimeField(null=True, blank=True)
     receive_product_updates = models.BooleanField(default=True)
     demo_visits = models.JSONField(default=list, blank=True)
+    keyboard_shortcuts = models.JSONField(default=dict, blank=True)
 
     def __str__(self):
         return f"{self.user.email}"

@@ -6,12 +6,38 @@
 
 import { commandPalette } from "./modal.js";
 import { showToast } from "./toast.js";
+import { getShortcut, onShortcutChange } from "./keyboardShortcuts.js";
 
 let initialized = false;
 let keydownHandler = null;
+let shortcutUnsubscribe = null;
 
 /**
- * Setup the command palette keyboard shortcut (Cmd+K / Ctrl+K)
+ * Check if a keyboard event matches a shortcut notation (e.g., "Mod-k")
+ */
+function matchesShortcut(event, shortcutNotation) {
+  if (!shortcutNotation || shortcutNotation === "disabled") {
+    return false;
+  }
+
+  const parts = shortcutNotation.toLowerCase().split("-");
+  const key = parts[parts.length - 1];
+  const hasMod = parts.includes("mod");
+  const hasShift = parts.includes("shift");
+  const hasAlt = parts.includes("alt");
+
+  const modPressed = event.metaKey || event.ctrlKey;
+
+  return (
+    event.key.toLowerCase() === key &&
+    modPressed === hasMod &&
+    event.shiftKey === hasShift &&
+    event.altKey === hasAlt
+  );
+}
+
+/**
+ * Setup the command palette keyboard shortcut (customizable, default Cmd+K / Ctrl+K)
  * @param {Object} options
  * @param {Function} options.getProjects - Function that returns current projects array
  * @param {Function} options.getCurrentPageId - Function that returns current page ID (optional)
@@ -29,8 +55,8 @@ export function setupCommandPalette(options = {}) {
   }
 
   keydownHandler = (e) => {
-    // Cmd+K (Mac) or Ctrl+K (Windows/Linux)
-    if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+    const shortcut = getShortcut("openCommandPalette");
+    if (matchesShortcut(e, shortcut)) {
       e.preventDefault();
 
       const projects = options.getProjects ? options.getProjects() : [];

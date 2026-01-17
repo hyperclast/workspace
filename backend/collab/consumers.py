@@ -9,7 +9,7 @@ from typing import Optional, Tuple
 from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.core.cache import cache
-from pycrdt import Doc
+from pycrdt import Doc, YMessageType, YSyncMessageType
 from pycrdt.websocket.django_channels_consumer import YjsConsumer as BaseYjsConsumer
 
 from backend.utils import (
@@ -22,7 +22,7 @@ from backend.utils import (
     set_request_id,
 )
 
-from .permissions import can_access_page
+from .permissions import can_access_page, can_edit_page
 from .ystore import PostgresYStore, get_db_config_from_django
 
 
@@ -40,6 +40,7 @@ class PageYjsConsumer(BaseYjsConsumer):
         super().__init__(*args, **kwargs)
         log_debug("PageYjsConsumer instantiated")
         self.user_id = None  # Will be set in connect()
+        self.can_write = False  # Will be set in connect() - False means viewer (read-only)
         self.snapshot_task = None  # asyncio task handle for periodic snapshots
         self.has_unsaved_changes = False  # Flag for dirty tracking
         self.updates_since_snapshot = 0  # Counter for update-based snapshot trigger
@@ -146,6 +147,11 @@ class PageYjsConsumer(BaseYjsConsumer):
 
         # Store user ID for access revocation checks
         self.user_id = user.id if user.is_authenticated else None
+
+        # Check if user has write permission (editor role)
+        # Viewers will have can_write=False and their SYNC_UPDATE messages will be rejected
+        self.can_write = await can_edit_page(self.user_id, page_uuid) if self.user_id else False
+        log_info(f"Write permission for user {user} to page {page_uuid}: {self.can_write}")
 
         # Prepare persistence *before* parent sets up the ydoc
         await self._ensure_ystore()
@@ -346,14 +352,40 @@ class PageYjsConsumer(BaseYjsConsumer):
 
     async def receive(self, text_data=None, bytes_data=None):
         """
-        Let the base class handle the Yjs protocol; we only log sizes.
-        Persistence is doc-observer-driven.
+        Filter incoming messages. Reject write operations from viewers
+        BEFORE broadcasting to prevent state divergence.
+
+        IMPORTANT: Filtering must happen here, not in _on_transaction(), because:
+        1. super().receive() broadcasts to all clients AND applies to server ydoc
+        2. If we filter later, other clients already have the change
+        3. Result: State divergence - changes visible during session but lost on reconnect
         """
         # Restore request ID context for this message (may be lost in async boundaries)
         if hasattr(self, "request_id"):
             set_request_id(self.request_id)
 
+        # Check for write operations from viewers
+        if bytes_data is not None and not self.can_write:
+            # Check if this is a sync update (write operation)
+            # Yjs protocol: first byte is message type, second byte is sync message type
+            if len(bytes_data) > 1 and bytes_data[0] == YMessageType.SYNC:
+                sync_type = bytes_data[1]
+                # SYNC_UPDATE (value=2) contains actual document changes
+                if sync_type == YSyncMessageType.SYNC_UPDATE:
+                    log_warning(
+                        "Rejecting write from viewer: user_id=%s, room=%s",
+                        self.user_id,
+                        getattr(self, "room_name", "unknown"),
+                    )
+                    # Send error message to client
+                    await self.send(
+                        text_data='{"type":"error","code":"read_only","message":"You have view-only access to this page"}'
+                    )
+                    return  # Don't process this message - prevents broadcast AND persistence
+
+        # Proceed with normal receive (broadcasts to group and applies to ydoc)
         await super().receive(text_data, bytes_data)
+
         if bytes_data is not None:
             log_debug("Received WebSocket message: %s bytes", len(bytes_data))
 

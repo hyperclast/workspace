@@ -10,6 +10,7 @@ import {
   openCommandPalette as _openCommandPalette,
   openReadonlyLink as _openReadonlyLink,
   openSharePage as _openSharePage,
+  openHelp as _openHelp,
 } from "./stores/modal.svelte.js";
 
 let mounted = false;
@@ -150,4 +151,12 @@ export function readonlyLinkModal(options = {}) {
 export function sharePage(options = {}) {
   initModals();
   _openSharePage(options);
+}
+
+/**
+ * Show the keyboard shortcuts help modal
+ */
+export function helpModal() {
+  initModals();
+  _openHelp();
 }

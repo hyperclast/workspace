@@ -4,6 +4,7 @@
 
 import { API_BASE_URL } from "../../config.js";
 import { csrfFetch } from "../../csrf.js";
+import { initShortcuts } from "../keyboardShortcuts.js";
 
 // Reactive state
 let user = $state(null);
@@ -27,6 +28,10 @@ export async function loadSettings() {
     }
 
     user = await userResponse.json();
+
+    // Initialize keyboard shortcuts from user profile
+    initShortcuts(user.keyboard_shortcuts);
+
     const rawOrgs = orgsResponse.ok ? await orgsResponse.json() : [];
 
     // Load member details for each org
@@ -154,6 +159,26 @@ export async function logout() {
     console.error("Logout error:", error);
   }
   window.location.href = "/login";
+}
+
+export async function updateKeyboardShortcuts(shortcuts) {
+  try {
+    const response = await csrfFetch(`${API_BASE_URL}/api/users/settings/`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keyboard_shortcuts: shortcuts }),
+    });
+
+    if (response.ok) {
+      user = { ...user, keyboard_shortcuts: shortcuts };
+      return { success: true };
+    } else {
+      const data = await response.json();
+      return { success: false, error: data.message || "Failed to update keyboard shortcuts" };
+    }
+  } catch {
+    return { success: false, error: "Failed to update keyboard shortcuts" };
+  }
 }
 
 // Export reactive state directly for Svelte components

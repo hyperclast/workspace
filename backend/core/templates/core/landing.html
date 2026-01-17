@@ -67,7 +67,7 @@
 
     {% include 'core/partials/_favicon.html' %}
 
-    <link rel="preload" href="{% static 'core/img/app-screenshot-max.png' %}" as="image" />
+    <link rel="preload" href="{% static 'core/img/app-screenshot.png' %}" as="image" />
 
     <style>
       * {
@@ -417,6 +417,15 @@
 
       .landing-screenshot {
         margin-top: 2rem;
+        position: relative;
+      }
+
+      .landing-screenshot-link {
+        display: block;
+        position: relative;
+        text-decoration: none;
+        border-radius: 8px;
+        overflow: hidden;
       }
 
       .landing-screenshot img {
@@ -424,64 +433,42 @@
         max-width: 100%;
         border-radius: 8px;
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-        cursor: pointer;
+        display: block;
         transition: transform 0.2s, box-shadow 0.2s;
       }
 
-      .landing-screenshot img:hover {
+      .landing-screenshot-link:hover img {
         transform: scale(1.01);
         box-shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
       }
 
-      .screenshot-modal {
-        display: none;
-        position: fixed;
-        inset: 0;
-        z-index: 2000;
-      }
-
-      .screenshot-modal.open {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .screenshot-modal-backdrop {
+      .screenshot-cta {
         position: absolute;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.85);
-      }
-
-      .screenshot-modal-content {
-        position: relative;
-        max-width: 95vw;
-        max-height: 95vh;
-      }
-
-      .screenshot-modal-content img {
-        max-width: 95vw;
-        max-height: 90vh;
-        border-radius: 8px;
-        box-shadow: 0 16px 64px rgba(0, 0, 0, 0.4);
-      }
-
-      .screenshot-modal-close {
-        position: absolute;
-        top: -40px;
-        right: 0;
-        background: none;
-        border: none;
+        bottom: 2rem;
+        left: 50%;
+        transform: translateX(-50%);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        font-size: 2rem;
-        cursor: pointer;
-        opacity: 0.8;
-        transition: opacity 0.15s;
-        padding: 0.25rem 0.5rem;
-        line-height: 1;
+        padding: 1rem 2rem;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 1.1rem;
+        box-shadow: 0 4px 20px rgba(102, 126, 234, 0.5);
+        transition: transform 0.2s, box-shadow 0.2s;
+        white-space: nowrap;
       }
 
-      .screenshot-modal-close:hover {
-        opacity: 1;
+      .landing-screenshot-link:hover .screenshot-cta {
+        transform: translateX(-50%) translateY(-2px);
+        box-shadow: 0 6px 28px rgba(102, 126, 234, 0.6);
+      }
+
+      @media (max-width: 768px) {
+        .screenshot-cta {
+          padding: 0.75rem 1.25rem;
+          font-size: 0.95rem;
+          bottom: 1rem;
+        }
       }
 
       :root.dark .landing-roadmap,
@@ -876,15 +863,10 @@
           <h2>The Team Workspace</h2>
           <p class="landing-roadmap-subtitle">Real-time knowledge base that doesn't slow down at scale.</p>
           <div class="landing-screenshot">
-            <img src="{% static 'core/img/app-screenshot-min.png' %}" alt="Hyperclast workspace showing the editor with sidebar navigation, formatting toolbar, and backlinks panel" id="screenshot-thumb" />
-          </div>
-
-          <div class="screenshot-modal" id="screenshot-modal">
-            <div class="screenshot-modal-backdrop"></div>
-            <div class="screenshot-modal-content">
-              <button class="screenshot-modal-close" aria-label="Close">&times;</button>
-              <img src="{% static 'core/img/app-screenshot-max.png' %}" alt="Hyperclast workspace" />
-            </div>
+            <a href="/demo/" class="landing-screenshot-link">
+              <img src="{% static 'core/img/app-screenshot.png' %}" alt="Hyperclast workspace showing the editor with sidebar navigation, formatting toolbar, and backlinks panel" />
+              <span class="screenshot-cta">Try It Live. No Login Required.</span>
+            </a>
           </div>
         </div>
       </section>
@@ -1033,35 +1015,6 @@
           if (href) window.location.href = href;
         });
       });
-    </script>
-    <script>
-      // Screenshot lightbox
-      (function() {
-        var thumb = document.getElementById('screenshot-thumb');
-        var modal = document.getElementById('screenshot-modal');
-        var backdrop = modal.querySelector('.screenshot-modal-backdrop');
-        var closeBtn = modal.querySelector('.screenshot-modal-close');
-
-        function openModal() {
-          modal.classList.add('open');
-          document.body.style.overflow = 'hidden';
-        }
-
-        function closeModal() {
-          modal.classList.remove('open');
-          document.body.style.overflow = '';
-        }
-
-        thumb.addEventListener('click', openModal);
-        backdrop.addEventListener('click', closeModal);
-        closeBtn.addEventListener('click', closeModal);
-
-        document.addEventListener('keydown', function(e) {
-          if (e.key === 'Escape' && modal.classList.contains('open')) {
-            closeModal();
-          }
-        });
-      })();
     </script>
   </body>
 </html>

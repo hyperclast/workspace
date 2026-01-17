@@ -4,15 +4,27 @@ Projects are containers for pages within an organization. Access is granted thro
 
 ## Access Control
 
-| Tier    | Description                                                    |
-| ------- | -------------------------------------------------------------- |
-| Org     | Member of the project's org (if `org_members_can_access=true`) |
-| Project | Added as a project editor/viewer                               |
-| Page    | Added as an editor on a specific page in the project           |
+| Tier    | Description                                                         |
+| ------- | ------------------------------------------------------------------- |
+| Org     | Org admin, or org member (if `org_members_can_access=true`)         |
+| Project | Added as a project editor with role: `admin`, `editor`, or `viewer` |
+| Page    | Added as an editor on a specific page in the project                |
 
 Access is granted if **any** tier applies.
 
 Projects have an `org_members_can_access` setting (default: `true`). When `false`, only org admins and explicit project/page editors can access.
+
+### Role-Based Permissions
+
+Within project-level access, roles control what actions are allowed:
+
+| Role     | View Pages | Edit Pages | Create Pages | Add/Remove Editors |
+| -------- | :--------: | :--------: | :----------: | :----------------: |
+| `admin`  |     ✓      |     ✓      |      ✓       |         ✓          |
+| `editor` |     ✓      |     ✓      |      ✓       |         ✓          |
+| `viewer` |     ✓      |            |              |                    |
+
+**Note:** Viewers have read-only access and cannot modify content or manage collaborators.
 
 ---
 
