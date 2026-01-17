@@ -88,6 +88,7 @@ CSRF_TRUSTED_ORIGINS = config(
 # CSRF settings for same-origin setup
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_AGE = 100 * 365 * 24 * 60 * 60  # 100 years in seconds
 
 ROOT_URLCONF = "backend.urls"
 
