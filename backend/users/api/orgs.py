@@ -112,6 +112,7 @@ def update_org(request: HttpRequest, external_id: str, payload: OrgUpdateIn):
 
     if payload.name is not None:
         org.name = payload.name
+
     org.save()
 
     log_info(f"User {request.user.email} updated org {org.external_id}")
@@ -154,6 +155,7 @@ def list_org_members(request: HttpRequest, external_id: str):
         {
             "external_id": m.user.external_id,
             "email": m.user.email,
+            "username": m.user.username,
             "role": m.role,
             "created": m.created,
         }
@@ -193,6 +195,7 @@ def add_org_member(request: HttpRequest, external_id: str, payload: OrgMemberIn)
     return 201, {
         "external_id": user_to_add.external_id,
         "email": user_to_add.email,
+        "username": user_to_add.username,
         "role": membership.role,
         "created": membership.created,
     }
@@ -262,6 +265,7 @@ def update_org_member_role(request: HttpRequest, external_id: str, user_external
     return {
         "external_id": user_to_update.external_id,
         "email": user_to_update.email,
+        "username": user_to_update.username,
         "role": membership.role,
         "created": membership.created,
     }

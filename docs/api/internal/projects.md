@@ -589,11 +589,21 @@ See [Overview](./overview.md)
 - Re-inviting the same email returns the existing invitation (idempotent)
 - Email addresses are normalized to lowercase
 
+**Rate Limiting:**
+
+External invitations (non-org members) are rate limited:
+
+- 10 invitations per hour per user
+- Org members inviting each other are NOT rate limited (high trust)
+- Returns 429 if limit exceeded
+- Admin notified on abuse
+
 **Error Responses:**
 
 - Status Code: 400 - User already has access to this project
 - Status Code: 404 - Project not found or user has no access
 - Status Code: 422 - Invalid email format
+- Status Code: 429 - Rate limit exceeded for external invitations
 
 ---
 

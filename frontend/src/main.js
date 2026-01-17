@@ -1538,6 +1538,7 @@ function setupNoteActions() {
       shareProject({
         projectId: currentProjectId,
         projectName: project?.name || "Project",
+        orgName: project?.org?.name || "",
       });
     });
   }

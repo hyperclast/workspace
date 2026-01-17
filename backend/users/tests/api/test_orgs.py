@@ -373,6 +373,21 @@ class TestOrgMembersAPI(BaseAuthenticatedViewTestCase):
         self.assertEqual(membership.role, "member")
 
 
+class TestOrgMemberUsername(BaseAuthenticatedViewTestCase):
+    """Test that member list includes username."""
+
+    def test_member_list_includes_username(self):
+        """Member list includes username field."""
+        org = OrgFactory()
+        OrgMemberFactory(org=org, user=self.user)
+
+        response = self.send_api_request(f"/api/orgs/{org.external_id}/members/", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertIn("username", response.json()[0])
+        self.assertEqual(response.json()[0]["username"], self.user.username)
+
+
 class TestAddMemberThrottling(BaseAuthenticatedViewTestCase):
     """Test rate limiting on the add member endpoint."""
 

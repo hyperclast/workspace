@@ -4,6 +4,7 @@ from core.tests.common import BaseAuthenticatedViewTestCase
 from pages.models import Project
 from pages.tests.factories import PageFactory, ProjectFactory
 from users.constants import OrgMemberRole
+from users.models import OrgMember
 from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory
 
 
@@ -557,3 +558,314 @@ class TestProjectEditorAccess(BaseAuthenticatedViewTestCase):
         self.assertIsNotNone(payload["pages"])
         self.assertEqual(len(payload["pages"]), 1)
         self.assertEqual(payload["pages"][0]["external_id"], page.external_id)
+
+
+class TestProjectOrgMembersCanAccess(BaseAuthenticatedViewTestCase):
+    """Test org_members_can_access project-level access control."""
+
+    def setUp(self):
+        super().setUp()
+        # Create org and add self.user as member
+        self.org = OrgFactory()
+        OrgMemberFactory(org=self.org, user=self.user, role=OrgMemberRole.MEMBER.value)
+
+    def test_project_response_includes_org_members_can_access(self):
+        """Project response includes org_members_can_access field."""
+        project = ProjectFactory(org=self.org)
+
+        response = self.send_api_request(url=f"/api/projects/{project.external_id}/", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertIn("org_members_can_access", response.json())
+        self.assertTrue(response.json()["org_members_can_access"])
+
+    def test_create_project_with_org_access_enabled(self):
+        """Creating project with org_members_can_access=True (default)."""
+        response = self.send_api_request(
+            url="/api/projects/",
+            method="post",
+            data={"org_id": self.org.external_id, "name": "Test Project"},
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.CREATED)
+        payload = response.json()
+        self.assertTrue(payload["org_members_can_access"])
+
+        project = Project.objects.get(external_id=payload["external_id"])
+        self.assertTrue(project.org_members_can_access)
+        # Creator should NOT be auto-added as editor when org access is enabled
+        self.assertFalse(project.editors.filter(id=self.user.id).exists())
+
+    def test_create_project_with_org_access_disabled(self):
+        """Creating project with org_members_can_access=False auto-adds creator as editor."""
+        response = self.send_api_request(
+            url="/api/projects/",
+            method="post",
+            data={
+                "org_id": self.org.external_id,
+                "name": "Private Project",
+                "org_members_can_access": False,
+            },
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.CREATED)
+        payload = response.json()
+        self.assertFalse(payload["org_members_can_access"])
+
+        project = Project.objects.get(external_id=payload["external_id"])
+        self.assertFalse(project.org_members_can_access)
+        # Creator should be auto-added as editor
+        self.assertTrue(project.editors.filter(id=self.user.id).exists())
+
+    def test_org_member_cannot_access_restricted_project(self):
+        """Org member cannot access project with org_members_can_access=False."""
+        other_user = UserFactory()
+        OrgMemberFactory(org=self.org, user=other_user)
+
+        # Create project with org access disabled by other_user
+        project = ProjectFactory(org=self.org, creator=other_user, org_members_can_access=False)
+        project.editors.add(other_user)  # Add creator as editor
+
+        # self.user (org member) should NOT be able to access the project
+        response = self.send_api_request(url=f"/api/projects/{project.external_id}/", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+    def test_project_editor_can_access_restricted_project(self):
+        """Project editor can access project even with org_members_can_access=False."""
+        other_user = UserFactory()
+        OrgMemberFactory(org=self.org, user=other_user)
+
+        # Create restricted project
+        project = ProjectFactory(org=self.org, creator=other_user, org_members_can_access=False)
+
+        # Add self.user as project editor
+        project.editors.add(self.user)
+
+        response = self.send_api_request(url=f"/api/projects/{project.external_id}/", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.json()["external_id"], project.external_id)
+
+    def test_org_member_and_editor_can_access_restricted_project(self):
+        """User who is both org member AND editor can access restricted project."""
+        # Create restricted project (self.user is org member)
+        project = ProjectFactory(org=self.org, creator=self.user, org_members_can_access=False)
+
+        # Also add as editor (simulating what happens when creating with org access disabled)
+        project.editors.add(self.user)
+
+        response = self.send_api_request(url=f"/api/projects/{project.external_id}/", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+    def test_update_project_to_disable_org_access(self):
+        """Updating project to disable org access auto-adds current user as editor."""
+        project = ProjectFactory(org=self.org, creator=self.user)
+
+        # Verify initially org access is enabled and user is not an editor
+        self.assertTrue(project.org_members_can_access)
+        self.assertFalse(project.editors.filter(id=self.user.id).exists())
+
+        response = self.send_api_request(
+            url=f"/api/projects/{project.external_id}/",
+            method="patch",
+            data={"org_members_can_access": False},
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertFalse(response.json()["org_members_can_access"])
+
+        project.refresh_from_db()
+        self.assertFalse(project.org_members_can_access)
+        # User should be auto-added as editor
+        self.assertTrue(project.editors.filter(id=self.user.id).exists())
+
+    def test_update_project_to_enable_org_access(self):
+        """Can update project to enable org access."""
+        project = ProjectFactory(org=self.org, creator=self.user, org_members_can_access=False)
+        project.editors.add(self.user)
+
+        response = self.send_api_request(
+            url=f"/api/projects/{project.external_id}/",
+            method="patch",
+            data={"org_members_can_access": True},
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertTrue(response.json()["org_members_can_access"])
+
+        project.refresh_from_db()
+        self.assertTrue(project.org_members_can_access)
+
+    def test_restricted_project_not_in_list_for_non_editor_org_member(self):
+        """Restricted project doesn't appear in list for org members who aren't editors."""
+        other_user = UserFactory()
+        OrgMemberFactory(org=self.org, user=other_user)
+
+        # Create one open project and one restricted project
+        open_project = ProjectFactory(org=self.org, creator=other_user, org_members_can_access=True)
+        restricted_project = ProjectFactory(org=self.org, creator=other_user, org_members_can_access=False)
+
+        response = self.send_api_request(url="/api/projects/", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        payload = response.json()
+        project_ids = [p["external_id"] for p in payload]
+
+        self.assertIn(open_project.external_id, project_ids)
+        self.assertNotIn(restricted_project.external_id, project_ids)
+
+    def test_org_admin_can_always_access_restricted_project(self):
+        """Org admin can access restricted project even without being an editor."""
+        # Make self.user an org admin
+        OrgMember.objects.filter(org=self.org, user=self.user).update(role="admin")
+
+        other_user = UserFactory()
+        OrgMemberFactory(org=self.org, user=other_user)
+
+        # Create restricted project by other user
+        project = ProjectFactory(org=self.org, creator=other_user, org_members_can_access=False)
+
+        # Admin should be able to access the project
+        response = self.send_api_request(url=f"/api/projects/{project.external_id}/", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.json()["external_id"], project.external_id)
+
+    def test_org_admin_sees_restricted_projects_in_list(self):
+        """Org admin sees all projects in the org, including restricted ones."""
+        # Make self.user an org admin
+        OrgMember.objects.filter(org=self.org, user=self.user).update(role="admin")
+
+        other_user = UserFactory()
+        OrgMemberFactory(org=self.org, user=other_user)
+
+        # Create both open and restricted projects
+        open_project = ProjectFactory(org=self.org, creator=other_user, org_members_can_access=True)
+        restricted_project = ProjectFactory(org=self.org, creator=other_user, org_members_can_access=False)
+
+        response = self.send_api_request(url="/api/projects/", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        payload = response.json()
+        project_ids = [p["external_id"] for p in payload]
+
+        # Admin should see both projects
+        self.assertIn(open_project.external_id, project_ids)
+        self.assertIn(restricted_project.external_id, project_ids)
+
+
+class TestProjectSharingAPI(BaseAuthenticatedViewTestCase):
+    """Test project sharing settings API endpoints."""
+
+    def setUp(self):
+        super().setUp()
+        self.org = OrgFactory()
+        OrgMemberFactory(org=self.org, user=self.user, role=OrgMemberRole.MEMBER.value)
+
+    def test_get_sharing_settings(self):
+        """Can fetch project sharing settings."""
+        project = ProjectFactory(org=self.org, creator=self.user)
+
+        response = self.send_api_request(url=f"/api/projects/{project.external_id}/sharing/", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        payload = response.json()
+        self.assertIn("org_members_can_access", payload)
+        self.assertIn("can_change_access", payload)
+        self.assertTrue(payload["org_members_can_access"])
+        self.assertTrue(payload["can_change_access"])  # Creator can change
+
+    def test_creator_can_change_access(self):
+        """Project creator can change access settings."""
+        project = ProjectFactory(org=self.org, creator=self.user)
+
+        response = self.send_api_request(
+            url=f"/api/projects/{project.external_id}/sharing/",
+            method="patch",
+            data={"org_members_can_access": False},
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertFalse(response.json()["org_members_can_access"])
+
+        project.refresh_from_db()
+        self.assertFalse(project.org_members_can_access)
+
+    def test_org_admin_can_change_access(self):
+        """Org admin can change access settings for any project in the org."""
+        # Make self.user an org admin
+        OrgMember.objects.filter(org=self.org, user=self.user).update(role="admin")
+
+        # Create project by another user
+        other_user = UserFactory()
+        OrgMemberFactory(org=self.org, user=other_user)
+        project = ProjectFactory(org=self.org, creator=other_user)
+
+        response = self.send_api_request(
+            url=f"/api/projects/{project.external_id}/sharing/",
+            method="patch",
+            data={"org_members_can_access": False},
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertFalse(response.json()["org_members_can_access"])
+
+    def test_regular_member_cannot_change_access(self):
+        """Regular org member cannot change access settings if not creator."""
+        # Create project by another user
+        other_user = UserFactory()
+        OrgMemberFactory(org=self.org, user=other_user)
+        project = ProjectFactory(org=self.org, creator=other_user)
+
+        response = self.send_api_request(
+            url=f"/api/projects/{project.external_id}/sharing/",
+            method="patch",
+            data={"org_members_can_access": False},
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+
+        project.refresh_from_db()
+        self.assertTrue(project.org_members_can_access)  # Unchanged
+
+    def test_project_editor_cannot_change_access(self):
+        """Project editor (non-creator) cannot change access settings."""
+        other_user = UserFactory()
+        OrgMemberFactory(org=self.org, user=other_user)
+        project = ProjectFactory(org=self.org, creator=other_user, org_members_can_access=False)
+        project.editors.add(self.user)  # Add self.user as editor
+
+        response = self.send_api_request(
+            url=f"/api/projects/{project.external_id}/sharing/",
+            method="patch",
+            data={"org_members_can_access": True},
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+
+    def test_can_change_access_false_for_non_creator(self):
+        """can_change_access is False for non-creator non-admin."""
+        other_user = UserFactory()
+        OrgMemberFactory(org=self.org, user=other_user)
+        project = ProjectFactory(org=self.org, creator=other_user)
+
+        response = self.send_api_request(url=f"/api/projects/{project.external_id}/sharing/", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertFalse(response.json()["can_change_access"])
+
+    def test_can_change_access_true_for_org_admin(self):
+        """can_change_access is True for org admin even if not creator."""
+        # Make self.user an org admin
+        OrgMember.objects.filter(org=self.org, user=self.user).update(role="admin")
+
+        other_user = UserFactory()
+        OrgMemberFactory(org=self.org, user=other_user)
+        project = ProjectFactory(org=self.org, creator=other_user)
+
+        response = self.send_api_request(url=f"/api/projects/{project.external_id}/sharing/", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertTrue(response.json()["can_change_access"])

@@ -468,3 +468,159 @@ GET /api/pages/abc123/links/
 **Error Responses:**
 
 - Status Code: 404 - Page not found or user doesn't have access
+
+---
+
+## Page Sharing
+
+### Get page sharing settings
+
+Retrieve sharing settings for a page, including access groups and who can manage sharing.
+
+### URL
+
+`/api/pages/{external_id}/sharing/`
+
+### HTTP Method
+
+`GET`
+
+### Response
+
+- Status Code: 200
+- Schema:
+
+```json
+{
+  "your_access": "editor",
+  "access_code": "abc123...",
+  "can_manage_sharing": true,
+  "access_groups": [
+    {
+      "key": "org_members",
+      "label": "Organization members",
+      "description": "All members of Acme Corp can access this page",
+      "users": [],
+      "user_count": 5,
+      "can_edit": false
+    },
+    {
+      "key": "project_editors",
+      "label": "Project collaborators",
+      "description": "Collaborators on the Research project",
+      "users": [],
+      "user_count": 2,
+      "can_edit": false
+    },
+    {
+      "key": "page_editors",
+      "label": "Page collaborators",
+      "description": "People added to this specific page",
+      "users": [
+        {
+          "external_id": "user123",
+          "email": "alice@example.com",
+          "role": "editor",
+          "is_pending": true
+        }
+      ],
+      "user_count": 1,
+      "can_edit": true
+    }
+  ]
+}
+```
+
+**Notes:**
+
+- `user_count` is provided for summary display (org/project groups)
+- Only `page_editors` group has `can_edit=true` and lists individual users
+- Org and project groups show counts only for privacy/performance
+
+---
+
+### Add page editor
+
+Add a collaborator to a page.
+
+### URL
+
+`/api/pages/{external_id}/editors/`
+
+### HTTP Method
+
+`POST`
+
+### Data Params
+
+- `email` (String, required): Email of user to invite
+- `role` (String, optional): `"viewer"` or `"editor"`. Default: `"viewer"`
+
+### Response
+
+- Status Code: 201
+- Schema:
+
+```json
+{
+  "external_id": "user123",
+  "email": "alice@example.com",
+  "role": "viewer",
+  "is_pending": true
+}
+```
+
+**Rate Limiting:**
+
+External invitations (non-org members) are rate limited:
+
+- 10 invitations per hour per user
+- Returns 429 if limit exceeded
+- Admin notified on abuse
+
+**Error Responses:**
+
+- Status Code: 400 - User already has access via org/project membership
+- Status Code: 403 - Cannot manage sharing for this page
+- Status Code: 409 - User is already a page editor
+- Status Code: 429 - Rate limit exceeded for external invitations
+
+---
+
+### Update page editor role
+
+Update a page editor's role.
+
+### URL
+
+`/api/pages/{external_id}/editors/{user_external_id}/`
+
+### HTTP Method
+
+`PATCH`
+
+### Data Params
+
+- `role` (String, required): `"viewer"` or `"editor"`
+
+### Response
+
+- Status Code: 200
+
+---
+
+### Remove page editor
+
+Remove a collaborator from a page.
+
+### URL
+
+`/api/pages/{external_id}/editors/{user_external_id}/`
+
+### HTTP Method
+
+`DELETE`
+
+### Response
+
+- Status Code: 204 (No Content)

@@ -58,6 +58,7 @@ class OrgMemberOut(Schema):
 
     external_id: str
     email: str
+    username: str
     role: str
     created: datetime
 

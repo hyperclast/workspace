@@ -7,6 +7,7 @@
     open = $bindable(false),
     projectId = '',
     projectName = '',
+    orgName = '',
   } = $props();
 
   let email = $state('');
@@ -18,6 +19,14 @@
   let inputEl = $state(null);
   let confirmingRemove = $state(null);
   let removing = $state(false);
+  let updatingRole = $state(null);
+
+  // Sharing settings state
+  let orgMembersCanAccess = $state(true);
+  let canChangeAccess = $state(false);
+  let sharingLoading = $state(false);
+  let orgMemberCount = $state(0);
+  let yourAccess = $state('');
 
   async function loadEditors() {
     if (!projectId) return;
@@ -37,6 +46,60 @@
       error = 'Failed to load collaborators';
     } finally {
       loading = false;
+    }
+  }
+
+  async function loadSharingSettings() {
+    if (!projectId) return;
+
+    try {
+      const response = await csrfFetch(`${API_BASE_URL}/api/projects/${projectId}/sharing/`);
+      if (response.ok) {
+        const data = await response.json();
+        orgMembersCanAccess = data.org_members_can_access;
+        canChangeAccess = data.can_change_access;
+        orgMemberCount = data.org_member_count || 0;
+        yourAccess = data.your_access || '';
+      }
+    } catch (e) {
+      console.error('Error loading sharing settings:', e);
+    }
+  }
+
+  async function updateOrgAccess(newValue) {
+    if (!canChangeAccess || sharingLoading) return;
+
+    sharingLoading = true;
+    error = '';
+    success = '';
+
+    try {
+      const response = await csrfFetch(`${API_BASE_URL}/api/projects/${projectId}/sharing/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ org_members_can_access: newValue }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        orgMembersCanAccess = data.org_members_can_access;
+        orgMemberCount = data.org_member_count || 0;
+        yourAccess = data.your_access || '';
+        success = newValue
+          ? 'All org members can now access this project'
+          : 'Project access restricted to invited collaborators only';
+      } else {
+        const data = await response.json().catch(() => ({}));
+        error = data.message || 'Failed to update access settings';
+        // Revert the checkbox if the update failed
+        orgMembersCanAccess = !newValue;
+      }
+    } catch (e) {
+      console.error('Error updating sharing settings:', e);
+      error = 'Network error. Please try again.';
+      orgMembersCanAccess = !newValue;
+    } finally {
+      sharingLoading = false;
     }
   }
 
@@ -69,9 +132,7 @@
       if (response.ok) {
         const data = await response.json();
         email = '';
-        success = data.is_pending
-          ? `Invitation sent to ${data.email}`
-          : `${data.email} has been added`;
+        success = `Invitation sent to ${data.email}`;
         await loadEditors();
       } else if (response.status === 429) {
         error = 'Too many requests. Please wait a moment.';
@@ -120,6 +181,42 @@
     }
   }
 
+  async function updateRole(editor, newRole) {
+    if (updatingRole) return;
+
+    updatingRole = editor.external_id;
+    error = '';
+    success = '';
+
+    try {
+      const response = await csrfFetch(
+        `${API_BASE_URL}/api/projects/${projectId}/editors/${editor.external_id}/`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: newRole }),
+        }
+      );
+
+      if (response.ok) {
+        // Update the local editor state
+        const idx = editors.findIndex((e) => e.external_id === editor.external_id);
+        if (idx !== -1) {
+          editors[idx] = { ...editors[idx], role: newRole };
+        }
+        success = `Updated ${editor.email} to ${newRole === 'editor' ? 'can edit' : 'can view'}`;
+      } else {
+        const data = await response.json().catch(() => ({}));
+        error = data.message || 'Failed to update role';
+      }
+    } catch (e) {
+      console.error('Error updating role:', e);
+      error = 'Network error. Please try again.';
+    } finally {
+      updatingRole = null;
+    }
+  }
+
   function handleKeydown(e) {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -133,11 +230,15 @@
     success = '';
     editors = [];
     confirmingRemove = null;
+    orgMembersCanAccess = true;
+    canChangeAccess = false;
+    sharingLoading = false;
   }
 
   $effect(() => {
     if (open && projectId) {
       loadEditors();
+      loadSharingSettings();
       setTimeout(() => inputEl?.focus(), 100);
     }
   });
@@ -145,6 +246,10 @@
 
 <Modal bind:open title="Share Project" onclose={handleClose}>
   {#snippet children()}
+    {#if yourAccess}
+      <div class="your-access-box">Your access level: <strong>{yourAccess}</strong></div>
+    {/if}
+
     <p class="modal-description">
       Invite collaborators to <strong>{projectName}</strong>
     </p>
@@ -172,7 +277,29 @@
     </div>
 
     <div class="share-editors-section">
-      <h4 class="share-editors-heading">People with access</h4>
+      <h4 class="share-editors-heading">Who can access this project?</h4>
+
+      <div class="share-access-toggle">
+        <label class="toggle-label">
+          <input
+            type="checkbox"
+            checked={orgMembersCanAccess}
+            onchange={(e) => updateOrgAccess(e.target.checked)}
+            disabled={!canChangeAccess || sharingLoading}
+          />
+          <span class="toggle-text">{#if orgName}{#if orgMemberCount}All {orgMemberCount} {orgName} members{:else}All {orgName} members{/if}{:else}All org members{/if}</span>
+        </label>
+        {#if !canChangeAccess}
+          <span class="toggle-note">Only the project owner can change this setting</span>
+        {/if}
+        <p class="share-access-hint">
+          {#if orgMembersCanAccess}
+            Anyone in the org can view and edit this project. The following people have access too.
+          {:else}
+            Only people listed below can access this project.
+          {/if}
+        </p>
+      </div>
       <div class="share-editors-list">
         {#if loading}
           <div class="share-empty">Loading...</div>
@@ -189,40 +316,53 @@
                   <span class="share-badge pending">Pending</span>
                 {/if}
               </div>
-              {#if !editor.is_creator}
-                {#if confirmingRemove === editor.external_id}
-                  <div class="inline-confirm">
-                    <button
-                      type="button"
-                      class="inline-btn cancel"
-                      onclick={cancelRemove}
-                      disabled={removing}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      class="inline-btn confirm"
-                      onclick={() => confirmRemove(editor)}
-                      disabled={removing}
-                    >
-                      {removing ? '...' : 'Remove'}
-                    </button>
-                  </div>
+              <div class="share-editor-actions">
+                {#if editor.is_creator}
+                  <span class="role-display">Full access</span>
                 {:else}
-                  <button
-                    type="button"
-                    class="share-remove-btn"
-                    title="Remove"
-                    onclick={() => startRemove(editor.external_id)}
+                  <select
+                    class="role-select"
+                    value={editor.role}
+                    onchange={(e) => updateRole(editor, e.target.value)}
+                    disabled={updatingRole === editor.external_id}
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <line x1="18" y1="6" x2="6" y2="18"></line>
-                      <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                  </button>
+                    <option value="viewer">Can view</option>
+                    <option value="editor">Can edit</option>
+                  </select>
+                  {#if confirmingRemove === editor.external_id}
+                    <div class="inline-confirm">
+                      <button
+                        type="button"
+                        class="inline-btn cancel"
+                        onclick={cancelRemove}
+                        disabled={removing}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        class="inline-btn confirm"
+                        onclick={() => confirmRemove(editor)}
+                        disabled={removing}
+                      >
+                        {removing ? '...' : 'Remove'}
+                      </button>
+                    </div>
+                  {:else}
+                    <button
+                      type="button"
+                      class="share-remove-btn"
+                      title="Remove"
+                      onclick={() => startRemove(editor.external_id)}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  {/if}
                 {/if}
-              {/if}
+              </div>
             </div>
           {/each}
         {/if}
@@ -294,10 +434,26 @@
   }
 
   .share-editors-heading {
-    font-weight: 500;
-    font-size: 0.9rem;
-    color: #374151;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary, #6b7280);
     margin: 0 0 0.75rem 0;
+  }
+
+  .your-access-box {
+    font-size: 0.85rem;
+    color: var(--text-secondary, #6b7280);
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 1rem;
+    border: 1px solid var(--border-light, #e5e7eb);
+    border-radius: 6px;
+    background: var(--bg-secondary, #f9fafb);
+  }
+
+  .your-access-box strong {
+    color: var(--text-primary, #1f2937);
   }
 
   .share-editors-list {
@@ -335,10 +491,50 @@
 
   .share-editor-email {
     font-size: 0.9rem;
-    color: #1f2937;
+    font-weight: 500;
+    color: var(--text-primary, #1f2937);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .share-editor-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .role-select {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+    border: 1px solid var(--border-light, #e5e7eb);
+    border-radius: 4px;
+    background: var(--bg-primary, white);
+    color: var(--text-primary, #1f2937);
+    cursor: pointer;
+    appearance: auto;
+  }
+
+  .role-select:hover:not(:disabled) {
+    border-color: var(--border-medium, #d1d5db);
+  }
+
+  .role-select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+  }
+
+  .role-select:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .role-display {
+    font-size: 0.8rem;
+    color: var(--text-secondary, #6b7280);
+    padding: 0.25rem 0.5rem;
   }
 
   .share-badge {
@@ -414,5 +610,49 @@
 
   .inline-btn.confirm:hover:not(:disabled) {
     background: #fecaca;
+  }
+
+  .share-access-toggle {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+  }
+
+  .toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+
+  .toggle-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    cursor: pointer;
+  }
+
+  .toggle-label input[type="checkbox"]:disabled {
+    cursor: not-allowed;
+  }
+
+  .toggle-text {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-primary, #1f2937);
+  }
+
+  .toggle-note {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #6b7280);
+    margin-left: 1.625rem;
+  }
+
+  .share-access-hint {
+    font-size: 0.8rem;
+    color: var(--text-secondary, #6b7280);
+    margin: 0.5rem 0 0 0;
+    line-height: 1.4;
   }
 </style>

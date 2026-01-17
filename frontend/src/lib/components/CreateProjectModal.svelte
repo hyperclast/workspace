@@ -27,6 +27,7 @@
   let loading = $state(false);
   let error = $state('');
   let inputEl = $state(null);
+  let orgMembersCanAccess = $state(true);
 
   // Derived validation state (instant feedback)
   let validationResult = $derived(validateProjectName(name));
@@ -43,6 +44,7 @@
       selectedOrgId = '';
       error = '';
       loading = false;
+      orgMembersCanAccess = true;
     }
   });
 
@@ -78,7 +80,7 @@
     loading = true;
 
     try {
-      const project = await createProjectApi(selectedOrgId, name.trim(), '');
+      const project = await createProjectApi(selectedOrgId, name.trim(), '', orgMembersCanAccess);
       const selectedOrg = orgs.find(o => o.external_id === selectedOrgId);
 
       const newProject = {
@@ -146,6 +148,24 @@
         <path d="M6 9l6 6 6-6" />
       </svg>
     </div>
+  </div>
+
+  <div class="modal-field">
+    <label class="checkbox-label">
+      <input
+        type="checkbox"
+        bind:checked={orgMembersCanAccess}
+        disabled={loading}
+      />
+      <span>All organization members can access</span>
+    </label>
+    <p class="field-hint">
+      {#if orgMembersCanAccess}
+        Anyone in the organization can view and edit this project.
+      {:else}
+        Only people you explicitly invite can access this project.
+      {/if}
+    </p>
   </div>
 
   {#if error}
@@ -251,5 +271,31 @@
     color: #dc2626;
     font-size: 0.8rem;
     margin-top: 0.25rem;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  .checkbox-label input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+    cursor: pointer;
+  }
+
+  .checkbox-label span {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+  }
+
+  .field-hint {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 0.375rem;
+    line-height: 1.4;
   }
 </style>

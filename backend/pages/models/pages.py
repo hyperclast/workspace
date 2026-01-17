@@ -44,19 +44,32 @@ class PageManager(models.Manager):
 
     def get_user_editable_pages(self, user):
         """
-        Get all pages the user can edit via org membership or project sharing.
+        Get all pages the user can access via org membership, project sharing, or page sharing.
 
-        Two-tier access model:
-        - Tier 1 (Org): User is member of page's project's org
+        Three-tier access model:
+        - Tier 1 (Org): User is member of page's project's org (when org_members_can_access=True)
         - Tier 2 (Project): User is a project editor
+        - Tier 3 (Page): User is a page editor
 
-        Access is granted if EITHER condition is true.
+        Access is granted if ANY condition is true.
         Excludes pages from soft-deleted projects.
         """
+        from users.models import OrgMember
+
+        # Get org IDs where user is admin (admins always have access)
+        admin_org_ids = OrgMember.objects.filter(user=user, role="admin").values_list("org_id", flat=True)
+
         page_ids = (
             self.get_editable_pages()
             .filter(project__is_deleted=False)
-            .filter(Q(project__org__members=user) | Q(project__editors=user))
+            .filter(
+                Q(project__org_id__in=admin_org_ids)  # Tier 0: Org admins always have access
+                | Q(
+                    project__org__members=user, project__org_members_can_access=True
+                )  # Tier 1: Org members (if enabled)
+                | Q(project__editors=user)  # Tier 2: Project editors
+                | Q(editors=user)  # Tier 3: Page editors (NEW)
+            )
             .values_list("id", flat=True)
             .distinct()
         )

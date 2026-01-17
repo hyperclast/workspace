@@ -2,8 +2,10 @@ import factory
 from datetime import timedelta
 from django.utils import timezone
 
+from pages.constants import PageEditorRole
 from pages.models import (
     Page,
+    PageEditor,
     PageEditorAddEvent,
     PageEditorRemoveEvent,
     PageInvitation,
@@ -53,6 +55,16 @@ class PageInvitationFactory(factory.django.DjangoModelFactory):
     token = factory.Faker("sha256")
     accepted = False
     expires_at = factory.LazyFunction(lambda: timezone.now() + timedelta(days=7))
+    role = PageEditorRole.VIEWER.value
+
+
+class PageEditorFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PageEditor
+
+    user = factory.SubFactory(UserFactory)
+    page = factory.SubFactory(PageFactory)
+    role = PageEditorRole.VIEWER.value
 
 
 class PageEditorAddEventFactory(factory.django.DjangoModelFactory):

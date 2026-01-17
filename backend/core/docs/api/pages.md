@@ -222,7 +222,7 @@ Get outgoing and incoming (backlinks) internal links for a page.
 |              |                                         |
 | ------------ | --------------------------------------- |
 | **Endpoint** | `GET /api/pages/{external_id}/editors/` |
-| **Auth**     | Bearer token (owner only)               |
+| **Auth**     | Bearer token                            |
 
 **Response (200):**
 
@@ -230,28 +230,68 @@ Get outgoing and incoming (backlinks) internal links for a page.
 [
   {
     "external_id": "user123",
-    "email": "editor@example.com"
+    "email": "editor@example.com",
+    "role": "editor",
+    "is_pending": false
+  },
+  {
+    "external_id": "inv456",
+    "email": "pending@example.com",
+    "role": "viewer",
+    "is_pending": true
   }
 ]
 ```
+
+| Field        | Description                                    |
+| ------------ | ---------------------------------------------- |
+| `role`       | `editor` (can edit) or `viewer` (read-only)    |
+| `is_pending` | `true` if invitation sent but not yet accepted |
 
 ### Add Editor
 
 |              |                                          |
 | ------------ | ---------------------------------------- |
 | **Endpoint** | `POST /api/pages/{external_id}/editors/` |
-| **Auth**     | Bearer token (owner only)                |
+| **Auth**     | Bearer token                             |
 
-| Field   | Type   | Required? | Description             |
-| ------- | ------ | --------- | ----------------------- |
-| `email` | string | Yes       | Email address to invite |
+| Field   | Type   | Required? | Description                            |
+| ------- | ------ | --------- | -------------------------------------- |
+| `email` | string | Yes       | Email address to invite                |
+| `role`  | string | No        | `editor` or `viewer` (default: viewer) |
 
 **Response (201):**
 
 ```json
 {
   "external_id": "user789",
-  "email": "editor@example.com"
+  "email": "editor@example.com",
+  "role": "viewer",
+  "is_pending": true
+}
+```
+
+> **Rate Limiting:** External invitations (non-org members) are limited to 10/hour. Returns `429` if exceeded.
+
+### Update Editor Role
+
+|              |                                                     |
+| ------------ | --------------------------------------------------- |
+| **Endpoint** | `PATCH /api/pages/{external_id}/editors/{user_id}/` |
+| **Auth**     | Bearer token                                        |
+
+| Field  | Type   | Required? | Description          |
+| ------ | ------ | --------- | -------------------- |
+| `role` | string | Yes       | `editor` or `viewer` |
+
+**Response (200):**
+
+```json
+{
+  "external_id": "user789",
+  "email": "editor@example.com",
+  "role": "editor",
+  "is_pending": false
 }
 ```
 
@@ -260,7 +300,7 @@ Get outgoing and incoming (backlinks) internal links for a page.
 |              |                                                      |
 | ------------ | ---------------------------------------------------- |
 | **Endpoint** | `DELETE /api/pages/{external_id}/editors/{user_id}/` |
-| **Auth**     | Bearer token (owner only)                            |
+| **Auth**     | Bearer token                                         |
 
 **Response (204):** No content.
 

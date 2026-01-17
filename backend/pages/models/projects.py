@@ -13,19 +13,35 @@ User = get_user_model()
 class ProjectManager(models.Manager):
     def get_user_accessible_projects(self, user):
         """
-        Get projects user can access via org membership OR direct project sharing.
+        Get projects user can access via org admin, org membership, project sharing, or page sharing.
 
-        Three-tier access model (Tier 1 and Tier 2):
-        - Tier 1 (Org): User is member of the project's org
+        Four-tier access model:
+        - Tier 0 (Admin): User is org admin (always has access)
+        - Tier 1 (Org): User is member of the project's org AND org_members_can_access=True
         - Tier 2 (Project): User is a project editor
+        - Tier 3 (Page): User is an editor on at least one page in the project
 
         Returns:
             QuerySet of non-deleted projects the user can access
         """
+        from pages.models import Page
+        from users.models import OrgMember
+
+        # Get org IDs where user is admin
+        admin_org_ids = OrgMember.objects.filter(user=user, role="admin").values_list("org_id", flat=True)
+
+        # Get project IDs where user has page-level access
+        page_access_project_ids = Page.objects.filter(
+            editors=user, is_deleted=False, project__is_deleted=False
+        ).values_list("project_id", flat=True)
+
         return (
             self.get_queryset()
             .filter(
-                Q(org__members=user) | Q(editors=user),
+                Q(org_id__in=admin_org_ids)  # Org admins always have access
+                | Q(org__members=user, org_members_can_access=True)  # Org members (if enabled)
+                | Q(editors=user)  # Project editors
+                | Q(id__in=page_access_project_ids),  # Page editors (NEW: Tier 3)
                 is_deleted=False,
             )
             .distinct()
@@ -70,6 +86,10 @@ class Project(TimeStampedModel):
         User,
         through="pages.ProjectEditor",
         related_name="editable_projects",
+    )
+    org_members_can_access = models.BooleanField(
+        default=True,
+        help_text="If True, all org members can access. If False, only project editors.",
     )
 
     objects = ProjectManager()

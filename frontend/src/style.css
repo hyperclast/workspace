@@ -844,6 +844,15 @@ nav {
   display: block;
 }
 
+.menu-title {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  padding: 0.5rem 0.75rem 0.25rem;
+}
+
 .project-menu-item {
   display: flex;
   align-items: center;
@@ -5408,6 +5417,189 @@ body.sidebar-resizing .chat-sidebar {
   color: white;
 }
 
+/* Clickable member count */
+.org-detail-clickable {
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.org-detail-clickable:hover {
+  background: rgba(102, 126, 234, 0.1);
+}
+
+.org-detail-clickable .org-detail-value {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.expand-chevron {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s;
+}
+
+.expand-chevron.expanded {
+  transform: rotate(180deg);
+}
+
+/* Members table */
+.org-members-table-container {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-light);
+}
+
+.org-members-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.org-members-table th {
+  text-align: left;
+  padding: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.org-members-table td {
+  padding: 0.5rem;
+  color: var(--text-primary);
+}
+
+.org-members-table tr:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.member-role-badge {
+  display: inline-block;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.7rem;
+  border-radius: 4px;
+  background: #e2e8f0;
+  color: #64748b;
+  text-transform: capitalize;
+}
+
+.member-role-badge.role-admin {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+/* Dark mode for member list */
+:root.dark .org-detail-clickable:hover,
+:root[data-theme="dark"] .org-detail-clickable:hover {
+  background: rgba(139, 156, 247, 0.15);
+}
+
+:root.dark .org-members-table-container,
+:root[data-theme="dark"] .org-members-table-container {
+  border-top-color: #3a3a3a;
+}
+
+:root.dark .org-members-table th,
+:root[data-theme="dark"] .org-members-table th {
+  color: #888;
+  border-bottom-color: #3a3a3a;
+}
+
+:root.dark .org-members-table td,
+:root[data-theme="dark"] .org-members-table td {
+  color: #d0d0d0;
+}
+
+:root.dark .org-members-table tr:hover,
+:root[data-theme="dark"] .org-members-table tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+:root.dark .member-role-badge,
+:root[data-theme="dark"] .member-role-badge {
+  background: #3a3a3a;
+  color: #a0a0a0;
+}
+
+:root.dark .member-role-badge.role-admin,
+:root[data-theme="dark"] .member-role-badge.role-admin {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+/* Toggle switch for org auto-add setting */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.2s;
+  border-radius: 20px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.2s;
+  border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(16px);
+}
+
+.auto-add-status {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.org-auto-add-setting .org-detail-value {
+  display: flex;
+  align-items: center;
+}
+
+/* Dark mode for toggle */
+:root.dark .toggle-slider,
+:root[data-theme="dark"] .toggle-slider {
+  background-color: #444;
+}
+
+:root.dark .auto-add-status,
+:root[data-theme="dark"] .auto-add-status {
+  color: #888;
+}
+
 /* ============================================
    Unified Modal Styles
    ============================================ */
@@ -5524,6 +5716,10 @@ body.sidebar-resizing .chat-sidebar {
 
 .modal-content-sm {
   max-width: 400px;
+}
+
+.modal-content-wide {
+  max-width: 560px;
 }
 
 /* Modal field styling */

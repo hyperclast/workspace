@@ -11,12 +11,13 @@ from django_extensions.db.models import TimeStampedModel
 
 from backend.utils import log_info, log_warning
 from core.emailer import Emailer
+from pages.constants import PageEditorRole, ProjectEditorRole
 
 User = get_user_model()
 
 
 class PageInvitationManager(models.Manager):
-    def create_invitation(self, page, email, invited_by):
+    def create_invitation(self, page, email, invited_by, role=PageEditorRole.VIEWER.value):
         """Creates a new invitation with a secure token.
 
         Returns a tuple (invitation, created) where created is True if a new
@@ -46,6 +47,7 @@ class PageInvitationManager(models.Manager):
             invited_by=invited_by,
             token=token,
             expires_at=expires_at,
+            role=role,
         )
 
         return invitation, True
@@ -85,6 +87,10 @@ class PageInvitation(TimeStampedModel):
         related_name="pagespage_invitations_accepted",
     )
     expires_at = models.DateTimeField(db_index=True)
+    role = models.TextField(
+        choices=PageEditorRole.choices,
+        default=PageEditorRole.VIEWER.value,
+    )
 
     objects = PageInvitationManager()
 
@@ -116,6 +122,8 @@ class PageInvitation(TimeStampedModel):
 
     def accept(self, user):
         """Mark invitation as accepted and grant page access."""
+        from pages.models import PageEditor
+
         if not self.is_valid:
             raise ValueError("Invitation is no longer valid")
 
@@ -124,11 +132,19 @@ class PageInvitation(TimeStampedModel):
         self.accepted_by = user
         self.save(update_fields=["accepted", "accepted_at", "accepted_by", "modified"])
 
-        # Add user as editor to the page
-        self.page.editors.add(user)
+        # Add user as editor to the page with the invitation's role
+        PageEditor.objects.get_or_create(
+            user=user,
+            page=self.page,
+            defaults={"role": self.role},
+        )
 
         log_info(
-            "Invitation accepted: user=%s, page=%s, invitation=%s", user.email, self.page.external_id, self.external_id
+            "Invitation accepted: user=%s, page=%s, invitation=%s, role=%s",
+            user.email,
+            self.page.external_id,
+            self.external_id,
+            self.role,
         )
 
         return True
@@ -153,7 +169,7 @@ class PageInvitation(TimeStampedModel):
 
 
 class ProjectInvitationManager(models.Manager):
-    def create_invitation(self, project, email, invited_by):
+    def create_invitation(self, project, email, invited_by, role=ProjectEditorRole.VIEWER.value):
         """Creates a new project invitation with a secure token.
 
         Returns a tuple (invitation, created) where created is True if a new
@@ -185,6 +201,7 @@ class ProjectInvitationManager(models.Manager):
             invited_by=invited_by,
             token=token,
             expires_at=expires_at,
+            role=role,
         )
 
         return invitation, True
@@ -224,6 +241,10 @@ class ProjectInvitation(TimeStampedModel):
         related_name="project_invitations_accepted",
     )
     expires_at = models.DateTimeField(db_index=True)
+    role = models.TextField(
+        choices=ProjectEditorRole.choices,
+        default=ProjectEditorRole.VIEWER.value,
+    )
 
     objects = ProjectInvitationManager()
 
@@ -255,6 +276,8 @@ class ProjectInvitation(TimeStampedModel):
 
     def accept(self, user):
         """Mark invitation as accepted and grant project access."""
+        from pages.models import ProjectEditor
+
         if not self.is_valid:
             raise ValueError("Invitation is no longer valid")
 
@@ -263,14 +286,19 @@ class ProjectInvitation(TimeStampedModel):
         self.accepted_by = user
         self.save(update_fields=["accepted", "accepted_at", "accepted_by", "modified"])
 
-        # Add user as editor to the project
-        self.project.editors.add(user)
+        # Add user as editor to the project with the invitation's role
+        ProjectEditor.objects.get_or_create(
+            user=user,
+            project=self.project,
+            defaults={"role": self.role},
+        )
 
         log_info(
-            "Project invitation accepted: user=%s, project=%s, invitation=%s",
+            "Project invitation accepted: user=%s, project=%s, invitation=%s, role=%s",
             user.email,
             self.project.external_id,
             self.external_id,
+            self.role,
         )
 
         return True

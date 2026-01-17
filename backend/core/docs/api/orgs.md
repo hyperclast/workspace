@@ -134,15 +134,24 @@ Permanently deletes the organization and all its projects/pages.
   {
     "external_id": "user123",
     "email": "admin@example.com",
-    "role": "admin"
+    "username": "admin_user",
+    "role": "admin",
+    "created": "2025-01-10T08:00:00Z"
   },
   {
     "external_id": "user456",
     "email": "member@example.com",
-    "role": "member"
+    "username": "member_user",
+    "role": "member",
+    "created": "2025-01-12T14:30:00Z"
   }
 ]
 ```
+
+| Field     | Description                            |
+| --------- | -------------------------------------- |
+| `role`    | `admin` or `member`                    |
+| `created` | When this user joined the organization |
 
 ### Add Member
 
@@ -162,9 +171,13 @@ Permanently deletes the organization and all its projects/pages.
 {
   "external_id": "user789",
   "email": "newmember@example.com",
-  "role": "member"
+  "username": "newmember",
+  "role": "member",
+  "created": "2025-01-15T14:30:00Z"
 }
 ```
+
+> **Note:** Org member invitations require the user to already have an account. Rate limited: 1/10s burst, 100/day.
 
 ### Update Member Role
 
@@ -183,7 +196,9 @@ Permanently deletes the organization and all its projects/pages.
 {
   "external_id": "user456",
   "email": "member@example.com",
-  "role": "admin"
+  "username": "member_user",
+  "role": "admin",
+  "created": "2025-01-12T14:30:00Z"
 }
 ```
 

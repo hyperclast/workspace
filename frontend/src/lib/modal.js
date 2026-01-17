@@ -9,6 +9,7 @@ import {
   openChangePageType as _openChangePageType,
   openCommandPalette as _openCommandPalette,
   openReadonlyLink as _openReadonlyLink,
+  openSharePage as _openSharePage,
 } from "./stores/modal.svelte.js";
 
 let mounted = false;
@@ -70,6 +71,7 @@ export async function prompt(options) {
  * @param {Object} options
  * @param {string} options.projectId - Project external ID
  * @param {string} options.projectName - Project name to display
+ * @param {string} [options.orgName] - Organization name to display
  */
 export function shareProject(options) {
   initModals();
@@ -136,4 +138,16 @@ export function commandPalette(options = {}) {
 export function readonlyLinkModal(options = {}) {
   initModals();
   _openReadonlyLink(options);
+}
+
+/**
+ * Show a share page modal for managing page collaborators and public link
+ * @param {Object} options
+ * @param {string} options.pageId - Page external ID
+ * @param {string} options.pageTitle - Page title
+ * @param {Function} options.onAccessCodeChange - Callback when access code changes (created/removed)
+ */
+export function sharePage(options = {}) {
+  initModals();
+  _openSharePage(options);
 }

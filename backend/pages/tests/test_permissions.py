@@ -332,8 +332,9 @@ class TestPermissionEdgeCases(TestCase):
         self.assertTrue(user_can_access_page(user, page1))
         self.assertTrue(user_can_access_page(user, page2))
 
-        self.assertEqual(get_page_access_source(user, page1), "org")
-        self.assertEqual(get_page_access_source(user, page2), "org")
+        # PageFactory adds creator as page editor, so access source includes "page"
+        self.assertEqual(get_page_access_source(user, page1), "org+page")
+        self.assertEqual(get_page_access_source(user, page2), "org+page")
 
     def test_get_user_editable_pages_across_multiple_orgs(self):
         """Test that PageManager returns pages from all orgs user is member of."""

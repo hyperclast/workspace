@@ -2,6 +2,8 @@ from django.contrib.auth import get_user_model
 from django.db import models
 from django_extensions.db.models import TimeStampedModel
 
+from pages.constants import PageEditorRole, ProjectEditorRole
+
 
 User = get_user_model()
 
@@ -14,6 +16,10 @@ class PageEditor(TimeStampedModel):
     page = models.ForeignKey(
         "pages.Page",
         on_delete=models.CASCADE,
+    )
+    role = models.TextField(
+        choices=PageEditorRole.choices,
+        default=PageEditorRole.VIEWER.value,
     )
 
     class Meta:
@@ -31,6 +37,10 @@ class PageEditor(TimeStampedModel):
 class ProjectEditor(TimeStampedModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     project = models.ForeignKey("pages.Project", on_delete=models.CASCADE)
+    role = models.TextField(
+        choices=ProjectEditorRole.choices,
+        default=ProjectEditorRole.VIEWER.value,
+    )
 
     class Meta:
         constraints = [

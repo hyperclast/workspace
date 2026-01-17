@@ -30,6 +30,7 @@ class OrgManager(models.Manager):
             existing_org = self.filter(domain=domain).first()
 
             if existing_org:
+                # Always add user to existing domain org
                 OrgMember.objects.create(
                     org=existing_org,
                     user=user,

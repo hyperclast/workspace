@@ -50,7 +50,7 @@
     onkeydown={handleKeydown}
   >
     <div
-      class="modal-content {size === 'sm' ? 'modal-content-sm' : ''}"
+      class="modal-content {size === 'sm' ? 'modal-content-sm' : ''} {size === 'wide' ? 'modal-content-wide' : ''}"
       bind:this={dialogEl}
     >
       <div class="modal-header">

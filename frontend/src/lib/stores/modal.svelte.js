@@ -78,6 +78,7 @@ let shareProjectState = $state({
   open: false,
   projectId: "",
   projectName: "",
+  orgName: "",
 });
 
 export function getShareProjectState() {
@@ -88,6 +89,7 @@ export function openShareProject(options) {
   // Mutate existing object instead of reassigning
   shareProjectState.projectId = options.projectId || "";
   shareProjectState.projectName = options.projectName || "";
+  shareProjectState.orgName = options.orgName || "";
   shareProjectState.open = true;
 }
 
@@ -207,4 +209,26 @@ export function openReadonlyLink(options = {}) {
 
 export function closeReadonlyLink() {
   readonlyLinkState.open = false;
+}
+
+let sharePageState = $state({
+  open: false,
+  pageId: "",
+  pageTitle: "",
+  onAccessCodeChange: () => {},
+});
+
+export function getSharePageState() {
+  return sharePageState;
+}
+
+export function openSharePage(options = {}) {
+  sharePageState.pageId = options.pageId || "";
+  sharePageState.pageTitle = options.pageTitle || "";
+  sharePageState.onAccessCodeChange = options.onAccessCodeChange || (() => {});
+  sharePageState.open = true;
+}
+
+export function closeSharePage() {
+  sharePageState.open = false;
 }

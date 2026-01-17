@@ -1,15 +1,18 @@
 # Projects
 
-Projects are containers for pages within an organization. Access is granted through org membership or project-level sharing.
+Projects are containers for pages within an organization. Access is granted through org membership, project-level sharing, or page-level sharing.
 
 ## Access Control
 
-| Tier    | Description                          |
-| ------- | ------------------------------------ |
-| Org     | Member of the project's organization |
-| Project | Added as a project editor            |
+| Tier    | Description                                                    |
+| ------- | -------------------------------------------------------------- |
+| Org     | Member of the project's org (if `org_members_can_access=true`) |
+| Project | Added as a project editor/viewer                               |
+| Page    | Added as an editor on a specific page in the project           |
 
-Access is granted if **either** tier applies.
+Access is granted if **any** tier applies.
+
+Projects have an `org_members_can_access` setting (default: `true`). When `false`, only org admins and explicit project/page editors can access.
 
 ---
 
@@ -35,6 +38,7 @@ Access is granted if **either** tier applies.
     "external_id": "abc123",
     "name": "My Project",
     "description": "...",
+    "org_members_can_access": true,
     "modified": "2025-01-15T10:30:00Z",
     "created": "2025-01-10T08:00:00Z",
     "creator": {
@@ -45,12 +49,18 @@ Access is granted if **either** tier applies.
       "external_id": "org123",
       "name": "..."
     },
-    "pages": null
+    "pages": null,
+    "access_source": "full"
   }
 ]
 ```
 
-With `?details=full`, `pages` contains an array of page objects.
+| Field                    | Description                                                     |
+| ------------------------ | --------------------------------------------------------------- |
+| `org_members_can_access` | Whether org members automatically have access                   |
+| `access_source`          | `full` (project-level access) or `page_only` (page access only) |
+
+With `?details=full`, `pages` contains an array of page objects. Users with `page_only` access only see pages they have explicit access to.
 
 ---
 
@@ -70,6 +80,7 @@ With `?details=full`, `pages` contains an array of page objects.
   "external_id": "abc123",
   "name": "My Project",
   "description": "Project description",
+  "org_members_can_access": true,
   "modified": "2025-01-15T10:30:00Z",
   "created": "2025-01-10T08:00:00Z",
   "creator": {
@@ -80,7 +91,8 @@ With `?details=full`, `pages` contains an array of page objects.
     "external_id": "org123",
     "name": "My Organization"
   },
-  "pages": null
+  "pages": null,
+  "access_source": "full"
 }
 ```
 
@@ -185,18 +197,26 @@ With `?details=full`, `pages` contains an array of page objects.
 [
   {
     "external_id": "user123",
-    "email": "...",
+    "email": "editor@example.com",
+    "role": "editor",
     "is_creator": false,
     "is_pending": false
   },
   {
     "external_id": "inv456",
-    "email": "...",
+    "email": "pending@example.com",
+    "role": "viewer",
     "is_creator": false,
     "is_pending": true
   }
 ]
 ```
+
+| Field        | Description                                    |
+| ------------ | ---------------------------------------------- |
+| `role`       | `editor` (can edit) or `viewer` (read-only)    |
+| `is_creator` | `true` if this user created the project        |
+| `is_pending` | `true` if invitation sent but not yet accepted |
 
 ### Add Editor
 
@@ -205,9 +225,10 @@ With `?details=full`, `pages` contains an array of page objects.
 | **Endpoint** | `POST /api/projects/{external_id}/editors/` |
 | **Auth**     | Bearer token                                |
 
-| Field   | Type   | Required? | Description             |
-| ------- | ------ | --------- | ----------------------- |
-| `email` | string | Yes       | Email address to invite |
+| Field   | Type   | Required? | Description                            |
+| ------- | ------ | --------- | -------------------------------------- |
+| `email` | string | Yes       | Email address to invite                |
+| `role`  | string | No        | `editor` or `viewer` (default: editor) |
 
 **Response (201):**
 
@@ -215,13 +236,39 @@ With `?details=full`, `pages` contains an array of page objects.
 {
   "external_id": "user789",
   "email": "collaborator@example.com",
+  "role": "editor",
   "is_creator": false,
-  "is_pending": false
+  "is_pending": true
 }
 ```
 
 - Existing users are added immediately
 - New users receive an email invitation
+
+> **Rate Limiting:** External invitations (non-org members) are limited to 10/hour. Returns `429` if exceeded.
+
+### Update Editor Role
+
+|              |                                                        |
+| ------------ | ------------------------------------------------------ |
+| **Endpoint** | `PATCH /api/projects/{external_id}/editors/{user_id}/` |
+| **Auth**     | Bearer token                                           |
+
+| Field  | Type   | Required? | Description          |
+| ------ | ------ | --------- | -------------------- |
+| `role` | string | Yes       | `editor` or `viewer` |
+
+**Response (200):**
+
+```json
+{
+  "external_id": "user789",
+  "email": "collaborator@example.com",
+  "role": "viewer",
+  "is_creator": false,
+  "is_pending": false
+}
+```
 
 ### Remove Editor
 
@@ -604,7 +651,8 @@ curl -X POST "$BASE_URL/api/projects/$PROJECT_ID/editors/" \
   -H "Content-Type: application/json" \
   -d @- <<EOF
 {
-  "email": "collaborator@example.com"
+  "email": "collaborator@example.com",
+  "role": "editor"
 }
 EOF
 ```
@@ -619,7 +667,7 @@ PROJECT_ID = "abc123"
 response = requests.post(
     f"{BASE_URL}/api/projects/{PROJECT_ID}/editors/",
     headers={"Authorization": f"Bearer {TOKEN}"},
-    json={"email": "collaborator@example.com"}
+    json={"email": "collaborator@example.com", "role": "editor"}
 )
 print(response.json())
 ```
@@ -635,7 +683,7 @@ const response = await fetch(`${BASE_URL}/api/projects/${PROJECT_ID}/editors/`, 
     Authorization: `Bearer ${TOKEN}`,
     "Content-Type": "application/json",
   },
-  body: JSON.stringify({ email: "collaborator@example.com" }),
+  body: JSON.stringify({ email: "collaborator@example.com", role: "editor" }),
 });
 console.log(await response.json());
 ```
@@ -656,7 +704,7 @@ http.use_ssl = uri.scheme == 'https'
 request = Net::HTTP::Post.new(uri)
 request["Authorization"] = "Bearer #{TOKEN}"
 request["Content-Type"] = "application/json"
-request.body = { email: "collaborator@example.com" }.to_json
+request.body = { email: "collaborator@example.com", role: "editor" }.to_json
 
 response = http.request(request)
 puts JSON.parse(response.body)
@@ -676,7 +724,10 @@ curl_setopt_array($ch, [
         "Authorization: Bearer $token",
         "Content-Type: application/json"
     ],
-    CURLOPT_POSTFIELDS => json_encode(["email" => "collaborator@example.com"])
+    CURLOPT_POSTFIELDS => json_encode([
+        "email" => "collaborator@example.com",
+        "role" => "editor"
+    ])
 ]);
 $response = curl_exec($ch);
 curl_close($ch);
@@ -700,7 +751,10 @@ const (
 )
 
 func main() {
-    body, _ := json.Marshal(map[string]string{"email": "collaborator@example.com"})
+    body, _ := json.Marshal(map[string]string{
+        "email": "collaborator@example.com",
+        "role":  "editor",
+    })
 
     req, _ := http.NewRequest("POST", baseURL+"/api/projects/"+projectID+"/editors/", bytes.NewBuffer(body))
     req.Header.Set("Authorization", "Bearer "+token)

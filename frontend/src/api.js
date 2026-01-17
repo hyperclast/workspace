@@ -26,9 +26,10 @@ export async function fetchProjectsWithPages() {
  * @param {string} orgId - External ID of the organization
  * @param {string} name - Name of the project
  * @param {string} description - Optional project description
+ * @param {boolean} orgMembersCanAccess - If true, all org members can access; if false, only project editors
  * @returns {Promise<Object>} The created project object
  */
-export async function createProject(orgId, name, description = "") {
+export async function createProject(orgId, name, description = "", orgMembersCanAccess = true) {
   const response = await csrfFetch(`${API_BASE}/projects/`, {
     method: "POST",
     headers: {
@@ -38,6 +39,7 @@ export async function createProject(orgId, name, description = "") {
       org_id: orgId,
       name,
       description,
+      org_members_can_access: orgMembersCanAccess,
     }),
   });
   if (!response.ok) {
@@ -203,4 +205,94 @@ export async function removeAccessCode(pageExternalId) {
   if (!response.ok) {
     throw new Error(`Failed to remove access code: ${response.statusText}`);
   }
+}
+
+// Page Editor API
+
+/**
+ * Fetch page sharing settings.
+ * @param {string} pageExternalId - External ID of the page
+ * @returns {Promise<{your_access: string, access_code: string|null, can_manage_sharing: boolean}>}
+ */
+export async function fetchPageSharing(pageExternalId) {
+  const response = await csrfFetch(`${API_BASE}/pages/${pageExternalId}/sharing/`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch page sharing: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Fetch page editors.
+ * @param {string} pageExternalId - External ID of the page
+ * @returns {Promise<Array>} Array of page editors
+ */
+export async function fetchPageEditors(pageExternalId) {
+  const response = await csrfFetch(`${API_BASE}/pages/${pageExternalId}/editors/`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch page editors: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Add a page editor by email.
+ * @param {string} pageExternalId - External ID of the page
+ * @param {string} email - Email of the user to add
+ * @param {string} role - Role to assign ("viewer" or "editor")
+ * @returns {Promise<Object>} The added editor object
+ */
+export async function addPageEditor(pageExternalId, email, role = "viewer") {
+  const response = await csrfFetch(`${API_BASE}/pages/${pageExternalId}/editors/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, role }),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || `Failed to add page editor: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Remove a page editor.
+ * @param {string} pageExternalId - External ID of the page
+ * @param {string} editorExternalId - External ID of the editor to remove
+ * @returns {Promise<void>}
+ */
+export async function removePageEditor(pageExternalId, editorExternalId) {
+  const response = await csrfFetch(
+    `${API_BASE}/pages/${pageExternalId}/editors/${editorExternalId}/`,
+    {
+      method: "DELETE",
+    }
+  );
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || `Failed to remove page editor: ${response.statusText}`);
+  }
+}
+
+/**
+ * Update a page editor's role.
+ * @param {string} pageExternalId - External ID of the page
+ * @param {string} editorExternalId - External ID of the editor to update
+ * @param {string} role - New role ("viewer" or "editor")
+ * @returns {Promise<Object>} The updated editor object
+ */
+export async function updatePageEditorRole(pageExternalId, editorExternalId, role) {
+  const response = await csrfFetch(
+    `${API_BASE}/pages/${pageExternalId}/editors/${editorExternalId}/`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
+    }
+  );
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || `Failed to update page editor role: ${response.statusText}`);
+  }
+  return response.json();
 }

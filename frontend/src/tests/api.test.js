@@ -70,6 +70,7 @@ describe("API Service", () => {
           org_id: "org1",
           name: "New Project",
           description: "Description",
+          org_members_can_access: true,
         }),
       });
       expect(result).toEqual(mockProject);

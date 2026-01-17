@@ -1,8 +1,7 @@
 <script>
   import { API_BASE_URL } from "../../config.js";
   import { csrfFetch } from "../../csrf.js";
-  import { generateAccessCode } from "../../api.js";
-  import { confirm, prompt, shareProject, changePageType, readonlyLinkModal } from "../modal.js";
+  import { confirm, prompt, shareProject, changePageType, sharePage } from "../modal.js";
   import { showToast } from "../toast.js";
   import { validateProjectName } from "../validation.js";
   import { isDemoMode } from "../../demo/index.js";
@@ -97,14 +96,18 @@
     openPageMenuId = null;
   }
 
-  async function handleShare(e, projectId, projectName) {
+  async function handleShare(e, project) {
     e.stopPropagation();
     closeAllMenus();
     if (isDemoMode()) {
       showToast("Not available in demo", "error");
       return;
     }
-    shareProject({ projectId, projectName });
+    shareProject({
+      projectId: project.external_id,
+      projectName: project.name,
+      orgName: project.org?.name || '',
+    });
   }
 
   async function handleRename(e, projectId, projectName) {
@@ -241,7 +244,7 @@
     });
   }
 
-  async function handleReadonlyLink(e, pageId, pageTitle, existingAccessCode) {
+  function handleSharePage(e, pageId, pageTitle) {
     e.stopPropagation();
     closeAllMenus();
     if (isDemoMode()) {
@@ -249,28 +252,13 @@
       return;
     }
 
-    try {
-      // If page already has an access code, show the modal directly
-      // Otherwise, generate a new one
-      const accessCode = existingAccessCode || (await generateAccessCode(pageId)).access_code;
-
-      if (!existingAccessCode) {
-        // Update the page in the store with the new access code
-        updatePageAccessCode(pageId, accessCode);
-      }
-
-      readonlyLinkModal({
-        pageExternalId: pageId,
-        pageTitle: pageTitle || "Untitled",
-        accessCode: accessCode,
-        onremove: () => {
-          updatePageAccessCode(pageId, null);
-        },
-      });
-    } catch (err) {
-      console.error("Error generating access code:", err);
-      showToast("Failed to create view-only link", "error");
-    }
+    sharePage({
+      pageId: pageId,
+      pageTitle: pageTitle || "Untitled",
+      onAccessCodeChange: (newAccessCode) => {
+        updatePageAccessCode(pageId, newAccessCode);
+      },
+    });
   }
 
   async function handlePageDelete(e, pageId, pageTitle) {
@@ -357,6 +345,7 @@
               {@html menuIcon}
             </button>
             <div class="project-menu-dropdown" class:open={openMenuId === project.external_id}>
+              <div class="menu-title">PROJECT</div>
               <button
                 class="project-menu-item"
                 onclick={(e) => handleNewPageFromMenu(e, project.external_id)}
@@ -366,7 +355,7 @@
               </button>
               <button
                 class="project-menu-item"
-                onclick={(e) => handleShare(e, project.external_id, project.name)}
+                onclick={(e) => handleShare(e, project)}
               >
                 {@html shareIcon}
                 Share
@@ -410,7 +399,7 @@
                 <button
                   class="page-shared-indicator"
                   title="View-only link active"
-                  onclick={(e) => handleReadonlyLink(e, page.external_id, page.title, page.access_code)}
+                  onclick={(e) => handleSharePage(e, page.external_id, page.title)}
                 >
                   {@html globeIcon}
                 </button>
@@ -424,6 +413,7 @@
                   {@html pageMenuIcon}
                 </button>
                 <div class="page-menu-dropdown" class:open={openPageMenuId === page.external_id}>
+                  <div class="menu-title">PAGE</div>
                   <button
                     class="page-menu-item"
                     onclick={(e) => handlePageRename(e, page.external_id)}
@@ -447,10 +437,10 @@
                   </button>
                   <button
                     class="page-menu-item"
-                    onclick={(e) => handleReadonlyLink(e, page.external_id, page.title, page.access_code)}
+                    onclick={(e) => handleSharePage(e, page.external_id, page.title)}
                   >
-                    {@html globeIcon}
-                    Get view-only link
+                    {@html shareIcon}
+                    Share
                   </button>
                   <button
                     class="page-menu-item page-menu-delete"

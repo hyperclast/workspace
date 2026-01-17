@@ -2,16 +2,18 @@
   import ConfirmModal from './ConfirmModal.svelte';
   import PromptModal from './PromptModal.svelte';
   import ShareProjectModal from './ShareProjectModal.svelte';
+  import SharePageModal from './SharePageModal.svelte';
   import CreateProjectModal from './CreateProjectModal.svelte';
   import NewPageModal from './NewPageModal.svelte';
   import ChangePageTypeModal from './ChangePageTypeModal.svelte';
   import CommandPalette from './CommandPalette.svelte';
   import ReadOnlyLinkModal from './ReadOnlyLinkModal.svelte';
-  import { getConfirmState, getPromptState, getShareProjectState, getCreateProjectState, getNewPageState, getChangePageTypeState, getCommandPaletteState, getReadonlyLinkState } from '../stores/modal.svelte.js';
+  import { getConfirmState, getPromptState, getShareProjectState, getCreateProjectState, getNewPageState, getChangePageTypeState, getCommandPaletteState, getReadonlyLinkState, getSharePageState } from '../stores/modal.svelte.js';
 
   const confirmState = getConfirmState();
   const promptState = getPromptState();
   const shareProjectState = getShareProjectState();
+  const sharePageState = getSharePageState();
   const createProjectState = getCreateProjectState();
   const newPageState = getNewPageState();
   const changePageTypeState = getChangePageTypeState();
@@ -50,6 +52,7 @@
   bind:open={shareProjectState.open}
   projectId={shareProjectState.projectId}
   projectName={shareProjectState.projectName}
+  orgName={shareProjectState.orgName}
 />
 
 <CreateProjectModal
@@ -87,4 +90,11 @@
   pageTitle={readonlyLinkState.pageTitle}
   accessCode={readonlyLinkState.accessCode}
   onremove={readonlyLinkState.onremove}
+/>
+
+<SharePageModal
+  bind:open={sharePageState.open}
+  pageId={sharePageState.pageId}
+  pageTitle={sharePageState.pageTitle}
+  onAccessCodeChange={sharePageState.onAccessCodeChange}
 />

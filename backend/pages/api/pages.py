@@ -2,16 +2,25 @@ import re
 import secrets
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from ninja import Router
 from ninja.pagination import paginate
 from ninja.responses import Response
 
 from ask.tasks import update_page_embedding
+from backend.utils import log_info
 from core.authentication import session_auth, token_auth
-from pages.models import Page, Project
-from pages.permissions import user_can_access_page, user_can_modify_page
+from pages.constants import PageEditorRole
+from pages.models import Page, PageEditor, PageInvitation, Project
+from pages.permissions import (
+    get_user_page_access_label,
+    user_can_access_page,
+    user_can_manage_page_sharing,
+    user_can_modify_page,
+)
 from typing import List
 
 from pages.schemas import (
@@ -21,7 +30,15 @@ from pages.schemas import (
     PagesAutocompleteItem,
     PagesAutocompleteOut,
     AccessCodeOut,
+    PageEditorIn,
+    PageEditorOut,
+    PageEditorRoleUpdate,
+    PageSharingOut,
+    PageAccessUserOut,
+    PageAccessGroupOut,
 )
+
+User = get_user_model()
 
 MAX_CONTENT_SIZE = 10 * 1024 * 1024  # 10 MB
 
@@ -253,3 +270,456 @@ def remove_access_code(request: HttpRequest, external_id: str):
     page.save(update_fields=["access_code"])
 
     return 204, None
+
+
+# ========================================
+# Page Editors Endpoints
+# ========================================
+
+
+@pages_router.get("/{external_id}/editors/", response=List[PageEditorOut])
+def get_page_editors(request: HttpRequest, external_id: str):
+    """Get all editors for a page.
+
+    Any user with page access can view the editors list.
+    """
+    page = get_object_or_404(Page, external_id=external_id, is_deleted=False)
+
+    if not user_can_access_page(request.user, page):
+        return Response({"message": "You don't have access to this page"}, status=403)
+
+    # Get editors with role info
+    page_editors = PageEditor.objects.filter(page=page).select_related("user")
+    editors = []
+    for pe in page_editors:
+        editors.append(
+            {
+                "external_id": str(pe.user.external_id),
+                "email": pe.user.email,
+                "is_owner": pe.user_id == page.creator_id,
+                "is_pending": False,
+                "role": pe.role,
+            }
+        )
+
+    # Also include pending invitations with their roles
+    pending_invitations = PageInvitation.objects.filter(
+        page=page,
+        accepted=False,
+        expires_at__gt=timezone.now(),
+    ).values("external_id", "email", "role")
+
+    for inv in pending_invitations:
+        editors.append(
+            {
+                "external_id": str(inv["external_id"]),
+                "email": inv["email"],
+                "is_owner": False,
+                "is_pending": True,
+                "role": inv["role"],
+            }
+        )
+
+    return editors
+
+
+@pages_router.post("/{external_id}/editors/", response={201: PageEditorOut, 400: dict, 403: dict, 429: dict})
+def add_page_editor(
+    request: HttpRequest,
+    external_id: str,
+    payload: PageEditorIn,
+):
+    """Add an editor to the page by email. Users with write access can add new editors.
+
+    Rate limiting: External invitations (non-org members, non-existent users) are rate limited.
+    Org members inviting each other = high trust, no limit.
+    """
+    from users.models import OrgMember
+
+    from core.rate_limit import (
+        check_external_invitation_rate_limit,
+        increment_external_invitation_count,
+        notify_admin_of_invitation_abuse,
+    )
+
+    page = get_object_or_404(Page, external_id=external_id, is_deleted=False)
+
+    if not user_can_manage_page_sharing(request.user, page):
+        return 403, {"message": "You don't have permission to add editors to this page"}
+
+    # Use the role from payload, defaulting to 'viewer'
+    role = payload.role or PageEditorRole.VIEWER.value
+    project = page.project
+
+    # Helper to check if email belongs to an org member (high trust = no rate limit)
+    def is_org_member_email(email):
+        if not project or not project.org:
+            return False
+        return OrgMember.objects.filter(org=project.org, user__email__iexact=email).exists()
+
+    try:
+        user_to_add = User.objects.get(email=payload.email)
+
+        # Check if already a page editor
+        if page.editors.filter(id=user_to_add.id).exists():
+            return 400, {"message": f"{payload.email} already has access to this page"}
+
+        # Check if user already has access via org or project
+        if project:
+            # Check org membership
+            if project.org_members_can_access:
+                if OrgMember.objects.filter(org=project.org, user=user_to_add).exists():
+                    return 400, {"message": f"{payload.email} already has access via organization membership"}
+
+            # Check project editor
+            if project.editors.filter(id=user_to_add.id).exists():
+                return 400, {"message": f"{payload.email} already has access via project"}
+
+        # Rate limit external invitations (user exists but not in org)
+        if not is_org_member_email(payload.email):
+            allowed, count, limit = check_external_invitation_rate_limit(request.user)
+            if not allowed:
+                notify_admin_of_invitation_abuse(request.user, count, payload.email, context=f"page:{page.external_id}")
+                return 429, {"message": "Too many invitations. Please try again later."}
+            increment_external_invitation_count(request.user)
+
+        # Add editor with specified role
+        PageEditor.objects.create(
+            user=user_to_add,
+            page=page,
+            role=role,
+        )
+
+        log_info(
+            "Page editor added: user=%s, page=%s, added_by=%s, role=%s",
+            user_to_add.email,
+            page.external_id,
+            request.user.email,
+            role,
+        )
+
+        # Return is_pending=True to prevent email enumeration attacks.
+        # The actual state will be shown correctly when the list is refreshed.
+        return 201, {
+            "external_id": str(user_to_add.external_id),
+            "email": user_to_add.email,
+            "is_owner": False,
+            "is_pending": True,
+            "role": role,
+        }
+    except User.DoesNotExist:
+        # User doesn't exist - always rate limit (external invitation)
+        email = payload.email.lower().strip()
+
+        allowed, count, limit = check_external_invitation_rate_limit(request.user)
+        if not allowed:
+            notify_admin_of_invitation_abuse(request.user, count, email, context=f"page:{page.external_id}")
+            return 429, {"message": "Too many invitations. Please try again later."}
+
+        # Check if already an editor somehow (shouldn't happen but safety check)
+        if page.editors.filter(email=email).exists():
+            return 400, {"message": f"{email} already has access to this page"}
+
+        # Create or get existing pending invitation with role
+        invitation, created = PageInvitation.objects.create_invitation(
+            page=page, email=email, invited_by=request.user, role=role
+        )
+
+        # Send email only if new invitation (idempotent behavior)
+        if created:
+            # Increment rate limit counter for new external invitations
+            increment_external_invitation_count(request.user)
+
+            invitation.send()
+
+            log_info(
+                "Page invitation created: email=%s, page=%s, invited_by=%s, role=%s",
+                email,
+                page.external_id,
+                request.user.email,
+                role,
+            )
+
+        return 201, {
+            "external_id": str(invitation.external_id),
+            "email": invitation.email,
+            "is_owner": False,
+            "is_pending": True,
+            "role": invitation.role,
+        }
+
+
+@pages_router.delete(
+    "/{external_id}/editors/{user_external_id}/", response={204: None, 400: dict, 403: dict, 404: dict}
+)
+def remove_page_editor(request: HttpRequest, external_id: str, user_external_id: str):
+    """Remove an editor or cancel a pending invitation.
+
+    Users with write access can remove others, but not the page creator.
+    """
+    page = get_object_or_404(Page, external_id=external_id, is_deleted=False)
+
+    if not user_can_manage_page_sharing(request.user, page):
+        return 403, {"message": "You don't have permission to remove editors from this page"}
+
+    # Try to find a user first
+    try:
+        user_to_remove = User.objects.get(external_id=user_external_id)
+
+        # Don't allow removing the creator
+        if user_to_remove.id == page.creator_id:
+            return 400, {"message": "Cannot remove the page creator"}
+
+        # Verify the user to remove is actually an editor of this page
+        if not page.editors.filter(id=user_to_remove.id).exists():
+            return 400, {"message": "User is not an editor of this page"}
+
+        # Remove editor
+        page.editors.remove(user_to_remove)
+
+        log_info(
+            "Page editor removed: user=%s, page=%s, removed_by=%s",
+            user_to_remove.email,
+            page.external_id,
+            request.user.email,
+        )
+
+        return 204, None
+
+    except User.DoesNotExist:
+        # Not a user - check if it's a pending invitation
+        try:
+            invitation = PageInvitation.objects.get(page=page, external_id=user_external_id, accepted=False)
+
+            # Delete the invitation
+            email = invitation.email
+            invitation.delete()
+
+            log_info(
+                "Page invitation cancelled: email=%s, page=%s, cancelled_by=%s",
+                email,
+                page.external_id,
+                request.user.email,
+            )
+
+            return 204, None
+
+        except PageInvitation.DoesNotExist:
+            return 404, {"message": "Editor or invitation not found"}
+
+
+@pages_router.patch(
+    "/{external_id}/editors/{user_external_id}/", response={200: PageEditorOut, 400: dict, 403: dict, 404: dict}
+)
+def update_page_editor_role(
+    request: HttpRequest, external_id: str, user_external_id: str, payload: PageEditorRoleUpdate
+):
+    """Update a page editor's role.
+
+    Users with write access can change roles.
+    Cannot change the creator's role.
+    """
+    page = get_object_or_404(Page, external_id=external_id, is_deleted=False)
+
+    if not user_can_manage_page_sharing(request.user, page):
+        return 403, {"message": "You don't have permission to change roles for this page"}
+
+    # Try to find a user first
+    try:
+        target_user = User.objects.get(external_id=user_external_id)
+
+        # Cannot change creator's role
+        if target_user.id == page.creator_id:
+            return 400, {"message": "Cannot change the page creator's role"}
+
+        # Get the PageEditor record
+        try:
+            page_editor = PageEditor.objects.get(user=target_user, page=page)
+        except PageEditor.DoesNotExist:
+            return 400, {"message": "User is not an editor of this page"}
+
+        # Update the role
+        page_editor.role = payload.role
+        page_editor.save(update_fields=["role", "modified"])
+
+        log_info(
+            "Page editor role changed: user=%s, page=%s, new_role=%s, changed_by=%s",
+            target_user.email,
+            page.external_id,
+            payload.role,
+            request.user.email,
+        )
+
+        return 200, {
+            "external_id": str(target_user.external_id),
+            "email": target_user.email,
+            "is_owner": False,
+            "is_pending": False,
+            "role": page_editor.role,
+        }
+
+    except User.DoesNotExist:
+        # Check if it's a pending invitation
+        try:
+            invitation = PageInvitation.objects.get(page=page, external_id=user_external_id, accepted=False)
+
+            # Update invitation role
+            invitation.role = payload.role
+            invitation.save(update_fields=["role", "modified"])
+
+            log_info(
+                "Page invitation role changed: email=%s, page=%s, new_role=%s, changed_by=%s",
+                invitation.email,
+                page.external_id,
+                payload.role,
+                request.user.email,
+            )
+
+            return 200, {
+                "external_id": str(invitation.external_id),
+                "email": invitation.email,
+                "is_owner": False,
+                "is_pending": True,
+                "role": invitation.role,
+            }
+
+        except PageInvitation.DoesNotExist:
+            return 404, {"message": "Editor or invitation not found"}
+
+
+# ========================================
+# Page Sharing Settings Endpoint
+# ========================================
+
+
+@pages_router.get("/{external_id}/sharing/", response={200: PageSharingOut, 403: dict})
+def get_page_sharing(request: HttpRequest, external_id: str):
+    """Get page sharing settings.
+
+    Returns the user's access level, access code status, sharing permissions,
+    and all users who can access the page grouped by their access source.
+    """
+    page = get_object_or_404(Page, external_id=external_id, is_deleted=False)
+
+    if not user_can_access_page(request.user, page):
+        return 403, {"message": "You don't have access to this page"}
+
+    project = page.project
+    access_groups = []
+
+    # Track user IDs that have access via org or project (to exclude from page editors)
+    org_user_ids = set()
+    project_editor_user_ids = set()
+
+    # Group 1: Organization members (if org_members_can_access is True)
+    # Show summary count only, not individual users
+    if project and project.org_members_can_access:
+        from users.models import OrgMember
+
+        org_user_ids = set(OrgMember.objects.filter(org=project.org).values_list("user_id", flat=True))
+        org_member_count = len(org_user_ids)
+
+        if org_member_count > 0:
+            access_groups.append(
+                PageAccessGroupOut(
+                    key="org_members",
+                    label="Organization members",
+                    description=f"All members of {project.org.name} can access this page",
+                    users=[],  # Don't list individual users
+                    user_count=org_member_count,
+                    can_edit=False,  # Can't add/remove from here, managed at org level
+                )
+            )
+
+    # Group 2: Project editors (show summary count only, not individual users)
+    if project:
+        from pages.models import ProjectEditor, ProjectInvitation
+
+        # Get project editors not already in org
+        project_editors_qs = ProjectEditor.objects.filter(project=project)
+        project_editor_user_ids = set(project_editors_qs.values_list("user_id", flat=True))
+
+        # Count project editors excluding org members
+        project_editor_count = len(project_editor_user_ids - org_user_ids)
+
+        # Count pending project invitations
+        pending_project_count = ProjectInvitation.objects.filter(
+            project=project,
+            accepted=False,
+            expires_at__gt=timezone.now(),
+        ).count()
+
+        total_project_collaborators = project_editor_count + pending_project_count
+
+        if total_project_collaborators > 0:
+            access_groups.append(
+                PageAccessGroupOut(
+                    key="project_editors",
+                    label="Project collaborators",
+                    description=f'People with access to the project "{project.name}"',
+                    users=[],  # Don't list individual users
+                    user_count=total_project_collaborators,
+                    can_edit=False,  # Can't add/remove from here, managed at project level
+                )
+            )
+
+    # Group 3: Page editors (page-level sharing) - list individual users
+    page_editors = PageEditor.objects.filter(page=page).select_related("user")
+
+    # Get IDs of users who have access via org or project
+    shown_user_ids = org_user_ids | project_editor_user_ids
+
+    page_users = []
+    for pe in page_editors:
+        # Only show page editors who don't already have access via org or project
+        if pe.user_id not in shown_user_ids:
+            page_users.append(
+                PageAccessUserOut(
+                    external_id=str(pe.user.external_id),
+                    email=pe.user.email,
+                    role=pe.role,
+                    is_owner=pe.user_id == page.creator_id,
+                    is_pending=False,
+                    access_source="page",
+                )
+            )
+
+    # Also include pending page invitations
+    pending_invitations = PageInvitation.objects.filter(
+        page=page,
+        accepted=False,
+        expires_at__gt=timezone.now(),
+    ).values("external_id", "email", "role")
+
+    for inv in pending_invitations:
+        page_users.append(
+            PageAccessUserOut(
+                external_id=str(inv["external_id"]),
+                email=inv["email"],
+                role=inv["role"],
+                is_owner=False,
+                is_pending=True,
+                access_source="page",
+            )
+        )
+
+    # Always show page editors group (even if empty) so users can add collaborators
+    access_groups.append(
+        PageAccessGroupOut(
+            key="page_editors",
+            label="Page collaborators",
+            description="People you've directly shared this page with",
+            users=page_users,
+            user_count=len(page_users),
+            can_edit=True,  # Can add/remove page editors
+        )
+    )
+
+    return {
+        "your_access": get_user_page_access_label(request.user, page),
+        "access_code": page.access_code,
+        "can_manage_sharing": user_can_manage_page_sharing(request.user, page),
+        "access_groups": access_groups,
+        "org_name": project.org.name if project else "",
+        "project_name": project.name if project else "",
+    }

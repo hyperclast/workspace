@@ -27,6 +27,7 @@
   let userMenuOpen = $state(false);
   let gravatarUrl = $state(null);
   let gravatarLoaded = $state(false);
+  let expandedOrgMembers = $state(new Set());
 
   const editIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>`;
   const codeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>`;
@@ -61,6 +62,16 @@
       window.removeEventListener("hashchange", handleHashChange);
     };
   });
+
+  function toggleMemberList(orgId) {
+    const newSet = new Set(expandedOrgMembers);
+    if (newSet.has(orgId)) {
+      newSet.delete(orgId);
+    } else {
+      newSet.add(orgId);
+    }
+    expandedOrgMembers = newSet;
+  }
 
   $effect(() => {
     if (data.user?.email) {
@@ -441,10 +452,17 @@
                             <span class="org-detail-value org-domain">@{org.domain}</span>
                           </div>
                         {/if}
-                        <div class="org-detail">
+                        <button
+                          class="org-detail org-detail-clickable"
+                          onclick={() => toggleMemberList(org.external_id)}
+                          aria-expanded={expandedOrgMembers.has(org.external_id)}
+                        >
                           <span class="org-detail-label">Members</span>
-                          <span class="org-detail-value">{org.memberCount}</span>
-                        </div>
+                          <span class="org-detail-value">
+                            {org.memberCount}
+                            <svg class="expand-chevron" class:expanded={expandedOrgMembers.has(org.external_id)} xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                          </span>
+                        </button>
                         <div class="org-detail">
                           <span class="org-detail-label">Created</span>
                           <span class="org-detail-value">{formatDate(org.created)}</span>
@@ -485,6 +503,34 @@
                         {/if}
                       </div>
                     </div>
+                    {#if expandedOrgMembers.has(org.external_id)}
+                      <div class="org-members-table-container">
+                        <table class="org-members-table">
+                          <thead>
+                            <tr>
+                              <th>Username</th>
+                              <th>Email</th>
+                              <th>Role</th>
+                              <th>Joined</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {#each org.members as member}
+                              <tr>
+                                <td>{member.username}</td>
+                                <td>{member.email}</td>
+                                <td>
+                                  <span class="member-role-badge" class:role-admin={member.role === 'admin'}>
+                                    {member.role}
+                                  </span>
+                                </td>
+                                <td>{formatDate(member.created)}</td>
+                              </tr>
+                            {/each}
+                          </tbody>
+                        </table>
+                      </div>
+                    {/if}
                   </div>
                 {/each}
               {/if}
