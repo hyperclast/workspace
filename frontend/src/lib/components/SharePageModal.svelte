@@ -280,7 +280,9 @@
               <div class="access-summary-card">
                 <div class="access-summary-header">
                   <span class="access-summary-label">{group.label}</span>
-                  <span class="access-summary-count">{group.user_count}</span>
+                  {#if group.user_count > 0}
+                    <span class="access-summary-count">{group.user_count}</span>
+                  {/if}
                 </div>
                 <div class="access-summary-description">{group.description}</div>
               </div>

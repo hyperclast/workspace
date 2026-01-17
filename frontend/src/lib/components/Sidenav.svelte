@@ -3,15 +3,16 @@
   import { csrfFetch } from "../../csrf.js";
   import { confirm, prompt, shareProject, changePageType, sharePage } from "../modal.js";
   import { showToast } from "../toast.js";
+  import { broadcastSidenavChanged } from "../sidenavBroadcast.js";
   import { validateProjectName } from "../validation.js";
   import { isDemoMode } from "../../demo/index.js";
   import { getDemoPage } from "../../demo/demoContent.js";
   import {
     getProjects,
     getActivePageId,
-    getCurrentProjectId,
     getShowOrgNames,
-    setCurrentProject,
+    getExpandedProjectIds,
+    toggleProjectExpanded,
     navigateToPage,
     createNewPage,
     updateProjectName,
@@ -37,8 +38,8 @@
   // Derived state using getters
   let projects = $derived(getProjects());
   let activePageId = $derived(getActivePageId());
-  let currentProjectId = $derived(getCurrentProjectId());
   let showOrgNames = $derived(getShowOrgNames());
+  let expandedProjectIds = $derived(getExpandedProjectIds());
 
   // Small menu icon for pages
   const pageMenuIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>`;
@@ -67,16 +68,8 @@
     createNewPage(projectId);
   }
 
-  function handleProjectHeaderClick(projectId, pages) {
-    const isCurrentlyExpanded = projectId === currentProjectId;
-    if (isCurrentlyExpanded) return;
-
-    setCurrentProject(projectId);
-
-    // Navigate to first page if available
-    if (pages?.length > 0) {
-      navigateToPage(pages[0].external_id, projectId);
-    }
+  function handleProjectHeaderClick(projectId) {
+    toggleProjectExpanded(projectId);
   }
 
   function handleMenuBtnClick(e, projectId) {
@@ -174,6 +167,7 @@
 
       if (response.ok || response.status === 204) {
         showToast("Project deleted successfully");
+        broadcastSidenavChanged(); // Notify other tabs
         notifyProjectDeleted(projectId);
       } else {
         const data = await response.json().catch(() => ({}));
@@ -286,6 +280,7 @@
 
       if (response.ok || response.status === 204) {
         showToast("Page deleted successfully");
+        broadcastSidenavChanged(); // Notify other tabs
         window.location.href = "/";
       } else {
         const data = await response.json().catch(() => ({}));
@@ -319,7 +314,7 @@
     <div class="sidebar-empty">No projects yet</div>
   {:else}
     {#each projects as project (project.external_id)}
-      {@const isExpanded = project.external_id === currentProjectId}
+      {@const isExpanded = expandedProjectIds.has(project.external_id)}
       <div
         class="sidebar-project"
         class:expanded={isExpanded}
@@ -329,7 +324,7 @@
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="sidebar-project-header"
-          onclick={() => handleProjectHeaderClick(project.external_id, project.pages)}
+          onclick={() => handleProjectHeaderClick(project.external_id)}
         >
           {@html chevronIcon}
           <span class="project-name">{project.name}</span>

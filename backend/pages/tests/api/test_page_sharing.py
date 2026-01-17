@@ -328,6 +328,27 @@ class TestPageSharing(TestPageEditorAPIBase):
         emails = [u["email"] for u in page_group["users"]]
         self.assertIn(page_editor.email, emails)
 
+    def test_sharing_always_returns_project_editors_group_even_when_empty(self):
+        """Test sharing endpoint returns project editors group even with no editors."""
+        # Disable org member access
+        self.project.org_members_can_access = False
+        self.project.save()
+
+        # Don't add any project editors
+
+        response = self.client.get(f"/api/pages/{self.page.external_id}/sharing/")
+        data = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        # Project editors group should still exist
+        project_group = next((g for g in data["access_groups"] if g["key"] == "project_editors"), None)
+        self.assertIsNotNone(project_group)
+        self.assertEqual(project_group["label"], "Project collaborators")
+        self.assertEqual(project_group["user_count"], 0)
+        self.assertEqual(project_group["description"], "No one has been added at the project level")
+        self.assertFalse(project_group["can_edit"])
+
 
 class TestPageLevelAccess(TestPageEditorAPIBase):
     """Test page-level access (Tier 3) functionality."""

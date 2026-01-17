@@ -13,6 +13,11 @@ import {
   setProjectRenamedHandler,
   getCurrentProjectId,
   setCurrentProject,
+  toggleProjectExpanded,
+  expandProject,
+  collapseProject,
+  isProjectExpanded,
+  getExpandedProjectIds,
 } from "./stores/sidenav.svelte.js";
 
 let mounted = false;
@@ -84,14 +89,39 @@ export { setProjectDeletedHandler };
 export { setProjectRenamedHandler };
 
 /**
- * Get the current project ID.
+ * Get the current project ID (backwards compatibility - returns first expanded).
  */
 export { getCurrentProjectId };
 
 /**
- * Set the current project ID.
+ * Set the current project ID (backwards compatibility - expands project).
  */
 export { setCurrentProject };
+
+/**
+ * Toggle a project's expand/collapse state.
+ */
+export { toggleProjectExpanded };
+
+/**
+ * Expand a specific project (no-op if already expanded).
+ */
+export { expandProject };
+
+/**
+ * Collapse a specific project.
+ */
+export { collapseProject };
+
+/**
+ * Check if a project is expanded.
+ */
+export { isProjectExpanded };
+
+/**
+ * Get all expanded project IDs as a Set.
+ */
+export { getExpandedProjectIds };
 
 /**
  * Setup sidebar toggle behavior for mobile.

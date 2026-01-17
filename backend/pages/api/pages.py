@@ -662,17 +662,19 @@ def get_page_sharing(request: HttpRequest, external_id: str):
 
         total_project_collaborators = project_editor_count + pending_project_count
 
-        if total_project_collaborators > 0:
-            access_groups.append(
-                PageAccessGroupOut(
-                    key="project_editors",
-                    label="Project collaborators",
-                    description=f'People with access to the project "{project.name}"',
-                    users=[],  # Don't list individual users
-                    user_count=total_project_collaborators,
-                    can_edit=False,  # Can't add/remove from here, managed at project level
-                )
+        # Always show project editors group (even if empty) for consistency
+        access_groups.append(
+            PageAccessGroupOut(
+                key="project_editors",
+                label="Project collaborators",
+                description=f'People with access to the project "{project.name}"'
+                if total_project_collaborators > 0
+                else "No one has been added at the project level",
+                users=[],  # Don't list individual users
+                user_count=total_project_collaborators,
+                can_edit=False,  # Can't add/remove from here, managed at project level
             )
+        )
 
     # Group 3: Page editors (page-level sharing) - list individual users
     page_editors = PageEditor.objects.filter(page=page).select_related("user")

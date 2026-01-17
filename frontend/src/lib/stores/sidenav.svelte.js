@@ -2,12 +2,34 @@
  * Sidenav store - manages project list state
  */
 
-const STORAGE_KEY_CURRENT_PROJECT = "current-project-id";
+const STORAGE_KEY_EXPANDED = "expanded-project-ids";
+const STORAGE_KEY_CURRENT_PROJECT_OLD = "current-project-id"; // For migration
+
+// Load expanded projects from localStorage (with migration from old format)
+function loadExpandedProjects() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_EXPANDED);
+    if (stored) {
+      return new Set(JSON.parse(stored));
+    }
+    // Migration: if new key doesn't exist but old does, use old ID
+    const oldProjectId = localStorage.getItem(STORAGE_KEY_CURRENT_PROJECT_OLD);
+    if (oldProjectId) {
+      localStorage.removeItem(STORAGE_KEY_CURRENT_PROJECT_OLD);
+      const migrated = new Set([oldProjectId]);
+      localStorage.setItem(STORAGE_KEY_EXPANDED, JSON.stringify([...migrated]));
+      return migrated;
+    }
+    return new Set();
+  } catch {
+    return new Set();
+  }
+}
 
 // Reactive state
 let projects = $state([]);
 let activePageId = $state(null);
-let currentProjectId = $state(localStorage.getItem(STORAGE_KEY_CURRENT_PROJECT) || null);
+let expandedProjectIds = $state(loadExpandedProjects());
 
 // Callbacks (set from vanilla JS)
 let onNavigate = null;
@@ -21,26 +43,29 @@ function getShowOrgNames() {
   return orgIds.size > 1;
 }
 
+// Helper to save expanded projects to localStorage
+function saveExpandedProjects() {
+  localStorage.setItem(STORAGE_KEY_EXPANDED, JSON.stringify([...expandedProjectIds]));
+}
+
 // Actions
 export function setProjects(newProjects, newActivePageId = null) {
   projects = [...newProjects];
   activePageId = newActivePageId;
 
-  // Auto-select current project based on active page
-  const activeProject = projects.find((p) =>
-    p.pages?.some((page) => page.external_id === newActivePageId)
-  );
-
-  if (activeProject && activeProject.external_id !== currentProjectId) {
-    setCurrentProject(activeProject.external_id);
-  } else if (!currentProjectId && projects.length > 0) {
-    // Restore from localStorage or default to first project
-    const savedProjectId = localStorage.getItem(STORAGE_KEY_CURRENT_PROJECT);
-    if (savedProjectId && projects.find((p) => p.external_id === savedProjectId)) {
-      currentProjectId = savedProjectId;
-    } else {
-      setCurrentProject(projects[0].external_id);
+  // Auto-expand project containing active page (without collapsing others)
+  if (newActivePageId) {
+    const activeProject = projects.find((p) =>
+      p.pages?.some((page) => page.external_id === newActivePageId)
+    );
+    if (activeProject) {
+      expandProject(activeProject.external_id);
     }
+  }
+
+  // If no projects are expanded and we have projects, expand the first one
+  if (expandedProjectIds.size === 0 && projects.length > 0) {
+    expandProject(projects[0].external_id);
   }
 }
 
@@ -48,28 +73,54 @@ export function setActivePageId(pageId) {
   activePageId = pageId;
 }
 
-export function setCurrentProject(projectId) {
-  currentProjectId = projectId;
-  if (projectId) {
-    localStorage.setItem(STORAGE_KEY_CURRENT_PROJECT, projectId);
+export function toggleProjectExpanded(projectId) {
+  if (expandedProjectIds.has(projectId)) {
+    expandedProjectIds.delete(projectId);
   } else {
-    localStorage.removeItem(STORAGE_KEY_CURRENT_PROJECT);
+    expandedProjectIds.add(projectId);
   }
-}
-
-export function getCurrentProjectId() {
-  return currentProjectId;
+  expandedProjectIds = new Set(expandedProjectIds); // trigger reactivity
+  saveExpandedProjects();
 }
 
 export function expandProject(projectId) {
-  if (projectId !== currentProjectId) {
-    setCurrentProject(projectId);
+  if (!expandedProjectIds.has(projectId)) {
+    expandedProjectIds.add(projectId);
+    expandedProjectIds = new Set(expandedProjectIds); // trigger reactivity
+    saveExpandedProjects();
   }
 }
 
+export function collapseProject(projectId) {
+  if (expandedProjectIds.has(projectId)) {
+    expandedProjectIds.delete(projectId);
+    expandedProjectIds = new Set(expandedProjectIds); // trigger reactivity
+    saveExpandedProjects();
+  }
+}
+
+export function isProjectExpanded(projectId) {
+  return expandedProjectIds.has(projectId);
+}
+
+export function getExpandedProjectIds() {
+  return expandedProjectIds;
+}
+
+// Keep for backwards compatibility (used by sidenav.js bridge)
+export function getCurrentProjectId() {
+  // Return first expanded project or null
+  return expandedProjectIds.size > 0 ? [...expandedProjectIds][0] : null;
+}
+
+// Keep for backwards compatibility
+export function setCurrentProject(projectId) {
+  expandProject(projectId);
+}
+
 export function navigateToPage(pageId, projectId) {
-  if (projectId && projectId !== currentProjectId) {
-    setCurrentProject(projectId);
+  if (projectId) {
+    expandProject(projectId);
   }
   if (onNavigate) {
     onNavigate(pageId);
@@ -77,8 +128,8 @@ export function navigateToPage(pageId, projectId) {
 }
 
 export function createNewPage(projectId) {
-  if (projectId && projectId !== currentProjectId) {
-    setCurrentProject(projectId);
+  if (projectId) {
+    expandProject(projectId);
   }
   if (onNewPage) {
     onNewPage(projectId);

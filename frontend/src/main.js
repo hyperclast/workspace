@@ -80,6 +80,7 @@ import {
   updateSidenavActive,
 } from "./lib/sidenav.js";
 import { updatePageAccessCode } from "./lib/stores/sidenav.svelte.js";
+import { initSidenavBroadcast, broadcastSidenavChanged } from "./lib/sidenavBroadcast.js";
 import { setupToolbar, resetToolbar } from "./toolbar.js";
 import { getPageIdFromPath } from "./router.js";
 import { initTheme } from "./theme.js";
@@ -1494,6 +1495,7 @@ function openCreatePageDialog(projectId) {
         }
 
         renderSidenav(cachedProjects, result.page.external_id);
+        broadcastSidenavChanged(); // Notify other tabs
         await loadPage(result.page);
         window.history.pushState({}, "", `/pages/${result.page.external_id}/`);
       } else {
@@ -1766,6 +1768,7 @@ async function openDeleteModal() {
         project.pages = project.pages.filter((p) => p.external_id !== currentPage.external_id);
       }
     }
+    broadcastSidenavChanged(); // Notify other tabs
     await closePage();
   } else {
     showToast(result.error || "Failed to delete page", "error");
@@ -1792,6 +1795,7 @@ function setupCreateProjectButton() {
 
         cachedProjects.unshift(newProject);
         renderSidenav(cachedProjects, result.page?.external_id);
+        broadcastSidenavChanged(); // Notify other tabs
 
         // Navigate to the new page
         if (result.page) {
@@ -2097,6 +2101,7 @@ async function startApp() {
           }
           cachedProjects.unshift(newProject);
           renderSidenav(cachedProjects, result.page?.external_id);
+          broadcastSidenavChanged(); // Notify other tabs
           if (result.page) {
             window.location.href = `/pages/${result.page.external_id}/`;
           }
@@ -2169,6 +2174,13 @@ async function startApp() {
   appSpan.addEvent("page_view_init_start");
   await initializePageView();
   appSpan.addEvent("page_view_init_complete");
+
+  // Initialize cross-tab sync for sidenav
+  initSidenavBroadcast(async () => {
+    // Another tab created/deleted a page or project - refresh sidenav
+    cachedProjects = await fetchProjects();
+    renderSidenav(cachedProjects, currentPage?.external_id);
+  });
 
   // Show upgrade pill if user has any free (non-Pro) orgs
   const hasFreePlan = cachedProjects.some((p) => !p.org?.is_pro);

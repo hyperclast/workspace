@@ -1,4 +1,5 @@
 <script>
+  import { onMount } from "svelte";
   import { foldAll, unfoldAll } from "@codemirror/language";
   import {
     ChevronsDownUp,
@@ -18,7 +19,8 @@
     Link2,
     Undo2,
     Redo2,
-    CircleHelp
+    CircleHelp,
+    MoreHorizontal
   } from "lucide-static";
   import { openSidebar, setActiveTab } from "../stores/sidebar.svelte.js";
   import { toggleCheckbox } from "../../decorateFormatting.js";
@@ -33,6 +35,13 @@
   let linkModalInitialUrl = $state('');
   let linkInsertPosition = $state({ from: 0, to: 0 });
   let linkEditMode = $state(false);
+
+  // Overflow menu state
+  let overflowOpen = $state(false);
+  let containerRef = $state(null);
+  let containerWidth = $state(0);
+  let itemWidths = $state([]);
+  let measurementComplete = $state(false);
 
   function toggleFormat(marker) {
     if (!editorView) return;
@@ -249,12 +258,6 @@
     editorView.focus();
   }
 
-  function handleClickOutside(event) {
-    if (headingMenuOpen && !event.target.closest('.toolbar-dropdown')) {
-      headingMenuOpen = false;
-    }
-  }
-
   function openAskTab() {
     openSidebar();
     setActiveTab("ask");
@@ -360,102 +363,191 @@
       window.dispatchEvent(new CustomEvent("editorEnterPressed"));
     }, 50);
   }
+
+  // Define toolbar items as data for dynamic rendering
+  const toolbarItems = [
+    { type: 'button', id: 'undo', title: 'Undo (Cmd+Z)', icon: Undo2, action: handleUndo, label: 'Undo' },
+    { type: 'button', id: 'redo', title: 'Redo (Cmd+Shift+Z)', icon: Redo2, action: handleRedo, label: 'Redo' },
+    { type: 'separator' },
+    { type: 'button', id: 'bold', title: 'Bold (Cmd+B)', icon: Bold, action: () => toggleFormat("**"), label: 'Bold' },
+    { type: 'button', id: 'italic', title: 'Italic (Cmd+I)', icon: Italic, action: () => toggleFormat("*"), label: 'Italic' },
+    { type: 'button', id: 'underline', title: 'Underline (Cmd+U)', icon: Underline, action: () => toggleFormat("__"), label: 'Underline' },
+    { type: 'button', id: 'strikethrough', title: 'Strikethrough', icon: Strikethrough, action: () => toggleFormat("~~"), label: 'Strikethrough' },
+    { type: 'button', id: 'code', title: 'Inline code', icon: Code, action: () => toggleFormat("`"), label: 'Inline code' },
+    { type: 'button', id: 'codeblock', title: 'Code block', icon: FileCode, action: insertCodeBlock, label: 'Code block' },
+    { type: 'button', id: 'link', title: 'Insert link (Cmd+K)', icon: Link2, action: insertLink, label: 'Insert link' },
+    { type: 'separator' },
+    { type: 'button', id: 'h2', title: 'Heading 2', text: 'H2', action: () => toggleLinePrefix("## "), label: 'Heading 2' },
+    { type: 'button', id: 'h3', title: 'Heading 3', text: 'H3', action: () => toggleLinePrefix("### "), label: 'Heading 3' },
+    { type: 'heading-dropdown', id: 'heading-menu' },
+    { type: 'separator' },
+    { type: 'button', id: 'bullet', title: 'Bullet list', icon: List, action: () => toggleLinePrefix("- "), label: 'Bullet list' },
+    { type: 'button', id: 'numbered', title: 'Numbered list', icon: ListOrdered, action: toggleOrderedList, label: 'Numbered list' },
+    { type: 'button', id: 'checklist', title: 'Checklist (Cmd+L)', icon: CheckSquare, action: () => { if (editorView) toggleCheckbox(editorView); }, label: 'Checklist' },
+    { type: 'button', id: 'quote', title: 'Blockquote', icon: Quote, action: () => toggleLinePrefix("> "), label: 'Blockquote' },
+    { type: 'separator' },
+    { type: 'button', id: 'fold', title: 'Fold all sections', icon: ChevronsDownUp, action: handleFoldAll, label: 'Fold all' },
+    { type: 'button', id: 'unfold', title: 'Expand all sections', icon: ChevronsUpDown, action: handleUnfoldAll, label: 'Expand all' },
+    { type: 'button', id: 'ask', title: 'Ask AI', icon: Search, action: openAskTab, label: 'Ask AI' },
+    { type: 'button', id: 'table', title: 'Insert table', icon: Table2, action: insertTable, label: 'Insert table' },
+    { type: 'button', id: 'help', title: 'Keyboard shortcuts (?)', icon: CircleHelp, action: helpModal, label: 'Shortcuts' },
+  ];
+
+  const OVERFLOW_BTN_WIDTH = 36;
+  const BUTTON_WIDTH = 32; // button (28px) + gap (4px)
+  const TEXT_BUTTON_WIDTH = 36; // text buttons are slightly wider
+  const SEPARATOR_WIDTH = 12; // separator (1px) + margins (8px)
+  const HEADING_DROPDOWN_WIDTH = 40;
+
+  // Calculate item width based on type
+  function getItemWidth(item) {
+    if (item.type === 'separator') return SEPARATOR_WIDTH;
+    if (item.type === 'heading-dropdown') return HEADING_DROPDOWN_WIDTH;
+    if (item.text) return TEXT_BUTTON_WIDTH;
+    return BUTTON_WIDTH;
+  }
+
+  // Pre-calculate total widths
+  const precomputedWidths = toolbarItems.map(getItemWidth);
+
+  // Calculate visible count based on container width
+  let visibleCount = $derived.by(() => {
+    if (!containerWidth || !measurementComplete) return toolbarItems.length;
+
+    let availableWidth = containerWidth - OVERFLOW_BTN_WIDTH - 8; // extra padding
+    let count = 0;
+    let totalWidth = 0;
+
+    for (let i = 0; i < precomputedWidths.length; i++) {
+      const width = precomputedWidths[i];
+      if (totalWidth + width > availableWidth) break;
+      totalWidth += width;
+      count++;
+    }
+
+    // Don't cut off right after a separator - go back one
+    if (count > 0 && count < toolbarItems.length && toolbarItems[count - 1].type === 'separator') {
+      count--;
+    }
+
+    return count;
+  });
+
+  let visibleItems = $derived(toolbarItems.slice(0, visibleCount));
+  let overflowItems = $derived(toolbarItems.slice(visibleCount));
+  let hasOverflow = $derived(overflowItems.length > 0);
+
+  // Filter overflow items to remove leading/trailing/consecutive separators
+  let filteredOverflowItems = $derived.by(() => {
+    const items = overflowItems.filter((item, i, arr) => {
+      if (item.type !== 'separator') return true;
+      // Remove leading separators
+      if (i === 0) return false;
+      // Remove trailing separators
+      if (i === arr.length - 1) return false;
+      // Remove consecutive separators
+      if (arr[i - 1]?.type === 'separator') return false;
+      return true;
+    });
+    return items;
+  });
+
+  onMount(() => {
+    measurementComplete = true;
+
+    const observer = new ResizeObserver(entries => {
+      containerWidth = entries[0].contentRect.width;
+    });
+
+    if (containerRef) {
+      observer.observe(containerRef);
+    }
+
+    return () => observer.disconnect();
+  });
+
+  function handleClickOutside(event) {
+    if (headingMenuOpen && !event.target.closest('.toolbar-dropdown')) {
+      headingMenuOpen = false;
+    }
+    if (overflowOpen && !event.target.closest('.toolbar-overflow')) {
+      overflowOpen = false;
+    }
+  }
 </script>
 
 <svelte:document onclick={handleClickOutside} />
 
 <div class="toolbar-wrapper">
   <div class="toolbar">
-    <div class="toolbar-container">
-      <button class="toolbar-btn" title="Undo (Cmd+Z)" onmousedown={(e) => { e.preventDefault(); handleUndo(); }}>
-        {@html Undo2}
-      </button>
-      <button class="toolbar-btn" title="Redo (Cmd+Shift+Z)" onmousedown={(e) => { e.preventDefault(); handleRedo(); }}>
-        {@html Redo2}
-      </button>
-
-      <span class="toolbar-separator"></span>
-
-      <button class="toolbar-btn" title="Bold (Cmd+B)" onmousedown={(e) => { e.preventDefault(); toggleFormat("**"); }}>
-        {@html Bold}
-      </button>
-      <button class="toolbar-btn" title="Italic (Cmd+I)" onmousedown={(e) => { e.preventDefault(); toggleFormat("*"); }}>
-        {@html Italic}
-      </button>
-      <button class="toolbar-btn" title="Underline (Cmd+U)" onmousedown={(e) => { e.preventDefault(); toggleFormat("__"); }}>
-        {@html Underline}
-      </button>
-      <button class="toolbar-btn" title="Strikethrough" onmousedown={(e) => { e.preventDefault(); toggleFormat("~~"); }}>
-        {@html Strikethrough}
-      </button>
-      <button class="toolbar-btn" title="Inline code" onmousedown={(e) => { e.preventDefault(); toggleFormat("`"); }}>
-        {@html Code}
-      </button>
-      <button class="toolbar-btn" title="Code block" onmousedown={(e) => { e.preventDefault(); insertCodeBlock(); }}>
-        {@html FileCode}
-      </button>
-      <button class="toolbar-btn" title="Insert link (Cmd+K)" onmousedown={(e) => { e.preventDefault(); insertLink(); }}>
-        {@html Link2}
-      </button>
-
-      <span class="toolbar-separator"></span>
-
-      <button class="toolbar-btn toolbar-btn-text" title="Heading 2" onmousedown={(e) => { e.preventDefault(); toggleLinePrefix("## "); }}>
-        H2
-      </button>
-      <button class="toolbar-btn toolbar-btn-text" title="Heading 3" onmousedown={(e) => { e.preventDefault(); toggleLinePrefix("### "); }}>
-        H3
-      </button>
-      <div class="toolbar-dropdown">
-        <button
-          class="toolbar-btn toolbar-btn-text"
-          title="More headings"
-          onmousedown={(e) => { e.preventDefault(); e.stopPropagation(); headingMenuOpen = !headingMenuOpen; }}
-        >
-          H<span class="dropdown-arrow">▾</span>
-        </button>
-        {#if headingMenuOpen}
-          <div class="toolbar-dropdown-menu">
-            <button onmousedown={(e) => { e.preventDefault(); toggleLinePrefix("# "); }}>Heading 1</button>
-            <button onmousedown={(e) => { e.preventDefault(); toggleLinePrefix("#### "); }}>Heading 4</button>
-            <button onmousedown={(e) => { e.preventDefault(); toggleLinePrefix("##### "); }}>Heading 5</button>
-            <button onmousedown={(e) => { e.preventDefault(); toggleLinePrefix("###### "); }}>Heading 6</button>
+    <div class="toolbar-container" bind:this={containerRef}>
+      {#each visibleItems as item}
+        {#if item.type === 'separator'}
+          <span class="toolbar-separator"></span>
+        {:else if item.type === 'heading-dropdown'}
+          <div class="toolbar-dropdown">
+            <button
+              class="toolbar-btn toolbar-btn-text"
+              title="More headings"
+              onmousedown={(e) => { e.preventDefault(); e.stopPropagation(); headingMenuOpen = !headingMenuOpen; }}
+            >
+              H<span class="dropdown-arrow">▾</span>
+            </button>
+            {#if headingMenuOpen}
+              <div class="toolbar-dropdown-menu">
+                <button onmousedown={(e) => { e.preventDefault(); toggleLinePrefix("# "); }}>Heading 1</button>
+                <button onmousedown={(e) => { e.preventDefault(); toggleLinePrefix("#### "); }}>Heading 4</button>
+                <button onmousedown={(e) => { e.preventDefault(); toggleLinePrefix("##### "); }}>Heading 5</button>
+                <button onmousedown={(e) => { e.preventDefault(); toggleLinePrefix("###### "); }}>Heading 6</button>
+              </div>
+            {/if}
           </div>
+        {:else if item.text}
+          <button class="toolbar-btn toolbar-btn-text" title={item.title} onmousedown={(e) => { e.preventDefault(); item.action(); }}>
+            {item.text}
+          </button>
+        {:else}
+          <button class="toolbar-btn" title={item.title} onmousedown={(e) => { e.preventDefault(); item.action(); }}>
+            {@html item.icon}
+          </button>
         {/if}
-      </div>
+      {/each}
 
-      <span class="toolbar-separator"></span>
-
-      <button class="toolbar-btn" title="Bullet list" onmousedown={(e) => { e.preventDefault(); toggleLinePrefix("- "); }}>
-        {@html List}
-      </button>
-      <button class="toolbar-btn" title="Numbered list" onmousedown={(e) => { e.preventDefault(); toggleOrderedList(); }}>
-        {@html ListOrdered}
-      </button>
-      <button class="toolbar-btn" title="Checklist (Cmd+L)" onmousedown={(e) => { e.preventDefault(); if (editorView) toggleCheckbox(editorView); }}>
-        {@html CheckSquare}
-      </button>
-      <button class="toolbar-btn" title="Blockquote" onmousedown={(e) => { e.preventDefault(); toggleLinePrefix("> "); }}>
-        {@html Quote}
-      </button>
-
-      <span class="toolbar-separator"></span>
-
-      <button class="toolbar-btn" title="Fold all sections" onmousedown={(e) => { e.preventDefault(); handleFoldAll(); }}>
-        {@html ChevronsDownUp}
-      </button>
-      <button class="toolbar-btn" title="Expand all sections" onmousedown={(e) => { e.preventDefault(); handleUnfoldAll(); }}>
-        {@html ChevronsUpDown}
-      </button>
-      <button class="toolbar-btn" title="Ask AI" onmousedown={(e) => { e.preventDefault(); openAskTab(); }}>
-        {@html Search}
-      </button>
-      <button class="toolbar-btn" title="Insert table" onmousedown={(e) => { e.preventDefault(); insertTable(); }}>
-        {@html Table2}
-      </button>
-      <button class="toolbar-btn" title="Keyboard shortcuts (?)" onmousedown={(e) => { e.preventDefault(); helpModal(); }}>
-        {@html CircleHelp}
-      </button>
+      {#if hasOverflow}
+        <div class="toolbar-dropdown toolbar-overflow">
+          <button
+            class="toolbar-btn"
+            title="More options"
+            onmousedown={(e) => { e.preventDefault(); e.stopPropagation(); overflowOpen = !overflowOpen; }}
+          >
+            {@html MoreHorizontal}
+          </button>
+          {#if overflowOpen}
+            <div class="toolbar-dropdown-menu toolbar-overflow-menu">
+              {#each filteredOverflowItems as item}
+                {#if item.type === 'separator'}
+                  <div class="overflow-separator"></div>
+                {:else if item.type === 'heading-dropdown'}
+                  <div class="overflow-submenu">
+                    <span class="overflow-label">Headings</span>
+                    <button onmousedown={(e) => { e.preventDefault(); toggleLinePrefix("# "); overflowOpen = false; }}>H1</button>
+                    <button onmousedown={(e) => { e.preventDefault(); toggleLinePrefix("#### "); overflowOpen = false; }}>H4</button>
+                    <button onmousedown={(e) => { e.preventDefault(); toggleLinePrefix("##### "); overflowOpen = false; }}>H5</button>
+                    <button onmousedown={(e) => { e.preventDefault(); toggleLinePrefix("###### "); overflowOpen = false; }}>H6</button>
+                  </div>
+                {:else}
+                  <button onmousedown={(e) => { e.preventDefault(); item.action(); overflowOpen = false; }}>
+                    {#if item.icon}
+                      <span class="overflow-icon">{@html item.icon}</span>
+                    {/if}
+                    <span>{item.label}</span>
+                  </button>
+                {/if}
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/if}
     </div>
   </div>
 </div>
@@ -567,5 +659,58 @@
 
   .toolbar-dropdown-menu button:hover {
     background: rgba(55, 53, 47, 0.08);
+  }
+
+  /* Overflow menu styles */
+  .toolbar-overflow-menu {
+    right: 0;
+    left: auto;
+    min-width: 180px;
+  }
+
+  .toolbar-overflow-menu button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+  }
+
+  .overflow-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+
+  .overflow-icon :global(svg) {
+    width: 16px;
+    height: 16px;
+  }
+
+  .overflow-separator {
+    height: 1px;
+    background: var(--border-light, #e5e5e5);
+    margin: 4px 0;
+  }
+
+  .overflow-submenu {
+    padding: 4px 0;
+  }
+
+  .overflow-label {
+    display: block;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted, #9ca3af);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .overflow-submenu button {
+    padding: 6px 12px 6px 24px;
   }
 </style>
