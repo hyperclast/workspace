@@ -492,6 +492,25 @@ class PageYjsConsumer(BaseYjsConsumer):
             else:
                 log_debug(f"User {self.user_id} still has access via other means, not closing")
 
+    async def write_permission_revoked(self, event):
+        """
+        Handle write permission revocation message from the channel layer.
+        Called when a user's role is changed from editor to viewer.
+        Updates the can_write flag and notifies the client.
+        """
+        revoked_user_id = event.get("user_id")
+
+        if self.user_id and self.user_id == revoked_user_id:
+            log_info(f"Write permission revoked for user {self.user_id}, setting can_write=False")
+
+            # Update the can_write flag so future write attempts are rejected
+            self.can_write = False
+
+            # Notify the client that they now have view-only access
+            await self.send(
+                text_data='{"type":"write_permission_revoked","message":"Your access has been changed to view-only"}'
+            )
+
     async def links_updated(self, event):
         """
         Handle links_updated message from the channel layer.

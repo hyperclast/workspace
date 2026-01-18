@@ -1,20 +1,21 @@
 import io
 import re
 import zipfile
-from typing import List, Optional
+from typing import List
 
 from asgiref.sync import async_to_sync
+from backend.utils import log_info
 from channels.layers import get_channel_layer
+from core.authentication import session_auth, token_auth
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Prefetch
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
-from ninja import Router, Query
+from ninja import Query, Router
 from ninja.responses import Response
+from users.models import Org
 
-from backend.utils import log_info
-from core.authentication import session_auth, token_auth
 from pages.constants import ProjectEditorRole
 from pages.models import (
     Page,
@@ -24,8 +25,13 @@ from pages.models import (
     ProjectEditorRemoveEvent,
     ProjectInvitation,
 )
-from pages.permissions import user_can_change_project_access, user_can_delete_project, user_can_modify_project
+from pages.permissions import (
+    user_can_change_project_access,
+    user_can_delete_project,
+    user_can_modify_project,
+)
 from pages.schemas import (
+    ErrorResponse,
     ProjectEditorIn,
     ProjectEditorOut,
     ProjectEditorRoleUpdate,
@@ -33,14 +39,15 @@ from pages.schemas import (
     ProjectInvitationValidationResponse,
     ProjectListQuery,
     ProjectOut,
-    ProjectPageOut,
     ProjectSharingOut,
     ProjectSharingUpdateIn,
     ProjectUpdateIn,
-    ErrorResponse,
 )
-from pages.tasks import send_project_editor_added_email, send_project_editor_removed_email, send_project_invitation
-from users.models import Org
+from pages.tasks import (
+    send_project_editor_added_email,
+    send_project_editor_removed_email,
+    send_project_invitation,
+)
 
 User = get_user_model()
 
@@ -257,7 +264,7 @@ def create_project(request: HttpRequest, payload: ProjectIn):
     # Auto-add creator as editor when org access is disabled
     # This ensures creator always has access to their own project
     if not payload.org_members_can_access:
-        project.editors.add(request.user)
+        project.add_editor(request.user)
 
     log_info(f"User {request.user.email} created project {project.external_id} in org {org.external_id}")
 
@@ -289,7 +296,7 @@ def update_project(request: HttpRequest, external_id: str, payload: ProjectUpdat
         # Auto-add current user as editor when disabling org access
         # to ensure they don't lose access to the project
         if not payload.org_members_can_access:
-            project.editors.add(request.user)
+            project.add_editor(request.user)
     project.save()
 
     log_info(f"User {request.user.email} updated project {project.external_id}")
@@ -383,13 +390,13 @@ def add_project_editor(
     Rate limiting: External invitations (non-org members, non-existent users) are rate limited.
     Org members inviting each other = high trust, no limit.
     """
-    from users.models import OrgMember
-
     from core.rate_limit import (
         check_external_invitation_rate_limit,
         increment_external_invitation_count,
         notify_admin_of_invitation_abuse,
     )
+    from users.models import OrgMember
+
     from pages.permissions import user_can_edit_in_project
 
     # Get project and verify current user has access
@@ -644,6 +651,17 @@ def update_project_editor_role(
             f"User {request.user.email} changed role of {target_user.email} to {payload.role} in project {project.external_id}"
         )
 
+        # If role changed to viewer, notify any active WebSocket sessions for all pages in the project
+        if payload.role == ProjectEditorRole.VIEWER.value:
+            from collab.utils import notify_write_permission_revoked
+
+            # Get all pages in this project and notify for each one
+            page_external_ids = Page.objects.filter(project=project, is_deleted=False).values_list(
+                "external_id", flat=True
+            )
+            for page_external_id in page_external_ids:
+                notify_write_permission_revoked(str(page_external_id), target_user.id)
+
         return {
             "external_id": str(target_user.external_id),
             "email": target_user.email,
@@ -687,7 +705,7 @@ def update_project_editor_role(
 
 def get_user_access_label(user, project):
     """Get a human-readable label for the user's access level to the project."""
-    from pages.permissions import user_is_org_admin, user_can_access_org
+    from pages.permissions import user_can_access_org, user_is_org_admin
 
     # Check if user is the creator
     if project.creator_id == user.id:
@@ -753,7 +771,7 @@ def update_project_sharing(request: HttpRequest, external_id: str, payload: Proj
 
     # Auto-add current user as editor when disabling org access
     if not payload.org_members_can_access:
-        project.editors.add(request.user)
+        project.add_editor(request.user)
 
     project.save()
 

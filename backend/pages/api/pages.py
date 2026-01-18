@@ -561,6 +561,12 @@ def update_page_editor_role(
             request.user.email,
         )
 
+        # If role changed to viewer, notify any active WebSocket sessions
+        if payload.role == PageEditorRole.VIEWER.value:
+            from collab.utils import notify_write_permission_revoked
+
+            notify_write_permission_revoked(str(page.external_id), target_user.id)
+
         return 200, {
             "external_id": str(target_user.external_id),
             "email": target_user.email,

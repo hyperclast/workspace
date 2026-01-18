@@ -61,7 +61,7 @@ def dev_index(request):
 
 def api_docs(request, doc_name="overview"):
     """Render API documentation from markdown files."""
-    allowed_docs = ["overview", "ask", "orgs", "projects", "pages", "users"]
+    allowed_docs = ["overview", "ask", "mentions", "orgs", "projects", "pages", "users"]
     if doc_name not in allowed_docs:
         raise Http404("Documentation not found")
 

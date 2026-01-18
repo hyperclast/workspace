@@ -1,7 +1,8 @@
 from http import HTTPStatus
 
 from core.tests.common import BaseAuthenticatedViewTestCase
-from pages.models import Project
+from pages.constants import ProjectEditorRole
+from pages.models import Project, ProjectEditor
 from pages.tests.factories import PageFactory, ProjectFactory
 from users.constants import OrgMemberRole
 from users.models import OrgMember
@@ -617,6 +618,26 @@ class TestProjectOrgMembersCanAccess(BaseAuthenticatedViewTestCase):
         # Creator should be auto-added as editor
         self.assertTrue(project.editors.filter(id=self.user.id).exists())
 
+    def test_create_project_with_org_access_disabled_adds_editor_role_not_viewer(self):
+        """Creating project with org_members_can_access=False adds creator with 'editor' role."""
+        response = self.send_api_request(
+            url="/api/projects/",
+            method="post",
+            data={
+                "org_id": self.org.external_id,
+                "name": "Private Project",
+                "org_members_can_access": False,
+            },
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.CREATED)
+        payload = response.json()
+        project = Project.objects.get(external_id=payload["external_id"])
+
+        # Verify the role is 'editor', not 'viewer'
+        project_editor = ProjectEditor.objects.get(user=self.user, project=project)
+        self.assertEqual(project_editor.role, ProjectEditorRole.EDITOR.value)
+
     def test_org_member_cannot_access_restricted_project(self):
         """Org member cannot access project with org_members_can_access=False."""
         other_user = UserFactory()
@@ -680,6 +701,22 @@ class TestProjectOrgMembersCanAccess(BaseAuthenticatedViewTestCase):
         self.assertFalse(project.org_members_can_access)
         # User should be auto-added as editor
         self.assertTrue(project.editors.filter(id=self.user.id).exists())
+
+    def test_update_project_to_disable_org_access_adds_editor_role_not_viewer(self):
+        """Updating project to disable org access adds user with 'editor' role."""
+        project = ProjectFactory(org=self.org, creator=self.user)
+
+        response = self.send_api_request(
+            url=f"/api/projects/{project.external_id}/",
+            method="patch",
+            data={"org_members_can_access": False},
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        # Verify the role is 'editor', not 'viewer'
+        project_editor = ProjectEditor.objects.get(user=self.user, project=project)
+        self.assertEqual(project_editor.role, ProjectEditorRole.EDITOR.value)
 
     def test_update_project_to_enable_org_access(self):
         """Can update project to enable org access."""
@@ -792,6 +829,25 @@ class TestProjectSharingAPI(BaseAuthenticatedViewTestCase):
 
         project.refresh_from_db()
         self.assertFalse(project.org_members_can_access)
+
+    def test_disable_org_access_via_sharing_endpoint_adds_editor_role_not_viewer(self):
+        """Disabling org access via sharing endpoint adds user with 'editor' role."""
+        project = ProjectFactory(org=self.org, creator=self.user)
+
+        # Verify user is not an editor initially
+        self.assertFalse(ProjectEditor.objects.filter(user=self.user, project=project).exists())
+
+        response = self.send_api_request(
+            url=f"/api/projects/{project.external_id}/sharing/",
+            method="patch",
+            data={"org_members_can_access": False},
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        # Verify the role is 'editor', not 'viewer'
+        project_editor = ProjectEditor.objects.get(user=self.user, project=project)
+        self.assertEqual(project_editor.role, ProjectEditorRole.EDITOR.value)
 
     def test_org_admin_can_change_access(self):
         """Org admin can change access settings for any project in the org."""

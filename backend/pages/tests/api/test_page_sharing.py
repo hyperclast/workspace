@@ -173,6 +173,32 @@ class TestUpdatePageEditorRole(TestPageEditorAPIBase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
         self.assertEqual(payload["role"], "viewer")
 
+    def test_update_role_to_viewer_sends_websocket_notification(self):
+        """Test changing role to viewer sends WebSocket notification to revoke write permission."""
+        from unittest.mock import patch
+
+        editor = UserFactory()
+        PageEditorFactory(page=self.page, user=editor, role=PageEditorRole.EDITOR.value)
+
+        with patch("collab.utils.notify_write_permission_revoked") as mock_notify:
+            response = self.send_update_role_request(self.page.external_id, editor.external_id, "viewer")
+
+            self.assertEqual(response.status_code, HTTPStatus.OK)
+            mock_notify.assert_called_once_with(str(self.page.external_id), editor.id)
+
+    def test_update_role_to_editor_does_not_send_notification(self):
+        """Test changing role to editor does not send write permission revoked notification."""
+        from unittest.mock import patch
+
+        editor = UserFactory()
+        PageEditorFactory(page=self.page, user=editor, role=PageEditorRole.VIEWER.value)
+
+        with patch("collab.utils.notify_write_permission_revoked") as mock_notify:
+            response = self.send_update_role_request(self.page.external_id, editor.external_id, "editor")
+
+            self.assertEqual(response.status_code, HTTPStatus.OK)
+            mock_notify.assert_not_called()
+
     def test_cannot_change_creator_role(self):
         """Test that creator's role cannot be changed."""
         response = self.send_update_role_request(self.page.external_id, self.user.external_id, "viewer")

@@ -1,11 +1,11 @@
+from core.fields import UniqueIDTextField
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import models
 from django.db.models import BooleanField, Case, Q, Value, When
 from django_extensions.db.models import TimeStampedModel
 
-from core.fields import UniqueIDTextField
-
+from pages.constants import ProjectEditorRole
 
 User = get_user_model()
 
@@ -24,8 +24,9 @@ class ProjectManager(models.Manager):
         Returns:
             QuerySet of non-deleted projects the user can access
         """
-        from pages.models import Page
         from users.models import OrgMember
+
+        from pages.models import Page
 
         # Get org IDs where user is admin
         admin_org_ids = OrgMember.objects.filter(user=user, role="admin").values_list("org_id", flat=True)
@@ -61,7 +62,7 @@ class ProjectManager(models.Manager):
         email = user.email
         return self.create(
             org=org,
-            name=f"First Project",
+            name="First Project",
             description=f"Initial project automatically created for {email}",
             creator=user,
         )
@@ -132,3 +133,19 @@ class Project(TimeStampedModel):
             editor["external_id"] = str(editor["external_id"])
 
         return editors
+
+    def add_editor(self, user):
+        """Add user as editor with 'editor' role. If already exists, doesn't change their role."""
+        self.editors.through.objects.get_or_create(
+            user=user,
+            project=self,
+            defaults={"role": ProjectEditorRole.EDITOR.value},
+        )
+
+    def add_viewer(self, user):
+        """Add user as editor with 'viewer' role. If already exists, doesn't change their role."""
+        self.editors.through.objects.get_or_create(
+            user=user,
+            project=self,
+            defaults={"role": ProjectEditorRole.VIEWER.value},
+        )

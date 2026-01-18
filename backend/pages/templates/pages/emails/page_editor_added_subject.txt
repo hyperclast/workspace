@@ -1,1 +1,1 @@
-You've been added as an editor to {% if page_title %}the Hyperclast page {{ page_title|truncatechars:50 }}{% else %}a Hyperclast page{% endif %}
+You've been given access to {% if page_title %}the Hyperclast page {{ page_title|truncatechars:50 }}{% else %}a Hyperclast page{% endif %}

@@ -1,1 +1,1 @@
-You've been added as an editor to {% if project_name %}the Hyperclast project {{ project_name|truncatechars:50 }}{% else %}a Hyperclast project{% endif %}
+You've been given access to {% if project_name %}the Hyperclast project {{ project_name|truncatechars:50 }}{% else %}a Hyperclast project{% endif %}

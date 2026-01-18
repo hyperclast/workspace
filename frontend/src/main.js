@@ -36,8 +36,11 @@ import {
   checkboxClickHandler,
   blockquoteKeymap,
 } from "./decorateFormatting.js";
+import { autocompletion } from "@codemirror/autocomplete";
 import { decorateLinks, linkClickHandler } from "./decorateLinks.js";
-import { linkAutocomplete } from "./linkAutocomplete.js";
+import { decorateMentions } from "./decorateMentions.js";
+import { linkCompletionSource } from "./linkAutocomplete.js";
+import { mentionCompletionSource } from "./mentionAutocomplete.js";
 import { findSectionFold } from "./findSectionFold.js";
 import { largeFileModeExtension } from "./largeFileMode.js";
 import { sectionFoldHover } from "./sectionFoldHover.js";
@@ -85,6 +88,7 @@ import { setupToolbar, resetToolbar } from "./toolbar.js";
 import { getPageIdFromPath } from "./router.js";
 import { initTheme } from "./theme.js";
 import { mount } from "svelte";
+import MentionsList from "./lib/components/MentionsList.svelte";
 import ThemeToggle from "./lib/components/ThemeToggle.svelte";
 
 /**
@@ -155,10 +159,16 @@ function renderAppHTML() {
       <div id="sidebar-overlay" class="sidebar-overlay"></div>
       <aside id="note-sidebar" class="note-sidebar">
         <div class="sidebar-header">
-          <h2>Projects › Pages</h2>
+          <div class="sidebar-nav">
+            <button id="sidebar-nav-projects" class="sidebar-nav-btn active" title="Projects">Projects</button>
+            <button id="sidebar-nav-mentions" class="sidebar-nav-btn" title="@ Mentions">@ Mentions</button>
+          </div>
         </div>
         <div id="sidebar-list" class="sidebar-list">
           <!-- Populated dynamically -->
+        </div>
+        <div id="sidebar-mentions-list" class="sidebar-list" style="display: none;">
+          <!-- Populated by MentionsList -->
         </div>
         <button id="sidebar-new-project-btn" class="sidebar-new-btn">+ New Project</button>
       </aside>
@@ -1427,7 +1437,13 @@ function initializeEditor(pageContent = "", additionalExtensions = [], filetype 
     decorateEmails,
     decorateLinks,
     linkClickHandler,
-    linkAutocomplete,
+    decorateMentions,
+    autocompletion({
+      override: [linkCompletionSource, mentionCompletionSource],
+      activateOnTyping: true,
+      maxRenderedOptions: 10,
+      icons: true,
+    }),
     foldGutter(),
     foldService.of(findSectionFold),
     sectionFoldHover,
@@ -1775,6 +1791,89 @@ async function openDeleteModal() {
   }
 }
 
+// MentionsList instance for the sidebar
+let mentionsListComponent = null;
+
+/**
+ * Setup sidebar navigation tabs (Projects/Mentions).
+ */
+function setupSidebarNav() {
+  const projectsBtn = document.getElementById("sidebar-nav-projects");
+  const mentionsBtn = document.getElementById("sidebar-nav-mentions");
+  const projectsList = document.getElementById("sidebar-list");
+  const mentionsList = document.getElementById("sidebar-mentions-list");
+  const newProjectBtn = document.getElementById("sidebar-new-project-btn");
+
+  if (!projectsBtn || !mentionsBtn || !projectsList || !mentionsList) {
+    return;
+  }
+
+  // Mount MentionsList component
+  mentionsListComponent = mount(MentionsList, {
+    target: mentionsList,
+    props: {
+      onnavigate: async (pageExternalId) => {
+        // Switch back to projects view
+        showProjectsView();
+        // Navigate to the page
+        if (currentPage) {
+          closePageWithoutNavigate();
+        }
+        await openPage(pageExternalId);
+        // Scroll to own mention after page loads
+        scrollToOwnMention();
+      },
+    },
+  });
+
+  function showProjectsView() {
+    projectsBtn.classList.add("active");
+    mentionsBtn.classList.remove("active");
+    projectsList.style.display = "";
+    mentionsList.style.display = "none";
+    if (newProjectBtn) newProjectBtn.style.display = "";
+  }
+
+  function showMentionsView() {
+    projectsBtn.classList.remove("active");
+    mentionsBtn.classList.add("active");
+    projectsList.style.display = "none";
+    mentionsList.style.display = "";
+    if (newProjectBtn) newProjectBtn.style.display = "none";
+    // Refresh mentions list
+    if (mentionsListComponent?.refresh) {
+      mentionsListComponent.refresh();
+    }
+  }
+
+  projectsBtn.addEventListener("click", showProjectsView);
+  mentionsBtn.addEventListener("click", showMentionsView);
+
+  // Expose for external use
+  window.showMentionsView = showMentionsView;
+  window.showProjectsView = showProjectsView;
+}
+
+/**
+ * Scroll to the current user's mention after navigating to a page.
+ */
+function scrollToOwnMention() {
+  const userInfo = getUserInfo();
+  const username = userInfo.user?.username;
+  if (!username || !window.editorView) return;
+
+  const doc = window.editorView.state.doc.toString();
+  const regex = new RegExp(`@\\[${username}\\]\\([a-zA-Z0-9]+\\)`);
+  const match = doc.match(regex);
+  if (match) {
+    const pos = doc.indexOf(match[0]);
+    window.editorView.dispatch({
+      selection: { anchor: pos },
+      scrollIntoView: true,
+    });
+  }
+}
+
 /**
  * Setup project creation button handler.
  */
@@ -2069,6 +2168,9 @@ async function startApp() {
       updateBreadcrumb(projectId);
     }
   });
+
+  // Setup sidebar navigation (Projects/Mentions tabs)
+  setupSidebarNav();
 
   // Setup command palette (Cmd+K / Ctrl+K)
   setupCommandPalette({

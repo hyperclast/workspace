@@ -3,9 +3,10 @@ from typing import List
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
-from ninja import Router
+from ninja import Query, Router, Schema
 from ninja.responses import Response
 
 from backend.utils import log_info
@@ -199,6 +200,54 @@ def add_org_member(request: HttpRequest, external_id: str, payload: OrgMemberIn)
         "role": membership.role,
         "created": membership.created,
     }
+
+
+# ========================================
+# Autocomplete Endpoints (must be before {user_external_id} routes)
+# ========================================
+
+
+class OrgMemberAutocompleteItem(Schema):
+    external_id: str
+    username: str
+    email: str
+
+
+class OrgMemberAutocompleteOut(Schema):
+    members: List[OrgMemberAutocompleteItem]
+
+
+class AutocompleteQueryParams(Schema):
+    q: str = ""
+
+
+@orgs_router.get("/{external_id}/members/autocomplete/", response=OrgMemberAutocompleteOut)
+def autocomplete_org_members(request: HttpRequest, external_id: str, query: AutocompleteQueryParams = Query(...)):
+    """Return org members for @mention autocomplete."""
+    org = get_object_or_404(
+        Org.objects.filter(members=request.user),
+        external_id=external_id,
+    )
+
+    members_qs = OrgMember.objects.filter(org=org).select_related("user").order_by("user__username")
+    if query.q:
+        members_qs = members_qs.filter(Q(user__username__icontains=query.q) | Q(user__email__icontains=query.q))
+
+    return OrgMemberAutocompleteOut(
+        members=[
+            OrgMemberAutocompleteItem(
+                external_id=str(m.user.external_id),
+                username=m.user.username,
+                email=m.user.email,
+            )
+            for m in members_qs[:10]
+        ]
+    )
+
+
+# ========================================
+# Member Management Endpoints
+# ========================================
 
 
 @orgs_router.delete("/{external_id}/members/{user_external_id}/", response={204: None})

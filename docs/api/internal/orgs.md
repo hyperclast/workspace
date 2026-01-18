@@ -11,6 +11,7 @@
 - [Add organization member](#add-organization-member)
 - [Remove organization member](#remove-organization-member)
 - [Update member role](#update-member-role)
+- [Autocomplete organization members](#autocomplete-organization-members)
 
 ## List all organizations
 
@@ -550,3 +551,81 @@ See [Overview](./overview.md)
   "role": "admin"
 }
 ```
+
+---
+
+## Autocomplete organization members
+
+Search for organization members by username or email for @mention autocomplete functionality.
+
+### URL
+
+`/api/orgs/{external_id}/members/autocomplete/`
+
+### HTTP Method
+
+`GET`
+
+### Path Params
+
+- `external_id` (String, required): The external ID of the organization
+
+### Query Params
+
+- `q` (String, optional): Search query to filter members by username or email (case-insensitive). Default: "" (returns all members)
+
+### Data Params
+
+None
+
+### Authorization
+
+Requires authentication. User must be a member of the organization.
+
+### Request Headers
+
+See [Overview](./overview.md)
+
+### Response
+
+- Status Code: 200
+- Schema:
+
+```json
+{
+  "members": [
+    {
+      "external_id": "user123",
+      "username": "alice",
+      "email": "alice@example.com"
+    },
+    {
+      "external_id": "user456",
+      "username": "bob",
+      "email": "bob@example.com"
+    }
+  ]
+}
+```
+
+**Notes:**
+
+- Returns members of the specified organization that match the search query
+- Search is case-insensitive and matches partial usernames or emails
+- Maximum of 10 results are returned
+- Empty query (`q=""` or no `q` parameter) returns all members (up to 10)
+- Used primarily for @mention autocomplete in the editor
+
+**Example Usage:**
+
+```bash
+# Search for members with "alice" in username or email
+GET /api/orgs/org123/members/autocomplete/?q=alice
+
+# Get all members (up to 10)
+GET /api/orgs/org123/members/autocomplete/
+```
+
+**Error Responses:**
+
+- Status Code: 404 - Organization not found or user is not a member

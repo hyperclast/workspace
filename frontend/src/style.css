@@ -711,6 +711,49 @@ nav {
   margin: 0;
 }
 
+.sidebar-nav {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.sidebar-nav-btn {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary, rgba(55, 53, 47, 0.65));
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sidebar-nav-btn:hover {
+  background: var(--bg-hover, rgba(55, 53, 47, 0.08));
+}
+
+.sidebar-nav-btn.active {
+  background: var(--bg-hover, rgba(55, 53, 47, 0.08));
+  color: var(--text-primary, #37352f);
+}
+
+:root.dark .sidebar-nav-btn,
+[data-theme="dark"] .sidebar-nav-btn {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
+}
+
+:root.dark .sidebar-nav-btn:hover,
+[data-theme="dark"] .sidebar-nav-btn:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+}
+
+:root.dark .sidebar-nav-btn.active,
+[data-theme="dark"] .sidebar-nav-btn.active {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+  color: var(--text-primary, #fff);
+}
+
 .sidebar-list {
   flex: 1;
   overflow-y: auto;
@@ -3088,6 +3131,27 @@ body.sidebar-resizing .chat-sidebar {
 
 .email-highlight:hover {
   background-color: rgba(35, 131, 226, 0.2);
+}
+
+/* Mention styles */
+.mention {
+  color: #0969da;
+}
+
+.mention-own {
+  background: #fff3cd;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+:root.dark .mention-own,
+[data-theme="dark"] .mention-own {
+  background: rgba(255, 193, 7, 0.25);
+}
+
+.mention-icon {
+  color: #0969da;
+  font-weight: bold;
 }
 
 /* Button styles */

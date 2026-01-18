@@ -63,6 +63,9 @@ export const decorateLinks = ViewPlugin.fromClass(
 
             if (!linkText) continue;
 
+            // Skip @mentions - they use format @[username](@id) where URL starts with @
+            if (url.startsWith("@")) continue;
+
             const cursorInLink = cursorPos >= start && cursorPos <= end;
             const isInternal = INTERNAL_LINK_PATTERN.test(url);
 

@@ -1,6 +1,7 @@
 from django.test import TestCase
 
-from pages.models import Project
+from pages.constants import ProjectEditorRole
+from pages.models import Project, ProjectEditor
 from pages.tests.factories import ProjectFactory
 from users.tests.factories import OrgFactory, UserFactory
 
@@ -390,3 +391,123 @@ class TestGetUserAccessibleProjects(TestCase):
         accessible = Project.objects.get_user_accessible_projects(new_user)
 
         self.assertEqual(accessible.count(), 0)
+
+
+class TestProjectAddEditorMethods(TestCase):
+    """Test Project.add_editor() and Project.add_viewer() methods."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.org = OrgFactory()
+        self.project = ProjectFactory(org=self.org)
+        self.user = UserFactory()
+
+    def test_add_editor_creates_project_editor_with_editor_role(self):
+        """Test that add_editor creates a ProjectEditor with 'editor' role."""
+        self.project.add_editor(self.user)
+
+        editor = ProjectEditor.objects.get(user=self.user, project=self.project)
+        self.assertEqual(editor.role, ProjectEditorRole.EDITOR.value)
+
+    def test_add_viewer_creates_project_editor_with_viewer_role(self):
+        """Test that add_viewer creates a ProjectEditor with 'viewer' role."""
+        self.project.add_viewer(self.user)
+
+        editor = ProjectEditor.objects.get(user=self.user, project=self.project)
+        self.assertEqual(editor.role, ProjectEditorRole.VIEWER.value)
+
+    def test_add_editor_is_idempotent(self):
+        """Test that calling add_editor twice doesn't create duplicates."""
+        self.project.add_editor(self.user)
+        self.project.add_editor(self.user)
+
+        count = ProjectEditor.objects.filter(user=self.user, project=self.project).count()
+        self.assertEqual(count, 1)
+
+    def test_add_viewer_is_idempotent(self):
+        """Test that calling add_viewer twice doesn't create duplicates."""
+        self.project.add_viewer(self.user)
+        self.project.add_viewer(self.user)
+
+        count = ProjectEditor.objects.filter(user=self.user, project=self.project).count()
+        self.assertEqual(count, 1)
+
+    def test_add_editor_does_not_change_existing_role(self):
+        """Test that add_editor doesn't change role if user already has one."""
+        # First add as viewer
+        self.project.add_viewer(self.user)
+        editor = ProjectEditor.objects.get(user=self.user, project=self.project)
+        self.assertEqual(editor.role, ProjectEditorRole.VIEWER.value)
+
+        # Now try to add as editor - should not change role
+        self.project.add_editor(self.user)
+        editor.refresh_from_db()
+        self.assertEqual(editor.role, ProjectEditorRole.VIEWER.value)
+
+    def test_add_viewer_does_not_change_existing_role(self):
+        """Test that add_viewer doesn't change role if user already has one."""
+        # First add as editor
+        self.project.add_editor(self.user)
+        editor = ProjectEditor.objects.get(user=self.user, project=self.project)
+        self.assertEqual(editor.role, ProjectEditorRole.EDITOR.value)
+
+        # Now try to add as viewer - should not change role
+        self.project.add_viewer(self.user)
+        editor.refresh_from_db()
+        self.assertEqual(editor.role, ProjectEditorRole.EDITOR.value)
+
+    def test_add_editor_adds_user_to_editors_relation(self):
+        """Test that add_editor adds user to project.editors M2M relation."""
+        self.assertNotIn(self.user, self.project.editors.all())
+
+        self.project.add_editor(self.user)
+
+        self.assertIn(self.user, self.project.editors.all())
+
+    def test_add_viewer_adds_user_to_editors_relation(self):
+        """Test that add_viewer adds user to project.editors M2M relation."""
+        self.assertNotIn(self.user, self.project.editors.all())
+
+        self.project.add_viewer(self.user)
+
+        self.assertIn(self.user, self.project.editors.all())
+
+    def test_add_multiple_editors_to_same_project(self):
+        """Test that multiple users can be added as editors to the same project."""
+        user2 = UserFactory()
+        user3 = UserFactory()
+
+        self.project.add_editor(self.user)
+        self.project.add_editor(user2)
+        self.project.add_viewer(user3)
+
+        self.assertEqual(ProjectEditor.objects.filter(project=self.project).count(), 3)
+        self.assertEqual(
+            ProjectEditor.objects.get(user=self.user, project=self.project).role,
+            ProjectEditorRole.EDITOR.value,
+        )
+        self.assertEqual(
+            ProjectEditor.objects.get(user=user2, project=self.project).role,
+            ProjectEditorRole.EDITOR.value,
+        )
+        self.assertEqual(
+            ProjectEditor.objects.get(user=user3, project=self.project).role,
+            ProjectEditorRole.VIEWER.value,
+        )
+
+    def test_add_editor_to_multiple_projects(self):
+        """Test that same user can be added as editor to multiple projects."""
+        project2 = ProjectFactory(org=self.org)
+
+        self.project.add_editor(self.user)
+        project2.add_viewer(self.user)
+
+        self.assertEqual(ProjectEditor.objects.filter(user=self.user).count(), 2)
+        self.assertEqual(
+            ProjectEditor.objects.get(user=self.user, project=self.project).role,
+            ProjectEditorRole.EDITOR.value,
+        )
+        self.assertEqual(
+            ProjectEditor.objects.get(user=self.user, project=project2).role,
+            ProjectEditorRole.VIEWER.value,
+        )

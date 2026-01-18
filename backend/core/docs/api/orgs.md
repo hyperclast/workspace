@@ -213,6 +213,37 @@ Permanently deletes the organization and all its projects/pages.
 
 > Cannot remove the only admin.
 
+### Autocomplete Members
+
+Search for org members by username or email. Used for @mention autocomplete.
+
+|              |                                                     |
+| ------------ | --------------------------------------------------- |
+| **Endpoint** | `GET /api/orgs/{external_id}/members/autocomplete/` |
+| **Auth**     | Bearer token                                        |
+
+**Query:** `?q=search+term`
+
+**Response (200):**
+
+```json
+{
+  "members": [
+    {
+      "external_id": "user123",
+      "username": "alice",
+      "email": "alice@example.com"
+    }
+  ]
+}
+```
+
+**Notes:**
+
+- Returns up to 10 matching members
+- Case-insensitive search on username and email
+- Empty query returns all members (up to 10)
+
 ---
 
 ## Examples

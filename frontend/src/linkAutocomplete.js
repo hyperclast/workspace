@@ -135,6 +135,9 @@ async function linkCompletionSource(context) {
   };
 }
 
+// Export completion source for combining with other sources
+export { linkCompletionSource };
+
 export const linkAutocomplete = autocompletion({
   override: [linkCompletionSource],
   activateOnTyping: true,
