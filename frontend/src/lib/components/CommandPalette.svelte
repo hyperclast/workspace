@@ -1,5 +1,9 @@
 <script>
   import { closeCommandPalette } from '../stores/modal.svelte.js';
+  import { csrfFetch } from '../../csrf.js';
+  import { API_BASE_URL } from '../../config.js';
+  import { getRecentPages } from '../recentPages.js';
+  import { isDemoMode } from '../../demo/index.js';
 
   let {
     open = $bindable(false),
@@ -14,14 +18,38 @@
   let inputEl = $state(null);
   let listEl = $state(null);
 
-  // Session-based recent pages (module-level would persist across opens)
-  let recentPageIds = $state([]);
+  // Detect Mac for keyboard shortcut display
+  const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+
+  // @Mentions state
+  let mentions = $state([]);
+  let mentionsLoading = $state(false);
+  let mentionsExpanded = $state(false);
+  const MAX_MENTIONS_COLLAPSED = 2;
+
+  // Get recent pages from localStorage
+  let storedRecentPages = $state([]);
   const MAX_RECENT = 5;
 
-  // Track visited pages for recent section
+  // Fetch mentions from API
+  async function fetchMentions() {
+    if (isDemoMode()) return;
+    mentionsLoading = true;
+    try {
+      const res = await csrfFetch(`${API_BASE_URL}/api/mentions/`);
+      if (res.ok) {
+        const data = await res.json();
+        mentions = data.mentions || [];
+      }
+    } catch (e) {
+      console.error("Error fetching mentions:", e);
+    }
+    mentionsLoading = false;
+  }
+
+  // Track visited pages for recent section (legacy compatibility)
   export function trackPageVisit(pageId) {
-    if (!pageId) return;
-    recentPageIds = [pageId, ...recentPageIds.filter(id => id !== pageId)].slice(0, MAX_RECENT);
+    // This is now handled by addRecentPage in recentPages.js
   }
 
   // Action definitions
@@ -95,12 +123,28 @@
     return { match: true, score };
   }
 
-  // Get recent pages (only those that still exist)
+  // Get recent pages from localStorage, mapped to full page data
   let recentPages = $derived.by(() => {
-    return recentPageIds
-      .map(id => allPages.find(p => p.external_id === id))
-      .filter(Boolean)
-      .filter(p => p.external_id !== currentPageId); // Don't show current page in recent
+    const stored = storedRecentPages;
+    return stored
+      .map(rp => {
+        const page = allPages.find(p => p.external_id === rp.id);
+        return page || { ...rp, external_id: rp.id, title: rp.title, projectName: rp.projectName, type: 'page' };
+      })
+      .filter(p => p.external_id !== currentPageId)
+      .slice(0, MAX_RECENT);
+  });
+
+  // Mentions to display (collapsible)
+  let displayedMentions = $derived.by(() => {
+    if (!mentions.length) return [];
+    const items = mentionsExpanded ? mentions : mentions.slice(0, MAX_MENTIONS_COLLAPSED);
+    return items.map(m => ({
+      external_id: m.page_external_id,
+      title: m.page_title,
+      projectName: m.project_name,
+      type: 'mention',
+    }));
   });
 
   // Filter and score items based on query
@@ -109,15 +153,38 @@
     const q = query.trim();
 
     if (!q) {
-      // No query: show recent pages, then all pages, then actions
+      // No query: show mentions, recent pages, then all pages, then actions
+
+      // Mentions section (collapsible)
+      if (displayedMentions.length > 0) {
+        const hasMore = mentions.length > MAX_MENTIONS_COLLAPSED;
+        items.push({
+          type: 'header',
+          label: '@ Mentions',
+          expandable: hasMore,
+          expanded: mentionsExpanded,
+          totalCount: mentions.length,
+        });
+        items.push(...displayedMentions.map(m => ({ ...m, section: 'mentions' })));
+        if (hasMore && !mentionsExpanded) {
+          items.push({ type: 'expand-toggle', section: 'mentions', label: `Show ${mentions.length - MAX_MENTIONS_COLLAPSED} more` });
+        }
+      }
+
+      // Recent pages
       if (recentPages.length > 0) {
         items.push({ type: 'header', label: 'Recent' });
         items.push(...recentPages.map(p => ({ ...p, section: 'recent' })));
       }
 
-      // Show all pages (excluding recent)
+      // Show all pages (excluding recent and mentions)
       const recentIds = new Set(recentPages.map(p => p.external_id));
-      const otherPages = allPages.filter(p => !recentIds.has(p.external_id) && p.external_id !== currentPageId);
+      const mentionIds = new Set(displayedMentions.map(m => m.external_id));
+      const otherPages = allPages.filter(p =>
+        !recentIds.has(p.external_id) &&
+        !mentionIds.has(p.external_id) &&
+        p.external_id !== currentPageId
+      );
       if (otherPages.length > 0) {
         items.push({ type: 'header', label: 'Pages' });
         items.push(...otherPages.slice(0, 10).map(p => ({ ...p, section: 'pages' })));
@@ -159,7 +226,7 @@
     return items;
   });
 
-  // Get only selectable items (not headers)
+  // Get only selectable items (not headers, but include expand-toggle)
   let selectableItems = $derived(filteredItems.filter(item => item.type !== 'header'));
 
   // Reset state when modal opens/closes
@@ -167,6 +234,11 @@
     if (open) {
       query = '';
       selectedIndex = 0;
+      mentionsExpanded = false;
+      // Load recent pages from localStorage
+      storedRecentPages = getRecentPages();
+      // Fetch mentions
+      fetchMentions();
       setTimeout(() => inputEl?.focus(), 10);
     }
   });
@@ -218,12 +290,18 @@
   function selectItem(item) {
     if (!item || item.type === 'header') return;
 
+    // Handle expand toggle
+    if (item.type === 'expand-toggle') {
+      if (item.section === 'mentions') {
+        mentionsExpanded = !mentionsExpanded;
+      }
+      return;
+    }
+
     close();
 
-    if (item.type === 'page') {
-      // Track this page as recently visited
-      trackPageVisit(item.external_id);
-      onselect({ type: 'navigate', pageId: item.external_id });
+    if (item.type === 'page' || item.type === 'mention') {
+      onselect({ type: 'navigate', pageId: item.external_id, scrollToMention: item.type === 'mention' });
     } else if (item.type === 'action') {
       onselect({ type: 'action', actionId: item.id });
     }
@@ -303,7 +381,30 @@
         {:else}
           {#each filteredItems as item, i}
             {#if item.type === 'header'}
-              <div class="list-header">{item.label}</div>
+              <div class="list-header">
+                {item.label}
+                {#if item.expandable && item.totalCount}
+                  <span class="header-count">{item.totalCount}</span>
+                {/if}
+              </div>
+            {:else if item.type === 'expand-toggle'}
+              {@const selectableIdx = getSelectableIndex(item)}
+              <button
+                class="list-item expand-toggle"
+                class:selected={selectableIdx === selectedIndex}
+                data-index={selectableIdx}
+                onclick={() => handleItemClick(item, i)}
+                onmouseenter={() => { selectedIndex = selectableIdx; }}
+              >
+                <span class="item-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </span>
+                <span class="item-content">
+                  <span class="item-label expand-label">{item.label}</span>
+                </span>
+              </button>
             {:else}
               {@const selectableIdx = getSelectableIndex(item)}
               <button
@@ -315,7 +416,12 @@
                 onmouseenter={() => { selectedIndex = selectableIdx; }}
               >
                 <span class="item-icon">
-                  {#if item.type === 'page'}
+                  {#if item.type === 'mention'}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="4"></circle>
+                      <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"></path>
+                    </svg>
+                  {:else if item.type === 'page'}
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                       <polyline points="14 2 14 8 20 8"></polyline>
@@ -352,8 +458,8 @@
                   {/if}
                 </span>
                 <span class="item-content">
-                  <span class="item-label">{item.type === 'page' ? (item.title || 'Untitled') : item.label}</span>
-                  {#if item.type === 'page' && item.projectName}
+                  <span class="item-label">{(item.type === 'page' || item.type === 'mention') ? (item.title || 'Untitled') : item.label}</span>
+                  {#if (item.type === 'page' || item.type === 'mention') && item.projectName}
                     <span class="item-meta">{item.projectName}</span>
                   {/if}
                 </span>
@@ -367,6 +473,9 @@
       </div>
 
       <div class="command-palette-footer">
+        <span class="footer-hint open-hint">
+          <kbd>{isMac ? '⌘' : 'Ctrl'}</kbd><kbd>K</kbd> to open
+        </span>
         <span class="footer-hint">
           <kbd>↑</kbd><kbd>↓</kbd> to navigate
         </span>
@@ -485,6 +594,26 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--text-tertiary, #999);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .header-count {
+    background: var(--bg-hover, rgba(55, 53, 47, 0.08));
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 0.65rem;
+    font-weight: 500;
+  }
+
+  .expand-toggle {
+    color: var(--text-secondary, #666);
+  }
+
+  .expand-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary, #666);
   }
 
   .list-item {

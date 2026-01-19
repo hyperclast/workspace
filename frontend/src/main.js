@@ -87,9 +87,10 @@ import { initSidenavBroadcast, broadcastSidenavChanged } from "./lib/sidenavBroa
 import { setupToolbar, resetToolbar } from "./toolbar.js";
 import { getPageIdFromPath } from "./router.js";
 import { initTheme } from "./theme.js";
-import { mount } from "svelte";
-import MentionsList from "./lib/components/MentionsList.svelte";
+import { mount, unmount } from "svelte";
 import ThemeToggle from "./lib/components/ThemeToggle.svelte";
+import { addRecentPage } from "./lib/recentPages.js";
+import { commandPalette } from "./lib/modal.js";
 
 /**
  * Check if focus is currently in an input element where ? should be typed.
@@ -159,16 +160,11 @@ function renderAppHTML() {
       <div id="sidebar-overlay" class="sidebar-overlay"></div>
       <aside id="note-sidebar" class="note-sidebar">
         <div class="sidebar-header">
-          <div class="sidebar-nav">
-            <button id="sidebar-nav-projects" class="sidebar-nav-btn active" title="Projects">Projects</button>
-            <button id="sidebar-nav-mentions" class="sidebar-nav-btn" title="@ Mentions">@ Mentions</button>
-          </div>
+          <h2>Projects &rsaquo; Pages</h2>
+          <button id="sidebar-jump-btn" class="sidebar-jump-btn">Jump</button>
         </div>
         <div id="sidebar-list" class="sidebar-list">
           <!-- Populated dynamically -->
-        </div>
-        <div id="sidebar-mentions-list" class="sidebar-list" style="display: none;">
-          <!-- Populated by MentionsList -->
         </div>
         <button id="sidebar-new-project-btn" class="sidebar-new-btn">+ New Project</button>
       </aside>
@@ -648,6 +644,10 @@ async function loadPage(page) {
   updateBreadcrumb(currentProjectId);
   setCurrentPageId(page.external_id);
   notifyPageChange(page.external_id);
+
+  // Track this page in recent pages for Jump modal
+  const currentProject = cachedProjects.find((p) => p.external_id === currentProjectId);
+  addRecentPage(page.external_id, page.title, currentProject?.name || "");
 
   // Disable delete button for non-owners with explanation
   const deleteNoteBtn = document.getElementById("delete-note-btn");
@@ -1791,67 +1791,89 @@ async function openDeleteModal() {
   }
 }
 
-// MentionsList instance for the sidebar
-let mentionsListComponent = null;
-
 /**
- * Setup sidebar navigation tabs (Projects/Mentions).
+ * Open the command palette for quick navigation.
+ * This is called by the Jump button in the sidenav.
  */
-function setupSidebarNav() {
-  const projectsBtn = document.getElementById("sidebar-nav-projects");
-  const mentionsBtn = document.getElementById("sidebar-nav-mentions");
-  const projectsList = document.getElementById("sidebar-list");
-  const mentionsList = document.getElementById("sidebar-mentions-list");
-  const newProjectBtn = document.getElementById("sidebar-new-project-btn");
-
-  if (!projectsBtn || !mentionsBtn || !projectsList || !mentionsList) {
-    return;
-  }
-
-  // Mount MentionsList component
-  mentionsListComponent = mount(MentionsList, {
-    target: mentionsList,
-    props: {
-      onnavigate: async (pageExternalId) => {
-        // Switch back to projects view
-        showProjectsView();
-        // Navigate to the page
+function openJumpPalette() {
+  commandPalette({
+    projects: cachedProjects,
+    currentPageId: currentPage?.external_id,
+    currentProjectId: currentProjectId,
+    onselect: async (selection) => {
+      if (selection.type === "navigate" && selection.pageId) {
         if (currentPage) {
           closePageWithoutNavigate();
         }
-        await openPage(pageExternalId);
-        // Scroll to own mention after page loads
-        scrollToOwnMention();
-      },
+        await openPage(selection.pageId);
+        // Scroll to own mention if navigating from @Mentions section
+        if (selection.scrollToMention) {
+          scrollToOwnMention();
+        }
+      } else if (selection.type === "action") {
+        handleCommandPaletteAction(selection.actionId);
+      }
     },
   });
+}
 
-  function showProjectsView() {
-    projectsBtn.classList.add("active");
-    mentionsBtn.classList.remove("active");
-    projectsList.style.display = "";
-    mentionsList.style.display = "none";
-    if (newProjectBtn) newProjectBtn.style.display = "";
+/**
+ * Handle command palette action selection.
+ */
+function handleCommandPaletteAction(actionId) {
+  switch (actionId) {
+    case "create-page":
+      if (currentProjectId) {
+        openCreatePageDialog(currentProjectId);
+      } else {
+        showToast("No project selected", "error");
+      }
+      break;
+    case "create-project":
+      if (isDemoMode()) {
+        showToast("Not available in demo", "error");
+        return;
+      }
+      createProjectModal({
+        oncreated: async (newProject) => {
+          const result = await createPage(newProject.external_id, "Untitled");
+          if (result.success && result.page) {
+            newProject.pages = [result.page];
+          }
+          cachedProjects.unshift(newProject);
+          renderSidenav(cachedProjects, result.page?.external_id);
+          broadcastSidenavChanged();
+          if (result.success && result.page) {
+            await openPage(result.page.external_id);
+          }
+        },
+      });
+      break;
+    case "delete-page":
+      deletePage();
+      break;
+    case "ask":
+      openSidebar();
+      setActiveTab("ask");
+      break;
+    case "settings":
+      window.location.href = "/settings/";
+      break;
+    case "developer-portal":
+      window.location.href = "/dev/";
+      break;
   }
+}
 
-  function showMentionsView() {
-    projectsBtn.classList.remove("active");
-    mentionsBtn.classList.add("active");
-    projectsList.style.display = "none";
-    mentionsList.style.display = "";
-    if (newProjectBtn) newProjectBtn.style.display = "none";
-    // Refresh mentions list
-    if (mentionsListComponent?.refresh) {
-      mentionsListComponent.refresh();
-    }
-  }
+// Expose for external use
+window.openJumpPalette = openJumpPalette;
 
-  projectsBtn.addEventListener("click", showProjectsView);
-  mentionsBtn.addEventListener("click", showMentionsView);
-
-  // Expose for external use
-  window.showMentionsView = showMentionsView;
-  window.showProjectsView = showProjectsView;
+/**
+ * Setup the Jump button click handler.
+ */
+function setupJumpButton() {
+  const jumpBtn = document.getElementById("sidebar-jump-btn");
+  jumpBtn?.addEventListener("click", openJumpPalette);
 }
 
 /**
@@ -2038,6 +2060,7 @@ async function startApp() {
 
     // Continue with app setup (skip auth-specific UI)
     setupCreateProjectButton();
+    setupJumpButton();
     setupTitleEditing();
     setupSidebar();
 
@@ -2133,6 +2156,7 @@ async function startApp() {
 
   // Setup modals and UI
   setupCreateProjectButton();
+  setupJumpButton();
   setupTitleEditing();
 
   // Setup right sidebar (AI chat, links)
@@ -2168,9 +2192,6 @@ async function startApp() {
       updateBreadcrumb(projectId);
     }
   });
-
-  // Setup sidebar navigation (Projects/Mentions tabs)
-  setupSidebarNav();
 
   // Setup command palette (Cmd+K / Ctrl+K)
   setupCommandPalette({
