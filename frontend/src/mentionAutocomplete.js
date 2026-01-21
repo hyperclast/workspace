@@ -3,12 +3,23 @@ import { csrfFetch } from "./csrf.js";
 const API_BASE = "/api";
 
 /**
- * Get the current org ID from cached projects.
- * Uses the first project's org since user can only @mention within their org context.
+ * Get the current org ID from the current page's project context.
+ * Falls back to first project's org if current project not available.
  */
 function getCurrentOrgId() {
   const projects = window._cachedProjects;
   if (!projects || projects.length === 0) return null;
+
+  // Prefer current project's org (correct for multi-org users)
+  const currentProjectId = window._currentProjectId;
+  if (currentProjectId) {
+    const currentProject = projects.find((p) => p.external_id === currentProjectId);
+    if (currentProject?.org?.external_id) {
+      return currentProject.org.external_id;
+    }
+  }
+
+  // Fallback to first project's org
   return projects[0]?.org?.external_id || null;
 }
 

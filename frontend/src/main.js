@@ -1878,14 +1878,16 @@ function setupJumpButton() {
 
 /**
  * Scroll to the current user's mention after navigating to a page.
+ * Searches by external_id (more stable than username).
  */
 function scrollToOwnMention() {
   const userInfo = getUserInfo();
-  const username = userInfo.user?.username;
-  if (!username || !window.editorView) return;
+  const externalId = userInfo.user?.externalId;
+  if (!externalId || !window.editorView) return;
 
   const doc = window.editorView.state.doc.toString();
-  const regex = new RegExp(`@\\[${username}\\]\\([a-zA-Z0-9]+\\)`);
+  // Match @[any_username](@external_id) - search by ID is more stable
+  const regex = new RegExp(`@\\[[^\\]]+\\]\\(@${externalId}\\)`);
   const match = doc.match(regex);
   if (match) {
     const pos = doc.indexOf(match[0]);
