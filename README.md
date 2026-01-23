@@ -42,6 +42,29 @@ See `backend/.env-template` for all configuration options.
 
 See [Local Development Guide](docs/local-development.md) for running without Docker.
 
+### File Storage (Cloudflare R2)
+
+File uploads are disabled by default. To enable, add to your `.env`:
+
+```
+WS_FILEHUB_FEATURE_ENABLED=true
+WS_FILEHUB_PRIMARY_UPLOAD_TARGET=r2
+WS_FILEHUB_R2_ACCOUNT_ID=<your-account-id>
+WS_FILEHUB_R2_ACCESS_KEY_ID=<access-key-id>
+WS_FILEHUB_R2_SECRET_ACCESS_KEY=<secret-access-key>
+WS_FILEHUB_R2_BUCKET=hyperclast-ws-uploads
+```
+
+See [Cloudflare R2 Setup Guide](docs/cloudflare/r2-setup.md) for detailed instructions.
+
+For local development, you can use MinIO as an R2 emulator:
+
+```sh
+./run-stack.sh --minio 9800
+```
+
+This starts all services plus MinIO with file uploads automatically enabled (S3 API on port 9000, console on port 9001). See [MinIO Local Setup](docs/cloudflare/minio-local-setup.md) for details.
+
 ## License
 
 The source code of this project is licensed under the **Elastic License v2

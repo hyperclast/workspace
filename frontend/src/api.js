@@ -296,3 +296,132 @@ export async function updatePageEditorRole(pageExternalId, editorExternalId, rol
   }
   return response.json();
 }
+
+// Files API
+
+/**
+ * Create a file upload and get a signed URL for uploading.
+ * @param {string} projectId - External ID of the project
+ * @param {string} filename - Original filename
+ * @param {string} contentType - MIME type of the file
+ * @param {number} sizeBytes - File size in bytes
+ * @returns {Promise<{file: Object, upload_url: string, upload_headers: Object, expires_at: string, webhook_enabled: boolean}>}
+ */
+export async function createFileUpload(projectId, filename, contentType, sizeBytes) {
+  const response = await csrfFetch(`${API_BASE}/files/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      project_id: projectId,
+      filename,
+      content_type: contentType,
+      size_bytes: sizeBytes,
+    }),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || `Failed to create file upload: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Upload a file directly to the storage backend using a signed URL.
+ * @param {string} uploadUrl - Signed URL for uploading
+ * @param {File} file - File object to upload
+ * @param {Object} headers - Headers to include in the upload request
+ * @returns {Promise<Response>}
+ */
+export async function uploadFileToStorage(uploadUrl, file, headers) {
+  const response = await fetch(uploadUrl, {
+    method: "PUT",
+    headers,
+    body: file,
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to upload file to storage: ${response.statusText}`);
+  }
+  return response;
+}
+
+/**
+ * Finalize a file upload after uploading to storage.
+ * Only needed when webhook_enabled is false.
+ * @param {string} fileId - External ID of the file upload
+ * @param {string} [etag] - Optional ETag from storage upload response
+ * @returns {Promise<Object>} The finalized file upload object
+ */
+export async function finalizeFileUpload(fileId, etag = null) {
+  const body = etag ? { etag } : {};
+  const response = await csrfFetch(`${API_BASE}/files/${fileId}/finalize/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || `Failed to finalize file upload: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Mark a file upload as failed (for error recovery).
+ * @param {string} fileId - External ID of the file upload
+ * @returns {Promise<Object>} The updated file upload object
+ */
+export async function markUploadFailed(fileId) {
+  const response = await csrfFetch(`${API_BASE}/files/${fileId}/finalize/?mark_failed=true`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({}),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || `Failed to mark upload as failed: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Upload a file to a project (complete flow).
+ * Creates the upload, uploads to storage, and finalizes (if webhook not enabled).
+ * @param {string} projectId - External ID of the project
+ * @param {File} file - File object to upload
+ * @param {Function} [onProgress] - Optional progress callback (not implemented yet)
+ * @returns {Promise<Object>} The file upload object
+ */
+export async function uploadFile(projectId, file, onProgress = null) {
+  // Step 1: Create the upload and get signed URL
+  const createResult = await createFileUpload(projectId, file.name, file.type, file.size);
+
+  try {
+    // Step 2: Upload file to storage using signed URL
+    await uploadFileToStorage(createResult.upload_url, file, createResult.upload_headers);
+  } catch (error) {
+    // Upload failed - mark the upload as failed for cleanup
+    try {
+      await markUploadFailed(createResult.file.external_id);
+    } catch (markError) {
+      console.error("Failed to mark upload as failed:", markError);
+    }
+    throw error;
+  }
+
+  // Step 3: Finalize based on webhook status
+  if (createResult.webhook_enabled) {
+    // Webhook will handle finalization automatically
+    // Return the pending file object - caller should poll for status if needed
+    return createResult.file;
+  } else {
+    // Webhook not enabled - finalize manually
+    const finalizedFile = await finalizeFileUpload(createResult.file.external_id);
+    return finalizedFile;
+  }
+}

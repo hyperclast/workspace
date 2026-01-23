@@ -64,3 +64,24 @@ To disable AI features, add to your `.env`:
 ```
 WS_ASK_FEATURE_ENABLED=false
 ```
+
+## File Uploads
+
+File upload functionality is disabled by default. To enable it:
+
+1. **Using MinIO (recommended for local dev):**
+
+   ```sh
+   ./run-stack.sh --minio 9800
+   ```
+
+   This automatically enables the feature via `docker-compose.minio.yaml`.
+
+2. **Manual configuration:**
+   Add to your `.env`:
+   ```
+   WS_FILEHUB_FEATURE_ENABLED=true
+   ```
+   Plus configure R2 or local storage. See `docs/cloudflare/` for R2 setup.
+
+When disabled, the upload button is hidden and upload APIs return 503.

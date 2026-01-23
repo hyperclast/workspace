@@ -10,6 +10,7 @@ import {
   fetchPage as fetchPageApi,
   fetchProjectsWithPages,
   generateAccessCode,
+  uploadFile,
 } from "./api.js";
 import { isDemoMode, showDemoPrompt } from "./demo/index.js";
 import {
@@ -25,7 +26,7 @@ import {
   destroyCollaboration,
   setupUnloadHandler,
 } from "./collaboration.js";
-import { API_BASE_URL, getBrandName, getUserInfo } from "./config.js";
+import { API_BASE_URL, getBrandName, getUserInfo, getFeatureFlags } from "./config.js";
 import { csrfFetch } from "./csrf.js";
 import { decorateCodeBlocks } from "./decorateCodeBlocks.js";
 import { decorateEmails } from "./decorateEmails.js";
@@ -1468,7 +1469,20 @@ function initializeEditor(pageContent = "", additionalExtensions = [], filetype 
   });
 
   window.tableUtils = { generateTable, insertTable, formatTable, findTables };
-  setupToolbar(view);
+
+  // Determine if user can upload files based on project access level
+  // Users with page-only access (Tier 3) cannot upload files since files are project-scoped
+  // Note: This doesn't distinguish between project editor vs viewer roles - that would
+  // require the backend to expose the user's role in the project list API response
+  const currentProject = cachedProjects.find((p) => p.external_id === currentProjectId);
+  const canUploadFiles = currentProject?.access_source !== "page_only";
+
+  // Check if file upload feature is enabled via feature flag
+  // When disabled, the button is completely hidden (not just disabled)
+  const featureFlags = getFeatureFlags();
+  const showFileUpload = featureFlags.filehub !== false; // Default true for backwards compatibility
+
+  setupToolbar(view, () => openFileUploadDialog(), canUploadFiles, showFileUpload);
 
   // Expose view for debugging
   window.editorView = view;
@@ -1559,6 +1573,72 @@ function clearCompletedTasks() {
     `Cleared ${linesToDelete.length} completed task${linesToDelete.length === 1 ? "" : "s"}`,
     "success"
   );
+}
+
+/**
+ * Open file upload dialog for a project.
+ * Uses a hidden file input to trigger browser file picker.
+ * After successful upload, inserts a file reference into the editor at the cursor position.
+ * @param {string} projectId - External ID of the project (optional, uses currentProjectId if not provided)
+ */
+function openFileUploadDialog(projectId) {
+  const targetProjectId = projectId || currentProjectId;
+
+  if (!targetProjectId) {
+    showToast("No project selected. Please create a project first.", "error");
+    return;
+  }
+
+  // Create a hidden file input
+  const fileInput = document.createElement("input");
+  fileInput.type = "file";
+  fileInput.style.display = "none";
+
+  fileInput.addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      showToast(`Uploading ${file.name}...`, "info");
+
+      // TEMPORARY: Client-initiated upload flow with finalize
+      // Will be replaced with webhook-based finalization
+      const result = await uploadFile(targetProjectId, file);
+
+      showToast(`File "${file.name}" uploaded successfully!`, "success");
+      console.log("File uploaded:", result);
+
+      // TEMPORARY: Insert file reference into editor at cursor position
+      // This is a temporary implementation - will be enhanced with better UX later
+      if (window.editorView && result.link) {
+        const editorView = window.editorView;
+        const cursor = editorView.state.selection.main.head;
+        const fileReference = `[${result.filename}](${result.link})`;
+        editorView.dispatch({
+          changes: { from: cursor, insert: fileReference },
+          selection: { anchor: cursor + fileReference.length },
+        });
+        editorView.focus();
+      }
+    } catch (error) {
+      console.error("File upload failed:", error);
+      // Handle permission errors with a user-friendly message
+      if (error.message?.includes("permission") || error.message?.includes("forbidden")) {
+        showToast(
+          "You don't have permission to upload files to this project. Only editors can upload files.",
+          "error"
+        );
+      } else {
+        showToast(error.message || "Failed to upload file", "error");
+      }
+    } finally {
+      // Clean up
+      document.body.removeChild(fileInput);
+    }
+  });
+
+  document.body.appendChild(fileInput);
+  fileInput.click();
 }
 
 /**

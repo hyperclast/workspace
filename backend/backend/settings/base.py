@@ -2,7 +2,8 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
-from decouple import config as _default_config, Config, RepositoryEnv, Csv
+from decouple import Config, Csv, RepositoryEnv
+from decouple import config as _default_config
 
 if dotenv_file := os.environ.get("DOTENV_FILE"):
     config = Config(RepositoryEnv(dotenv_file))
@@ -38,6 +39,7 @@ INSTALLED_APPS = [
     "ask",
     "core",
     "collab",
+    "filehub",
     "pages.apps.PagesConfig",
     "pulse",
     "updates",
@@ -351,6 +353,9 @@ ASK_EMBEDDINGS_MAX_PAGES = 5
 # Dev sidebar (shows API code snippets in the sidebar)
 DEV_SIDEBAR_ENABLED = config("WS_DEV_SIDEBAR_ENABLED", cast=bool, default=False)
 
+# Filehub (file upload) feature
+FILEHUB_FEATURE_ENABLED = config("WS_FILEHUB_FEATURE_ENABLED", cast=bool, default=False)
+
 # Branding configuration
 BRAND_NAME = config("WS_BRAND_NAME", default="Hyperclast")
 LANDING_TEMPLATE = config("WS_LANDING_TEMPLATE", default="core/landing.html")
@@ -361,6 +366,152 @@ UPDATES_FROM_EMAIL = config("WS_UPDATES_FROM_EMAIL", default=DEFAULT_FROM_EMAIL)
 UPDATES_POSTMARK_TOKEN = config("WS_UPDATES_POSTMARK_TOKEN", default=None)
 UPDATE_DEFAULT_AUTHOR_NAME = config("WS_UPDATE_DEFAULT_AUTHOR_NAME", default="")
 UPDATE_DEFAULT_AUTHOR_PICTURE = config("WS_UPDATE_DEFAULT_AUTHOR_PICTURE", default="")
+
+
+# Filehub Storage Configuration
+WS_FILEHUB_PRIMARY_UPLOAD_TARGET = config("WS_FILEHUB_PRIMARY_UPLOAD_TARGET", default="r2")
+
+# R2 Configuration (Cloudflare R2 / S3-compatible storage)
+WS_FILEHUB_R2_ENDPOINT_URL = config("WS_FILEHUB_R2_ENDPOINT_URL", default=None)
+WS_FILEHUB_R2_PUBLIC_ENDPOINT_URL = config("WS_FILEHUB_R2_PUBLIC_ENDPOINT_URL", default=None)
+WS_FILEHUB_R2_ACCOUNT_ID = config("WS_FILEHUB_R2_ACCOUNT_ID", default="")
+WS_FILEHUB_R2_ACCESS_KEY_ID = config("WS_FILEHUB_R2_ACCESS_KEY_ID", default="")
+WS_FILEHUB_R2_SECRET_ACCESS_KEY = config("WS_FILEHUB_R2_SECRET_ACCESS_KEY", default="")
+WS_FILEHUB_R2_BUCKET = config("WS_FILEHUB_R2_BUCKET", default="ws-filehub-uploads")
+
+# Local Storage Configuration (for development/testing or replication)
+WS_FILEHUB_LOCAL_STORAGE_ROOT = config("WS_FILEHUB_LOCAL_STORAGE_ROOT", default="/var/filehub/storage")
+WS_FILEHUB_LOCAL_BASE_URL = config("WS_FILEHUB_LOCAL_BASE_URL", default="http://localhost:8000")
+
+# URL Expiration Settings (in seconds)
+WS_FILEHUB_UPLOAD_URL_EXPIRATION = config("WS_FILEHUB_UPLOAD_URL_EXPIRATION", default=600, cast=int)  # 10 minutes
+WS_FILEHUB_DOWNLOAD_URL_EXPIRATION = config("WS_FILEHUB_DOWNLOAD_URL_EXPIRATION", default=600, cast=int)  # 10 minutes
+
+# Replication Settings
+# When enabled, files are replicated to all storage providers after upload finalization
+WS_FILEHUB_REPLICATION_ENABLED = config("WS_FILEHUB_REPLICATION_ENABLED", default=False, cast=bool)
+
+# R2 Webhook Settings (for automatic upload finalization via Cloudflare Worker)
+WS_FILEHUB_R2_WEBHOOK_SECRET = config("WS_FILEHUB_R2_WEBHOOK_SECRET", default="")
+WS_FILEHUB_R2_WEBHOOK_ENABLED = config("WS_FILEHUB_R2_WEBHOOK_ENABLED", default=False, cast=bool)
+
+# Stale Upload Cleanup Settings
+# Time in seconds after which pending uploads are considered stale (default: 24 hours)
+WS_FILEHUB_STALE_UPLOAD_THRESHOLD_SECONDS = config("WS_FILEHUB_STALE_UPLOAD_THRESHOLD_SECONDS", default=86400, cast=int)
+# Maximum number of stale uploads to process per batch (default: 1000)
+WS_FILEHUB_STALE_UPLOAD_BATCH_SIZE = config("WS_FILEHUB_STALE_UPLOAD_BATCH_SIZE", default=1000, cast=int)
+
+# Rate Limiting for File Upload Creation
+WS_FILEHUB_UPLOAD_RATE_LIMIT_REQUESTS = config("WS_FILEHUB_UPLOAD_RATE_LIMIT_REQUESTS", default=60, cast=int)
+WS_FILEHUB_UPLOAD_RATE_LIMIT_WINDOW_SECONDS = config(
+    "WS_FILEHUB_UPLOAD_RATE_LIMIT_WINDOW_SECONDS", default=60, cast=int
+)
+
+# Maximum File Size Limit (default: 10 MB)
+WS_FILEHUB_MAX_FILE_SIZE_BYTES = config("WS_FILEHUB_MAX_FILE_SIZE_BYTES", default=10485760, cast=int)
+
+# Allowed Content Types for File Uploads
+# Comprehensive list of safe content types for file uploads.
+# Can be overridden via environment variable as comma-separated values.
+WS_FILEHUB_ALLOWED_CONTENT_TYPES = config(
+    "WS_FILEHUB_ALLOWED_CONTENT_TYPES",
+    cast=lambda v: frozenset(x.strip() for x in v.split(",") if x.strip()) if v else None,
+    default=None,
+)
+
+# Default allowed content types (used when WS_FILEHUB_ALLOWED_CONTENT_TYPES is not set)
+WS_FILEHUB_DEFAULT_ALLOWED_CONTENT_TYPES = frozenset(
+    {
+        # Images
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "image/svg+xml",
+        "image/bmp",
+        "image/tiff",
+        "image/x-icon",
+        "image/vnd.microsoft.icon",
+        "image/heic",
+        "image/heif",
+        "image/avif",
+        # Documents
+        "application/pdf",
+        "application/rtf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.oasis.opendocument.text",
+        "application/vnd.oasis.opendocument.spreadsheet",
+        "application/vnd.oasis.opendocument.presentation",
+        # Text and code
+        "text/plain",
+        "text/markdown",
+        "text/csv",
+        "text/html",
+        "text/css",
+        "text/javascript",
+        "text/xml",
+        "text/x-python",
+        "text/x-java-source",
+        "text/x-c",
+        "text/x-c++",
+        "text/x-ruby",
+        "text/x-go",
+        "text/x-rust",
+        "text/x-typescript",
+        "text/x-yaml",
+        "text/x-toml",
+        # Data formats
+        "application/json",
+        "application/xml",
+        "application/yaml",
+        "application/x-yaml",
+        # Archives
+        "application/zip",
+        "application/gzip",
+        "application/x-gzip",
+        "application/x-tar",
+        "application/x-bzip2",
+        "application/x-7z-compressed",
+        "application/x-rar-compressed",
+        # Audio
+        "audio/mpeg",
+        "audio/mp3",
+        "audio/wav",
+        "audio/x-wav",
+        "audio/ogg",
+        "audio/webm",
+        "audio/aac",
+        "audio/flac",
+        "audio/x-flac",
+        "audio/mp4",
+        "audio/x-m4a",
+        # Video
+        "video/mp4",
+        "video/mpeg",
+        "video/webm",
+        "video/ogg",
+        "video/quicktime",
+        "video/x-msvideo",
+        "video/x-matroska",
+        # Fonts
+        "font/woff",
+        "font/woff2",
+        "font/ttf",
+        "font/otf",
+        "application/font-woff",
+        "application/font-woff2",
+        # Other common types
+        "application/octet-stream",  # Generic binary
+        "application/x-sqlite3",
+        "application/wasm",
+    }
+)
+
 
 # Private features (not included in OSS release)
 # Comma-separated list of private features to enable, e.g., "feature1,feature2"

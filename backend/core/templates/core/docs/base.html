@@ -146,6 +146,13 @@
                   Ask
                 </a>
               </li>
+              {% if filehub_enabled %}
+                <li>
+                  <a href="{% url 'core:api_docs' 'files' %}" {% if doc_name == 'files' %}class="active"{% endif %}>
+                    Files
+                  </a>
+                </li>
+              {% endif %}
               <li>
                 <a href="{% url 'core:api_docs' 'orgs' %}" {% if doc_name == 'orgs' %}class="active"{% endif %}>
                   Organizations

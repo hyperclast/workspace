@@ -29,10 +29,16 @@ dist-ssr
 *.sln
 *.sw?
 
+.claude/settings.json.tmp
+.claude/settings.json
 CLAUDE.*.md
+
 /frontend/playwright-report/
 /frontend/test-results/
 
 # Deployment tracking (local state)
 /deployment/.last-deployed-*
 /.claude/
+
+# Wrangler (Cloudflare Workers CLI) local state
+.wrangler/

@@ -71,28 +71,46 @@ class PageYjsConsumer(BaseYjsConsumer):
 
     async def _check_rate_limit(self) -> Tuple[bool, int]:
         """
-        Check if the connection is within rate limits.
+        Atomically check and increment the rate limit counter.
         Returns (allowed, current_count).
+
+        Uses atomic cache operations to prevent TOCTOU race conditions where
+        concurrent connections could exceed the limit by checking simultaneously
+        before either increments the counter.
         """
         key = self._get_rate_limit_key()
         limit = getattr(settings, "WS_RATE_LIMIT_CONNECTIONS", 30)
         window = getattr(settings, "WS_RATE_LIMIT_WINDOW_SECONDS", 60)
 
-        # Use sync_to_async for cache operations (they're synchronous)
-        current = await sync_to_async(cache.get)(key, 0)
+        try:
+            # Use atomic incr which increments and returns the new value in one operation
+            try:
+                new_count = await sync_to_async(cache.incr)(key)
+            except ValueError:
+                # Key doesn't exist - create it with initial value of 1
+                # Use add() which only sets if key doesn't exist (atomic)
+                added = await sync_to_async(cache.add)(key, 1, timeout=window)
+                if added:
+                    new_count = 1
+                else:
+                    # Another connection created it first, increment it
+                    new_count = await sync_to_async(cache.incr)(key)
 
-        if current >= limit:
-            log_warning(
-                "Rate limit exceeded: key=%s, count=%s, limit=%s",
-                key,
-                current,
-                limit,
-            )
-            return False, current
+            # Check if we're over the limit AFTER incrementing
+            if new_count > limit:
+                log_warning(
+                    "Rate limit exceeded: key=%s, count=%s, limit=%s",
+                    key,
+                    new_count,
+                    limit,
+                )
+                return False, new_count
 
-        # Increment counter
-        await sync_to_async(cache.set)(key, current + 1, timeout=window)
-        return True, current + 1
+            return True, new_count
+        except Exception as e:
+            # If cache is unavailable, allow the connection but log the error
+            log_warning("Rate limit check failed (allowing connection): %s", str(e))
+            return True, 0
 
     # -----------------------------
     # Lifecycle

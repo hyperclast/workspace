@@ -12,6 +12,8 @@ from django.contrib.auth import get_user_model
 from django.db.models import Prefetch
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django.utils.http import content_disposition_header
 from ninja import Query, Router
 from ninja.responses import Response
 from users.models import Org
@@ -356,10 +358,11 @@ def get_project_editors(request: HttpRequest, external_id: str):
             }
         )
 
-    # Also include pending invitations with their roles
+    # Also include pending invitations with their roles (exclude expired ones)
     pending_invitations = ProjectInvitation.objects.filter(
         project=project,
         accepted=False,
+        expires_at__gt=timezone.now(),
     ).values("external_id", "email", "role")
 
     for inv in pending_invitations:
@@ -914,5 +917,5 @@ def download_project(request: HttpRequest, external_id: str):
     zip_buffer.seek(0)
 
     response = HttpResponse(zip_buffer.read(), content_type="application/zip")
-    response["Content-Disposition"] = f'attachment; filename="{project_folder}.zip"'
+    response["Content-Disposition"] = content_disposition_header(True, f"{project_folder}.zip")
     return response

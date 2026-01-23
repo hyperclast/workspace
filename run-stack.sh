@@ -2,7 +2,24 @@
 
 set -euo pipefail
 
-PORT="${1:-9800}"
+# Parse arguments
+USE_MINIO=false
+PORT=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --minio)
+            USE_MINIO=true
+            shift
+            ;;
+        *)
+            PORT="$1"
+            shift
+            ;;
+    esac
+done
+
+PORT="${PORT:-9800}"
 PREVIEW_PORT=$((PORT + 1))
 
 export WS_WEB_EXTERNAL_PORT="$PORT"
@@ -17,6 +34,9 @@ mkdir -p "$SOCRATIC_PREVIEW_DIR"
 echo "Port: $PORT (preview: $PREVIEW_PORT)"
 echo "Project: $PROJECT_NAME"
 echo "Preview directory: $SOCRATIC_PREVIEW_DIR"
+if [[ "$USE_MINIO" == "true" ]]; then
+    echo "MinIO: enabled (S3 API on 9000, console on 9001)"
+fi
 echo "Starting docker-compose..."
 
 cd "$(dirname "$0")/backend"
@@ -33,5 +53,14 @@ if [[ ! -f .env-docker ]]; then
     fi
 fi
 
+# Build compose command
 # --pull missing: only pull images if not cached (enables offline dev)
-docker compose --env-file .env-docker -p "$PROJECT_NAME" up --build --pull missing
+COMPOSE_CMD="docker compose --env-file .env-docker"
+
+if [[ "$USE_MINIO" == "true" ]]; then
+    COMPOSE_CMD="$COMPOSE_CMD -f docker-compose.yaml -f docker-compose.minio.yaml"
+fi
+
+COMPOSE_CMD="$COMPOSE_CMD -p $PROJECT_NAME up --build --pull missing"
+
+$COMPOSE_CMD

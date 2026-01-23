@@ -1,0 +1,19 @@
+# R2 Webhook Worker Configuration
+# This config works for both dev and prod since environment-specific
+# values (WEBHOOK_URL, WEBHOOK_SECRET) are stored as Cloudflare secrets.
+
+name = "r2-webhook-worker"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# Queue consumer configuration
+[[queues.consumers]]
+queue = "ws-r2-events"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 3
+dead_letter_queue = "ws-r2-events-dlq"
+
+# WEBHOOK_URL and WEBHOOK_SECRET must be set as secrets per account:
+#   wrangler secret put WEBHOOK_URL
+#   wrangler secret put WEBHOOK_SECRET

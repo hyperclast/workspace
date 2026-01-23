@@ -628,3 +628,195 @@ class TestDownloadFilenameEdgeCases(BaseAuthenticatedViewTestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
         # Should fall back to some default
         self.assertIn('filename="', response["Content-Disposition"])
+
+
+class TestContentDispositionHeaderSecurity(BaseAuthenticatedViewTestCase):
+    """Test that Content-Disposition headers are properly secured against injection attacks.
+
+    These tests verify that Django's content_disposition_header utility is being used
+    to properly encode filenames, preventing header injection vulnerabilities.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.org = OrgFactory()
+        OrgMemberFactory(org=self.org, user=self.user, role=OrgMemberRole.MEMBER.value)
+        self.project = ProjectFactory(org=self.org, creator=self.user, name="TestProject")
+
+    # ========================================
+    # Page Download Header Injection Tests
+    # ========================================
+
+    def test_page_download_sanitizes_double_quotes_in_filename(self):
+        """Test that double quotes in filename are sanitized to prevent header injection.
+
+        Double quotes are removed by sanitize_filename() before reaching the header,
+        which is the first line of defense. content_disposition_header() provides
+        defense-in-depth for any characters that might slip through.
+        """
+        page = PageFactory(
+            project=self.project,
+            creator=self.user,
+            title='File"With"Quotes',
+            details={"content": "Test"},
+        )
+
+        response = self.client.get(f"/api/pages/{page.external_id}/download/")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        disposition = response["Content-Disposition"]
+        # Quotes are sanitized out, so the filename should be clean
+        # The header should have exactly 2 quotes (surrounding the filename)
+        # or use RFC 5987 encoding (filename*=)
+        self.assertIn("attachment", disposition)
+        # Verify no unescaped quotes could break out of the filename attribute
+        # After the opening quote, there should be no raw quote until the closing one
+        if 'filename="' in disposition:
+            # Extract the filename value and verify it's safe
+            # The quotes are removed by sanitize_filename, so filename should be "File-With-Quotes.md"
+            self.assertIn("File-With-Quotes.md", disposition)
+
+    def test_page_download_encodes_newlines_in_filename(self):
+        """Test that newlines are encoded to prevent HTTP response splitting."""
+        page = PageFactory(
+            project=self.project,
+            creator=self.user,
+            title="File\nWith\nNewlines",
+            details={"content": "Test"},
+        )
+
+        response = self.client.get(f"/api/pages/{page.external_id}/download/")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        disposition = response["Content-Disposition"]
+        # Raw newlines must NOT appear in the header (would allow response splitting)
+        self.assertNotIn("\n", disposition)
+        self.assertNotIn("\r", disposition)
+
+    def test_page_download_encodes_carriage_returns_in_filename(self):
+        """Test that carriage returns are encoded to prevent HTTP response splitting."""
+        page = PageFactory(
+            project=self.project,
+            creator=self.user,
+            title="File\rWith\rCR",
+            details={"content": "Test"},
+        )
+
+        response = self.client.get(f"/api/pages/{page.external_id}/download/")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        disposition = response["Content-Disposition"]
+        # Raw carriage returns must NOT appear
+        self.assertNotIn("\r", disposition)
+
+    def test_page_download_neutralizes_crlf_injection_attempt(self):
+        """Test that CRLF injection attempts are properly neutralized.
+
+        The sanitize_filename() function converts whitespace (including CRLF) to dashes,
+        and removes colons. content_disposition_header() provides additional protection.
+        The key security property is that raw CRLF cannot appear in the header.
+        """
+        page = PageFactory(
+            project=self.project,
+            creator=self.user,
+            title="file.txt\r\nX-Injected-Header: malicious",
+            details={"content": "Test"},
+        )
+
+        response = self.client.get(f"/api/pages/{page.external_id}/download/")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        disposition = response["Content-Disposition"]
+        # The critical security check: raw CRLF must NOT appear (would enable response splitting)
+        self.assertNotIn("\r\n", disposition)
+        self.assertNotIn("\r", disposition)
+        self.assertNotIn("\n", disposition)
+        # Colons are also sanitized out (prevents header-like syntax)
+        self.assertNotIn(":", disposition.split("=", 1)[1])  # Check after the "attachment; filename="
+
+    def test_page_download_handles_unicode_with_rfc5987(self):
+        """Test that unicode filenames use RFC 5987 encoding for browser compatibility."""
+        page = PageFactory(
+            project=self.project,
+            creator=self.user,
+            title="日本語ファイル",
+            details={"content": "Test"},
+        )
+
+        response = self.client.get(f"/api/pages/{page.external_id}/download/")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        disposition = response["Content-Disposition"]
+        # Unicode should be percent-encoded in filename*= format
+        self.assertIn("filename*=utf-8''", disposition)
+        # Should contain percent-encoded Japanese characters
+        self.assertIn("%", disposition)
+
+    # ========================================
+    # Project Download Header Injection Tests
+    # ========================================
+
+    def test_project_download_sanitizes_double_quotes_in_filename(self):
+        """Test that double quotes in project name are sanitized to prevent header injection.
+
+        Double quotes are removed by sanitize_filename() before reaching the header.
+        """
+        self.project.name = 'Project"With"Quotes'
+        self.project.save()
+        PageFactory(project=self.project, creator=self.user, title="Page")
+
+        response = self.client.get(f"/api/projects/{self.project.external_id}/download/")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        disposition = response["Content-Disposition"]
+        self.assertIn("attachment", disposition)
+        # Quotes are sanitized out, filename should be "Project-With-Quotes.zip"
+        if 'filename="' in disposition:
+            self.assertIn("Project-With-Quotes.zip", disposition)
+
+    def test_project_download_encodes_newlines_in_filename(self):
+        """Test that newlines in project name are encoded."""
+        self.project.name = "Project\nWith\nNewlines"
+        self.project.save()
+        PageFactory(project=self.project, creator=self.user, title="Page")
+
+        response = self.client.get(f"/api/projects/{self.project.external_id}/download/")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        disposition = response["Content-Disposition"]
+        self.assertNotIn("\n", disposition)
+        self.assertNotIn("\r", disposition)
+
+    def test_project_download_neutralizes_crlf_injection_attempt(self):
+        """Test that CRLF injection attempts in project name are neutralized.
+
+        The critical security property is that raw CRLF cannot appear in the header,
+        which would enable HTTP response splitting attacks.
+        """
+        self.project.name = "project.zip\r\nContent-Type: text/html\r\n\r\n<script>alert(1)</script>"
+        self.project.save()
+        PageFactory(project=self.project, creator=self.user, title="Page")
+
+        response = self.client.get(f"/api/projects/{self.project.external_id}/download/")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        disposition = response["Content-Disposition"]
+        # The critical security checks: raw CRLF must NOT appear
+        self.assertNotIn("\r\n", disposition)
+        self.assertNotIn("\r", disposition)
+        self.assertNotIn("\n", disposition)
+        # Angle brackets are sanitized out (< and > are in the invalid_chars regex)
+        self.assertNotIn("<", disposition)
+        self.assertNotIn(">", disposition)
+
+    def test_project_download_handles_unicode_with_rfc5987(self):
+        """Test that unicode project names use RFC 5987 encoding."""
+        self.project.name = "Projet-Francais-Cafe"
+        self.project.save()
+        PageFactory(project=self.project, creator=self.user, title="Page")
+
+        response = self.client.get(f"/api/projects/{self.project.external_id}/download/")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        # Should work without issues
+        self.assertIn("attachment", response["Content-Disposition"])

@@ -12,8 +12,13 @@ let initialized = false;
 let keydownHandler = null;
 let shortcutUnsubscribe = null;
 
+// Detect Mac platform
+const isMac =
+  typeof navigator !== "undefined" && navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+
 /**
  * Check if a keyboard event matches a shortcut notation (e.g., "Mod-k")
+ * On Mac, "Mod" means Cmd (metaKey). On other platforms, "Mod" means Ctrl.
  */
 function matchesShortcut(event, shortcutNotation) {
   if (!shortcutNotation || shortcutNotation === "disabled") {
@@ -26,7 +31,8 @@ function matchesShortcut(event, shortcutNotation) {
   const hasShift = parts.includes("shift");
   const hasAlt = parts.includes("alt");
 
-  const modPressed = event.metaKey || event.ctrlKey;
+  // On Mac, Mod = Cmd (metaKey). On Windows/Linux, Mod = Ctrl.
+  const modPressed = isMac ? event.metaKey : event.ctrlKey;
 
   return (
     event.key.toLowerCase() === key &&

@@ -20,14 +20,25 @@
     Undo2,
     Redo2,
     CircleHelp,
-    MoreHorizontal
+    MoreHorizontal,
+    Paperclip
   } from "lucide-static";
   import { openSidebar, setActiveTab } from "../stores/sidebar.svelte.js";
   import { toggleCheckbox } from "../../decorateFormatting.js";
   import { helpModal } from "../modal.js";
   import LinkModal from "./LinkModal.svelte";
 
-  let { editorView = $bindable(null), tableUtils = null } = $props();
+  // canUploadFiles: Controls whether the file upload button is enabled
+  // - Disabled when user has page-only access (Tier 3) or viewer role
+  // - When false, button appears disabled with a tooltip explaining why
+  // TODO: Currently set by checking project.access_source in main.js. For full
+  // role-based checking (viewer vs editor), would need backend to expose user's
+  // project role in the project list API response.
+  //
+  // showFileUpload: Controls whether the file upload button is visible at all
+  // - Hidden when filehub feature is disabled via feature flag
+  // - When false, button is completely removed from the toolbar
+  let { editorView = $bindable(null), tableUtils = null, onFileUpload = null, canUploadFiles = true, showFileUpload = true } = $props();
 
   let headingMenuOpen = $state(false);
   let linkModalOpen = $state(false);
@@ -364,8 +375,19 @@
     }, 50);
   }
 
-  // Define toolbar items as data for dynamic rendering
-  const toolbarItems = [
+  function handleFileUpload() {
+    console.log("[Toolbar] handleFileUpload called, onFileUpload:", onFileUpload);
+    if (onFileUpload) {
+      onFileUpload();
+    } else {
+      console.warn("[Toolbar] onFileUpload callback not provided");
+    }
+  }
+
+  // Define all toolbar items as data for dynamic rendering
+  // Note: The file button's disabled/title state is handled separately via getFileButtonProps()
+  // because it depends on the reactive canUploadFiles prop
+  const allToolbarItems = [
     { type: 'button', id: 'undo', title: 'Undo (Cmd+Z)', icon: Undo2, action: handleUndo, label: 'Undo' },
     { type: 'button', id: 'redo', title: 'Redo (Cmd+Shift+Z)', icon: Redo2, action: handleRedo, label: 'Redo' },
     { type: 'separator' },
@@ -390,8 +412,27 @@
     { type: 'button', id: 'unfold', title: 'Expand all sections', icon: ChevronsUpDown, action: handleUnfoldAll, label: 'Expand all' },
     { type: 'button', id: 'ask', title: 'Ask AI', icon: Search, action: openAskTab, label: 'Ask AI' },
     { type: 'button', id: 'table', title: 'Insert table', icon: Table2, action: insertTable, label: 'Insert table' },
+    { type: 'button', id: 'file', title: 'Add file', icon: Paperclip, action: handleFileUpload, label: 'Add file' },
     { type: 'button', id: 'help', title: 'Keyboard shortcuts (?)', icon: CircleHelp, action: helpModal, label: 'Shortcuts' },
   ];
+
+  // Filter out file button when showFileUpload is false (feature flag disabled)
+  // Note: toolbarItems is derived reactively based on showFileUpload prop
+  let toolbarItems = $derived(
+    showFileUpload ? allToolbarItems : allToolbarItems.filter(item => item.id !== 'file')
+  );
+
+  // Get file button props reactively based on canUploadFiles
+  function getFileButtonProps(item) {
+    if (item.id === 'file') {
+      return {
+        ...item,
+        title: canUploadFiles ? 'Add file' : 'You need editor access to upload files',
+        disabled: !canUploadFiles
+      };
+    }
+    return item;
+  }
 
   const OVERFLOW_BTN_WIDTH = 36;
   const BUTTON_WIDTH = 32; // button (28px) + gap (4px)
@@ -407,19 +448,20 @@
     return BUTTON_WIDTH;
   }
 
-  // Pre-calculate total widths
-  const precomputedWidths = toolbarItems.map(getItemWidth);
+  // Pre-calculate total widths (derived since toolbarItems is derived)
+  let precomputedWidths = $derived(toolbarItems.map(getItemWidth));
 
   // Calculate visible count based on container width
   let visibleCount = $derived.by(() => {
     if (!containerWidth || !measurementComplete) return toolbarItems.length;
 
+    const widths = precomputedWidths;
     let availableWidth = containerWidth - OVERFLOW_BTN_WIDTH - 8; // extra padding
     let count = 0;
     let totalWidth = 0;
 
-    for (let i = 0; i < precomputedWidths.length; i++) {
-      const width = precomputedWidths[i];
+    for (let i = 0; i < widths.length; i++) {
+      const width = widths[i];
       if (totalWidth + width > availableWidth) break;
       totalWidth += width;
       count++;
@@ -433,8 +475,8 @@
     return count;
   });
 
-  let visibleItems = $derived(toolbarItems.slice(0, visibleCount));
-  let overflowItems = $derived(toolbarItems.slice(visibleCount));
+  let visibleItems = $derived(toolbarItems.slice(0, visibleCount).map(getFileButtonProps));
+  let overflowItems = $derived(toolbarItems.slice(visibleCount).map(getFileButtonProps));
   let hasOverflow = $derived(overflowItems.length > 0);
 
   // Filter overflow items to remove leading/trailing/consecutive separators
@@ -503,11 +545,11 @@
             {/if}
           </div>
         {:else if item.text}
-          <button class="toolbar-btn toolbar-btn-text" title={item.title} onmousedown={(e) => { e.preventDefault(); item.action(); }}>
+          <button class="toolbar-btn toolbar-btn-text" title={item.title} disabled={item.disabled} onmousedown={(e) => { e.preventDefault(); if (!item.disabled) item.action(); }}>
             {item.text}
           </button>
         {:else}
-          <button class="toolbar-btn" title={item.title} onmousedown={(e) => { e.preventDefault(); item.action(); }}>
+          <button class="toolbar-btn" class:toolbar-btn-disabled={item.disabled} title={item.title} disabled={item.disabled} onmousedown={(e) => { e.preventDefault(); if (!item.disabled) item.action(); }}>
             {@html item.icon}
           </button>
         {/if}
@@ -536,7 +578,7 @@
                     <button onmousedown={(e) => { e.preventDefault(); toggleLinePrefix("###### "); overflowOpen = false; }}>H6</button>
                   </div>
                 {:else}
-                  <button onmousedown={(e) => { e.preventDefault(); item.action(); overflowOpen = false; }}>
+                  <button class:overflow-item-disabled={item.disabled} disabled={item.disabled} title={item.disabled ? item.title : ''} onmousedown={(e) => { e.preventDefault(); if (!item.disabled) { item.action(); overflowOpen = false; } }}>
                     {#if item.icon}
                       <span class="overflow-icon">{@html item.icon}</span>
                     {/if}
@@ -597,9 +639,15 @@
     justify-content: center;
   }
 
-  .toolbar-btn:hover {
+  .toolbar-btn:hover:not(:disabled) {
     background: rgba(55, 53, 47, 0.08);
     color: var(--text-primary, #1f2937);
+  }
+
+  .toolbar-btn:disabled,
+  .toolbar-btn-disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
   }
 
   .toolbar-btn :global(svg) {
@@ -712,5 +760,14 @@
 
   .overflow-submenu button {
     padding: 6px 12px 6px 24px;
+  }
+
+  .overflow-item-disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .toolbar-overflow-menu button:disabled:hover {
+    background: none;
   }
 </style>

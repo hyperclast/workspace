@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils.http import content_disposition_header
 from ninja import Router
 from ninja.pagination import paginate
 from ninja.responses import Response
@@ -238,7 +239,7 @@ def download_page(request: HttpRequest, external_id: str):
     filename = sanitize_filename(page.title)
 
     response = HttpResponse(file_content, content_type=f"{content_type}; charset=utf-8")
-    response["Content-Disposition"] = f'attachment; filename="{filename}.{filetype}"'
+    response["Content-Disposition"] = content_disposition_header(True, f"{filename}.{filetype}")
     return response
 
 

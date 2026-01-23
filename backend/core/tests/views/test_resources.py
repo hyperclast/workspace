@@ -4,6 +4,7 @@ from unittest.mock import mock_open, patch
 
 from django.conf import settings
 from django.shortcuts import reverse
+from django.test import override_settings
 
 from core.tests.common import BaseViewTestCase
 
@@ -130,9 +131,10 @@ def hello():
 
     def test_allowed_docs_validation(self):
         """Test that only allowed doc names are accepted."""
-        allowed_docs = ["overview", "ask", "pages", "users"]
+        # These docs should always be accessible regardless of feature flags
+        always_allowed_docs = ["overview", "ask", "pages", "users", "orgs", "projects", "mentions"]
 
-        for doc_name in allowed_docs:
+        for doc_name in always_allowed_docs:
             response = self.send_request(reverse("core:api_docs", kwargs={"doc_name": doc_name}))
             self.assertEqual(
                 response.status_code,
@@ -149,4 +151,70 @@ def hello():
                 response.status_code,
                 HTTPStatus.NOT_FOUND,
                 f"Doc '{doc_name}' should not be allowed but returned {response.status_code}",
+            )
+
+
+class TestFilesDocsFeatureFlag(BaseViewTestCase):
+    """Test cases for files documentation feature flag behavior."""
+
+    @override_settings(FILEHUB_FEATURE_ENABLED=True)
+    def test_files_docs_accessible_when_feature_enabled(self):
+        """Files documentation should be accessible when filehub feature is enabled."""
+        response = self.send_request(reverse("core:api_docs", kwargs={"doc_name": "files"}))
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertTemplateUsed(response, "core/docs/api_docs.html")
+        self.assertEqual(response.context["doc_name"], "files")
+        self.assertEqual(response.context["page_title"], "API Documentation - Files")
+
+    @override_settings(FILEHUB_FEATURE_ENABLED=False)
+    def test_files_docs_returns_404_when_feature_disabled(self):
+        """Files documentation should return 404 when filehub feature is disabled."""
+        response = self.send_request(reverse("core:api_docs", kwargs={"doc_name": "files"}))
+
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+    @override_settings(FILEHUB_FEATURE_ENABLED=True)
+    def test_filehub_enabled_context_variable_true(self):
+        """Context should have filehub_enabled=True when feature is enabled."""
+        response = self.send_request(reverse("core:api_docs", kwargs={"doc_name": "overview"}))
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertTrue(response.context["filehub_enabled"])
+
+    @override_settings(FILEHUB_FEATURE_ENABLED=False)
+    def test_filehub_enabled_context_variable_false(self):
+        """Context should have filehub_enabled=False when feature is disabled."""
+        response = self.send_request(reverse("core:api_docs", kwargs={"doc_name": "overview"}))
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertFalse(response.context["filehub_enabled"])
+
+    @override_settings(FILEHUB_FEATURE_ENABLED=True)
+    def test_dev_index_has_filehub_enabled_context(self):
+        """Dev index page should have filehub_enabled in context."""
+        response = self.send_request(reverse("core:dev_index"))
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertTrue(response.context["filehub_enabled"])
+
+    @override_settings(FILEHUB_FEATURE_ENABLED=False)
+    def test_dev_index_filehub_disabled_context(self):
+        """Dev index page should have filehub_enabled=False when feature is disabled."""
+        response = self.send_request(reverse("core:dev_index"))
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertFalse(response.context["filehub_enabled"])
+
+    @override_settings(FILEHUB_FEATURE_ENABLED=False)
+    def test_other_docs_accessible_when_filehub_disabled(self):
+        """Other documentation should still be accessible when filehub is disabled."""
+        other_docs = ["overview", "ask", "orgs", "projects", "pages", "users"]
+
+        for doc_name in other_docs:
+            response = self.send_request(reverse("core:api_docs", kwargs={"doc_name": doc_name}))
+            self.assertEqual(
+                response.status_code,
+                HTTPStatus.OK,
+                f"Doc '{doc_name}' should be accessible when filehub is disabled",
             )

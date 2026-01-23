@@ -1,4 +1,7 @@
+from datetime import timedelta
 from http import HTTPStatus
+
+from django.utils import timezone
 
 from core.tests.common import BaseAuthenticatedViewTestCase
 from pages.tests.factories import ProjectFactory, ProjectInvitationFactory
@@ -144,3 +147,62 @@ class TestListProjectEditorsAPI(BaseAuthenticatedViewTestCase):
         editors = [e for e in payload if not e.get("is_pending")]
         self.assertEqual(len(editors), 1)
         self.assertEqual(editors[0]["email"], editor.email)
+
+    def test_expired_invitations_not_in_pending_list(self):
+        """Test that expired invitations don't show as pending.
+
+        This is a bug fix test - expired invitations should not appear in the
+        editors list, just like accepted invitations don't appear.
+        """
+        # Create a valid pending invitation
+        valid_invitation = ProjectInvitationFactory(
+            project=self.project,
+            email="valid@example.com",
+            invited_by=self.user,
+            expires_at=timezone.now() + timedelta(days=7),
+        )
+
+        # Create an expired invitation (expired 1 day ago)
+        expired_invitation = ProjectInvitationFactory(
+            project=self.project,
+            email="expired@example.com",
+            invited_by=self.user,
+            expires_at=timezone.now() - timedelta(days=1),
+        )
+
+        response = self.send_list_editors_request(self.project.external_id)
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        # Only the valid invitation should appear
+        emails = {e["email"] for e in payload}
+        self.assertIn("valid@example.com", emails)
+        self.assertNotIn("expired@example.com", emails)
+
+        # Verify the valid one is marked as pending
+        pending_entries = [e for e in payload if e.get("is_pending")]
+        self.assertEqual(len(pending_entries), 1)
+        self.assertEqual(pending_entries[0]["email"], "valid@example.com")
+
+    def test_invitation_expiring_exactly_now_not_shown(self):
+        """Test that an invitation expiring exactly now is not shown.
+
+        The filter uses expires_at__gt=timezone.now(), so invitations
+        that expire at exactly the current time should not be shown.
+        """
+        # Create an invitation that expires exactly now
+        now = timezone.now()
+        just_expired = ProjectInvitationFactory(
+            project=self.project,
+            email="just_expired@example.com",
+            invited_by=self.user,
+            expires_at=now,
+        )
+
+        response = self.send_list_editors_request(self.project.external_id)
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        emails = {e["email"] for e in payload}
+        self.assertNotIn("just_expired@example.com", emails)

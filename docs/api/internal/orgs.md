@@ -437,7 +437,7 @@ See [Overview](./overview.md)
 
 ## Remove organization member
 
-Remove a member from the organization. Any member can remove others or themselves.
+Remove a member from the organization.
 
 ### URL
 
@@ -472,16 +472,23 @@ See [Overview](./overview.md)
 
 - Status Code: 204 (No Content)
 
+**Permission Rules:**
+
+- Admins can remove any member (including other admins)
+- Non-admins can remove other non-admins
+- Non-admins cannot remove admins
+- Members can remove themselves (unless they are the only admin)
+- Cannot remove the only admin - will return 400 error if attempted
+
 **Notes:**
 
-- Any member can remove any other member
-- Members can remove themselves
-- Cannot remove the only admin - will return 400 error if attempted
 - Removing a member immediately revokes their access to all organization resources
+- If the removed user has project-level access, they retain access to those specific projects
 
 **Error Responses:**
 
 - Status Code: 400 - Attempted to remove the only admin
+- Status Code: 403 - Non-admin attempted to remove an admin
 - Status Code: 404 - Organization not found, user not a member, or user to remove is not a member
 
 ---

@@ -1,0 +1,86 @@
+# MinIO R2 Emulator for Local Development
+#
+# This compose file extends the main docker-compose.yaml to add MinIO
+# as an S3-compatible storage service that emulates Cloudflare R2.
+#
+# Usage (standalone):
+#   docker compose -f docker-compose.minio.yaml --env-file .env-minio up -d
+#
+# Usage (with full stack via run-stack.sh):
+#   ./run-stack.sh --minio 9800
+#
+# See docs/cloudflare/minio-local-setup.md for full setup instructions.
+
+services:
+  ws-minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "${WS_MINIO_API_PORT:-9000}:9000"
+      - "${WS_MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      MINIO_ROOT_USER: ${WS_MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${WS_MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - ws-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ws-net
+
+  ws-minio-init:
+    image: minio/mc:latest
+    depends_on:
+      ws-minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://ws-minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      mc mb myminio/$${MINIO_BUCKET} --ignore-existing;
+      exit 0;
+      "
+    environment:
+      MINIO_ROOT_USER: ${WS_MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${WS_MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: ${WS_FILEHUB_R2_BUCKET:-ws-filehub-uploads}
+    networks:
+      - ws-net
+
+  # Override ws-web to add MinIO configuration
+  ws-web:
+    environment:
+      # Enable file upload feature when using MinIO
+      - WS_FILEHUB_FEATURE_ENABLED=true
+      - WS_FILEHUB_R2_ENDPOINT_URL=http://ws-minio:9000
+      - WS_FILEHUB_R2_PUBLIC_ENDPOINT_URL=http://localhost:${WS_MINIO_API_PORT:-9000}
+      - WS_FILEHUB_R2_ACCESS_KEY_ID=${WS_MINIO_ROOT_USER:-minioadmin}
+      - WS_FILEHUB_R2_SECRET_ACCESS_KEY=${WS_MINIO_ROOT_PASSWORD:-minioadmin}
+      - WS_FILEHUB_R2_BUCKET=${WS_FILEHUB_R2_BUCKET:-ws-filehub-uploads}
+      - WS_FILEHUB_R2_WEBHOOK_ENABLED=false
+    depends_on:
+      ws-minio:
+        condition: service_healthy
+
+  # Override ws-rq to add MinIO configuration
+  ws-rq:
+    environment:
+      # Enable file upload feature when using MinIO
+      - WS_FILEHUB_FEATURE_ENABLED=true
+      - WS_FILEHUB_R2_ENDPOINT_URL=http://ws-minio:9000
+      - WS_FILEHUB_R2_PUBLIC_ENDPOINT_URL=http://localhost:${WS_MINIO_API_PORT:-9000}
+      - WS_FILEHUB_R2_ACCESS_KEY_ID=${WS_MINIO_ROOT_USER:-minioadmin}
+      - WS_FILEHUB_R2_SECRET_ACCESS_KEY=${WS_MINIO_ROOT_PASSWORD:-minioadmin}
+      - WS_FILEHUB_R2_BUCKET=${WS_FILEHUB_R2_BUCKET:-ws-filehub-uploads}
+      - WS_FILEHUB_R2_WEBHOOK_ENABLED=false
+    depends_on:
+      ws-minio:
+        condition: service_healthy
+
+volumes:
+  ws-minio-data:
+
+networks:
+  ws-net:

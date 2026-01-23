@@ -252,7 +252,14 @@ def autocomplete_org_members(request: HttpRequest, external_id: str, query: Auto
 
 @orgs_router.delete("/{external_id}/members/{user_external_id}/", response={204: None})
 def remove_org_member(request: HttpRequest, external_id: str, user_external_id: str):
-    """Remove a member from the organization. Any member can remove others."""
+    """Remove a member from the organization.
+
+    Permission rules:
+    - Admins can remove any member (including other admins)
+    - Non-admins can remove other non-admins
+    - Non-admins cannot remove admins
+    - Cannot remove the only admin (even self-removal)
+    """
     org = get_object_or_404(
         Org.objects.filter(members=request.user),
         external_id=external_id,
@@ -260,19 +267,27 @@ def remove_org_member(request: HttpRequest, external_id: str, user_external_id: 
 
     user_to_remove = get_object_or_404(User, external_id=user_external_id)
 
-    # Prevent removing yourself if you're the only admin
-    if user_to_remove == request.user:
+    # Get the membership of the user to remove (to check their role)
+    target_membership = OrgMember.objects.filter(org=org, user=user_to_remove).first()
+    if not target_membership:
+        return Response({"message": "User is not a member of this organization"}, status=404)
+
+    # Check if requester is admin
+    requester_is_admin = OrgMember.objects.filter(org=org, user=request.user, role="admin").exists()
+    target_is_admin = target_membership.role == "admin"
+
+    # Non-admins cannot remove admins
+    if not requester_is_admin and target_is_admin:
+        return Response({"message": "Only admins can remove other admins"}, status=403)
+
+    # Prevent removing the only admin (applies to everyone, including self-removal)
+    if target_is_admin:
         admin_count = OrgMember.objects.filter(org=org, role="admin").count()
         if admin_count == 1:
-            is_admin = OrgMember.objects.filter(org=org, user=request.user, role="admin").exists()
-            if is_admin:
-                return Response({"message": "Cannot remove the only admin"}, status=400)
+            return Response({"message": "Cannot remove the only admin"}, status=400)
 
     # Remove membership
-    deleted, _ = OrgMember.objects.filter(org=org, user=user_to_remove).delete()
-
-    if not deleted:
-        return Response({"message": "User is not a member of this organization"}, status=404)
+    target_membership.delete()
 
     log_info(f"User {request.user.email} removed {user_to_remove.email} from org {org.external_id}")
 

@@ -211,7 +211,12 @@ Permanently deletes the organization and all its projects/pages.
 
 **Response (204):** No content.
 
-> Cannot remove the only admin.
+**Permission Rules:**
+
+- Admins can remove any member (including other admins)
+- Non-admins can remove other non-admins
+- Non-admins cannot remove admins (returns 403)
+- Cannot remove the only admin (returns 400)
 
 ### Autocomplete Members
 

@@ -298,6 +298,77 @@ class TestOrgMembersAPI(BaseAuthenticatedViewTestCase):
 
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
 
+    def test_non_admin_cannot_remove_admin(self):
+        """Non-admin members cannot remove admins from the organization.
+
+        This is a security fix to prevent privilege escalation attacks where
+        a malicious member could kick out all admins.
+        """
+        # self.user is a non-admin member (from setUp)
+        admin_user = UserFactory()
+        OrgMemberFactory(org=self.org, user=admin_user, role=OrgMemberRole.ADMIN.value)
+
+        response = self.send_api_request(
+            url=f"/api/orgs/{self.org.external_id}/members/{admin_user.external_id}/", method="delete"
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        self.assertIn("Only admins can remove other admins", response.json()["message"])
+
+        # Verify admin is still a member
+        self.assertTrue(OrgMember.objects.filter(org=self.org, user=admin_user).exists())
+
+    def test_non_admin_can_remove_other_non_admin(self):
+        """Non-admin members can remove other non-admin members."""
+        # self.user is a non-admin member (from setUp)
+        other_member = UserFactory()
+        OrgMemberFactory(org=self.org, user=other_member, role=OrgMemberRole.MEMBER.value)
+
+        response = self.send_api_request(
+            url=f"/api/orgs/{self.org.external_id}/members/{other_member.external_id}/", method="delete"
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.NO_CONTENT)
+
+        # Verify member was removed
+        self.assertFalse(OrgMember.objects.filter(org=self.org, user=other_member).exists())
+
+    def test_admin_can_remove_other_admin(self):
+        """Admins can remove other admins from the organization."""
+        # Make self.user an admin
+        OrgMember.objects.filter(org=self.org, user=self.user).update(role="admin")
+
+        # Add another admin
+        other_admin = UserFactory()
+        OrgMemberFactory(org=self.org, user=other_admin, role=OrgMemberRole.ADMIN.value)
+
+        response = self.send_api_request(
+            url=f"/api/orgs/{self.org.external_id}/members/{other_admin.external_id}/", method="delete"
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.NO_CONTENT)
+
+        # Verify admin was removed
+        self.assertFalse(OrgMember.objects.filter(org=self.org, user=other_admin).exists())
+
+    def test_admin_can_remove_non_admin(self):
+        """Admins can remove non-admin members."""
+        # Make self.user an admin
+        OrgMember.objects.filter(org=self.org, user=self.user).update(role="admin")
+
+        # Add a regular member
+        member = UserFactory()
+        OrgMemberFactory(org=self.org, user=member, role=OrgMemberRole.MEMBER.value)
+
+        response = self.send_api_request(
+            url=f"/api/orgs/{self.org.external_id}/members/{member.external_id}/", method="delete"
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.NO_CONTENT)
+
+        # Verify member was removed
+        self.assertFalse(OrgMember.objects.filter(org=self.org, user=member).exists())
+
     def test_update_member_role_as_admin(self):
         """Admin should be able to change member roles."""
         # Make self.user admin

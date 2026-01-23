@@ -26,6 +26,7 @@ urlpatterns = [
     path("", include(("core.urls", "core"), namespace="core")),
     path("updates/", include(("updates.urls", "updates"), namespace="updates")),
     path("pulse/", include(("pulse.urls", "pulse"), namespace="pulse")),
+    path("files/", include(("filehub.urls", "filehub"), namespace="filehub")),
 ]
 
 try:

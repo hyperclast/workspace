@@ -44,6 +44,8 @@ def _get_dev_context(request):
     context = get_user_nav_context(request)
     if request.user.is_authenticated:
         context["access_token"] = request.user.profile.access_token
+    # Pass feature flags to template for conditional rendering
+    context["filehub_enabled"] = getattr(settings, "FILEHUB_FEATURE_ENABLED", False)
     return context
 
 
@@ -59,9 +61,18 @@ def dev_index(request):
     return render(request, "core/docs/dev_index.html", context)
 
 
+def get_allowed_api_docs():
+    """Return list of allowed API docs based on feature flags."""
+    docs = ["overview", "ask", "mentions", "orgs", "projects", "pages", "users"]
+    if getattr(settings, "FILEHUB_FEATURE_ENABLED", False):
+        # Insert after "ask" to maintain alphabetical order for the rest
+        docs.insert(2, "files")
+    return docs
+
+
 def api_docs(request, doc_name="overview"):
     """Render API documentation from markdown files."""
-    allowed_docs = ["overview", "ask", "mentions", "orgs", "projects", "pages", "users"]
+    allowed_docs = get_allowed_api_docs()
     if doc_name not in allowed_docs:
         raise Http404("Documentation not found")
 

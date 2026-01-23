@@ -13,6 +13,7 @@ def get_feature_flags():
     """Return feature flags to pass to the frontend."""
     return {
         "ask": getattr(settings, "ASK_FEATURE_ENABLED", False),
+        "filehub": getattr(settings, "FILEHUB_FEATURE_ENABLED", False),
         "devSidebar": getattr(settings, "DEV_SIDEBAR_ENABLED", False),
         "privateFeatures": list(getattr(settings, "PRIVATE_FEATURES", [])),
         "privateConfig": getattr(settings, "PRIVATE_CONFIG", {}),
