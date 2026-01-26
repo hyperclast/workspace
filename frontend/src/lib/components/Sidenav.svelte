@@ -326,6 +326,14 @@
     return projectFiles[projectId] || [];
   }
 
+  function formatFileSize(bytes) {
+    if (bytes == null || bytes === 0) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${Math.round(bytes / (1024 * 1024))} MB`;
+    return `${Math.round(bytes / (1024 * 1024 * 1024))} GB`;
+  }
+
   // Close menus when clicking outside
   function handleGlobalClick(e) {
     if (!e.target.closest(".project-menu") && !e.target.closest(".page-menu")) {
@@ -507,6 +515,9 @@
                     >
                       {@html fileIcon}
                       <span class="file-name">{file.filename}</span>
+                      {#if file.size_bytes}
+                        <span class="file-size">{formatFileSize(file.size_bytes)}</span>
+                      {/if}
                     </div>
                   {/each}
                 {/if}

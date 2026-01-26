@@ -1,5 +1,6 @@
 <script>
   import { onMount } from "svelte";
+  import { fetchStorageSummary } from "../../api.js";
   import { getBrandName, getCsrfToken, isPrivateFeatureEnabled } from "../../config.js";
   import { getGravatarUrl, setupUserAvatar } from "../../gravatar.js";
   import { confirm, prompt } from "../modal.js";
@@ -31,6 +32,9 @@
   let gravatarUrl = $state(null);
   let gravatarLoaded = $state(false);
   let expandedOrgMembers = $state(new Set());
+  let storageBytes = $state(null);
+  let storageFileCount = $state(null);
+  let storageLoading = $state(true);
 
   const editIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>`;
   const codeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>`;
@@ -47,6 +51,7 @@
   onMount(() => {
     document.title = `Settings - ${brandName}`;
     loadSettings();
+    loadStorageSummary();
 
     const getTabFromHash = () => {
       const hash = window.location.hash.slice(1);
@@ -76,6 +81,29 @@
       document.removeEventListener("keydown", handleKeydown);
     };
   });
+
+  async function loadStorageSummary() {
+    try {
+      storageLoading = true;
+      const result = await fetchStorageSummary();
+      storageBytes = result.total_bytes;
+      storageFileCount = result.file_count;
+    } catch (error) {
+      console.error("Failed to load storage summary:", error);
+      storageBytes = null;
+      storageFileCount = null;
+    } finally {
+      storageLoading = false;
+    }
+  }
+
+  function formatFileSize(bytes) {
+    if (bytes == null || bytes === 0) return "0 B";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  }
 
   function toggleMemberList(orgId) {
     const newSet = new Set(expandedOrgMembers);
@@ -420,6 +448,32 @@
                 >
                   {data.user?.email_verified ? "Verified" : "Unverified"}
                 </span>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-section settings-storage-section">
+            <h3 class="settings-subsection-title">Storage</h3>
+            <div class="storage-stats">
+              <div class="storage-stat">
+                {#if storageLoading}
+                  <span class="storage-value">Loading...</span>
+                {:else if storageFileCount !== null}
+                  <span class="storage-value">{storageFileCount}</span>
+                {:else}
+                  <span class="storage-value">—</span>
+                {/if}
+                <span class="storage-label">Files uploaded</span>
+              </div>
+              <div class="storage-stat">
+                {#if storageLoading}
+                  <span class="storage-value">Loading...</span>
+                {:else if storageBytes !== null}
+                  <span class="storage-value">{formatFileSize(storageBytes)}</span>
+                {:else}
+                  <span class="storage-value">—</span>
+                {/if}
+                <span class="storage-label">Total size</span>
               </div>
             </div>
           </section>
@@ -807,5 +861,34 @@
     .settings-tab-content {
       max-width: none;
     }
+  }
+
+  /* Storage Section */
+  .settings-storage-section {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-light);
+  }
+
+  .storage-stats {
+    display: flex;
+    gap: 3rem;
+  }
+
+  .storage-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .storage-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .storage-label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
   }
 </style>

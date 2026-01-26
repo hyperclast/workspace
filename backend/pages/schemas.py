@@ -249,6 +249,7 @@ class ProjectFileOut(Schema):
     external_id: str
     filename: str
     link: Optional[str] = None
+    size_bytes: int = 0
 
     class Config:
         from_attributes = True

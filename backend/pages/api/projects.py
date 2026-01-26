@@ -181,6 +181,7 @@ def serialize_project(project, include_pages=False, user=None):
                     "external_id": str(f.external_id),
                     "filename": f.filename,
                     "link": f.download_url,
+                    "size_bytes": f.size_bytes,
                 }
                 for f in project.file_uploads.all()
             ]

@@ -1124,6 +1124,13 @@ nav {
   white-space: nowrap;
 }
 
+.sidebar-file-item .file-size {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
 /* New Page button under each project */
 .sidebar-new-page-btn {
   width: 100%;

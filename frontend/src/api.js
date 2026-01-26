@@ -442,3 +442,17 @@ export async function uploadFile(projectId, file, onProgress = null) {
     return finalizedFile;
   }
 }
+
+// Storage API
+
+/**
+ * Fetch the storage summary for the current user.
+ * @returns {Promise<{total_bytes: number}>}
+ */
+export async function fetchStorageSummary() {
+  const response = await csrfFetch(`${API_BASE}/users/storage/`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch storage summary: ${response.statusText}`);
+  }
+  return response.json();
+}

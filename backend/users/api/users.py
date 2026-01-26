@@ -1,15 +1,19 @@
 from secrets import token_urlsafe
 
 from allauth.account.models import EmailAddress
+from django.db.models import Count, Sum
 from django.http import HttpRequest
 from ninja import Router
 from ninja.responses import Response
 
 from backend.utils import log_error
 from core.authentication import session_auth, token_auth
+from filehub.constants import FileUploadStatus
+from filehub.models import FileUpload
 from users.schemas import (
     AccessTokenResponse,
     CurrentUserSchema,
+    StorageSummaryOut,
     UpdateSettingsSchema,
     UpdateUserSchema,
 )
@@ -147,3 +151,22 @@ def update_settings(request: HttpRequest, payload: UpdateSettingsSchema):
         )
 
     return result
+
+
+@users_router.get("/storage/", response=StorageSummaryOut, auth=[token_auth, session_auth])
+def get_storage_summary(request: HttpRequest):
+    """
+    Get total storage used by the current user.
+
+    Returns the sum of all file sizes and count of files uploaded by the user
+    that are in AVAILABLE status.
+    """
+    result = FileUpload.objects.filter(
+        uploaded_by=request.user,
+        status=FileUploadStatus.AVAILABLE,
+    ).aggregate(total=Sum("expected_size"), count=Count("id"))
+
+    return {
+        "total_bytes": result["total"] or 0,
+        "file_count": result["count"] or 0,
+    }

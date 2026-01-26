@@ -257,6 +257,13 @@ class UsageQueryParams(Schema):
     tz_offset: int = 0
 
 
+class StorageSummaryOut(Schema):
+    """Response for storage summary endpoint."""
+
+    total_bytes: int
+    file_count: int
+
+
 class AIProviderSummaryOut(Schema):
     """Read-only summary of an AI provider config for non-admin org members.
 
