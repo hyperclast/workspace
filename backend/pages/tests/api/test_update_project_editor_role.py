@@ -61,7 +61,7 @@ class TestUpdateProjectEditorRoleAPI(BaseAuthenticatedViewTestCase):
         page2 = PageFactory(project=self.project)
         page3 = PageFactory(project=self.project)
 
-        with patch("collab.utils.notify_write_permission_revoked") as mock_notify:
+        with patch("pages.api.projects.notify_write_permission_revoked") as mock_notify:
             response = self.send_update_role_request(self.project.external_id, editor.external_id, "viewer")
 
             self.assertEqual(response.status_code, HTTPStatus.OK)
@@ -89,7 +89,7 @@ class TestUpdateProjectEditorRoleAPI(BaseAuthenticatedViewTestCase):
         active_page = PageFactory(project=self.project, is_deleted=False)
         deleted_page = PageFactory(project=self.project, is_deleted=True)
 
-        with patch("collab.utils.notify_write_permission_revoked") as mock_notify:
+        with patch("pages.api.projects.notify_write_permission_revoked") as mock_notify:
             response = self.send_update_role_request(self.project.external_id, editor.external_id, "viewer")
 
             self.assertEqual(response.status_code, HTTPStatus.OK)
@@ -107,7 +107,7 @@ class TestUpdateProjectEditorRoleAPI(BaseAuthenticatedViewTestCase):
         ProjectEditorFactory(project=self.project, user=editor, role=ProjectEditorRole.VIEWER.value)
         PageFactory(project=self.project)
 
-        with patch("collab.utils.notify_write_permission_revoked") as mock_notify:
+        with patch("pages.api.projects.notify_write_permission_revoked") as mock_notify:
             response = self.send_update_role_request(self.project.external_id, editor.external_id, "editor")
 
             self.assertEqual(response.status_code, HTTPStatus.OK)

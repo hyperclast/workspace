@@ -196,14 +196,15 @@ class TestPagesUpdateAPI(BaseAuthenticatedViewTestCase):
         )
 
     @override_settings(ASK_FEATURE_ENABLED=False)
-    def test_update_page_not_owned_returns_403(self):
-        """Test updating a page not owned by user returns 403."""
-        page = PageFactory()  # Different owner
+    def test_update_page_no_access_returns_404(self):
+        """Test updating a page user has no access to returns 404 (prevents info disclosure)."""
+        page = PageFactory()  # Different owner in different org/project
 
         response = self.send_update_page_request(page.external_id, "New Title")
 
-        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
-        self.assertIn("Only the creator can update", response.json()["message"])
+        # Returns 404 (not 403) to prevent information disclosure about page existence
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+        self.assertIn("not found", response.json()["message"].lower())
 
     @override_settings(ASK_FEATURE_ENABLED=False)
     def test_unauthenticated_request_returns_401(self):
@@ -393,14 +394,15 @@ class TestPagesDeleteAPI(BaseAuthenticatedViewTestCase):
         self.assertEqual(YUpdate.objects.filter(room_id=room_id).count(), 0)
         self.assertEqual(YSnapshot.objects.filter(room_id=room_id).count(), 0)
 
-    def test_delete_page_not_owned_returns_403(self):
-        """Test deleting a page not owned by user returns 403."""
-        page = PageFactory()  # Different owner
+    def test_delete_page_no_access_returns_404(self):
+        """Test deleting a page user has no access to returns 404 (prevents info disclosure)."""
+        page = PageFactory()  # Different owner in different org/project
 
         response = self.send_delete_page_request(page.external_id)
 
-        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
-        self.assertIn("Only the creator can delete", response.json()["message"])
+        # Returns 404 (not 403) to prevent information disclosure about page existence
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+        self.assertIn("not found", response.json()["message"].lower())
 
         # Verify page was NOT deleted
         self.assertTrue(Page.objects.filter(external_id=page.external_id).exists())
@@ -744,3 +746,141 @@ class TestContentSizeLimit(BaseAuthenticatedViewTestCase):
         )
 
         self.assertEqual(response.status_code, 413)
+
+
+class TestPageAccessControlSecurity(BaseAuthenticatedViewTestCase):
+    """
+    Test access control security for page update/delete endpoints.
+
+    These tests verify that:
+    1. Users without access get 404 (prevents information disclosure)
+    2. Users with access but not creators get 403 (correct authorization error)
+
+    This prevents attackers from enumerating page IDs by observing 403 vs 404 responses.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # Create an org and project that self.user is a member of
+        self.org = OrgFactory()
+        OrgMemberFactory(org=self.org, user=self.user, role=OrgMemberRole.MEMBER.value)
+        self.project = ProjectFactory(org=self.org, creator=self.user)
+
+        # Create another user who will own pages in the same project
+        self.other_user = UserFactory()
+        OrgMemberFactory(org=self.org, user=self.other_user, role=OrgMemberRole.MEMBER.value)
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    def test_update_page_with_access_but_not_creator_returns_403(self):
+        """Test that users with page access but not creators get 403 on update."""
+        # Page created by other_user in shared project - self.user has access but isn't creator
+        page = PageFactory(project=self.project, creator=self.other_user)
+
+        response = self.send_api_request(
+            url=f"/api/pages/{page.external_id}/",
+            method="put",
+            data={"title": "New Title"},
+        )
+
+        # Should get 403 (Forbidden) because user has access but isn't creator
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        self.assertIn("Only the creator can update", response.json()["message"])
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    def test_update_page_without_access_returns_404(self):
+        """Test that users without page access get 404 on update (prevents info disclosure)."""
+        # Page in completely different org/project - self.user has no access
+        other_org = OrgFactory()
+        other_project = ProjectFactory(org=other_org)
+        page = PageFactory(project=other_project)
+
+        response = self.send_api_request(
+            url=f"/api/pages/{page.external_id}/",
+            method="put",
+            data={"title": "New Title"},
+        )
+
+        # Should get 404 (Not Found) to prevent information disclosure
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+        self.assertIn("not found", response.json()["message"].lower())
+
+    def test_delete_page_with_access_but_not_creator_returns_403(self):
+        """Test that users with page access but not creators get 403 on delete."""
+        # Page created by other_user in shared project - self.user has access but isn't creator
+        page = PageFactory(project=self.project, creator=self.other_user)
+
+        response = self.send_api_request(
+            url=f"/api/pages/{page.external_id}/",
+            method="delete",
+        )
+
+        # Should get 403 (Forbidden) because user has access but isn't creator
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        self.assertIn("Only the creator can delete", response.json()["message"])
+
+        # Page should still exist
+        self.assertTrue(Page.objects.filter(external_id=page.external_id).exists())
+
+    def test_delete_page_without_access_returns_404(self):
+        """Test that users without page access get 404 on delete (prevents info disclosure)."""
+        # Page in completely different org/project - self.user has no access
+        other_org = OrgFactory()
+        other_project = ProjectFactory(org=other_org)
+        page = PageFactory(project=other_project)
+
+        response = self.send_api_request(
+            url=f"/api/pages/{page.external_id}/",
+            method="delete",
+        )
+
+        # Should get 404 (Not Found) to prevent information disclosure
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+        self.assertIn("not found", response.json()["message"].lower())
+
+        # Page should still exist
+        self.assertTrue(Page.objects.filter(external_id=page.external_id).exists())
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    def test_update_page_as_project_editor_not_creator_returns_403(self):
+        """Test that project editors who didn't create the page get 403 on update."""
+        # Create a project where self.user is only a project editor (not org member)
+        other_org = OrgFactory()
+        other_project = ProjectFactory(org=other_org)
+        ProjectEditorFactory(project=other_project, user=self.user, role=ProjectEditorRole.EDITOR.value)
+
+        # Page created by someone else in this project
+        page_owner = UserFactory()
+        page = PageFactory(project=other_project, creator=page_owner)
+
+        response = self.send_api_request(
+            url=f"/api/pages/{page.external_id}/",
+            method="put",
+            data={"title": "New Title"},
+        )
+
+        # Should get 403 (Forbidden) because user is project editor but not page creator
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        self.assertIn("Only the creator can update", response.json()["message"])
+
+    def test_delete_page_as_project_editor_not_creator_returns_403(self):
+        """Test that project editors who didn't create the page get 403 on delete."""
+        # Create a project where self.user is only a project editor (not org member)
+        other_org = OrgFactory()
+        other_project = ProjectFactory(org=other_org)
+        ProjectEditorFactory(project=other_project, user=self.user, role=ProjectEditorRole.EDITOR.value)
+
+        # Page created by someone else in this project
+        page_owner = UserFactory()
+        page = PageFactory(project=other_project, creator=page_owner)
+
+        response = self.send_api_request(
+            url=f"/api/pages/{page.external_id}/",
+            method="delete",
+        )
+
+        # Should get 403 (Forbidden) because user is project editor but not page creator
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        self.assertIn("Only the creator can delete", response.json()["message"])
+
+        # Page should still exist
+        self.assertTrue(Page.objects.filter(external_id=page.external_id).exists())

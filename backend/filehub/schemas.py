@@ -50,6 +50,7 @@ class FileUploadOut(Schema):
     content_type: str
     size_bytes: int
     status: str
+    link: Optional[str] = None
     created: datetime
     modified: datetime
 
@@ -66,6 +67,10 @@ class FileUploadOut(Schema):
     @staticmethod
     def resolve_size_bytes(obj):
         return obj.expected_size
+
+    @staticmethod
+    def resolve_link(obj):
+        return obj.download_url
 
 
 class ProjectInfo(Schema):

@@ -237,8 +237,8 @@ See [Overview](./overview.md)
 
 **Error Responses:**
 
-- Status Code: 403 - User is not an admin of the organization
-- Status Code: 404 - Organization not found
+- Status Code: 403 - User is a member but not an admin of the organization
+- Status Code: 404 - Organization not found or user is not a member
 
 **Example Request:**
 
@@ -294,8 +294,8 @@ See [Overview](./overview.md)
 
 **Error Responses:**
 
-- Status Code: 403 - User is not an admin of the organization
-- Status Code: 404 - Organization not found
+- Status Code: 403 - User is a member but not an admin of the organization
+- Status Code: 404 - Organization not found or user is not a member
 
 ---
 
@@ -548,8 +548,8 @@ See [Overview](./overview.md)
 **Error Responses:**
 
 - Status Code: 400 - Attempted to demote the only admin
-- Status Code: 403 - User is not an admin of the organization
-- Status Code: 404 - Organization not found or user to update is not a member
+- Status Code: 403 - User is a member but not an admin of the organization
+- Status Code: 404 - Organization not found, user is not a member, or user to update is not a member
 
 **Example Request:**
 

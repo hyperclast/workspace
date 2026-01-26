@@ -324,7 +324,7 @@ None
 
 ### Authorization
 
-Requires authentication. User must be the owner of the page.
+Requires authentication. User must have access to the page AND be the owner/creator.
 
 ### Request Headers
 
@@ -351,7 +351,8 @@ See [Overview](./overview.md)
 
 **Error Responses:**
 
-- Status Code: 404 - Note not found or user is not the owner
+- Status Code: 403 - User has access to the page but is not the owner/creator
+- Status Code: 404 - Page not found or user doesn't have access to the page
 
 ---
 
@@ -381,7 +382,7 @@ None
 
 ### Authorization
 
-Requires authentication. User must be the owner of the page.
+Requires authentication. User must have access to the page AND be the owner/creator.
 
 ### Request Headers
 
@@ -393,7 +394,8 @@ See [Overview](./overview.md)
 
 **Error Responses:**
 
-- Status Code: 404 - Note not found or user is not the owner
+- Status Code: 403 - User has access to the page but is not the owner/creator
+- Status Code: 404 - Page not found or user doesn't have access to the page
 
 ---
 

@@ -180,7 +180,7 @@ class TestUpdatePageEditorRole(TestPageEditorAPIBase):
         editor = UserFactory()
         PageEditorFactory(page=self.page, user=editor, role=PageEditorRole.EDITOR.value)
 
-        with patch("collab.utils.notify_write_permission_revoked") as mock_notify:
+        with patch("pages.api.pages.notify_write_permission_revoked") as mock_notify:
             response = self.send_update_role_request(self.page.external_id, editor.external_id, "viewer")
 
             self.assertEqual(response.status_code, HTTPStatus.OK)
@@ -193,7 +193,7 @@ class TestUpdatePageEditorRole(TestPageEditorAPIBase):
         editor = UserFactory()
         PageEditorFactory(page=self.page, user=editor, role=PageEditorRole.VIEWER.value)
 
-        with patch("collab.utils.notify_write_permission_revoked") as mock_notify:
+        with patch("pages.api.pages.notify_write_permission_revoked") as mock_notify:
             response = self.send_update_role_request(self.page.external_id, editor.external_id, "editor")
 
             self.assertEqual(response.status_code, HTTPStatus.OK)

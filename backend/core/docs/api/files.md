@@ -242,10 +242,18 @@ Mark the upload as complete after uploading the file.
 ```json
 {
   "external_id": "abc123-...",
+  "project_id": "proj-xyz-...",
+  "filename": "document.pdf",
+  "content_type": "application/pdf",
+  "size_bytes": 12345,
   "status": "available",
-  ...
+  "link": "https://app.example.com/files/...",
+  "created": "2025-01-15T10:30:00Z",
+  "modified": "2025-01-15T10:35:00Z"
 }
 ```
+
+The `link` field contains the permanent download URL for the finalized file.
 
 **Errors:**
 

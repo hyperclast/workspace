@@ -4,9 +4,7 @@ import zipfile
 from typing import List
 
 from asgiref.sync import async_to_sync
-from backend.utils import log_info
 from channels.layers import get_channel_layer
-from core.authentication import session_auth, token_auth
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Prefetch
@@ -16,8 +14,16 @@ from django.utils import timezone
 from django.utils.http import content_disposition_header
 from ninja import Query, Router
 from ninja.responses import Response
-from users.models import Org
 
+from backend.utils import log_info
+from collab.utils import notify_write_permission_revoked
+from core.authentication import session_auth, token_auth
+from core.rate_limit import (
+    check_external_invitation_rate_limit,
+    increment_external_invitation_count,
+    notify_admin_of_invitation_abuse,
+)
+from core.utils import prepare_page_content_for_export, sanitize_filename
 from pages.constants import ProjectEditorRole
 from pages.models import (
     Page,
@@ -28,9 +34,14 @@ from pages.models import (
     ProjectInvitation,
 )
 from pages.permissions import (
+    get_user_project_access_label,
+    is_org_member_email,
+    user_can_access_project,
     user_can_change_project_access,
     user_can_delete_project,
+    user_can_edit_in_project,
     user_can_modify_project,
+    user_is_org_admin,
 )
 from pages.schemas import (
     ErrorResponse,
@@ -50,6 +61,7 @@ from pages.tasks import (
     send_project_editor_removed_email,
     send_project_invitation,
 )
+from users.models import Org, OrgMember
 
 User = get_user_model()
 
@@ -95,28 +107,6 @@ def notify_project_access_revoked(project_external_id: str, user_id: int):
         pass
 
 
-def user_has_full_project_access(user, project):
-    """Check if user has full project-level access (not just page-level).
-
-    Full access means:
-    - User is org admin
-    - User is org member AND org_members_can_access=True
-    - User is a project editor
-    """
-    from pages.permissions import user_can_access_org, user_is_org_admin
-
-    if project.org:
-        # Tier 0: Org admin
-        if user_is_org_admin(user, project.org):
-            return True
-        # Tier 1: Org member (when enabled)
-        if project.org_members_can_access and user_can_access_org(user, project.org):
-            return True
-
-    # Tier 2: Project editor
-    return project.editors.filter(id=user.id).exists()
-
-
 def serialize_project(project, include_pages=False, user=None):
     """Helper to serialize a project to match ProjectOut schema.
 
@@ -126,8 +116,8 @@ def serialize_project(project, include_pages=False, user=None):
     """
     is_pro = getattr(getattr(project.org, "billing", None), "is_pro", False)
 
-    # Determine access source
-    has_full_access = user is None or user_has_full_project_access(user, project)
+    # Determine access source (use user_can_access_project from permissions module)
+    has_full_access = user is None or user_can_access_project(user, project)
     access_source = "full" if has_full_access else "page_only"
 
     result = {
@@ -393,15 +383,6 @@ def add_project_editor(
     Rate limiting: External invitations (non-org members, non-existent users) are rate limited.
     Org members inviting each other = high trust, no limit.
     """
-    from core.rate_limit import (
-        check_external_invitation_rate_limit,
-        increment_external_invitation_count,
-        notify_admin_of_invitation_abuse,
-    )
-    from users.models import OrgMember
-
-    from pages.permissions import user_can_edit_in_project
-
     # Get project and verify current user has access
     project = get_object_or_404(
         Project.objects.get_user_accessible_projects(request.user),
@@ -415,12 +396,6 @@ def add_project_editor(
     # Use the role from payload, defaulting to 'viewer'
     role = payload.role or ProjectEditorRole.VIEWER.value
 
-    # Helper to check if email belongs to an org member (high trust = no rate limit)
-    def is_org_member_email(email):
-        if not project.org:
-            return False
-        return OrgMember.objects.filter(org=project.org, user__email__iexact=email).exists()
-
     try:
         user_to_add = User.objects.get(email=payload.email)
 
@@ -432,14 +407,13 @@ def add_project_editor(
             )
 
         # Rate limit external invitations (user exists but not in org)
-        if not is_org_member_email(payload.email):
+        if not is_org_member_email(project.org, payload.email):
             allowed, count, limit = check_external_invitation_rate_limit(request.user)
             if not allowed:
                 notify_admin_of_invitation_abuse(
                     request.user, count, payload.email, context=f"project:{project.external_id}"
                 )
                 return 429, {"message": "Too many invitations. Please try again later."}
-            increment_external_invitation_count(request.user)
 
         # Add editor with specified role
         ProjectEditor.objects.create(
@@ -488,9 +462,6 @@ def add_project_editor(
 
         # Send email only if new invitation (idempotent behavior)
         if created:
-            # Increment rate limit counter for new external invitations
-            increment_external_invitation_count(request.user)
-
             send_project_invitation.enqueue(invitation_id=invitation.external_id)
 
             # Log the invitation attempt
@@ -517,8 +488,6 @@ def remove_project_editor(request: HttpRequest, external_id: str, user_external_
     Only users with edit access (not viewers) can remove others.
     Users can always remove themselves. Cannot remove the project creator.
     """
-    from pages.permissions import user_can_edit_in_project
-
     # Get project and verify current user has access
     project = get_object_or_404(
         Project.objects.get_user_accessible_projects(request.user),
@@ -598,6 +567,70 @@ def remove_project_editor(request: HttpRequest, external_id: str, user_external_
             )
 
 
+def _update_existing_editor_role(request_user, project, target_user, new_role):
+    """Update the role of an existing project editor.
+
+    Returns (response_dict, status_code) or raises ValueError with message.
+    """
+    # Cannot change creator's role
+    if target_user.id == project.creator_id:
+        return None, (400, {"message": "Cannot change the project creator's role"})
+
+    # Get the ProjectEditor record
+    try:
+        project_editor = ProjectEditor.objects.get(user=target_user, project=project)
+    except ProjectEditor.DoesNotExist:
+        return None, (400, {"message": "User is not an editor of this project"})
+
+    # Update the role
+    project_editor.role = new_role
+    project_editor.save(update_fields=["role", "modified"])
+
+    log_info(
+        f"User {request_user.email} changed role of {target_user.email} to {new_role} in project {project.external_id}"
+    )
+
+    # If role changed to viewer, notify active WebSocket sessions
+    if new_role == ProjectEditorRole.VIEWER.value:
+        page_external_ids = Page.objects.filter(project=project, is_deleted=False).values_list("external_id", flat=True)
+        for page_external_id in page_external_ids:
+            notify_write_permission_revoked(str(page_external_id), target_user.id)
+
+    return {
+        "external_id": str(target_user.external_id),
+        "email": target_user.email,
+        "is_creator": False,
+        "is_pending": False,
+        "role": project_editor.role,
+    }, None
+
+
+def _update_invitation_role(request_user, project, external_id, new_role):
+    """Update the role of a pending project invitation.
+
+    Returns (response_dict, status_code) or (None, error_response).
+    """
+    try:
+        invitation = ProjectInvitation.objects.get(project=project, external_id=external_id, accepted=False)
+    except ProjectInvitation.DoesNotExist:
+        return None, (404, {"message": "Editor or invitation not found"})
+
+    invitation.role = new_role
+    invitation.save(update_fields=["role", "modified"])
+
+    log_info(
+        f"User {request_user.email} changed role of invitation {invitation.email} to {new_role} in project {project.external_id}"
+    )
+
+    return {
+        "external_id": str(invitation.external_id),
+        "email": invitation.email,
+        "is_creator": False,
+        "is_pending": True,
+        "role": invitation.role,
+    }, None
+
+
 @projects_router.patch("/projects/{external_id}/editors/{user_external_id}/", response=ProjectEditorOut)
 def update_project_editor_role(
     request: HttpRequest, external_id: str, user_external_id: str, payload: ProjectEditorRoleUpdate
@@ -607,15 +640,12 @@ def update_project_editor_role(
     Only creators, org admins, or editors (not viewers) can change roles.
     Cannot change the creator's role.
     """
-    from pages.permissions import user_can_edit_in_project, user_is_org_admin
-
-    # Get project and verify current user has access
     project = get_object_or_404(
         Project.objects.get_user_accessible_projects(request.user).select_related("org"),
         external_id=external_id,
     )
 
-    # Check if current user can modify roles (creator, org admin, or editor role)
+    # Check if current user can modify roles
     is_creator = project.creator_id == request.user.id
     is_admin = project.org and user_is_org_admin(request.user, project.org)
     can_edit = user_can_edit_in_project(request.user, project)
@@ -626,113 +656,24 @@ def update_project_editor_role(
             status=403,
         )
 
-    # Try to find a user first
+    # Try to find existing user first
     try:
         target_user = User.objects.get(external_id=user_external_id)
-
-        # Cannot change creator's role
-        if target_user.id == project.creator_id:
-            return Response(
-                {"message": "Cannot change the project creator's role"},
-                status=400,
-            )
-
-        # Get the ProjectEditor record
-        try:
-            project_editor = ProjectEditor.objects.get(user=target_user, project=project)
-        except ProjectEditor.DoesNotExist:
-            return Response(
-                {"message": "User is not an editor of this project"},
-                status=400,
-            )
-
-        # Update the role
-        project_editor.role = payload.role
-        project_editor.save(update_fields=["role", "modified"])
-
-        log_info(
-            f"User {request.user.email} changed role of {target_user.email} to {payload.role} in project {project.external_id}"
-        )
-
-        # If role changed to viewer, notify any active WebSocket sessions for all pages in the project
-        if payload.role == ProjectEditorRole.VIEWER.value:
-            from collab.utils import notify_write_permission_revoked
-
-            # Get all pages in this project and notify for each one
-            page_external_ids = Page.objects.filter(project=project, is_deleted=False).values_list(
-                "external_id", flat=True
-            )
-            for page_external_id in page_external_ids:
-                notify_write_permission_revoked(str(page_external_id), target_user.id)
-
-        return {
-            "external_id": str(target_user.external_id),
-            "email": target_user.email,
-            "is_creator": False,
-            "is_pending": False,
-            "role": project_editor.role,
-        }
-
+        result, error = _update_existing_editor_role(request.user, project, target_user, payload.role)
+        if error:
+            return Response(error[1], status=error[0])
+        return result
     except User.DoesNotExist:
-        # Check if it's a pending invitation
-        try:
-            invitation = ProjectInvitation.objects.get(project=project, external_id=user_external_id, accepted=False)
-
-            # Update invitation role
-            invitation.role = payload.role
-            invitation.save(update_fields=["role", "modified"])
-
-            log_info(
-                f"User {request.user.email} changed role of invitation {invitation.email} to {payload.role} in project {project.external_id}"
-            )
-
-            return {
-                "external_id": str(invitation.external_id),
-                "email": invitation.email,
-                "is_creator": False,
-                "is_pending": True,
-                "role": invitation.role,
-            }
-
-        except ProjectInvitation.DoesNotExist:
-            return Response(
-                {"message": "Editor or invitation not found"},
-                status=404,
-            )
+        # Fall back to checking pending invitations
+        result, error = _update_invitation_role(request.user, project, user_external_id, payload.role)
+        if error:
+            return Response(error[1], status=error[0])
+        return result
 
 
 # ========================================
 # Project Sharing Settings Endpoints
 # ========================================
-
-
-def get_user_access_label(user, project):
-    """Get a human-readable label for the user's access level to the project."""
-    from pages.permissions import user_can_access_org, user_is_org_admin
-
-    # Check if user is the creator
-    if project.creator_id == user.id:
-        return "Owner"
-
-    # Check if user is org admin
-    if project.org and user_is_org_admin(user, project.org):
-        return "Admin"
-
-    # Check if user is org member (when org access is enabled)
-    if project.org and project.org_members_can_access and user_can_access_org(user, project.org):
-        return "Can edit"
-
-    # Check project editor role
-    try:
-        project_editor = ProjectEditor.objects.get(user=user, project=project)
-        if project_editor.role == ProjectEditorRole.EDITOR.value:
-            return "Can edit"
-        else:
-            return "Can view"
-    except ProjectEditor.DoesNotExist:
-        pass
-
-    return ""
 
 
 @projects_router.get("/projects/{external_id}/sharing/", response=ProjectSharingOut)
@@ -752,7 +693,7 @@ def get_project_sharing(request: HttpRequest, external_id: str):
         "org_members_can_access": project.org_members_can_access,
         "can_change_access": user_can_change_project_access(request.user, project),
         "org_member_count": org_member_count,
-        "your_access": get_user_access_label(request.user, project),
+        "your_access": get_user_project_access_label(request.user, project),
     }
 
 
@@ -786,7 +727,7 @@ def update_project_sharing(request: HttpRequest, external_id: str, payload: Proj
         "org_members_can_access": project.org_members_can_access,
         "can_change_access": user_can_change_project_access(request.user, project),
         "org_member_count": org_member_count,
-        "your_access": get_user_access_label(request.user, project),
+        "your_access": get_user_project_access_label(request.user, project),
     }
 
 
@@ -854,15 +795,6 @@ def validate_project_invitation(request: HttpRequest, token: str):
 # ========================================
 
 
-def sanitize_filename(title: str) -> str:
-    """Sanitize a title to be used as a filename."""
-    invalid_chars = r'[/\\:*?"<>|]'
-    sanitized = re.sub(invalid_chars, "-", title)
-    sanitized = sanitized.strip().strip(".")
-    sanitized = re.sub(r"[-\s]+", "-", sanitized)
-    return sanitized or "Untitled"
-
-
 def get_unique_filename(title: str, filetype: str, used_names: dict) -> str:
     """Get a unique filename, adding suffix if needed."""
     base_name = sanitize_filename(title)
@@ -901,14 +833,8 @@ def download_project(request: HttpRequest, external_id: str):
             content = page.details.get("content", "") if page.details else ""
             filetype = page.details.get("filetype", "md") if page.details else "md"
 
-            # Get unique filename with appropriate extension
             filename = get_unique_filename(page.title, filetype, used_names)
-
-            # For markdown files, prepend title as H1
-            if filetype == "md":
-                file_content = f"# {page.title}\n\n{content}"
-            else:
-                file_content = content
+            file_content = prepare_page_content_for_export(page.title, content, filetype)
 
             # Add to ZIP inside project folder
             zip_file.writestr(f"{project_folder}/{filename}", file_content.encode("utf-8"))

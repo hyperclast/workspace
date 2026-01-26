@@ -395,3 +395,61 @@ def get_user_page_access_label(user, page):
         return "Can view"
 
     return ""
+
+
+def get_user_project_access_label(user, project):
+    """
+    Get a human-readable label for the user's access level to the project.
+
+    Args:
+        user: User instance
+        project: Project instance
+
+    Returns:
+        str: One of "Owner", "Admin", "Can edit", "Can view", or ""
+    """
+    from pages.models import ProjectEditor
+
+    # Check if user is the creator (owner)
+    if project.creator_id == user.id:
+        return "Owner"
+
+    # Check if user is org admin
+    if project.org and user_is_org_admin(user, project.org):
+        return "Admin"
+
+    # Check if user is org member (when org access is enabled)
+    if project.org and project.org_members_can_access and user_can_access_org(user, project.org):
+        return "Can edit"
+
+    # Check project editor role
+    try:
+        project_editor = ProjectEditor.objects.get(user=user, project=project)
+        if project_editor.role == ProjectEditorRole.EDITOR.value:
+            return "Can edit"
+        else:
+            return "Can view"
+    except ProjectEditor.DoesNotExist:
+        pass
+
+    return ""
+
+
+def is_org_member_email(org, email):
+    """
+    Check if an email belongs to a member of the given organization.
+
+    This is used to determine if an invitation is "internal" (to an org member)
+    or "external" (to someone outside the org). External invitations are
+    rate-limited to prevent abuse.
+
+    Args:
+        org: Org instance (can be None)
+        email: Email address to check
+
+    Returns:
+        bool: True if email belongs to an org member, False otherwise
+    """
+    if not org:
+        return False
+    return OrgMember.objects.filter(org=org, user__email__iexact=email).exists()

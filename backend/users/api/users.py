@@ -108,14 +108,14 @@ def regenerate_access_token(request: HttpRequest):
     return {"access_token": request.user.profile.access_token}
 
 
-@users_router.patch("/settings/")
-def update_settings(request: HttpRequest, payload: UpdateSettingsSchema):
-    if not request.user.is_authenticated:
-        return Response(
-            {"message": "Unauthorized"},
-            status=401,
-        )
+# Explicit whitelist of profile fields that can be updated via the settings endpoint.
+# This prevents accidentally exposing sensitive fields like access_token if the schema
+# is extended without proper review.
+ALLOWED_SETTINGS_FIELDS = {"tz", "keyboard_shortcuts"}
 
+
+@users_router.patch("/settings/", auth=[token_auth, session_auth])
+def update_settings(request: HttpRequest, payload: UpdateSettingsSchema):
     update_fields = {}
     result = {
         "message": "ok",
@@ -125,7 +125,7 @@ def update_settings(request: HttpRequest, payload: UpdateSettingsSchema):
         profile = request.user.profile
 
         for field, value in payload.dict(exclude_unset=True).items():
-            if not hasattr(profile, field):
+            if field not in ALLOWED_SETTINGS_FIELDS:
                 continue
 
             setattr(profile, field, value)

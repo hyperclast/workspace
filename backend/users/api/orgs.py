@@ -100,16 +100,20 @@ def create_org(request: HttpRequest, payload: OrgIn):
     return 201, org
 
 
-@orgs_router.patch("/{external_id}/", response=OrgOut)
+@orgs_router.patch("/{external_id}/", response={200: OrgOut, 403: dict, 404: dict})
 def update_org(request: HttpRequest, external_id: str, payload: OrgUpdateIn):
     """Update organization details (admin only)."""
-    org = get_object_or_404(Org, external_id=external_id)
+    # First verify user is a member of the org (returns 404 if not, preventing info disclosure)
+    org = get_object_or_404(
+        Org.objects.filter(members=request.user),
+        external_id=external_id,
+    )
 
     # Check if user is admin
     is_admin = OrgMember.objects.filter(org=org, user=request.user, role="admin").exists()
 
     if not is_admin:
-        return Response({"message": "Only admins can update the organization"}, status=403)
+        return 403, {"message": "Only admins can update the organization"}
 
     if payload.name is not None:
         org.name = payload.name
@@ -121,16 +125,20 @@ def update_org(request: HttpRequest, external_id: str, payload: OrgUpdateIn):
     return org
 
 
-@orgs_router.delete("/{external_id}/", response={204: None})
+@orgs_router.delete("/{external_id}/", response={204: None, 403: dict, 404: dict})
 def delete_org(request: HttpRequest, external_id: str):
     """Delete organization (admin only)."""
-    org = get_object_or_404(Org, external_id=external_id)
+    # First verify user is a member of the org (returns 404 if not, preventing info disclosure)
+    org = get_object_or_404(
+        Org.objects.filter(members=request.user),
+        external_id=external_id,
+    )
 
     # Check if user is admin
     is_admin = OrgMember.objects.filter(org=org, user=request.user, role="admin").exists()
 
     if not is_admin:
-        return Response({"message": "Only admins can delete the organization"}, status=403)
+        return 403, {"message": "Only admins can delete the organization"}
 
     log_info(f"User {request.user.email} deleted org {org.external_id}")
 
@@ -299,15 +307,21 @@ def remove_org_member(request: HttpRequest, external_id: str, user_external_id: 
     return 204, None
 
 
-@orgs_router.patch("/{external_id}/members/{user_external_id}/", response=OrgMemberOut)
+@orgs_router.patch(
+    "/{external_id}/members/{user_external_id}/", response={200: OrgMemberOut, 400: dict, 403: dict, 404: dict}
+)
 def update_org_member_role(request: HttpRequest, external_id: str, user_external_id: str, payload: OrgMemberRoleUpdate):
     """Update member role (admin only)."""
-    org = get_object_or_404(Org, external_id=external_id)
+    # First verify user is a member of the org (returns 404 if not, preventing info disclosure)
+    org = get_object_or_404(
+        Org.objects.filter(members=request.user),
+        external_id=external_id,
+    )
 
     # Check if requester is admin
     is_admin = OrgMember.objects.filter(org=org, user=request.user, role="admin").exists()
     if not is_admin:
-        return Response({"message": "Only admins can change member roles"}, status=403)
+        return 403, {"message": "Only admins can change member roles"}
 
     user_to_update = get_object_or_404(User, external_id=user_external_id)
 
@@ -317,7 +331,7 @@ def update_org_member_role(request: HttpRequest, external_id: str, user_external
     if user_to_update == request.user and payload.role != "admin":
         admin_count = OrgMember.objects.filter(org=org, role="admin").count()
         if admin_count == 1:
-            return Response({"message": "Cannot demote the only admin"}, status=400)
+            return 400, {"message": "Cannot demote the only admin"}
 
     membership.role = payload.role
     membership.save()

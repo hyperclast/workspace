@@ -101,6 +101,13 @@ You'll automatically be added as an admin.
 }
 ```
 
+**Error Responses:**
+
+| Status | Reason                                         |
+| ------ | ---------------------------------------------- |
+| 403    | You are a member but not an admin              |
+| 404    | Organization not found or you are not a member |
+
 ---
 
 ## Delete Organization
@@ -115,6 +122,13 @@ Permanently deletes the organization and all its projects/pages.
 **Response (204):** No content.
 
 > **Warning:** This cannot be undone.
+
+**Error Responses:**
+
+| Status | Reason                                         |
+| ------ | ---------------------------------------------- |
+| 403    | You are a member but not an admin              |
+| 404    | Organization not found or you are not a member |
 
 ---
 
@@ -201,6 +215,14 @@ Permanently deletes the organization and all its projects/pages.
   "created": "2025-01-12T14:30:00Z"
 }
 ```
+
+**Error Responses:**
+
+| Status | Reason                                                                 |
+| ------ | ---------------------------------------------------------------------- |
+| 400    | Cannot demote the only admin                                           |
+| 403    | You are a member but not an admin                                      |
+| 404    | Organization not found, you are not a member, or target user not found |
 
 ### Remove Member
 

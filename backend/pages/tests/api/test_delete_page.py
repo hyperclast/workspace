@@ -129,16 +129,19 @@ class TestDeletePageAPI(BaseAuthenticatedViewTestCase):
         self.assertEqual(YUpdate.objects.filter(room_id=room_id2).count(), 1)
         self.assertTrue(YSnapshot.objects.filter(room_id=room_id2).exists())
 
-    def test_delete_page_not_owned_returns_403(self):
-        """Test deleting a page not owned by user returns 403."""
+    def test_delete_page_without_access_returns_404(self):
+        """Test deleting a page in an org the user isn't a member of returns 404.
+
+        This prevents information disclosure - users shouldn't know if a page exists
+        in orgs they don't have access to.
+        """
         other_org = OrgFactory()
         other_project = ProjectFactory(org=other_org)
         page = PageFactory(project=other_project)
 
         response = self.send_delete_page_request(page.external_id)
 
-        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
-        self.assertIn("Only the creator can delete", response.json()["message"])
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
         self.assertTrue(Page.objects.filter(external_id=page.external_id).exists())
 
     def test_delete_nonexistent_page_returns_404(self):

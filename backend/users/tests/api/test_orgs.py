@@ -527,3 +527,122 @@ class TestAddMemberThrottling(BaseAuthenticatedViewTestCase):
         self.assertEqual(response.status_code, HTTPStatus.TOO_MANY_REQUESTS)
         payload = response.json()
         self.assertIn("detail", payload)
+
+
+class TestOrgAccessControlSecurity(BaseAuthenticatedViewTestCase):
+    """
+    Test access control security for org endpoints.
+
+    These tests verify that:
+    1. Non-members get 404 (prevents information disclosure about org existence)
+    2. Members without admin role get 403 (correct authorization error)
+
+    This prevents attackers from enumerating org IDs by observing 403 vs 404 responses.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # Create an org that self.user is NOT a member of
+        self.other_org = OrgFactory()
+        # Create an org that self.user IS a member of (but not admin)
+        self.member_org = OrgFactory()
+        OrgMemberFactory(org=self.member_org, user=self.user, role=OrgMemberRole.MEMBER.value)
+
+    def test_update_org_without_membership_returns_404(self):
+        """Non-members should get 404 when trying to update org (prevents info disclosure)."""
+        response = self.send_api_request(
+            url=f"/api/orgs/{self.other_org.external_id}/",
+            method="patch",
+            data={"name": "Hacked Name"},
+        )
+
+        # Should get 404 (Not Found) to prevent information disclosure
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+        # Verify org name unchanged
+        self.other_org.refresh_from_db()
+        self.assertNotEqual(self.other_org.name, "Hacked Name")
+
+    def test_update_org_as_member_not_admin_returns_403(self):
+        """Members who aren't admins should get 403 when trying to update org."""
+        original_name = self.member_org.name
+
+        response = self.send_api_request(
+            url=f"/api/orgs/{self.member_org.external_id}/",
+            method="patch",
+            data={"name": "New Name"},
+        )
+
+        # Should get 403 (Forbidden) because user is member but not admin
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        self.assertIn("Only admins can update", response.json()["message"])
+
+        # Verify org name unchanged
+        self.member_org.refresh_from_db()
+        self.assertEqual(self.member_org.name, original_name)
+
+    def test_delete_org_without_membership_returns_404(self):
+        """Non-members should get 404 when trying to delete org (prevents info disclosure)."""
+        response = self.send_api_request(
+            url=f"/api/orgs/{self.other_org.external_id}/",
+            method="delete",
+        )
+
+        # Should get 404 (Not Found) to prevent information disclosure
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+        # Verify org still exists
+        self.assertTrue(Org.objects.filter(external_id=self.other_org.external_id).exists())
+
+    def test_delete_org_as_member_not_admin_returns_403(self):
+        """Members who aren't admins should get 403 when trying to delete org."""
+        response = self.send_api_request(
+            url=f"/api/orgs/{self.member_org.external_id}/",
+            method="delete",
+        )
+
+        # Should get 403 (Forbidden) because user is member but not admin
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        self.assertIn("Only admins can delete", response.json()["message"])
+
+        # Verify org still exists
+        self.assertTrue(Org.objects.filter(external_id=self.member_org.external_id).exists())
+
+    def test_update_member_role_without_membership_returns_404(self):
+        """Non-members should get 404 when trying to update member roles (prevents info disclosure)."""
+        # Add a member to the other org
+        other_user = UserFactory()
+        OrgMemberFactory(org=self.other_org, user=other_user, role=OrgMemberRole.MEMBER.value)
+
+        response = self.send_api_request(
+            url=f"/api/orgs/{self.other_org.external_id}/members/{other_user.external_id}/",
+            method="patch",
+            data={"role": "admin"},
+        )
+
+        # Should get 404 (Not Found) to prevent information disclosure
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+        # Verify member role unchanged
+        membership = OrgMember.objects.get(org=self.other_org, user=other_user)
+        self.assertEqual(membership.role, OrgMemberRole.MEMBER.value)
+
+    def test_update_member_role_as_member_not_admin_returns_403(self):
+        """Members who aren't admins should get 403 when trying to update roles."""
+        # Add another member to the org
+        other_user = UserFactory()
+        OrgMemberFactory(org=self.member_org, user=other_user, role=OrgMemberRole.MEMBER.value)
+
+        response = self.send_api_request(
+            url=f"/api/orgs/{self.member_org.external_id}/members/{other_user.external_id}/",
+            method="patch",
+            data={"role": "admin"},
+        )
+
+        # Should get 403 (Forbidden) because user is member but not admin
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        self.assertIn("Only admins can change", response.json()["message"])
+
+        # Verify member role unchanged
+        membership = OrgMember.objects.get(org=self.member_org, user=other_user)
+        self.assertEqual(membership.role, OrgMemberRole.MEMBER.value)

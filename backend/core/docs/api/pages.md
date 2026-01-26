@@ -149,7 +149,7 @@ Search pages by title for typeahead functionality.
 |              |                                 |
 | ------------ | ------------------------------- |
 | **Endpoint** | `PUT /api/pages/{external_id}/` |
-| **Auth**     | Bearer token                    |
+| **Auth**     | Bearer token (owner only)       |
 
 | Field     | Type   | Required? | Description          |
 | --------- | ------ | --------- | -------------------- |
@@ -171,6 +171,11 @@ Search pages by title for typeahead functionality.
 }
 ```
 
+**Error Responses:**
+
+- **403** - User has access but is not the owner
+- **404** - Page not found or no access
+
 ---
 
 ## Delete Page
@@ -181,6 +186,11 @@ Search pages by title for typeahead functionality.
 | **Auth**     | Bearer token (owner only)          |
 
 **Response (204):** No content.
+
+**Error Responses:**
+
+- **403** - User has access but is not the owner
+- **404** - Page not found or no access
 
 > Soft delete—page is hidden but not permanently removed.
 

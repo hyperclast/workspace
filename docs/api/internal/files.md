@@ -421,6 +421,7 @@ See [Overview](./overview.md)
   "content_type": "application/pdf",
   "size_bytes": 12345,
   "status": "available",
+  "link": "https://app.example.com/files/proj-id/file-id/token/",
   "created": "2025-01-15T10:30:00Z",
   "modified": "2025-01-15T10:35:00Z"
 }
@@ -428,6 +429,7 @@ See [Overview](./overview.md)
 
 **Notes:**
 
+- The `link` field contains the permanent download URL for the finalized file
 - This endpoint is idempotent - safe to call multiple times
 - Uses database locking to prevent race conditions with concurrent finalization attempts
 - Verifies the file size matches the expected size from upload creation

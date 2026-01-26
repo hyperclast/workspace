@@ -496,9 +496,12 @@ class TestPageUpdateModeValidation(BaseAuthenticatedViewTestCase):
 class TestPageUpdateModePermissions(BaseAuthenticatedViewTestCase):
     """Tests for permissions with update modes."""
 
-    def test_cannot_append_to_page_not_owned(self):
-        """Users cannot append to pages they don't own."""
-        page = PageFactory(details={"content": "Secret", "filetype": "txt"})  # Different owner
+    def test_cannot_append_to_page_without_access(self):
+        """Users cannot append to pages they don't have access to.
+
+        Returns 404 to prevent information disclosure about page existence.
+        """
+        page = PageFactory(details={"content": "Secret", "filetype": "txt"})  # Different org
 
         url = f"/api/pages/{page.external_id}/"
         data = {
@@ -508,12 +511,15 @@ class TestPageUpdateModePermissions(BaseAuthenticatedViewTestCase):
         }
         response = self.send_api_request(url=url, method="put", data=data)
 
-        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
         page.refresh_from_db()
         self.assertEqual(page.details["content"], "Secret")
 
-    def test_cannot_prepend_to_page_not_owned(self):
-        """Users cannot prepend to pages they don't own."""
+    def test_cannot_prepend_to_page_without_access(self):
+        """Users cannot prepend to pages they don't have access to.
+
+        Returns 404 to prevent information disclosure about page existence.
+        """
         page = PageFactory(details={"content": "Secret", "filetype": "txt"})
 
         url = f"/api/pages/{page.external_id}/"
@@ -524,12 +530,15 @@ class TestPageUpdateModePermissions(BaseAuthenticatedViewTestCase):
         }
         response = self.send_api_request(url=url, method="put", data=data)
 
-        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
         page.refresh_from_db()
         self.assertEqual(page.details["content"], "Secret")
 
-    def test_cannot_overwrite_page_not_owned(self):
-        """Users cannot overwrite pages they don't own."""
+    def test_cannot_overwrite_page_without_access(self):
+        """Users cannot overwrite pages they don't have access to.
+
+        Returns 404 to prevent information disclosure about page existence.
+        """
         page = PageFactory(details={"content": "Secret", "filetype": "txt"})
 
         url = f"/api/pages/{page.external_id}/"
@@ -540,7 +549,7 @@ class TestPageUpdateModePermissions(BaseAuthenticatedViewTestCase):
         }
         response = self.send_api_request(url=url, method="put", data=data)
 
-        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
         page.refresh_from_db()
         self.assertEqual(page.details["content"], "Secret")
 

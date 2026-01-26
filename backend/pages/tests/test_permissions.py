@@ -3,6 +3,7 @@ from django.test import TestCase
 from pages.models import Page
 from pages.permissions import (
     get_page_access_source,
+    get_user_project_access_label,
     user_can_access_org,
     user_can_access_page,
     user_can_access_project,
@@ -459,3 +460,111 @@ class TestOrgMembersWithInfo(TestCase):
         self.assertEqual(len(members), 2)
         for member in members:
             self.assertFalse(member["is_creator"])
+
+
+class TestGetUserProjectAccessLabel(TestCase):
+    """Test get_user_project_access_label function."""
+
+    def setUp(self):
+        self.org = OrgFactory()
+        self.org_admin = UserFactory()
+        self.org_member = UserFactory()
+        self.external_user = UserFactory()
+
+        OrgMemberFactory(org=self.org, user=self.org_admin, role=OrgMemberRole.ADMIN.value)
+        OrgMemberFactory(org=self.org, user=self.org_member, role=OrgMemberRole.MEMBER.value)
+
+        self.project = ProjectFactory(org=self.org, creator=self.org_admin)
+
+    def test_creator_gets_owner_label(self):
+        """Test that project creator gets 'Owner' label."""
+        self.assertEqual(get_user_project_access_label(self.org_admin, self.project), "Owner")
+
+    def test_org_admin_gets_admin_label(self):
+        """Test that org admin (non-creator) gets 'Admin' label."""
+        # Create another admin who didn't create the project
+        other_admin = UserFactory()
+        OrgMemberFactory(org=self.org, user=other_admin, role=OrgMemberRole.ADMIN.value)
+
+        self.assertEqual(get_user_project_access_label(other_admin, self.project), "Admin")
+
+    def test_org_member_gets_can_edit_label(self):
+        """Test that org member gets 'Can edit' label when org_members_can_access is True."""
+        self.project.org_members_can_access = True
+        self.project.save()
+
+        self.assertEqual(get_user_project_access_label(self.org_member, self.project), "Can edit")
+
+    def test_org_member_gets_empty_when_org_access_disabled(self):
+        """Test that org member gets empty label when org_members_can_access is False."""
+        self.project.org_members_can_access = False
+        self.project.save()
+
+        self.assertEqual(get_user_project_access_label(self.org_member, self.project), "")
+
+    def test_project_editor_with_editor_role_gets_can_edit(self):
+        """Test that project editor with 'editor' role gets 'Can edit' label."""
+        from pages.constants import ProjectEditorRole
+        from pages.models import ProjectEditor
+
+        editor_user = UserFactory()
+        ProjectEditor.objects.create(
+            user=editor_user,
+            project=self.project,
+            role=ProjectEditorRole.EDITOR.value,
+        )
+
+        self.assertEqual(get_user_project_access_label(editor_user, self.project), "Can edit")
+
+    def test_project_editor_with_viewer_role_gets_can_view(self):
+        """Test that project editor with 'viewer' role gets 'Can view' label."""
+        from pages.constants import ProjectEditorRole
+        from pages.models import ProjectEditor
+
+        viewer_user = UserFactory()
+        ProjectEditor.objects.create(
+            user=viewer_user,
+            project=self.project,
+            role=ProjectEditorRole.VIEWER.value,
+        )
+
+        self.assertEqual(get_user_project_access_label(viewer_user, self.project), "Can view")
+
+    def test_external_user_gets_empty_label(self):
+        """Test that external user gets empty label."""
+        self.assertEqual(get_user_project_access_label(self.external_user, self.project), "")
+
+    def test_creator_takes_precedence_over_admin(self):
+        """Test that creator label takes precedence over admin role."""
+        # The org_admin is both creator and admin - should get "Owner"
+        self.assertEqual(get_user_project_access_label(self.org_admin, self.project), "Owner")
+
+    def test_admin_takes_precedence_over_org_member(self):
+        """Test that admin label takes precedence over org member access."""
+        # Create admin and enable org access
+        other_admin = UserFactory()
+        OrgMemberFactory(org=self.org, user=other_admin, role=OrgMemberRole.ADMIN.value)
+        self.project.org_members_can_access = True
+        self.project.save()
+
+        # Should get "Admin", not "Can edit"
+        self.assertEqual(get_user_project_access_label(other_admin, self.project), "Admin")
+
+    def test_org_member_access_takes_precedence_over_editor(self):
+        """Test that org member 'Can edit' takes precedence when org access is enabled."""
+        from pages.constants import ProjectEditorRole
+        from pages.models import ProjectEditor
+
+        # Enable org access
+        self.project.org_members_can_access = True
+        self.project.save()
+
+        # Add org_member as a viewer
+        ProjectEditor.objects.create(
+            user=self.org_member,
+            project=self.project,
+            role=ProjectEditorRole.VIEWER.value,
+        )
+
+        # Should get "Can edit" from org membership, not "Can view" from editor role
+        self.assertEqual(get_user_project_access_label(self.org_member, self.project), "Can edit")
