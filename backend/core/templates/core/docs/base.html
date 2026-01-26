@@ -142,17 +142,10 @@
                 </a>
               </li>
               <li>
-                <a href="{% url 'core:api_docs' 'ask' %}" {% if doc_name == 'ask' %}class="active"{% endif %}>
-                  Ask
+                <a href="{% url 'core:api_docs' 'users' %}" {% if doc_name == 'users' %}class="active"{% endif %}>
+                  Users
                 </a>
               </li>
-              {% if filehub_enabled %}
-                <li>
-                  <a href="{% url 'core:api_docs' 'files' %}" {% if doc_name == 'files' %}class="active"{% endif %}>
-                    Files
-                  </a>
-                </li>
-              {% endif %}
               <li>
                 <a href="{% url 'core:api_docs' 'orgs' %}" {% if doc_name == 'orgs' %}class="active"{% endif %}>
                   Organizations
@@ -169,8 +162,20 @@
                 </a>
               </li>
               <li>
-                <a href="{% url 'core:api_docs' 'users' %}" {% if doc_name == 'users' %}class="active"{% endif %}>
-                  Users
+                <a href="{% url 'core:api_docs' 'mentions' %}" {% if doc_name == 'mentions' %}class="active"{% endif %}>
+                  Mentions
+                </a>
+              </li>
+              {% if filehub_enabled %}
+                <li>
+                  <a href="{% url 'core:api_docs' 'files' %}" {% if doc_name == 'files' %}class="active"{% endif %}>
+                    Files
+                  </a>
+                </li>
+              {% endif %}
+              <li>
+                <a href="{% url 'core:api_docs' 'ask' %}" {% if doc_name == 'ask' %}class="active"{% endif %}>
+                  Ask
                 </a>
               </li>
             </ul>

@@ -18,6 +18,10 @@
     updateProjectName,
     notifyProjectDeleted,
     updatePageAccessCode,
+    getShowFilesSection,
+    getExpandedFilesSections,
+    toggleFilesSectionExpanded,
+    getAllProjectFiles,
   } from "../stores/sidenav.svelte.js";
 
   // Icons
@@ -30,6 +34,9 @@
   const changeTypeIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M9 15l2 2 4-4"></path></svg>`;
   const newPageIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>`;
   const globeIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>`;
+  const folderIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
+  const fileIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>`;
+  const smallChevronIcon = `<svg class="files-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
 
   // Local state
   let openMenuId = $state(null);
@@ -40,6 +47,9 @@
   let activePageId = $derived(getActivePageId());
   let showOrgNames = $derived(getShowOrgNames());
   let expandedProjectIds = $derived(getExpandedProjectIds());
+  let showFilesSection = $derived(getShowFilesSection());
+  let expandedFilesSections = $derived(getExpandedFilesSections());
+  let projectFiles = $derived(getAllProjectFiles());
 
   // Small menu icon for pages
   const pageMenuIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>`;
@@ -299,6 +309,23 @@
     overlay?.classList.remove("visible");
   }
 
+  function handleFilesSectionClick(e, projectId) {
+    e.stopPropagation();
+    toggleFilesSectionExpanded(projectId);
+  }
+
+  function handleFileClick(e, file) {
+    e.stopPropagation();
+    // Copy the file link to clipboard or open in new tab
+    if (file.link) {
+      window.open(file.link, "_blank");
+    }
+  }
+
+  function getFilesList(projectId) {
+    return projectFiles[projectId] || [];
+  }
+
   // Close menus when clicking outside
   function handleGlobalClick(e) {
     if (!e.target.closest(".project-menu") && !e.target.closest(".page-menu")) {
@@ -448,6 +475,44 @@
               </div>
             </div>
           {/each}
+          {#if showFilesSection}
+            {@const filesExpanded = expandedFilesSections.has(project.external_id)}
+            {@const files = getFilesList(project.external_id)}
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div
+              class="sidebar-files-header"
+              class:expanded={filesExpanded}
+              onclick={(e) => handleFilesSectionClick(e, project.external_id)}
+            >
+              {@html smallChevronIcon}
+              {@html folderIcon}
+              <span class="files-label">Files</span>
+              {#if files.length > 0}
+                <span class="files-count">{files.length}</span>
+              {/if}
+            </div>
+            {#if filesExpanded}
+              <div class="sidebar-files-list">
+                {#if files.length === 0}
+                  <div class="sidebar-files-empty">No files uploaded</div>
+                {:else}
+                  {#each files as file (file.external_id)}
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <div
+                      class="sidebar-file-item"
+                      onclick={(e) => handleFileClick(e, file)}
+                      title={file.filename}
+                    >
+                      {@html fileIcon}
+                      <span class="file-name">{file.filename}</span>
+                    </div>
+                  {/each}
+                {/if}
+              </div>
+            {/if}
+          {/if}
           <button
             class="sidebar-new-page-btn"
             onclick={(e) => handleNewPageClick(e, project.external_id)}

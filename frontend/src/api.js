@@ -390,6 +390,23 @@ export async function markUploadFailed(fileId) {
 }
 
 /**
+ * Fetch files for a project.
+ * @param {string} projectId - External ID of the project
+ * @param {string} [status] - Optional status filter ('pending', 'ready', 'failed')
+ * @returns {Promise<{items: Array, total: number, page: number, page_size: number}>}
+ */
+export async function fetchProjectFiles(projectId, status = "ready") {
+  const url = status
+    ? `${API_BASE}/files/projects/${projectId}/?status=${status}`
+    : `${API_BASE}/files/projects/${projectId}/`;
+  const response = await csrfFetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch project files: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
  * Upload a file to a project (complete flow).
  * Creates the upload, uploads to storage, and finalizes (if webhook not enabled).
  * @param {string} projectId - External ID of the project

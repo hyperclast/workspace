@@ -63,10 +63,10 @@ def dev_index(request):
 
 def get_allowed_api_docs():
     """Return list of allowed API docs based on feature flags."""
-    docs = ["overview", "ask", "mentions", "orgs", "projects", "pages", "users"]
+    docs = ["overview", "users", "orgs", "projects", "pages"]
     if getattr(settings, "FILEHUB_FEATURE_ENABLED", False):
-        # Insert after "ask" to maintain alphabetical order for the rest
-        docs.insert(2, "files")
+        docs.append("files")
+    docs.extend(["mentions", "ask"])
     return docs
 
 

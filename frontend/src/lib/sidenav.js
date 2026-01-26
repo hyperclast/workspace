@@ -18,6 +18,11 @@ import {
   collapseProject,
   isProjectExpanded,
   getExpandedProjectIds,
+  setShowFilesSection,
+  getShowFilesSection,
+  setProjectFiles,
+  getProjectFiles,
+  addFileToProject,
 } from "./stores/sidenav.svelte.js";
 
 let mounted = false;
@@ -122,6 +127,31 @@ export { isProjectExpanded };
  * Get all expanded project IDs as a Set.
  */
 export { getExpandedProjectIds };
+
+/**
+ * Enable/disable the files section display.
+ */
+export { setShowFilesSection };
+
+/**
+ * Check if files section is enabled.
+ */
+export { getShowFilesSection };
+
+/**
+ * Set files for a specific project.
+ */
+export { setProjectFiles };
+
+/**
+ * Get files for a specific project.
+ */
+export { getProjectFiles };
+
+/**
+ * Add a file to a project's file list.
+ */
+export { addFileToProject };
 
 /**
  * Setup sidebar toggle behavior for mobile.

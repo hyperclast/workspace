@@ -1,0 +1,79 @@
+/**
+ * CSS Custom Properties (Design Tokens)
+ *
+ * This file contains all CSS variables for theming.
+ * - Light theme (default)
+ * - Dark theme
+ * - Responsive adjustments
+ */
+
+:root {
+  --max-content-width: 800px;
+  --page-padding: 48px;
+  --tool-size: 18px;
+
+  /* Light theme (default) */
+  --bg-primary: #ffffff;
+  --bg-secondary: #fbfbfa;
+  --bg-tertiary: #f5f5f4;
+  --border-light: rgba(55, 53, 47, 0.09);
+  --border-medium: rgba(55, 53, 47, 0.16);
+  --text-primary: #37352f;
+  --text-secondary: #787774;
+  --text-muted: #9b9a97;
+  --accent-color: #2383e2;
+  --accent-hover: #1a6fc2;
+  --danger-color: #eb5757;
+  --success-color: #27ae60;
+  --code-bg: rgba(135, 131, 120, 0.15);
+  --code-text: #c7254e;
+  --code-block-bg: #f6f8fa;
+  --code-block-border: #d0d7de;
+  --link-color: #2383e2;
+  --link-internal: #0969da;
+  --blockquote-border: #ddd;
+  --selection-bg: #b3d7ff;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 4px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* Dark theme */
+:root.dark,
+[data-theme="dark"] {
+  --bg-primary: #191919;
+  --bg-secondary: #202020;
+  --bg-tertiary: #2d2d2d;
+  --border-light: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.13);
+  --text-primary: #ebebeb;
+  --text-secondary: #9b9b9b;
+  --text-muted: #6b6b6b;
+  --accent-color: #529cca;
+  --accent-hover: #6bb3dd;
+  --danger-color: #e06c75;
+  --success-color: #98c379;
+  --code-bg: rgba(135, 131, 120, 0.2);
+  --code-text: #e06c75;
+  --code-block-bg: #2d2d2d;
+  --code-block-border: #404040;
+  --link-color: #529cca;
+  --link-internal: #6bb3dd;
+  --blockquote-border: #404040;
+  --selection-bg: #3d5a80;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 4px 24px rgba(0, 0, 0, 0.5);
+}
+
+@media (max-width: 900px) {
+  :root {
+    --page-padding: 32px;
+  }
+}
+
+@media (max-width: 700px) {
+  :root {
+    --page-padding: 20px;
+  }
+}

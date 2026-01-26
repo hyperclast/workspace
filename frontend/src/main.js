@@ -39,6 +39,7 @@ import {
 } from "./decorateFormatting.js";
 import { autocompletion } from "@codemirror/autocomplete";
 import { decorateLinks, linkClickHandler } from "./decorateLinks.js";
+import { decorateImagePreviews, imageClickHandler } from "./decorateImagePreviews.js";
 import { decorateMentions } from "./decorateMentions.js";
 import { linkCompletionSource } from "./linkAutocomplete.js";
 import { mentionCompletionSource } from "./mentionAutocomplete.js";
@@ -82,6 +83,8 @@ import {
   setProjectRenamedHandler,
   setupSidenav,
   updateSidenavActive,
+  setShowFilesSection,
+  addFileToProject,
 } from "./lib/sidenav.js";
 import { updatePageAccessCode } from "./lib/stores/sidenav.svelte.js";
 import { initSidenavBroadcast, broadcastSidenavChanged } from "./lib/sidenavBroadcast.js";
@@ -1250,6 +1253,9 @@ async function openPage(external_id, skipPushState = false) {
     return;
   }
 
+  // Show loading state immediately so user knows something is happening
+  showEditorLoading();
+
   if (cachedProjects.length === 0) {
     navSpan.addEvent("fetch_projects_start");
     cachedProjects = await fetchProjects();
@@ -1272,6 +1278,7 @@ async function openPage(external_id, skipPushState = false) {
   if (!page || page.error) {
     failedPageIds.add(external_id);
     navSpan.end({ status: "error", reason: page?.error || "not_found" });
+    hideEditorLoading();
     showError(page?.error || "Page not found");
     await redirectToFirstAvailablePage();
     return;
@@ -1279,6 +1286,7 @@ async function openPage(external_id, skipPushState = false) {
 
   navSpan.addEvent("load_page_start");
   await loadPage(page);
+  hideEditorLoading();
   navSpan.addEvent("load_page_complete");
 
   // Only push state if this is a programmatic navigation, not browser back/forward
@@ -1319,6 +1327,54 @@ async function redirectToFirstAvailablePage() {
 function showError(message) {
   console.error("Error:", message);
   showToast(message, "error");
+}
+
+/**
+ * Show a loading state in the editor area while fetching page content.
+ * Called before fetchPage() to give users feedback during slow loads.
+ */
+function showEditorLoading() {
+  const editor = document.getElementById("editor");
+  if (!editor) return;
+
+  // Clear any existing content
+  editor.innerHTML = "";
+
+  // Create loading message
+  const loadingEl = document.createElement("div");
+  loadingEl.id = "editor-loading";
+  loadingEl.style.cssText = `
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  `;
+  loadingEl.textContent = "Loading page...";
+  editor.appendChild(loadingEl);
+
+  // Also update the title to show we're loading
+  const titleInput = document.getElementById("note-title-input");
+  if (titleInput) {
+    titleInput.value = "Loading...";
+    titleInput.disabled = true;
+  }
+
+  // Show the breadcrumb row
+  const breadcrumbRow = document.getElementById("breadcrumb-row");
+  if (breadcrumbRow) breadcrumbRow.style.display = "flex";
+}
+
+/**
+ * Hide the loading state. Called implicitly when loadPage() populates the editor.
+ * This is a no-op since loadPage() replaces editor content, but we reset the title.
+ */
+function hideEditorLoading() {
+  const titleInput = document.getElementById("note-title-input");
+  if (titleInput) {
+    titleInput.disabled = false;
+  }
 }
 
 /**
@@ -1438,6 +1494,8 @@ function initializeEditor(pageContent = "", additionalExtensions = [], filetype 
     decorateEmails,
     decorateLinks,
     linkClickHandler,
+    decorateImagePreviews,
+    imageClickHandler,
     decorateMentions,
     autocompletion({
       override: [linkCompletionSource, mentionCompletionSource],
@@ -1575,6 +1633,56 @@ function clearCompletedTasks() {
   );
 }
 
+// Image types that can be previewed inline
+const PREVIEWABLE_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/svg+xml",
+]);
+
+/**
+ * Core upload-and-insert function shared by file dialog and drag-drop.
+ * Uploads a file to the specified project and inserts a link/image at the cursor position.
+ * For images, inserts markdown image syntax ![filename](url) for inline preview.
+ * For other files, inserts regular link syntax [filename](url).
+ * @param {File} file - The file to upload
+ * @param {string} projectId - External ID of the project
+ * @returns {Promise<void>}
+ */
+async function uploadAndInsertFile(file, projectId) {
+  showToast(`Uploading ${file.name}...`, "info");
+
+  // TEMPORARY: Client-initiated upload flow with finalize
+  // Will be replaced with webhook-based finalization
+  const result = await uploadFile(projectId, file);
+
+  showToast(`File "${file.name}" uploaded successfully!`, "success");
+  console.log("File uploaded:", result);
+
+  // Add file to sidenav files list
+  addFileToProject(projectId, result);
+
+  // Insert file reference into editor at cursor position
+  if (window.editorView && result.link) {
+    const editorView = window.editorView;
+    const cursor = editorView.state.selection.main.head;
+
+    // Use image syntax for previewable images, regular link for other files
+    const isImage = PREVIEWABLE_IMAGE_TYPES.has(result.content_type);
+    const fileReference = isImage
+      ? `![${result.filename}](${result.link})`
+      : `[${result.filename}](${result.link})`;
+
+    editorView.dispatch({
+      changes: { from: cursor, insert: fileReference },
+      selection: { anchor: cursor + fileReference.length },
+    });
+    editorView.focus();
+  }
+}
+
 /**
  * Open file upload dialog for a project.
  * Uses a hidden file input to trigger browser file picker.
@@ -1599,27 +1707,7 @@ function openFileUploadDialog(projectId) {
     if (!file) return;
 
     try {
-      showToast(`Uploading ${file.name}...`, "info");
-
-      // TEMPORARY: Client-initiated upload flow with finalize
-      // Will be replaced with webhook-based finalization
-      const result = await uploadFile(targetProjectId, file);
-
-      showToast(`File "${file.name}" uploaded successfully!`, "success");
-      console.log("File uploaded:", result);
-
-      // TEMPORARY: Insert file reference into editor at cursor position
-      // This is a temporary implementation - will be enhanced with better UX later
-      if (window.editorView && result.link) {
-        const editorView = window.editorView;
-        const cursor = editorView.state.selection.main.head;
-        const fileReference = `[${result.filename}](${result.link})`;
-        editorView.dispatch({
-          changes: { from: cursor, insert: fileReference },
-          selection: { anchor: cursor + fileReference.length },
-        });
-        editorView.focus();
-      }
+      await uploadAndInsertFile(file, targetProjectId);
     } catch (error) {
       console.error("File upload failed:", error);
       // Handle permission errors with a user-friendly message
@@ -1639,6 +1727,92 @@ function openFileUploadDialog(projectId) {
 
   document.body.appendChild(fileInput);
   fileInput.click();
+}
+
+/**
+ * Setup drag-and-drop file upload handlers on the editor container.
+ * When a file is dropped on the editor, it uploads and inserts a link at cursor.
+ * @param {HTMLElement} editorContainer - The editor container element
+ * @param {function} getProjectId - Function to get current project ID
+ * @param {function} getCanUpload - Function to check if user can upload files
+ * @param {boolean} showFileUpload - Whether file upload feature is enabled
+ */
+function setupFileDragDrop(editorContainer, getProjectId, getCanUpload, showFileUpload) {
+  if (!showFileUpload || !editorContainer) return;
+
+  // Use capture phase to intercept events before CodeMirror handles them
+  editorContainer.addEventListener(
+    "dragover",
+    (e) => {
+      // Only handle file drags, not text selection drags
+      if (!e.dataTransfer?.types?.includes("Files")) return;
+
+      // Always prevent default to stop CodeMirror from inserting file content
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Only show visual feedback if user can upload
+      if (getCanUpload()) {
+        editorContainer.classList.add("file-drag-over");
+      }
+    },
+    { capture: true }
+  );
+
+  editorContainer.addEventListener(
+    "dragleave",
+    (e) => {
+      // Only remove class if leaving the container entirely
+      if (!editorContainer.contains(e.relatedTarget)) {
+        editorContainer.classList.remove("file-drag-over");
+      }
+    },
+    { capture: true }
+  );
+
+  editorContainer.addEventListener(
+    "drop",
+    async (e) => {
+      editorContainer.classList.remove("file-drag-over");
+
+      // Only handle file drops
+      if (!e.dataTransfer?.types?.includes("Files")) return;
+
+      // Always prevent default to stop CodeMirror from inserting file content
+      e.preventDefault();
+      e.stopPropagation();
+
+      // If user can't upload, silently ignore (no visual feedback was shown)
+      if (!getCanUpload()) return;
+
+      const files = e.dataTransfer.files;
+      if (files.length === 0) return;
+
+      const projectId = getProjectId();
+      if (!projectId) {
+        showToast("No project selected. Please create a project first.", "error");
+        return;
+      }
+
+      // Upload all dropped files sequentially
+      for (const file of files) {
+        try {
+          await uploadAndInsertFile(file, projectId);
+        } catch (error) {
+          console.error("File upload failed:", error);
+          if (error.message?.includes("permission") || error.message?.includes("forbidden")) {
+            showToast(
+              "You don't have permission to upload files to this project. Only editors can upload files.",
+              "error"
+            );
+          } else {
+            showToast(error.message || `Failed to upload ${file.name}`, "error");
+          }
+        }
+      }
+    },
+    { capture: true }
+  );
 }
 
 /**
@@ -2119,6 +2293,23 @@ async function startApp() {
   if (themeToggleRoot) {
     mount(ThemeToggle, { target: themeToggleRoot });
   }
+
+  // Setup file drag-drop upload (once, with dynamic permission checks)
+  const featureFlags = getFeatureFlags();
+  const showFileUpload = featureFlags.filehub !== false;
+
+  // Enable files section in sidenav if filehub is enabled
+  setShowFilesSection(showFileUpload);
+
+  setupFileDragDrop(
+    document.getElementById("editor-container"),
+    () => currentProjectId,
+    () => {
+      const currentProject = cachedProjects.find((p) => p.external_id === currentProjectId);
+      return currentProject?.access_source !== "page_only";
+    },
+    showFileUpload
+  );
 
   // Setup global keyboard shortcut for help modal
   document.addEventListener("keydown", (e) => {

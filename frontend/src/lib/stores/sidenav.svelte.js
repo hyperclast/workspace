@@ -4,6 +4,7 @@
 
 const STORAGE_KEY_EXPANDED = "expanded-project-ids";
 const STORAGE_KEY_CURRENT_PROJECT_OLD = "current-project-id"; // For migration
+const STORAGE_KEY_FILES_EXPANDED = "expanded-files-project-ids";
 
 // Load expanded projects from localStorage (with migration from old format)
 function loadExpandedProjects() {
@@ -26,10 +27,26 @@ function loadExpandedProjects() {
   }
 }
 
+// Load expanded files sections from localStorage
+function loadExpandedFilesSections() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_FILES_EXPANDED);
+    if (stored) {
+      return new Set(JSON.parse(stored));
+    }
+    return new Set();
+  } catch {
+    return new Set();
+  }
+}
+
 // Reactive state
 let projects = $state([]);
 let activePageId = $state(null);
 let expandedProjectIds = $state(loadExpandedProjects());
+let expandedFilesSections = $state(loadExpandedFilesSections());
+let showFilesSection = $state(false);
+let projectFiles = $state({}); // Map of projectId -> files array
 
 // Callbacks (set from vanilla JS)
 let onNavigate = null;
@@ -48,10 +65,23 @@ function saveExpandedProjects() {
   localStorage.setItem(STORAGE_KEY_EXPANDED, JSON.stringify([...expandedProjectIds]));
 }
 
+// Helper to save expanded files sections to localStorage
+function saveExpandedFilesSections() {
+  localStorage.setItem(STORAGE_KEY_FILES_EXPANDED, JSON.stringify([...expandedFilesSections]));
+}
+
 // Actions
 export function setProjects(newProjects, newActivePageId = null) {
   projects = [...newProjects];
   activePageId = newActivePageId;
+
+  // Extract files from projects into projectFiles map
+  // Use empty array as default when files is null/undefined
+  const newProjectFiles = {};
+  for (const project of newProjects) {
+    newProjectFiles[project.external_id] = project.files || [];
+  }
+  projectFiles = newProjectFiles;
 
   // Auto-expand project containing active page (without collapsing others)
   if (newActivePageId) {
@@ -182,6 +212,50 @@ export function setProjectDeletedHandler(handler) {
 
 export function setProjectRenamedHandler(handler) {
   onProjectRenamed = handler;
+}
+
+// Files section management
+export function setShowFilesSection(show) {
+  showFilesSection = show;
+}
+
+export function getShowFilesSection() {
+  return showFilesSection;
+}
+
+export function toggleFilesSectionExpanded(projectId) {
+  if (expandedFilesSections.has(projectId)) {
+    expandedFilesSections.delete(projectId);
+  } else {
+    expandedFilesSections.add(projectId);
+  }
+  expandedFilesSections = new Set(expandedFilesSections); // trigger reactivity
+  saveExpandedFilesSections();
+}
+
+export function isFilesSectionExpanded(projectId) {
+  return expandedFilesSections.has(projectId);
+}
+
+export function getExpandedFilesSections() {
+  return expandedFilesSections;
+}
+
+export function setProjectFiles(projectId, files) {
+  projectFiles = { ...projectFiles, [projectId]: files };
+}
+
+export function getProjectFiles(projectId) {
+  return projectFiles[projectId] || [];
+}
+
+export function getAllProjectFiles() {
+  return projectFiles;
+}
+
+export function addFileToProject(projectId, file) {
+  const files = projectFiles[projectId] || [];
+  projectFiles = { ...projectFiles, [projectId]: [...files, file] };
 }
 
 // Export reactive getters

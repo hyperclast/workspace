@@ -25,6 +25,8 @@ from core.rate_limit import (
 )
 from core.utils import prepare_page_content_for_export, sanitize_filename
 from pages.constants import ProjectEditorRole
+from filehub.constants import FileUploadStatus
+from filehub.models import FileUpload
 from pages.models import (
     Page,
     Project,
@@ -113,6 +115,8 @@ def serialize_project(project, include_pages=False, user=None):
     If user is provided and include_pages=True:
     - If user has full project access: show all pages, access_source="full"
     - If user only has page-level access: show only accessible pages, access_source="page_only"
+
+    When include_pages=True, also includes available files for the project.
     """
     is_pro = getattr(getattr(project.org, "billing", None), "is_pro", False)
 
@@ -139,6 +143,7 @@ def serialize_project(project, include_pages=False, user=None):
             "is_pro": is_pro,
         },
         "pages": None,
+        "files": None,
         "access_source": access_source,
     }
 
@@ -167,6 +172,18 @@ def serialize_project(project, include_pages=False, user=None):
             }
             for page in pages_to_include
         ]
+
+        # Include files only if user has project-level access (not page-only)
+        # Files are prefetched in list_projects/get_project when details=full
+        if has_full_access:
+            result["files"] = [
+                {
+                    "external_id": str(f.external_id),
+                    "filename": f.filename,
+                    "link": f.download_url,
+                }
+                for f in project.file_uploads.all()
+            ]
 
     return result
 
@@ -202,13 +219,17 @@ def list_projects(
     if query.org_id:
         queryset = queryset.filter(org__external_id=query.org_id)
 
-    # Prefetch pages if details=full
+    # Prefetch pages and files if details=full
     if query.details == "full":
         queryset = queryset.prefetch_related(
             Prefetch(
                 "pages",
                 queryset=Page.objects.filter(is_deleted=False).order_by("-updated"),
-            )
+            ),
+            Prefetch(
+                "file_uploads",
+                queryset=FileUpload.objects.filter(status=FileUploadStatus.AVAILABLE).order_by("-created"),
+            ),
         )
 
     # Build response with nested objects
@@ -224,13 +245,17 @@ def get_project(request: HttpRequest, external_id: str, query: ProjectListQuery 
     """
     queryset = Project.objects.get_user_accessible_projects(request.user).select_related(*_get_project_select_related())
 
-    # Prefetch pages if details=full
+    # Prefetch pages and files if details=full
     if query.details == "full":
         queryset = queryset.prefetch_related(
             Prefetch(
                 "pages",
                 queryset=Page.objects.filter(is_deleted=False).order_by("-updated"),
-            )
+            ),
+            Prefetch(
+                "file_uploads",
+                queryset=FileUpload.objects.filter(status=FileUploadStatus.AVAILABLE).order_by("-created"),
+            ),
         )
 
     project = get_object_or_404(queryset, external_id=external_id)

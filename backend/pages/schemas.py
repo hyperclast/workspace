@@ -243,6 +243,17 @@ class ProjectPageOut(Schema):
         from_attributes = True
 
 
+class ProjectFileOut(Schema):
+    """File summary for project response."""
+
+    external_id: str
+    filename: str
+    link: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class ProjectOut(Schema):
     """Project response."""
 
@@ -256,6 +267,7 @@ class ProjectOut(Schema):
     creator: ProjectCreatorOut
     org: ProjectOrgOut
     pages: Optional[List[ProjectPageOut]] = None
+    files: Optional[List[ProjectFileOut]] = None
     access_source: str = "full"  # "full" for project-level access, "page_only" for page-level only
 
     class Config:

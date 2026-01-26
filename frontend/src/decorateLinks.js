@@ -63,6 +63,9 @@ export const decorateLinks = ViewPlugin.fromClass(
 
             if (!linkText) continue;
 
+            // Skip image syntax - preceded by ! character
+            if (match.index > 0 && lineText[match.index - 1] === "!") continue;
+
             // Skip @mentions - they use format @[username](@id) where URL starts with @
             if (url.startsWith("@")) continue;
 

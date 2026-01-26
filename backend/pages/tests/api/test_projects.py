@@ -1,6 +1,8 @@
 from http import HTTPStatus
 
 from core.tests.common import BaseAuthenticatedViewTestCase
+from filehub.constants import FileUploadStatus
+from filehub.tests.factories import FileUploadFactory
 from pages.constants import ProjectEditorRole
 from pages.models import Project, ProjectEditor
 from pages.tests.factories import PageFactory, ProjectFactory
@@ -111,6 +113,52 @@ class TestProjectsAPI(BaseAuthenticatedViewTestCase):
         page_titles = [p["title"] for p in project_data["pages"]]
         self.assertIn("Page 1", page_titles)
         self.assertIn("Page 2", page_titles)
+
+    def test_list_projects_with_files(self):
+        """When details=full, projects should include files list."""
+        project = ProjectFactory(org=self.org)
+        # Create available files (should be included)
+        file1 = FileUploadFactory(
+            project=project,
+            uploaded_by=self.user,
+            filename="document.pdf",
+            status=FileUploadStatus.AVAILABLE,
+        )
+        file2 = FileUploadFactory(
+            project=project,
+            uploaded_by=self.user,
+            filename="image.png",
+            status=FileUploadStatus.AVAILABLE,
+        )
+        # Create pending file (should not be included)
+        FileUploadFactory(
+            project=project,
+            uploaded_by=self.user,
+            filename="pending.txt",
+            status=FileUploadStatus.PENDING_URL,
+        )
+
+        response = self.send_api_request(url="/api/projects/?details=full", method="get")
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(len(payload), 1)
+
+        project_data = payload[0]
+        self.assertIsNotNone(project_data["files"])
+        self.assertEqual(len(project_data["files"]), 2)  # Only available files
+
+        # Verify file structure
+        file_data = project_data["files"][0]
+        self.assertIn("external_id", file_data)
+        self.assertIn("filename", file_data)
+        self.assertIn("link", file_data)
+
+        # Verify filenames
+        filenames = [f["filename"] for f in project_data["files"]]
+        self.assertIn("document.pdf", filenames)
+        self.assertIn("image.png", filenames)
+        self.assertNotIn("pending.txt", filenames)
 
     def test_list_projects_without_pages_detail(self):
         """Without details=full, pages should be None."""
