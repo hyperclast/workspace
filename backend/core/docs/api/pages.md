@@ -151,10 +151,19 @@ Search pages by title for typeahead functionality.
 | **Endpoint** | `PUT /api/pages/{external_id}/` |
 | **Auth**     | Bearer token (owner only)       |
 
-| Field     | Type   | Required? | Description          |
-| --------- | ------ | --------- | -------------------- |
-| `title`   | string | No        | Page title           |
-| `details` | object | No        | Content and metadata |
+| Field     | Type   | Required? | Description                                              |
+| --------- | ------ | --------- | -------------------------------------------------------- |
+| `title`   | string | No        | Page title                                               |
+| `details` | object | No        | Content and metadata                                     |
+| `mode`    | string | No        | How content is applied: `append`, `prepend`, `overwrite` |
+
+**Content Modes:**
+
+| Mode        | Behavior                                  |
+| ----------- | ----------------------------------------- |
+| `append`    | Adds new content after existing (default) |
+| `prepend`   | Adds new content before existing          |
+| `overwrite` | Replaces existing content                 |
 
 **Response (200):**
 

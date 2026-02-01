@@ -14,6 +14,36 @@ def get_allowed_content_types() -> frozenset:
     return getattr(settings, "WS_FILEHUB_DEFAULT_ALLOWED_CONTENT_TYPES", frozenset())
 
 
+# Image types with good browser support for inline preview.
+# This is the source of truth for which image types can be previewed in the editor.
+# Note: HEIC, TIFF, BMP have poor browser support and are excluded.
+BROWSER_PREVIEWABLE_IMAGE_TYPES = frozenset(
+    {
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "image/svg+xml",
+        "image/avif",
+    }
+)
+
+
+def get_previewable_image_types() -> list:
+    """Get image types that can be previewed inline in the editor.
+
+    Returns the intersection of allowed content types and browser-previewable
+    image types. This ensures we only show previews for images that:
+    1. Are allowed for upload (configured in settings)
+    2. Have good browser support for inline display
+
+    The result is passed to the frontend via window._previewableImageTypes
+    in spa.html. See frontend/src/main.js for usage.
+    """
+    allowed = get_allowed_content_types()
+    return sorted(BROWSER_PREVIEWABLE_IMAGE_TYPES & allowed)
+
+
 class FileUploadIn(Schema):
     """Request body for creating a file upload."""
 

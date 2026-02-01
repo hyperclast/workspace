@@ -70,8 +70,20 @@ Within project-level access, roles control what actions are allowed:
 | ------------------------ | --------------------------------------------------------------- |
 | `org_members_can_access` | Whether org members automatically have access                   |
 | `access_source`          | `full` (project-level access) or `page_only` (page access only) |
+| `files`                  | Array of files (only with `?details=full` and full access)      |
 
-With `?details=full`, `pages` contains an array of page objects. Users with `page_only` access only see pages they have explicit access to.
+With `?details=full`, `pages` contains an array of page objects and `files` contains available files for the project. Users with `page_only` access only see pages they have explicit access to, and `files` will be `null`.
+
+**Files object schema:**
+
+```json
+{
+  "external_id": "file-abc123",
+  "filename": "document.pdf",
+  "link": "https://app.example.com/files/.../",
+  "size_bytes": 12345
+}
+```
 
 ---
 
@@ -82,7 +94,7 @@ With `?details=full`, `pages` contains an array of page objects. Users with `pag
 | **Endpoint** | `GET /api/projects/{external_id}/` |
 | **Auth**     | Bearer token                       |
 
-**Query:** `?details=full` to include pages.
+**Query:** `?details=full` to include pages and files.
 
 **Response (200):**
 
@@ -103,9 +115,12 @@ With `?details=full`, `pages` contains an array of page objects. Users with `pag
     "name": "My Organization"
   },
   "pages": null,
+  "files": null,
   "access_source": "full"
 }
 ```
+
+With `?details=full`, includes `pages` and `files` arrays (files only for users with full project access).
 
 ---
 

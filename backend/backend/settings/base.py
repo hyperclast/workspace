@@ -90,7 +90,9 @@ CSRF_TRUSTED_ORIGINS = config(
 # CSRF settings for same-origin setup
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
-SESSION_COOKIE_AGE = 100 * 365 * 24 * 60 * 60  # 100 years in seconds
+SESSION_COOKIE_AGE = 400 * 24 * 60 * 60  # 400 days (browser max, refreshed on every request)
+SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_SAVE_EVERY_REQUEST = True  # Refresh session expiry on every request
 
 ROOT_URLCONF = "backend.urls"
 

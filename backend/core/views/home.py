@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.shortcuts import render, redirect
 
+from filehub.schemas import get_previewable_image_types
 from pages.models import Page
 
 
@@ -48,6 +49,7 @@ def spa(request, **kwargs):
     context = {
         "feature_flags": get_feature_flags(),
         "is_demo_mode": is_demo,
+        "previewable_image_types": get_previewable_image_types(),
     }
     return render(request, "core/spa.html", context)
 
@@ -60,6 +62,7 @@ def demo(request):
     context = {
         "feature_flags": get_feature_flags(),
         "is_demo_mode": True,
+        "previewable_image_types": get_previewable_image_types(),
     }
     response = render(request, "core/spa.html", context)
 

@@ -33,6 +33,7 @@
       {{ request.user.username|json_script:"user-username" }}
     {% endif %}
     {{ feature_flags|json_script:"feature-flags" }}
+    {{ previewable_image_types|json_script:"previewable-image-types" }}
     {% csrf_token %}
 
     <script>
@@ -60,6 +61,10 @@
 
       const featureFlagsEl = document.getElementById('feature-flags');
       window._featureFlags = featureFlagsEl ? JSON.parse(featureFlagsEl.textContent) : {};
+
+      // Previewable image types - set from backend (see filehub/schemas.py:get_previewable_image_types)
+      const previewableImageTypesEl = document.getElementById('previewable-image-types');
+      window._previewableImageTypes = previewableImageTypesEl ? JSON.parse(previewableImageTypesEl.textContent) : [];
 
       // Demo mode flag (set by /demo/ route)
       window._isDemoMode = {{ is_demo_mode|yesno:"true,false" }};

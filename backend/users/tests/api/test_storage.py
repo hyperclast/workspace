@@ -99,6 +99,69 @@ class TestStorageAPI(BaseAuthenticatedViewTestCase):
         self.assertEqual(payload["total_bytes"], 1000)
         self.assertEqual(payload["file_count"], 1)
 
+    def test_storage_counts_files_across_multiple_projects(self):
+        """Storage should count files from all projects the user has uploaded to."""
+        # Create two orgs with projects
+        org1 = OrgFactory()
+        org2 = OrgFactory()
+        OrgMemberFactory(org=org1, user=self.user)
+        OrgMemberFactory(org=org2, user=self.user)
+        project1 = ProjectFactory(org=org1, creator=self.user)
+        project2 = ProjectFactory(org=org2, creator=self.user)
+
+        # Files in different projects
+        FileUpload.objects.create(
+            uploaded_by=self.user,
+            project=project1,
+            filename="file_in_project1.txt",
+            content_type="text/plain",
+            expected_size=1000,
+            status=FileUploadStatus.AVAILABLE,
+        )
+        FileUpload.objects.create(
+            uploaded_by=self.user,
+            project=project2,
+            filename="file_in_project2.txt",
+            content_type="text/plain",
+            expected_size=2500,
+            status=FileUploadStatus.AVAILABLE,
+        )
+
+        response = self.send_storage_request()
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(payload["total_bytes"], 3500)  # 1000 + 2500
+        self.assertEqual(payload["file_count"], 2)
+
+    def test_storage_counts_files_in_deleted_projects(self):
+        """Storage should still count files even if the project is soft-deleted."""
+        org = OrgFactory()
+        OrgMemberFactory(org=org, user=self.user)
+        project = ProjectFactory(org=org, creator=self.user)
+
+        # Create file in project
+        FileUpload.objects.create(
+            uploaded_by=self.user,
+            project=project,
+            filename="file_in_deleted_project.txt",
+            content_type="text/plain",
+            expected_size=5000,
+            status=FileUploadStatus.AVAILABLE,
+        )
+
+        # Soft-delete the project
+        project.is_deleted = True
+        project.save()
+
+        response = self.send_storage_request()
+        payload = response.json()
+
+        # Files should still be counted for storage purposes
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(payload["total_bytes"], 5000)
+        self.assertEqual(payload["file_count"], 1)
+
 
 class TestStorageAPIUnauthenticated(BaseViewTestCase):
     """Test storage endpoint without authentication."""

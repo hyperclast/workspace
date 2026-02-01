@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.postgres.indexes import GinIndex
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models, transaction
 from django.db.models import BooleanField, Case, Q, Value, When
@@ -47,7 +48,8 @@ class PageManager(models.Manager):
         Get all pages the user can access via org membership, project sharing, or page sharing.
 
         Three-tier access model:
-        - Tier 1 (Org): User is member of page's project's org (when org_members_can_access=True)
+        - Tier 0 (Org Admin): User is admin of page's project's org
+        - Tier 1 (Org Member): User is member of page's project's org (when org_members_can_access=True)
         - Tier 2 (Project): User is a project editor
         - Tier 3 (Page): User is a page editor
 
@@ -59,7 +61,7 @@ class PageManager(models.Manager):
         # Get org IDs where user is admin (admins always have access)
         admin_org_ids = OrgMember.objects.filter(user=user, role="admin").values_list("org_id", flat=True)
 
-        page_ids = (
+        return (
             self.get_editable_pages()
             .filter(project__is_deleted=False)
             .filter(
@@ -68,14 +70,8 @@ class PageManager(models.Manager):
                     project__org__members=user, project__org_members_can_access=True
                 )  # Tier 1: Org members (if enabled)
                 | Q(project__editors=user)  # Tier 2: Project editors
-                | Q(editors=user)  # Tier 3: Page editors (NEW)
+                | Q(editors=user)  # Tier 3: Page editors
             )
-            .values_list("id", flat=True)
-            .distinct()
-        )
-        qs = (
-            self.get_editable_pages()
-            .filter(id__in=page_ids)
             .annotate(
                 is_owner=Case(
                     When(creator_id=user.id, then=Value(True)),
@@ -83,13 +79,11 @@ class PageManager(models.Manager):
                     output_field=BooleanField(),
                 ),
             )
+            .distinct()
         )
-        return qs
 
 
 class Page(TimeStampedModel):
-    # TODO:
-    # - Temporarily make nullable
     project = models.ForeignKey(
         "pages.Project",
         on_delete=models.CASCADE,
@@ -140,6 +134,13 @@ class Page(TimeStampedModel):
                 fields=["project", "-updated"],
                 name="page_project_updated_idx",
                 condition=models.Q(is_deleted=False),
+            ),
+            # GIN trigram index for efficient case-insensitive title search (icontains)
+            # pg_trgm handles case-insensitive matching natively
+            GinIndex(
+                fields=["title"],
+                name="page_title_trgm_idx",
+                opclasses=["gin_trgm_ops"],
             ),
         ]
 

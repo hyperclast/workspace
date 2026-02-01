@@ -119,3 +119,28 @@ If uploads fail with 403 errors:
 1. Verify your API token has **Object Read & Write** permissions
 2. Confirm the token is scoped to the correct bucket
 3. Check that `WS_FILEHUB_R2_ACCESS_KEY_ID` and `WS_FILEHUB_R2_SECRET_ACCESS_KEY` are correct
+
+## R2 Webhook Worker (Automatic Finalization)
+
+For production deployments, you can set up automatic file upload finalization using R2 event notifications. This eliminates the need for clients to call the finalize endpoint after uploading.
+
+### Why Use the Wrangler CLI
+
+The webhook setup requires the [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) because:
+
+- **Queue creation**: Cloudflare Queues (used for R2 event notifications) can only be created via CLI
+- **Event notifications**: R2 bucket event notifications must be configured via `wrangler r2 bucket notification` commands
+- **Secret management**: Worker secrets are set via `wrangler secret put`
+- **Deployment**: The worker is deployed using `wrangler deploy`
+
+Install Wrangler with:
+
+```bash
+npm install -g wrangler
+wrangler login
+```
+
+### Setup Documentation
+
+- **Full setup guide**: [R2 Webhook Worker Setup](./r2-webhook-worker-setup.md) — step-by-step instructions for configuring queues, deploying the worker, and enabling event notifications
+- **Worker overview**: [cloudflare/r2-webhook-worker/README.md](../../cloudflare/r2-webhook-worker/README.md) — quick start and development commands

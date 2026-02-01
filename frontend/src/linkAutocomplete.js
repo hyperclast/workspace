@@ -1,11 +1,10 @@
 import { autocompletion } from "@codemirror/autocomplete";
 import { csrfFetch } from "./csrf.js";
+import { createDebouncedFetcher } from "./debouncedFetch.js";
 
 const API_BASE = "/api";
 
-let debounceTimeout = null;
-let cachedPages = null;
-let lastQuery = "";
+const fetcher = createDebouncedFetcher(150);
 
 async function fetchAutocompletePages(query) {
   const response = await csrfFetch(
@@ -72,28 +71,21 @@ async function linkCompletionSource(context) {
 
   const query = linkContext.type === "url" ? linkContext.linkText : linkContext.currentText;
 
-  if (query !== lastQuery || !cachedPages) {
-    lastQuery = query;
-
-    if (debounceTimeout) {
-      clearTimeout(debounceTimeout);
-    }
-
-    try {
-      cachedPages = await fetchAutocompletePages(query);
-    } catch (e) {
-      console.error("Error fetching autocomplete pages:", e);
-      return null;
-    }
+  let pages;
+  try {
+    pages = await fetcher.fetch(query, () => fetchAutocompletePages(query));
+  } catch (e) {
+    console.error("Error fetching autocomplete pages:", e);
+    return null;
   }
 
-  if (!cachedPages || cachedPages.length === 0) {
+  if (!pages || pages.length === 0) {
     return null;
   }
 
   const currentPageId = window.getCurrentPage?.()?.external_id;
 
-  const options = cachedPages
+  const options = pages
     .filter((page) => page.external_id !== currentPageId)
     .map((page) => {
       if (linkContext.type === "url") {

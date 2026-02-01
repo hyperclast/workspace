@@ -1,4 +1,3 @@
-import re
 import secrets
 from typing import List
 
@@ -18,7 +17,6 @@ from collab.utils import notify_page_access_revoked, notify_write_permission_rev
 from core.authentication import session_auth, token_auth
 from core.rate_limit import (
     check_external_invitation_rate_limit,
-    increment_external_invitation_count,
     notify_admin_of_invitation_abuse,
 )
 from core.utils import get_content_type_for_filetype, prepare_page_content_for_export, sanitize_filename

@@ -508,4 +508,111 @@ describe("mentionAutocomplete", () => {
       expect(csrfFetch).toHaveBeenCalledTimes(2);
     });
   });
+
+  describe("Debounce behavior", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    test("debounces API calls - does not fetch immediately", async () => {
+      createEditor("@debounce1");
+      view.dispatch({ selection: { anchor: 10 } });
+
+      const context = {
+        state: view.state,
+        pos: view.state.selection.main.head,
+        explicit: false,
+      };
+
+      // Start the completion source but don't await yet
+      const promise = mentionCompletionSource(context);
+
+      // Check immediately - fetch should not have been called yet
+      expect(csrfFetch).not.toHaveBeenCalled();
+
+      // Advance timers past the debounce delay
+      await vi.advanceTimersByTimeAsync(200);
+
+      // Now await the result
+      await promise;
+
+      // Now fetch should have been called
+      expect(csrfFetch).toHaveBeenCalledTimes(1);
+    });
+
+    test("debounces API calls - cancels pending fetch on new query", async () => {
+      // First query
+      createEditor("@debounce2a");
+      view.dispatch({ selection: { anchor: 11 } });
+
+      const context1 = {
+        state: view.state,
+        pos: view.state.selection.main.head,
+        explicit: false,
+      };
+
+      // Start first completion source - don't await it
+      mentionCompletionSource(context1);
+
+      // Check no fetch happened yet
+      expect(csrfFetch).not.toHaveBeenCalled();
+
+      // Don't wait for debounce to complete - simulate rapid typing
+      await vi.advanceTimersByTimeAsync(50);
+
+      // Still no fetch
+      expect(csrfFetch).not.toHaveBeenCalled();
+
+      // Second query before first debounce fires - this should cancel first
+      view.destroy();
+      parent.remove();
+      view = createEditor("@debounce2b");
+      parent = view.dom.parentElement;
+      view.dispatch({ selection: { anchor: 11 } });
+
+      const context2 = {
+        state: view.state,
+        pos: view.state.selection.main.head,
+        explicit: false,
+      };
+
+      const promise2 = mentionCompletionSource(context2);
+
+      // Advance timers to let second debounce complete
+      await vi.advanceTimersByTimeAsync(200);
+
+      // Await second promise
+      await promise2;
+
+      // Only the second query should result in a fetch (first was cancelled)
+      expect(csrfFetch).toHaveBeenCalledTimes(1);
+      expect(csrfFetch).toHaveBeenCalledWith(expect.stringContaining("q=debounce2b"));
+    });
+
+    test("uses 150ms debounce delay", async () => {
+      createEditor("@debounce3");
+      view.dispatch({ selection: { anchor: 10 } });
+
+      const context = {
+        state: view.state,
+        pos: view.state.selection.main.head,
+        explicit: false,
+      };
+
+      const promise = mentionCompletionSource(context);
+
+      // At 100ms, should not have fetched yet
+      await vi.advanceTimersByTimeAsync(100);
+      expect(csrfFetch).not.toHaveBeenCalled();
+
+      // At 150ms, should have fetched
+      await vi.advanceTimersByTimeAsync(50);
+      await promise;
+      expect(csrfFetch).toHaveBeenCalledTimes(1);
+    });
+  });
 });

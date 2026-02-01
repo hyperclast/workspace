@@ -110,6 +110,15 @@
    Editor Container & Base Styles
    ============================================================================ */
 
+#editor-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
 #editor-container {
   flex: 1 1 auto;
   display: flex;

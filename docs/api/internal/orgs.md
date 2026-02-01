@@ -56,13 +56,17 @@ See [Overview](./overview.md)
     "external_id": "org123",
     "name": "My Organization",
     "domain": "myorg.com",
-    "created": "2025-01-10T08:00:00Z"
+    "is_pro": true,
+    "created": "2025-01-10T08:00:00Z",
+    "modified": "2025-01-12T14:30:00Z"
   },
   {
     "external_id": "org456",
     "name": "Another Org",
     "domain": "anotherorg.com",
-    "created": "2025-01-05T09:00:00Z"
+    "is_pro": false,
+    "created": "2025-01-05T09:00:00Z",
+    "modified": "2025-01-05T09:00:00Z"
   }
 ]
 ```
@@ -72,6 +76,7 @@ See [Overview](./overview.md)
 - Returns only organizations where the user is a member
 - Organizations are returned in database order (not sorted)
 - The `domain` field may be `null` if not set
+- The `is_pro` field indicates whether the organization has an active paid subscription (requires billing feature)
 
 ---
 
@@ -117,7 +122,9 @@ See [Overview](./overview.md)
   "external_id": "org123",
   "name": "My Organization",
   "domain": "myorg.com",
-  "created": "2025-01-10T08:00:00Z"
+  "is_pro": true,
+  "created": "2025-01-10T08:00:00Z",
+  "modified": "2025-01-12T14:30:00Z"
 }
 ```
 
@@ -169,7 +176,9 @@ See [Overview](./overview.md)
   "external_id": "org123",
   "name": "My New Organization",
   "domain": null,
-  "created": "2025-01-15T10:30:00Z"
+  "is_pro": false,
+  "created": "2025-01-15T10:30:00Z",
+  "modified": "2025-01-15T10:30:00Z"
 }
 ```
 
@@ -178,6 +187,7 @@ See [Overview](./overview.md)
 - The authenticated user is automatically added as an admin member
 - The `domain` field is initially `null` and can be set later
 - A unique `external_id` is automatically generated
+- New organizations start with `is_pro: false` until a paid subscription is added
 
 **Example Request:**
 
@@ -231,7 +241,9 @@ See [Overview](./overview.md)
   "external_id": "org123",
   "name": "Updated Organization Name",
   "domain": "myorg.com",
-  "created": "2025-01-10T08:00:00Z"
+  "is_pro": true,
+  "created": "2025-01-10T08:00:00Z",
+  "modified": "2025-01-15T11:00:00Z"
 }
 ```
 

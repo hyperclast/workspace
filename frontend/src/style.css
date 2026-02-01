@@ -717,6 +717,11 @@ nav {
   background: rgba(55, 53, 47, 0.04);
 }
 
+.sidebar-item:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
+}
+
 .sidebar-item.active {
   background: rgba(55, 53, 47, 0.08);
 }
@@ -789,6 +794,11 @@ nav {
 
 .sidebar-project-header:hover {
   background: rgba(55, 53, 47, 0.08);
+}
+
+.sidebar-project-header:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
 }
 
 .project-chevron {
@@ -1058,6 +1068,11 @@ nav {
   background: rgba(55, 53, 47, 0.04);
 }
 
+.sidebar-files-header:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
+}
+
 :root.dark .sidebar-files-header:hover,
 [data-theme="dark"] .sidebar-files-header:hover {
   background: rgba(255, 255, 255, 0.04);
@@ -1110,6 +1125,11 @@ nav {
 .sidebar-file-item:hover {
   background: rgba(55, 53, 47, 0.04);
   color: var(--text-primary);
+}
+
+.sidebar-file-item:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
 }
 
 :root.dark .sidebar-file-item:hover,
@@ -2300,6 +2320,10 @@ body.sidebar-resizing .chat-sidebar {
   font-weight: bold;
 }
 
+.collab-status.unauthorized {
+  color: #f59e0b; /* Amber - distinct from green (connected) and red (error) */
+}
+
 .collab-status.fade-out {
   opacity: 0;
   pointer-events: none;
@@ -2392,6 +2416,10 @@ body.sidebar-resizing .chat-sidebar {
 .collab-status.error + .collab-popover .indicator-popover-header::before,
 .collab-status.denied + .collab-popover .indicator-popover-header::before {
   background: #ef4444;
+}
+
+.collab-status.unauthorized + .collab-popover .indicator-popover-header::before {
+  background: #f59e0b;
 }
 
 @keyframes pulse {

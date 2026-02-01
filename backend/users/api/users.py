@@ -1,6 +1,7 @@
 from secrets import token_urlsafe
 
 from allauth.account.models import EmailAddress
+from django.contrib.auth import get_user_model
 from django.db.models import Count, Sum
 from django.http import HttpRequest
 from ninja import Router
@@ -17,6 +18,9 @@ from users.schemas import (
     UpdateSettingsSchema,
     UpdateUserSchema,
 )
+from users.validators import RESERVED_USERNAMES
+
+User = get_user_model()
 
 
 def get_email_verified(user) -> bool:
@@ -55,11 +59,6 @@ def update_current_user(request: HttpRequest, payload: UpdateUserSchema):
     update_fields = []
 
     if payload.username is not None:
-        from django.contrib.auth import get_user_model
-
-        from users.validators import RESERVED_USERNAMES
-
-        User = get_user_model()
         if User.objects.filter(username__iexact=payload.username).exclude(pk=user.pk).exists():
             return Response({"message": "Username is already taken"}, status=400)
         if payload.username.lower() in RESERVED_USERNAMES:

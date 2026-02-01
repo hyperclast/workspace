@@ -26,10 +26,17 @@ Get all organizations you're a member of.
     "external_id": "org123",
     "name": "My Organization",
     "domain": "myorg.com",
-    "created": "2025-01-10T08:00:00Z"
+    "is_pro": true,
+    "created": "2025-01-10T08:00:00Z",
+    "modified": "2025-01-12T14:30:00Z"
   }
 ]
 ```
+
+| Field      | Description                                      |
+| ---------- | ------------------------------------------------ |
+| `is_pro`   | Whether the org has an active paid subscription  |
+| `modified` | Last time the organization settings were changed |
 
 ---
 
@@ -47,7 +54,9 @@ Get all organizations you're a member of.
   "external_id": "org123",
   "name": "My Organization",
   "domain": "myorg.com",
-  "created": "2025-01-10T08:00:00Z"
+  "is_pro": true,
+  "created": "2025-01-10T08:00:00Z",
+  "modified": "2025-01-12T14:30:00Z"
 }
 ```
 
@@ -73,9 +82,13 @@ You'll automatically be added as an admin.
   "external_id": "org789",
   "name": "My New Organization",
   "domain": null,
-  "created": "2025-01-15T14:30:00Z"
+  "is_pro": false,
+  "created": "2025-01-15T14:30:00Z",
+  "modified": "2025-01-15T14:30:00Z"
 }
 ```
+
+> New organizations start with `is_pro: false`.
 
 ---
 
@@ -97,7 +110,9 @@ You'll automatically be added as an admin.
   "external_id": "org123",
   "name": "Updated Organization Name",
   "domain": "myorg.com",
-  "created": "2025-01-10T08:00:00Z"
+  "is_pro": true,
+  "created": "2025-01-10T08:00:00Z",
+  "modified": "2025-01-15T11:00:00Z"
 }
 ```
 

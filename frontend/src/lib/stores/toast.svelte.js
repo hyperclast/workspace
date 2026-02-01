@@ -5,11 +5,23 @@ export function getToasts() {
   return toasts;
 }
 
-export function showToast(message, type = "success", duration = 5000) {
-  const id = nextId++;
-  toasts.push({ id, message, type });
+export function showToast(message, type = "success", options = {}) {
+  // Support legacy duration parameter: showToast(msg, type, 5000)
+  if (typeof options === "number") {
+    options = { duration: options };
+  }
 
-  if (type !== "error") {
+  const id = nextId++;
+  const duration = options.duration ?? (type === "error" ? 0 : 5000);
+
+  toasts.push({
+    id,
+    message,
+    type,
+    action: options.action || null, // { label: string, onClick: () => void }
+  });
+
+  if (duration > 0) {
     setTimeout(() => {
       removeToast(id);
     }, duration);

@@ -13,8 +13,9 @@ const IMAGE_SYNTAX_REGEX = /!\[([^\]]*)\]\(([^)]+)\)/g;
 
 // Pattern for internal file URLs - matches both relative (/files/...) and absolute (http://host/files/...)
 // File IDs can contain hyphens (UUIDs like 9ddb7185-cb5c-46c5-89db-bc59f602b0e2)
+// Access tokens use secrets.token_urlsafe() which produces base64url chars (alphanumeric plus - and _)
 const INTERNAL_FILE_PATTERN =
-  /^(https?:\/\/[^/]+)?\/files\/[a-zA-Z0-9]+\/[a-zA-Z0-9-]+\/[a-zA-Z0-9]+\/?$/;
+  /^(https?:\/\/[^/]+)?\/files\/[a-zA-Z0-9]+\/[a-zA-Z0-9-]+\/[a-zA-Z0-9_-]+\/?$/;
 
 /**
  * Widget that renders an image preview

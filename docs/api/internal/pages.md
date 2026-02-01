@@ -320,7 +320,11 @@ None
 ### Data Params
 
 - `title` (String, required): The page title. Must be 1-100 characters long.
-- `details` (Object, optional): JSON object with arbitrary data. If provided, replaces existing details.
+- `details` (Object, optional): JSON object with arbitrary data. How it's applied depends on the `mode` parameter.
+- `mode` (String, optional): Controls how `details.content` is applied. One of:
+  - `"append"` (default): Appends new content to the end of existing content
+  - `"prepend"`: Prepends new content before existing content
+  - `"overwrite"`: Replaces existing content entirely
 
 ### Authorization
 

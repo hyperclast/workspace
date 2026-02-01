@@ -1,4 +1,5 @@
 import { csrfFetch } from "./csrf.js";
+import { createDebouncedFetcher } from "./debouncedFetch.js";
 
 const API_BASE = "/api";
 
@@ -44,8 +45,7 @@ function findMentionContext(state, pos) {
   return null;
 }
 
-let cachedMembers = null;
-let lastQuery = "";
+const fetcher = createDebouncedFetcher(150);
 let lastOrgId = null;
 
 async function fetchOrgMembers(orgId, query) {
@@ -77,27 +77,31 @@ async function mentionCompletionSource(context) {
 
   const query = mentionContext.query;
 
-  // Fetch members if query or org changed
-  if (query !== lastQuery || orgId !== lastOrgId || !cachedMembers) {
-    lastQuery = query;
+  // Reset cache if org changed
+  if (orgId !== lastOrgId) {
+    fetcher.reset();
     lastOrgId = orgId;
-
-    try {
-      console.log("[Mention] Fetching members for org:", orgId, "query:", query);
-      cachedMembers = await fetchOrgMembers(orgId, query);
-      console.log("[Mention] Fetched members:", cachedMembers);
-    } catch (e) {
-      console.error("[Mention] Error fetching org members:", e);
-      return null;
-    }
   }
 
-  if (!cachedMembers || cachedMembers.length === 0) {
+  let members;
+  try {
+    members = await fetcher.fetch(query, async () => {
+      console.log("[Mention] Fetching members for org:", orgId, "query:", query);
+      const result = await fetchOrgMembers(orgId, query);
+      console.log("[Mention] Fetched members:", result);
+      return result;
+    });
+  } catch (e) {
+    console.error("[Mention] Error fetching org members:", e);
+    return null;
+  }
+
+  if (!members || members.length === 0) {
     console.log("[Mention] No members found, returning null");
     return null;
   }
 
-  const options = cachedMembers.map((member) => ({
+  const options = members.map((member) => ({
     label: member.username,
     apply: (view, completion, from, to) => {
       const mentionText = `@[${member.username}](@${member.external_id}) `;

@@ -70,6 +70,33 @@ Generate a new token, immediately invalidating the old one.
 
 ---
 
+## Get Storage Summary
+
+Get the total storage used by the current user.
+
+|              |                           |
+| ------------ | ------------------------- |
+| **Endpoint** | `GET /api/users/storage/` |
+| **Auth**     | Bearer token              |
+
+**Response (200):**
+
+```json
+{
+  "total_bytes": 15728640,
+  "file_count": 12
+}
+```
+
+| Field         | Description                    |
+| ------------- | ------------------------------ |
+| `total_bytes` | Sum of all file sizes in bytes |
+| `file_count`  | Total number of files uploaded |
+
+> **Note:** Only counts files that have completed uploading (status: `available`).
+
+---
+
 ## Examples
 
 ### Get user info
@@ -358,4 +385,39 @@ func main() {
     json.NewDecoder(resp.Body).Decode(&result)
     fmt.Println("New token:", result["access_token"])
 }
+```
+
+### Get storage summary
+
+```bash
+BASE_URL="<BASE_URL>"
+TOKEN="<ACCESS_TOKEN>"
+
+curl "$BASE_URL/api/users/storage/" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```python
+import requests
+
+BASE_URL = "<BASE_URL>"
+TOKEN = "<ACCESS_TOKEN>"
+
+response = requests.get(
+    f"{BASE_URL}/api/users/storage/",
+    headers={"Authorization": f"Bearer {TOKEN}"}
+)
+data = response.json()
+print(f"Files: {data['file_count']}, Size: {data['total_bytes']} bytes")
+```
+
+```javascript
+const BASE_URL = "<BASE_URL>";
+const TOKEN = "<ACCESS_TOKEN>";
+
+const response = await fetch(`${BASE_URL}/api/users/storage/`, {
+  headers: { Authorization: `Bearer ${TOKEN}` },
+});
+const { file_count, total_bytes } = await response.json();
+console.log(`Files: ${file_count}, Size: ${total_bytes} bytes`);
 ```

@@ -1,5 +1,4 @@
 import io
-import re
 import zipfile
 from typing import List
 
@@ -20,7 +19,6 @@ from collab.utils import notify_write_permission_revoked
 from core.authentication import session_auth, token_auth
 from core.rate_limit import (
     check_external_invitation_rate_limit,
-    increment_external_invitation_count,
     notify_admin_of_invitation_abuse,
 )
 from core.utils import prepare_page_content_for_export, sanitize_filename

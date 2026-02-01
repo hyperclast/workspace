@@ -8,6 +8,15 @@
   {#each toasts as toast (toast.id)}
     <div class="toast toast-{toast.type}">
       <span class="toast-message">{toast.message}</span>
+      {#if toast.action}
+        <button
+          type="button"
+          class="toast-action"
+          onclick={() => toast.action.onClick()}
+        >
+          {toast.action.label}
+        </button>
+      {/if}
       <button
         type="button"
         class="toast-close"
@@ -73,6 +82,22 @@
   .toast-close:hover {
     opacity: 1;
     background: rgba(255, 255, 255, 0.2);
+  }
+
+  .toast-action {
+    background: white;
+    border: none;
+    color: #333;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .toast-action:hover {
+    background: #f0f0f0;
   }
 
   .toast-success {

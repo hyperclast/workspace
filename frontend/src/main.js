@@ -1051,6 +1051,12 @@ function updateCollabStatus(status) {
       text: "Attempting to reconnect...",
       class: "error",
     },
+    unauthorized: {
+      icon: "○",
+      header: "Logged Out",
+      text: "Please log in to continue editing.",
+      class: "unauthorized",
+    },
   };
 
   const config = statusConfig[status] || statusConfig.offline;
@@ -1340,17 +1346,9 @@ function showEditorLoading() {
   // Clear any existing content
   editor.innerHTML = "";
 
-  // Create loading message
+  // Create loading message (styles in editor.css)
   const loadingEl = document.createElement("div");
   loadingEl.id = "editor-loading";
-  loadingEl.style.cssText = `
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 200px;
-    color: var(--text-muted);
-    font-size: 0.9rem;
-  `;
   loadingEl.textContent = "Loading page...";
   editor.appendChild(loadingEl);
 
@@ -1633,14 +1631,19 @@ function clearCompletedTasks() {
   );
 }
 
-// Image types that can be previewed inline
-const PREVIEWABLE_IMAGE_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "image/svg+xml",
-]);
+// Image types that can be previewed inline.
+// This list comes from the backend (see filehub/schemas.py:get_previewable_image_types)
+// and is passed via window._previewableImageTypes in spa.html.
+// Fallback to common types if not available (e.g., in tests or non-SPA contexts).
+const PREVIEWABLE_IMAGE_TYPES = new Set(
+  window._previewableImageTypes || [
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "image/svg+xml",
+  ]
+);
 
 /**
  * Core upload-and-insert function shared by file dialog and drag-drop.
@@ -2563,6 +2566,13 @@ async function startApp() {
     // Only update if we're still on the same page
     if (currentPage && currentPage.external_id === pageId) {
       updateCollabStatus(status);
+    }
+  });
+
+  // Listen for auth state changes (session expired, 401 responses)
+  window.addEventListener("authStateChanged", (event) => {
+    if (!event.detail.isAuthenticated) {
+      updateCollabStatus("unauthorized");
     }
   });
 

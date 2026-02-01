@@ -15,14 +15,12 @@ class LinkWidget extends WidgetType {
   }
 
   toDOM() {
+    // Styles are in editor.css (.link-icon, .link-icon-internal, .link-icon-external)
     const icon = document.createElement("span");
     icon.className = this.isInternal
       ? "link-icon link-icon-internal"
       : "link-icon link-icon-external";
     icon.textContent = this.isInternal ? "📄" : "🔗";
-    icon.style.fontSize = "0.85em";
-    icon.style.marginRight = "2px";
-    icon.style.opacity = "0.7";
     return icon;
   }
 }

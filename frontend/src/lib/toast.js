@@ -22,7 +22,7 @@ export function initToast() {
   mounted = true;
 }
 
-export function showToast(message, type = "success", duration = 5000) {
+export function showToast(message, type = "success", options = {}) {
   initToast();
-  _showToast(message, type, duration);
+  _showToast(message, type, options);
 }

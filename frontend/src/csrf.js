@@ -5,6 +5,14 @@
  * for all mutating requests (POST, PUT, PATCH, DELETE).
  */
 
+import {
+  getAuthState,
+  markLoggedOut,
+  markLoginToastShown,
+  getLoginUrl,
+} from "./lib/stores/auth.js";
+import { showToast } from "./lib/stores/toast.svelte.js";
+
 // Client identification for telemetry
 const CLIENT_NAME = "web";
 const CLIENT_VERSION = __APP_VERSION__; // Injected by Vite from package.json
@@ -81,5 +89,34 @@ export async function csrfFetch(url, options = {}) {
     }
   }
 
-  return fetch(url, enhancedOptions);
+  const response = await fetch(url, enhancedOptions);
+
+  // Intercept 401 responses
+  if (response.status === 401) {
+    const { isLoggedOut, loginToastShown } = getAuthState();
+
+    if (!isLoggedOut) {
+      markLoggedOut();
+      window.dispatchEvent(
+        new CustomEvent("authStateChanged", {
+          detail: { isAuthenticated: false },
+        })
+      );
+    }
+
+    if (!loginToastShown) {
+      markLoginToastShown();
+      showToast("You are not logged in", "error", {
+        action: {
+          label: "Log in",
+          onClick: () => {
+            window.location.href = getLoginUrl();
+          },
+        },
+        duration: 0,
+      });
+    }
+  }
+
+  return response;
 }

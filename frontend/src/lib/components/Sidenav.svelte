@@ -1,6 +1,7 @@
 <script>
   import { API_BASE_URL } from "../../config.js";
   import { csrfFetch } from "../../csrf.js";
+  import { formatFileSize } from "../utils/formatFileSize.js";
   import { confirm, prompt, shareProject, changePageType, sharePage } from "../modal.js";
   import { showToast } from "../toast.js";
   import { broadcastSidenavChanged } from "../sidenavBroadcast.js";
@@ -326,13 +327,27 @@
     return projectFiles[projectId] || [];
   }
 
-  function formatFileSize(bytes) {
-    if (bytes == null || bytes === 0) return "";
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${Math.round(bytes / (1024 * 1024))} MB`;
-    return `${Math.round(bytes / (1024 * 1024 * 1024))} GB`;
+  // Keyboard handlers for interactive divs (a11y)
+  // Only triggers when the event target is the element itself (not a child button)
+  // Enter activates on keydown, Space activates on keyup (matching native button behavior)
+  function handleKeydown(e, action) {
+    if (e.target !== e.currentTarget) return;
+    if (e.key === "Enter") {
+      e.preventDefault();
+      action();
+    } else if (e.key === " ") {
+      e.preventDefault(); // Prevent scroll, but don't activate yet
+    }
   }
+
+  function handleKeyup(e, action) {
+    if (e.target !== e.currentTarget) return;
+    if (e.key === " ") {
+      e.preventDefault();
+      action();
+    }
+  }
+
 
   // Close menus when clicking outside
   function handleGlobalClick(e) {
@@ -355,11 +370,15 @@
         class:expanded={isExpanded}
         data-project-id={project.external_id}
       >
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="sidebar-project-header"
+          role="button"
+          tabindex="0"
+          aria-expanded={isExpanded}
+          aria-controls={"project-panel-" + project.external_id}
           onclick={() => handleProjectHeaderClick(project.external_id)}
+          onkeydown={(e) => handleKeydown(e, () => handleProjectHeaderClick(project.external_id))}
+          onkeyup={(e) => handleKeyup(e, () => handleProjectHeaderClick(project.external_id))}
         >
           {@html chevronIcon}
           <span class="project-name">{project.name}</span>
@@ -414,14 +433,17 @@
             </div>
           </div>
         </div>
-        <div class="sidebar-project-pages">
+        <div class="sidebar-project-pages" id={"project-panel-" + project.external_id}>
           {#each project.pages || [] as page (page.external_id)}
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
               class="sidebar-item"
               class:active={page.external_id === activePageId}
+              aria-current={page.external_id === activePageId ? "page" : undefined}
+              role="button"
+              tabindex="0"
               onclick={() => handlePageClick(page.external_id, project.external_id)}
+              onkeydown={(e) => handleKeydown(e, () => handlePageClick(page.external_id, project.external_id))}
+              onkeyup={(e) => handleKeyup(e, () => handlePageClick(page.external_id, project.external_id))}
             >
               <span class="page-title">{page.title || "Untitled"}</span>
               <span class="page-filetype">{page.filetype || "md"}</span>
@@ -486,12 +508,16 @@
           {#if showFilesSection}
             {@const filesExpanded = expandedFilesSections.has(project.external_id)}
             {@const files = getFilesList(project.external_id)}
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
               class="sidebar-files-header"
               class:expanded={filesExpanded}
+              role="button"
+              tabindex="0"
+              aria-expanded={filesExpanded}
+              aria-controls={"files-panel-" + project.external_id}
               onclick={(e) => handleFilesSectionClick(e, project.external_id)}
+              onkeydown={(e) => handleKeydown(e, () => handleFilesSectionClick(e, project.external_id))}
+              onkeyup={(e) => handleKeyup(e, () => handleFilesSectionClick(e, project.external_id))}
             >
               {@html smallChevronIcon}
               {@html folderIcon}
@@ -501,22 +527,24 @@
               {/if}
             </div>
             {#if filesExpanded}
-              <div class="sidebar-files-list">
+              <div class="sidebar-files-list" id={"files-panel-" + project.external_id}>
                 {#if files.length === 0}
                   <div class="sidebar-files-empty">No files uploaded</div>
                 {:else}
                   {#each files as file (file.external_id)}
-                    <!-- svelte-ignore a11y_click_events_have_key_events -->
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <div
                       class="sidebar-file-item"
+                      role="button"
+                      tabindex="0"
                       onclick={(e) => handleFileClick(e, file)}
+                      onkeydown={(e) => handleKeydown(e, () => handleFileClick(e, file))}
+                      onkeyup={(e) => handleKeyup(e, () => handleFileClick(e, file))}
                       title={file.filename}
                     >
                       {@html fileIcon}
                       <span class="file-name">{file.filename}</span>
                       {#if file.size_bytes}
-                        <span class="file-size">{formatFileSize(file.size_bytes)}</span>
+                        <span class="file-size">{formatFileSize(file.size_bytes, { compact: true })}</span>
                       {/if}
                     </div>
                   {/each}

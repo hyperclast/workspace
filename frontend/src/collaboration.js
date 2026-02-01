@@ -140,14 +140,28 @@ export function createCollaborationObjects(pageExternalId, displayName = "Anonym
     console.log("WebSocket close:", { code, reason, wasClean: event?.wasClean });
 
     // Stop reconnection for permission errors
-    const noRetryErrors = [4003, 4001, 1008];
-    if (noRetryErrors.includes(code)) {
+    const authErrorCodes = [4003, 4001, 1008];
+    if (authErrorCodes.includes(code)) {
       console.warn(
         `Access denied (code ${code}) - stopping reconnection attempts for page ${pageExternalId}`
       );
       accessDeniedPages.add(pageExternalId);
       provider.shouldConnect = false;
       provider.disconnect();
+
+      // Broadcast auth state change for UI updates
+      window.dispatchEvent(
+        new CustomEvent("authStateChanged", {
+          detail: { isAuthenticated: false },
+        })
+      );
+
+      // Update status to unauthorized (not offline)
+      window.dispatchEvent(
+        new CustomEvent("collabStatus", {
+          detail: { status: "unauthorized", pageId: pageExternalId },
+        })
+      );
     }
   });
 

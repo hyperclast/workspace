@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { fetchStorageSummary } from "../../api.js";
   import { getBrandName, getCsrfToken, isPrivateFeatureEnabled } from "../../config.js";
+  import { formatFileSize } from "../utils/formatFileSize.js";
   import { getGravatarUrl, setupUserAvatar } from "../../gravatar.js";
   import { confirm, prompt } from "../modal.js";
   import {
@@ -95,14 +96,6 @@
     } finally {
       storageLoading = false;
     }
-  }
-
-  function formatFileSize(bytes) {
-    if (bytes == null || bytes === 0) return "0 B";
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   }
 
   function toggleMemberList(orgId) {

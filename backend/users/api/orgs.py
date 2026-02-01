@@ -2,6 +2,7 @@ from typing import List
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.http import HttpRequest
@@ -40,14 +41,15 @@ def notify_org_access_revoked(org: Org, user_id: int):
         if not channel_layer:
             return
 
-        # Get all pages in this org's projects that the user might be connected to
-        pages = Page.objects.filter(
+        # Get all pages in this org's projects that the user might be connected to.
+        # Only fetch external_id to minimize memory usage.
+        page_external_ids = Page.objects.filter(
             project__org=org,
             project__is_deleted=False,
             is_deleted=False,
         ).values_list("external_id", flat=True)
 
-        for page_external_id in pages:
+        for page_external_id in page_external_ids:
             room_name = f"page_{page_external_id}"
             async_to_sync(channel_layer.group_send)(
                 room_name,
@@ -69,8 +71,6 @@ def notify_org_access_revoked(org: Org, user_id: int):
 @orgs_router.get("/", response=List[OrgOut])
 def list_orgs(request: HttpRequest):
     """List all organizations the user is a member of."""
-    from django.conf import settings
-
     queryset = Org.objects.filter(members=request.user)
     if "billing" in getattr(settings, "PRIVATE_FEATURES", []):
         queryset = queryset.select_related("billing")

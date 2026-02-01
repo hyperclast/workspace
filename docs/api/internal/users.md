@@ -5,6 +5,7 @@
 - [Get current user](#get-current-user)
 - [Get access token](#get-access-token)
 - [Regenerate access token](#regenerate-access-token)
+- [Get storage summary](#get-storage-summary)
 - [Create Stripe checkout session](#create-stripe-checkout-session)
 - [Update user settings](#update-user-settings)
 
@@ -207,6 +208,69 @@ if (response.ok) {
   const data = await response.json();
   console.log("New token:", data.access_token);
   // Update UI to show new token
+}
+```
+
+---
+
+## Get storage summary
+
+Get the total storage used by the current user. Returns the sum of all file sizes and count of files uploaded by the user.
+
+### URL
+
+`/api/users/storage/`
+
+### HTTP Method
+
+`GET`
+
+### Path Params
+
+None
+
+### Query Params
+
+None
+
+### Data Params
+
+None
+
+### Authorization
+
+Requires authentication. See [Overview](./overview.md) for details on session-based authentication.
+
+### Request Headers
+
+See [Overview](./overview.md)
+
+### Response
+
+- Status Code: 200
+- Schema:
+
+```json
+{
+  "total_bytes": 15728640,
+  "file_count": 12
+}
+```
+
+**Notes:**
+
+- Only counts files in `AVAILABLE` status (completed uploads)
+- Only counts files uploaded by the authenticated user
+- `total_bytes` is the sum of all file sizes in bytes
+- `file_count` is the total number of files
+
+**Error Responses:**
+
+- Status Code: 401 - Not authenticated
+
+```json
+{
+  "message": "Not authenticated"
 }
 ```
 

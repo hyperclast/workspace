@@ -131,7 +131,16 @@ See [Overview](./overview.md)
         "modified": "2025-01-13T14:30:00Z",
         "created": "2025-01-11T10:00:00Z"
       }
-    ]
+    ],
+    "files": [
+      {
+        "external_id": "file-abc123",
+        "filename": "document.pdf",
+        "link": "https://app.example.com/files/abc123/file-abc123/token123/",
+        "size_bytes": 12345
+      }
+    ],
+    "access_source": "full"
   }
 ]
 ```
@@ -142,6 +151,9 @@ See [Overview](./overview.md)
 - Deleted projects (soft-deleted) are automatically excluded
 - When `details=full`, pages are ordered by `updated` timestamp (most recent first)
 - Deleted pages are excluded from the `pages` array
+- When `details=full`, the `files` array contains available files for the project (only for users with full project access)
+- The `files` array is `null` for users with page-only access (Tier 3)
+- The `access_source` field indicates `"full"` for project-level access or `"page_only"` for page-level access only
 - The `version` field is reserved for future use and currently returns an empty string
 - The `creator` object contains information about the user who created the project
 - The `org` object contains information about the organization that owns the project
@@ -249,9 +261,24 @@ See [Overview](./overview.md)
       "modified": "2025-01-14T09:00:00Z",
       "created": "2025-01-12T08:00:00Z"
     }
-  ]
+  ],
+  "files": [
+    {
+      "external_id": "file-abc123",
+      "filename": "document.pdf",
+      "link": "https://app.example.com/files/abc123/file-abc123/token123/",
+      "size_bytes": 12345
+    }
+  ],
+  "access_source": "full"
 }
 ```
+
+**Notes:**
+
+- The `files` array is only populated when `details=full` and user has project-level access
+- Users with page-only access will see `files: null`
+- Only files with status `AVAILABLE` are included
 
 **Error Responses:**
 
