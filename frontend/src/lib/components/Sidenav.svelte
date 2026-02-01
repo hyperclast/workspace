@@ -2,7 +2,7 @@
   import { API_BASE_URL } from "../../config.js";
   import { csrfFetch } from "../../csrf.js";
   import { formatFileSize } from "../utils/formatFileSize.js";
-  import { confirm, prompt, shareProject, changePageType, sharePage } from "../modal.js";
+  import { confirm, prompt, shareProject, changePageType, sharePage, importModal } from "../modal.js";
   import { showToast } from "../toast.js";
   import { broadcastSidenavChanged } from "../sidenavBroadcast.js";
   import { validateProjectName } from "../validation.js";
@@ -38,6 +38,7 @@
   const folderIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
   const fileIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>`;
   const smallChevronIcon = `<svg class="files-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
+  const importIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
 
   // Local state
   let openMenuId = $state(null);
@@ -198,6 +199,19 @@
       return;
     }
     window.location.href = `${API_BASE_URL}/api/projects/${projectId}/download/`;
+  }
+
+  function handleImport(e, projectId, projectName) {
+    e.stopPropagation();
+    closeAllMenus();
+    importModal({
+      projectId,
+      projectName,
+      onimported: () => {
+        // Refresh the page to see imported pages
+        window.location.reload();
+      },
+    });
   }
 
   function handlePageDownload(e, pageId) {
@@ -422,6 +436,13 @@
               >
                 {@html downloadIcon}
                 Download
+              </button>
+              <button
+                class="project-menu-item"
+                onclick={(e) => handleImport(e, project.external_id, project.name)}
+              >
+                {@html importIcon}
+                Notion &rsaquo; Import
               </button>
               <button
                 class="project-menu-item project-menu-delete"

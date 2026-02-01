@@ -65,6 +65,25 @@ For local development, you can use MinIO as an R2 emulator:
 
 This starts all services plus MinIO with file uploads automatically enabled (S3 API on port 9000, console on port 9001). See [MinIO Local Setup](docs/cloudflare/minio-local-setup.md) for details.
 
+### Data Import (Notion)
+
+Import pages from Notion using their Markdown & CSV export:
+
+1. Export from Notion: Settings → Export → Markdown & CSV
+2. In Hyperclast, click the project menu (⋮) → "Import from Notion"
+3. Upload the zip file
+
+**Note:** Importing requires editor permissions on the project. Viewers cannot import.
+
+Features:
+
+- Automatic deduplication (re-importing skips existing pages)
+- Internal link remapping to Hyperclast format
+- Nested page flattening with original path preserved
+- Zip bomb protection and archive security validation
+
+See [Import System Documentation](docs/importing-data.md) for architecture details.
+
 ## License
 
 The source code of this project is licensed under the **Elastic License v2

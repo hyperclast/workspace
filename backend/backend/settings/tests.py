@@ -59,3 +59,7 @@ WS_FILEHUB_REPLICATION_ENABLED = False
 # R2 Webhook settings for tests
 WS_FILEHUB_R2_WEBHOOK_SECRET = "test-webhook-secret-for-unit-tests"
 WS_FILEHUB_R2_WEBHOOK_ENABLED = False  # Disabled by default, enable per-test
+
+# Import rate limits - increased for tests to prevent test pollution
+WS_IMPORTS_RATE_LIMIT_REQUESTS = 1000
+WS_IMPORTS_RATE_LIMIT_WINDOW_SECONDS = 60

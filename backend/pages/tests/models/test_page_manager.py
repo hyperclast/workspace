@@ -279,6 +279,111 @@ class TestCreateWithOwner(TestCase):
         self.assertIn(page, accessible_pages)
 
 
+class TestCreateBatch(TestCase):
+    """Test Page.objects.create_batch() method."""
+
+    def setUp(self):
+        self.org = OrgFactory()
+        self.user = UserFactory()
+        OrgMemberFactory(org=self.org, user=self.user)
+        self.project = ProjectFactory(org=self.org, creator=self.user)
+
+    def test_create_batch_creates_pages(self):
+        """Test that create_batch() creates multiple pages."""
+        pages_data = [
+            {"title": "Page 1", "content": "Content 1"},
+            {"title": "Page 2", "content": "Content 2"},
+            {"title": "Page 3", "content": "Content 3"},
+        ]
+
+        created_pages = Page.objects.create_batch(pages_data, self.project, self.user)
+
+        self.assertEqual(len(created_pages), 3)
+        self.assertEqual(created_pages[0].title, "Page 1")
+        self.assertEqual(created_pages[1].title, "Page 2")
+        self.assertEqual(created_pages[2].title, "Page 3")
+
+    def test_create_batch_stores_content_in_details(self):
+        """Test that content is stored in page.details['content']."""
+        pages_data = [{"title": "Test", "content": "Test content here"}]
+
+        created_pages = Page.objects.create_batch(pages_data, self.project, self.user)
+
+        self.assertEqual(created_pages[0].details["content"], "Test content here")
+        self.assertEqual(created_pages[0].details["filetype"], "md")
+        self.assertEqual(created_pages[0].details["schema_version"], 1)
+
+    def test_create_batch_stores_import_path(self):
+        """Test that original_path is stored in details['import_path']."""
+        pages_data = [{"title": "Page", "content": "", "original_path": "Parent/Child abc123.md"}]
+
+        created_pages = Page.objects.create_batch(pages_data, self.project, self.user)
+
+        self.assertEqual(created_pages[0].details["import_path"], "Parent/Child abc123.md")
+
+    def test_create_batch_attaches_source_hash(self):
+        """Test that source_hash is attached to page object for link remapping."""
+        pages_data = [{"title": "Page", "content": "", "source_hash": "abc123def456789012"}]
+
+        created_pages = Page.objects.create_batch(pages_data, self.project, self.user)
+
+        self.assertEqual(created_pages[0]._source_hash, "abc123def456789012")
+
+    def test_create_batch_adds_user_as_editor(self):
+        """Test that creator is added as editor for all pages."""
+        pages_data = [
+            {"title": "Page 1", "content": ""},
+            {"title": "Page 2", "content": ""},
+        ]
+
+        created_pages = Page.objects.create_batch(pages_data, self.project, self.user)
+
+        for page in created_pages:
+            self.assertIn(self.user, page.editors.all())
+
+    def test_create_batch_sets_creator(self):
+        """Test that all pages have the correct creator."""
+        pages_data = [{"title": "Page 1", "content": ""}]
+
+        created_pages = Page.objects.create_batch(pages_data, self.project, self.user)
+
+        self.assertEqual(created_pages[0].creator, self.user)
+
+    def test_create_batch_sets_project(self):
+        """Test that all pages are in the correct project."""
+        pages_data = [{"title": "Page 1", "content": ""}]
+
+        created_pages = Page.objects.create_batch(pages_data, self.project, self.user)
+
+        self.assertEqual(created_pages[0].project, self.project)
+
+    def test_create_batch_empty_list(self):
+        """Test that empty list returns empty list."""
+        created_pages = Page.objects.create_batch([], self.project, self.user)
+
+        self.assertEqual(created_pages, [])
+
+    def test_create_batch_uses_default_title(self):
+        """Test that missing title defaults to 'Untitled'."""
+        pages_data = [{"content": "Some content"}]
+
+        created_pages = Page.objects.create_batch(pages_data, self.project, self.user)
+
+        self.assertEqual(created_pages[0].title, "Untitled")
+
+    def test_create_batch_preserves_order(self):
+        """Test that pages are created in the same order as input."""
+        pages_data = [
+            {"title": "First", "content": ""},
+            {"title": "Second", "content": ""},
+            {"title": "Third", "content": ""},
+        ]
+
+        created_pages = Page.objects.create_batch(pages_data, self.project, self.user)
+
+        self.assertEqual([p.title for p in created_pages], ["First", "Second", "Third"])
+
+
 class TestGetEditablePages(TestCase):
     """Test PageManager.get_editable_pages() method."""
 

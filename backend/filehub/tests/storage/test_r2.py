@@ -150,6 +150,88 @@ class TestR2StorageBackend(TestCase):
             Key="test/file.txt",
         )
 
+    @override_settings(
+        WS_FILEHUB_R2_ACCOUNT_ID="test-account",
+        WS_FILEHUB_R2_ACCESS_KEY_ID="test-key",
+        WS_FILEHUB_R2_SECRET_ACCESS_KEY="test-secret",
+        WS_FILEHUB_R2_BUCKET="test-bucket",
+    )
+    @patch("filehub.storage.r2.boto3")
+    def test_put_object(self, mock_boto3):
+        mock_client = MagicMock()
+        mock_client.put_object.return_value = {"ETag": '"abc123def456"'}
+        mock_boto3.client.return_value = mock_client
+
+        backend = R2StorageBackend()
+        result = backend.put_object(
+            bucket=None,
+            object_key="test/file.txt",
+            body=b"test content",
+            content_type="text/plain",
+        )
+
+        self.assertEqual(result["etag"], "abc123def456")
+        mock_client.put_object.assert_called_once_with(
+            Bucket="test-bucket",
+            Key="test/file.txt",
+            Body=b"test content",
+            ContentType="text/plain",
+        )
+
+    @override_settings(
+        WS_FILEHUB_R2_ACCOUNT_ID="test-account",
+        WS_FILEHUB_R2_ACCESS_KEY_ID="test-key",
+        WS_FILEHUB_R2_SECRET_ACCESS_KEY="test-secret",
+        WS_FILEHUB_R2_BUCKET="test-bucket",
+    )
+    @patch("filehub.storage.r2.boto3")
+    def test_put_object_with_custom_bucket(self, mock_boto3):
+        mock_client = MagicMock()
+        mock_client.put_object.return_value = {"ETag": '"xyz789"'}
+        mock_boto3.client.return_value = mock_client
+
+        backend = R2StorageBackend()
+        result = backend.put_object(
+            bucket="custom-bucket",
+            object_key="imports/archive.zip",
+            body=b"zip content",
+            content_type="application/zip",
+        )
+
+        self.assertEqual(result["etag"], "xyz789")
+        mock_client.put_object.assert_called_once_with(
+            Bucket="custom-bucket",
+            Key="imports/archive.zip",
+            Body=b"zip content",
+            ContentType="application/zip",
+        )
+
+    @override_settings(
+        WS_FILEHUB_R2_ACCOUNT_ID="test-account",
+        WS_FILEHUB_R2_ACCESS_KEY_ID="test-key",
+        WS_FILEHUB_R2_SECRET_ACCESS_KEY="test-secret",
+        WS_FILEHUB_R2_BUCKET="test-bucket",
+    )
+    @patch("filehub.storage.r2.boto3")
+    def test_put_object_default_content_type(self, mock_boto3):
+        mock_client = MagicMock()
+        mock_client.put_object.return_value = {"ETag": '"etag123"'}
+        mock_boto3.client.return_value = mock_client
+
+        backend = R2StorageBackend()
+        backend.put_object(
+            bucket=None,
+            object_key="test/binary-file",
+            body=b"\x00\x01\x02",
+        )
+
+        mock_client.put_object.assert_called_once_with(
+            Bucket="test-bucket",
+            Key="test/binary-file",
+            Body=b"\x00\x01\x02",
+            ContentType="application/octet-stream",
+        )
+
 
 class TestEncodeContentDisposition(TestCase):
     """Tests for the encode_content_disposition helper function."""

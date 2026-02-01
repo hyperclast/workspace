@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "core",
     "collab",
     "filehub",
+    "imports",
     "pages.apps.PagesConfig",
     "pulse",
     "updates",
@@ -66,6 +67,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "core.middlewares.ThrottledSessionRefreshMiddleware",  # Rolling session refresh (after auth)
     "users.middlewares.LastActiveMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -90,9 +92,13 @@ CSRF_TRUSTED_ORIGINS = config(
 # CSRF settings for same-origin setup
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
-SESSION_COOKIE_AGE = 400 * 24 * 60 * 60  # 400 days (browser max, refreshed on every request)
+SESSION_COOKIE_AGE = 400 * 24 * 60 * 60  # 400 days (browser max)
 SESSION_COOKIE_SAMESITE = "Lax"
-SESSION_SAVE_EVERY_REQUEST = True  # Refresh session expiry on every request
+
+# Rolling session refresh interval - sessions are extended by this middleware
+# once per interval instead of on every request (avoids DB write overhead).
+# Set to None to disable rolling sessions entirely.
+SESSION_REFRESH_INTERVAL = timedelta(hours=24)
 
 ROOT_URLCONF = "backend.urls"
 
@@ -281,11 +287,16 @@ COMMON_RQ_SETTINGS = {
 JOB_INTERNAL_QUEUE = "internal"
 JOB_EMAIL_QUEUE = "email"
 JOB_AI_QUEUE = "ai"
+JOB_IMPORTS_QUEUE = "imports"
 
 RQ_QUEUES = {
     JOB_INTERNAL_QUEUE: COMMON_RQ_SETTINGS,
     JOB_EMAIL_QUEUE: COMMON_RQ_SETTINGS,
     JOB_AI_QUEUE: COMMON_RQ_SETTINGS,
+    JOB_IMPORTS_QUEUE: {
+        **COMMON_RQ_SETTINGS,
+        "DEFAULT_TIMEOUT": 900,  # 15 minutes for large imports
+    },
 }
 
 JOB_RUNNER = config("WS_JOB_RUNNER", default=None)
@@ -521,6 +532,62 @@ PRIVATE_FEATURES = config("WS_PRIVATE_FEATURES", cast=Csv(), default="")
 
 # Socratic preview output directory
 SOCRATIC_PREVIEW_DIR = config("WS_SOCRATIC_PREVIEW_DIR", default="/tmp/socratic")
+
+# Imports temp directory (must be shared between web and worker containers)
+WS_IMPORTS_TEMP_DIR = config("WS_IMPORTS_TEMP_DIR", default="/tmp")
+
+# Import archive size limits (to upload)
+WS_IMPORTS_MAX_FILE_SIZE_BYTES = config("WS_IMPORTS_MAX_FILE_SIZE_BYTES", default=104857600, cast=int)  # 100MB
+
+# Import Rate Limiting
+WS_IMPORTS_RATE_LIMIT_REQUESTS = config("WS_IMPORTS_RATE_LIMIT_REQUESTS", default=10, cast=int)
+WS_IMPORTS_RATE_LIMIT_WINDOW_SECONDS = config("WS_IMPORTS_RATE_LIMIT_WINDOW_SECONDS", default=3600, cast=int)
+
+# Zip Bomb Prevention Thresholds
+# Maximum total uncompressed size (default: 5GB)
+WS_IMPORTS_MAX_UNCOMPRESSED_SIZE_BYTES = config(
+    "WS_IMPORTS_MAX_UNCOMPRESSED_SIZE_BYTES",
+    default=5 * 1024 * 1024 * 1024,  # 5 GB
+    cast=int,
+)
+# Maximum compression ratio allowed (default: 30x)
+WS_IMPORTS_MAX_COMPRESSION_RATIO = config("WS_IMPORTS_MAX_COMPRESSION_RATIO", default=30.0, cast=float)
+# Maximum number of files in archive (default: 100,000)
+WS_IMPORTS_MAX_FILE_COUNT = config("WS_IMPORTS_MAX_FILE_COUNT", default=100000, cast=int)
+# Maximum size of a single file within the archive (default: 1GB)
+WS_IMPORTS_MAX_SINGLE_FILE_SIZE_BYTES = config(
+    "WS_IMPORTS_MAX_SINGLE_FILE_SIZE_BYTES",
+    default=1 * 1024 * 1024 * 1024,  # 1 GB
+    cast=int,
+)
+# Maximum directory depth within archive (default: 30)
+WS_IMPORTS_MAX_PATH_DEPTH = config("WS_IMPORTS_MAX_PATH_DEPTH", default=30, cast=int)
+# Maximum nested zip depth (default: 2, for Notion's ExportBlock-*-Part-*.zip pattern)
+WS_IMPORTS_MAX_NESTED_ZIP_DEPTH = config("WS_IMPORTS_MAX_NESTED_ZIP_DEPTH", default=2, cast=int)
+# Extraction timeout in seconds (default: 300 = 5 minutes)
+WS_IMPORTS_EXTRACTION_TIMEOUT_SECONDS = config("WS_IMPORTS_EXTRACTION_TIMEOUT_SECONDS", default=300, cast=int)
+
+# Import abuse thresholds (violations within window trigger ban)
+# Number of days to look back for abuse threshold calculations
+WS_IMPORTS_ABUSE_WINDOW_DAYS = config("WS_IMPORTS_ABUSE_WINDOW_DAYS", default=7, cast=int)
+# Number of CRITICAL severity violations to trigger ban (default: 1)
+WS_IMPORTS_ABUSE_CRITICAL_THRESHOLD = config("WS_IMPORTS_ABUSE_CRITICAL_THRESHOLD", default=1, cast=int)
+# Number of HIGH severity violations to trigger ban (default: 2)
+WS_IMPORTS_ABUSE_HIGH_THRESHOLD = config("WS_IMPORTS_ABUSE_HIGH_THRESHOLD", default=2, cast=int)
+# Number of MEDIUM severity violations to trigger ban (default: 5)
+WS_IMPORTS_ABUSE_MEDIUM_THRESHOLD = config("WS_IMPORTS_ABUSE_MEDIUM_THRESHOLD", default=5, cast=int)
+# Number of LOW severity violations to trigger ban (default: 10)
+WS_IMPORTS_ABUSE_LOW_THRESHOLD = config("WS_IMPORTS_ABUSE_LOW_THRESHOLD", default=10, cast=int)
+
+# Stale import cleanup settings
+# Time in seconds after which orphaned temp files are cleaned up (default: 24 hours)
+WS_IMPORTS_TEMP_FILE_CLEANUP_THRESHOLD_SECONDS = config(
+    "WS_IMPORTS_TEMP_FILE_CLEANUP_THRESHOLD_SECONDS",
+    default=86400,  # 24 hours
+    cast=int,
+)
+# Maximum number of stale imports to process per cleanup run (default: 1000)
+WS_IMPORTS_STALE_CLEANUP_BATCH_SIZE = config("WS_IMPORTS_STALE_CLEANUP_BATCH_SIZE", default=1000, cast=int)
 
 # Private feature configuration (passed to frontend, read by private modules)
 PRIVATE_CONFIG = {

@@ -8,6 +8,7 @@ from asgiref.sync import iscoroutinefunction, markcoroutinefunction
 
 from django.conf import settings
 from django.shortcuts import redirect
+from django.utils import timezone
 from django.utils.deprecation import MiddlewareMixin
 
 from backend.utils import (
@@ -17,6 +18,67 @@ from backend.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class ThrottledSessionRefreshMiddleware:
+    """
+    Middleware that refreshes session expiry at most once per configured interval.
+
+    This provides rolling sessions (session expiry extends with activity) without
+    the overhead of writing to the database on every request.
+
+    Unlike SESSION_SAVE_EVERY_REQUEST=True which writes on every request, this
+    middleware only writes once per SESSION_REFRESH_INTERVAL (default: 24 hours).
+
+    Must be placed after SessionMiddleware and AuthenticationMiddleware in MIDDLEWARE.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+        self.refresh_interval = getattr(settings, "SESSION_REFRESH_INTERVAL", None)
+
+    def __call__(self, request):
+        response = self.get_response(request)
+
+        # Only process if refresh interval is configured
+        if self.refresh_interval is None:
+            return response
+
+        # Only refresh if the session was accessed (avoid forcing DB reads on
+        # endpoints that don't need sessions, e.g., public API endpoints)
+        if not getattr(request, "session", None) or not request.session.accessed:
+            return response
+
+        # Only refresh for authenticated users with existing sessions
+        if not request.session.session_key:
+            return response
+
+        now = timezone.now()
+        now_timestamp = now.timestamp()
+        last_refresh = request.session.get("_session_refresh")
+
+        # Check if we need to refresh
+        should_refresh = False
+        if last_refresh is None:
+            # First request since this middleware was added
+            should_refresh = True
+        else:
+            # Check elapsed time since last refresh
+            try:
+                elapsed_seconds = now_timestamp - float(last_refresh)
+                if elapsed_seconds >= self.refresh_interval.total_seconds():
+                    should_refresh = True
+            except (TypeError, ValueError):
+                # Invalid stored value, refresh to fix it
+                should_refresh = True
+
+        if should_refresh:
+            # Store as Unix timestamp (float) for JSON serialization
+            request.session["_session_refresh"] = now_timestamp
+            # Setting modified=True triggers session save with new expiry
+            request.session.modified = True
+
+        return response
 
 
 class RequestIDMiddleware:

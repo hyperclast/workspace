@@ -217,3 +217,20 @@ class R2StorageBackend(StorageBackend):
         bucket = bucket or settings.WS_FILEHUB_R2_BUCKET
         response = self.client.get_object(Bucket=bucket, Key=object_key)
         return response["Body"].read()
+
+    def put_object(
+        self,
+        bucket: str | None,
+        object_key: str,
+        body: bytes,
+        content_type: str = "application/octet-stream",
+    ) -> dict:
+        """Upload object content directly (server-side upload)."""
+        bucket = bucket or settings.WS_FILEHUB_R2_BUCKET
+        response = self.client.put_object(
+            Bucket=bucket,
+            Key=object_key,
+            Body=body,
+            ContentType=content_type,
+        )
+        return {"etag": response.get("ETag", "").strip('"')}

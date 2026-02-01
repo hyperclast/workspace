@@ -56,3 +56,14 @@ class StorageBackend(ABC):
     ) -> None:
         """Delete an object."""
         pass
+
+    @abstractmethod
+    def put_object(
+        self,
+        bucket: str | None,
+        object_key: str,
+        body: bytes,
+        content_type: str = "application/octet-stream",
+    ) -> dict:
+        """Upload object content directly (server-side). Returns {etag}."""
+        pass

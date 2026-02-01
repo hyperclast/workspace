@@ -9,7 +9,8 @@
   import CommandPalette from './CommandPalette.svelte';
   import ReadOnlyLinkModal from './ReadOnlyLinkModal.svelte';
   import HelpModal from './HelpModal.svelte';
-  import { getConfirmState, getPromptState, getShareProjectState, getCreateProjectState, getNewPageState, getChangePageTypeState, getCommandPaletteState, getReadonlyLinkState, getSharePageState, getHelpState } from '../stores/modal.svelte.js';
+  import ImportModal from './ImportModal.svelte';
+  import { getConfirmState, getPromptState, getShareProjectState, getCreateProjectState, getNewPageState, getChangePageTypeState, getCommandPaletteState, getReadonlyLinkState, getSharePageState, getHelpState, getImportState } from '../stores/modal.svelte.js';
 
   const confirmState = getConfirmState();
   const promptState = getPromptState();
@@ -21,6 +22,7 @@
   const commandPaletteState = getCommandPaletteState();
   const readonlyLinkState = getReadonlyLinkState();
   const helpState = getHelpState();
+  const importState = getImportState();
 </script>
 
 <ConfirmModal
@@ -102,3 +104,10 @@
 />
 
 <HelpModal bind:open={helpState.open} />
+
+<ImportModal
+  bind:open={importState.open}
+  projectId={importState.projectId}
+  projectName={importState.projectName}
+  onimported={importState.onimported}
+/>

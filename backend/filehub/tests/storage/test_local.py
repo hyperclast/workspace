@@ -15,13 +15,21 @@ class TestLocalStorageBackend(TestCase):
         backend = LocalStorageBackend()
 
         # Put an object
-        backend.put_object("test/file.txt", b"Hello World")
+        result = backend.put_object(
+            bucket=None,
+            object_key="test/file.txt",
+            body=b"Hello World",
+        )
+
+        # Verify put_object returns etag
+        self.assertIn("etag", result)
+        self.assertEqual(len(result["etag"]), 64)  # SHA256
 
         # Head it
-        result = backend.head_object(bucket=None, object_key="test/file.txt")
+        head_result = backend.head_object(bucket=None, object_key="test/file.txt")
 
-        self.assertEqual(result["size_bytes"], 11)
-        self.assertIn("etag", result)
+        self.assertEqual(head_result["size_bytes"], 11)
+        self.assertIn("etag", head_result)
 
         # Cleanup
         backend.delete_object(bucket=None, object_key="test/file.txt")
@@ -42,7 +50,11 @@ class TestLocalStorageBackend(TestCase):
         backend = LocalStorageBackend()
 
         # Put an object
-        backend.put_object("test/get-file.txt", b"Test content")
+        backend.put_object(
+            bucket=None,
+            object_key="test/get-file.txt",
+            body=b"Test content",
+        )
 
         # Get it
         data = backend.get_object("test/get-file.txt")
@@ -67,7 +79,11 @@ class TestLocalStorageBackend(TestCase):
         backend = LocalStorageBackend()
 
         # Put source
-        backend.put_object("source/file.txt", b"Copy me")
+        backend.put_object(
+            bucket=None,
+            object_key="source/file.txt",
+            body=b"Copy me",
+        )
 
         # Copy
         backend.copy_object(
@@ -106,7 +122,11 @@ class TestLocalStorageBackend(TestCase):
         backend = LocalStorageBackend()
 
         # Put an object
-        backend.put_object("test/delete-me.txt", b"Delete me")
+        backend.put_object(
+            bucket=None,
+            object_key="test/delete-me.txt",
+            body=b"Delete me",
+        )
 
         # Delete it
         backend.delete_object(bucket=None, object_key="test/delete-me.txt")
@@ -175,7 +195,11 @@ class TestLocalStorageBackend(TestCase):
         """Verify ETag is SHA256 (64 hex chars) not MD5 (32 hex chars)."""
         backend = LocalStorageBackend()
 
-        backend.put_object("test/sha256-etag.txt", b"Test content for SHA256")
+        backend.put_object(
+            bucket=None,
+            object_key="test/sha256-etag.txt",
+            body=b"Test content for SHA256",
+        )
 
         result = backend.head_object(bucket=None, object_key="test/sha256-etag.txt")
 
@@ -186,3 +210,46 @@ class TestLocalStorageBackend(TestCase):
 
         # Cleanup
         backend.delete_object(bucket=None, object_key="test/sha256-etag.txt")
+
+    @override_settings(
+        WS_FILEHUB_LOCAL_STORAGE_ROOT="/tmp/filehub-test",
+    )
+    def test_put_object_with_content_type(self):
+        """Test put_object accepts content_type parameter."""
+        backend = LocalStorageBackend()
+
+        result = backend.put_object(
+            bucket=None,
+            object_key="test/typed-file.zip",
+            body=b"PK\x03\x04",  # ZIP magic bytes
+            content_type="application/zip",
+        )
+
+        # Verify etag is returned
+        self.assertIn("etag", result)
+        self.assertEqual(len(result["etag"]), 64)
+
+        # Cleanup
+        backend.delete_object(bucket=None, object_key="test/typed-file.zip")
+
+    @override_settings(
+        WS_FILEHUB_LOCAL_STORAGE_ROOT="/tmp/filehub-test",
+    )
+    def test_put_object_creates_parent_directories(self):
+        """Test put_object creates nested directories as needed."""
+        backend = LocalStorageBackend()
+
+        result = backend.put_object(
+            bucket=None,
+            object_key="deep/nested/path/file.txt",
+            body=b"nested content",
+        )
+
+        self.assertIn("etag", result)
+
+        # Verify file exists
+        head_result = backend.head_object(bucket=None, object_key="deep/nested/path/file.txt")
+        self.assertEqual(head_result["size_bytes"], 14)
+
+        # Cleanup
+        backend.delete_object(bucket=None, object_key="deep/nested/path/file.txt")

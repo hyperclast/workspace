@@ -70,6 +70,7 @@ services:
       - WS_JOB_RUNNER=rq
       - WS_EMAIL_BACKEND=local
       - WS_SOCRATIC_PREVIEW_DIR=/tmp/socratic
+      - WS_IMPORTS_TEMP_DIR=/app/shared/imports
     ports:
       - "${WS_WEB_EXTERNAL_PORT:-9800}:${WS_WEB_INTERNAL_PORT:-9800}"
     volumes:
@@ -78,6 +79,8 @@ services:
       - ../frontend/dist:/frontend/dist
       # Shared directory for socratic preview files
       - ${SOCRATIC_PREVIEW_DIR:-./tmp/socratic}:/tmp/socratic
+      # Shared directory for import temp files (between web and rq worker)
+      - imports-temp:/app/shared/imports
     depends_on:
       ws-db:
         condition: service_healthy
@@ -110,12 +113,15 @@ services:
       - WS_JOB_RUNNER=rq
       - WS_EMAIL_BACKEND=local
       - WS_SOCRATIC_PREVIEW_DIR=/tmp/socratic
+      - WS_IMPORTS_TEMP_DIR=/app/shared/imports
     volumes:
       - ./:/app/
       # Mount frontend dist for symlinks to resolve correctly
       - ../frontend/dist:/frontend/dist
       # Shared directory for socratic preview files
       - ${SOCRATIC_PREVIEW_DIR:-./tmp/socratic}:/tmp/socratic
+      # Shared directory for import temp files (between web and rq worker)
+      - imports-temp:/app/shared/imports
     depends_on:
       ws-db:
         condition: service_healthy
@@ -143,6 +149,7 @@ services:
 volumes:
   ws-db-data:
   frontend-node-modules:
+  imports-temp:
 
 networks:
   ws-net:

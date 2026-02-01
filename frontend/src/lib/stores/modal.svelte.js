@@ -248,3 +248,25 @@ export function openHelp() {
 export function closeHelp() {
   helpState.open = false;
 }
+
+let importState = $state({
+  open: false,
+  projectId: "",
+  projectName: "",
+  onimported: () => {},
+});
+
+export function getImportState() {
+  return importState;
+}
+
+export function openImport(options = {}) {
+  importState.projectId = options.projectId || "";
+  importState.projectName = options.projectName || "";
+  importState.onimported = options.onimported || (() => {});
+  importState.open = true;
+}
+
+export function closeImport() {
+  importState.open = false;
+}

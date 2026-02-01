@@ -6,6 +6,7 @@ from ninja import NinjaAPI
 from ask.api import router as ask_router
 from core.api import router as utils_router
 from filehub.api import files_router, webhooks_router
+from imports.api import imports_router
 from pages.api import links_router, mentions_router, pages_router, projects_router
 from users.api import ai_router, orgs_router, users_router
 
@@ -28,6 +29,7 @@ api.add_router("/ask/", ask_router)
 api.add_router("/utils/", utils_router)
 api.add_router("/files/", files_router)
 api.add_router("/files/webhooks/", webhooks_router)
+api.add_router("/imports/", imports_router)
 
 
 def _register_private_routers():

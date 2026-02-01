@@ -11,6 +11,7 @@ import {
   openReadonlyLink as _openReadonlyLink,
   openSharePage as _openSharePage,
   openHelp as _openHelp,
+  openImport as _openImport,
 } from "./stores/modal.svelte.js";
 
 let mounted = false;
@@ -159,4 +160,16 @@ export function sharePage(options = {}) {
 export function helpModal() {
   initModals();
   _openHelp();
+}
+
+/**
+ * Show an import modal for importing from Notion
+ * @param {Object} options
+ * @param {string} options.projectId - Project external ID
+ * @param {string} options.projectName - Project name
+ * @param {Function} options.onimported - Callback when import completes
+ */
+export function importModal(options = {}) {
+  initModals();
+  _openImport(options);
 }

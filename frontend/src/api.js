@@ -369,6 +369,58 @@ export async function finalizeFileUpload(fileId, etag = null) {
   return response.json();
 }
 
+// Import API
+
+/**
+ * Start a Notion import job.
+ * @param {string} projectId - External ID of the target project
+ * @param {File} file - Notion export zip file
+ * @returns {Promise<Object>} The created import job object
+ */
+export async function startNotionImport(projectId, file) {
+  const formData = new FormData();
+  formData.append("project_id", projectId);
+  formData.append("file", file);
+
+  const response = await csrfFetch(`${API_BASE}/imports/notion/`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(
+      error.detail || error.message || `Failed to start import: ${response.statusText}`
+    );
+  }
+  return response.json();
+}
+
+/**
+ * Get the status of an import job.
+ * @param {string} externalId - External ID of the import job
+ * @returns {Promise<Object>} The import job status object
+ */
+export async function getImportStatus(externalId) {
+  const response = await csrfFetch(`${API_BASE}/imports/${externalId}/`);
+  if (!response.ok) {
+    throw new Error(`Failed to get import status: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get the list of pages created by an import job.
+ * @param {string} externalId - External ID of the import job
+ * @returns {Promise<Array>} Array of imported page objects
+ */
+export async function getImportedPages(externalId) {
+  const response = await csrfFetch(`${API_BASE}/imports/${externalId}/pages/`);
+  if (!response.ok) {
+    throw new Error(`Failed to get imported pages: ${response.statusText}`);
+  }
+  return response.json();
+}
+
 /**
  * Mark a file upload as failed (for error recovery).
  * @param {string} fileId - External ID of the file upload

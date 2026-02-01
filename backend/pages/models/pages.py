@@ -22,6 +22,59 @@ class PageManager(models.Manager):
 
         return page
 
+    @transaction.atomic
+    def create_batch(self, pages_data, project, creator):
+        """
+        Create multiple pages in a single transaction.
+
+        Args:
+            pages_data: List of dicts with page data:
+                - title: Page title
+                - content: Page content (markdown)
+                - notion_hash: Original Notion hash for link remapping (optional)
+                - original_path: Original path in Notion export (optional)
+            project: Project instance to create pages in
+            creator: User instance who will own the pages
+
+        Returns:
+            List of created Page instances with notion_hash attribute attached
+            (for link remapping purposes)
+        """
+        from pages.models import PageEditor
+
+        created_pages = []
+
+        for page_data in pages_data:
+            # Build details dict
+            details = {
+                "content": page_data.get("content", ""),
+                "filetype": page_data.get("filetype", "md"),
+                "schema_version": 1,
+            }
+
+            # Store original path in details for reference
+            if page_data.get("original_path"):
+                details["import_path"] = page_data["original_path"]
+
+            page = self.create(
+                project=project,
+                creator=creator,
+                title=page_data.get("title", "Untitled"),
+                details=details,
+            )
+
+            # Attach source_hash to the page object for link remapping
+            # (not stored in DB, just for in-memory processing during import)
+            page._source_hash = page_data.get("source_hash", "")
+
+            created_pages.append(page)
+
+        # Bulk create PageEditor relationships
+        page_editors = [PageEditor(page=page, user=creator) for page in created_pages]
+        PageEditor.objects.bulk_create(page_editors)
+
+        return created_pages
+
     def create_default_page(self, user, project):
         """
         Create the default page in the user's default project.

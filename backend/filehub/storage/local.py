@@ -117,13 +117,18 @@ class LocalStorageBackend(StorageBackend):
 
     def put_object(
         self,
+        bucket: str | None,
         object_key: str,
-        data: bytes,
-    ) -> None:
-        """Direct write for local storage (used in replication)."""
+        body: bytes,
+        content_type: str = "application/octet-stream",
+    ) -> dict:
+        """Upload object content directly (server-side upload)."""
         path = self._get_path(object_key)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(data)
+        path.write_bytes(body)
+        # Calculate ETag using SHA256
+        etag = hashlib.sha256(body).hexdigest()
+        return {"etag": etag}
 
     def get_object(
         self,
