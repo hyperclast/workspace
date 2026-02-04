@@ -43,6 +43,8 @@
     "@codemirror/lang-rust": "^6.0.2",
     "@codemirror/lang-sql": "^6.10.0",
     "@codemirror/lang-xml": "^6.1.0",
+    "@codemirror/language": "^6.12.1",
+    "@codemirror/legacy-modes": "^6.5.2",
     "@codemirror/state": "^6.5.2",
     "@codemirror/view": "^6.37.2",
     "blueimp-md5": "^2.19.0",

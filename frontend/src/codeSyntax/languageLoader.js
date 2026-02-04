@@ -1,3 +1,66 @@
+// Display names for language codes
+export const languageDisplayNames = {
+  py: "Python",
+  python: "Python",
+  js: "JavaScript",
+  javascript: "JavaScript",
+  jsx: "JSX",
+  ts: "TypeScript",
+  typescript: "TypeScript",
+  tsx: "TSX",
+  html: "HTML",
+  css: "CSS",
+  json: "JSON",
+  md: "Markdown",
+  markdown: "Markdown",
+  sql: "SQL",
+  rust: "Rust",
+  rs: "Rust",
+  go: "Go",
+  golang: "Go",
+  java: "Java",
+  c: "C",
+  cpp: "C++",
+  "c++": "C++",
+  php: "PHP",
+  xml: "XML",
+  ruby: "Ruby",
+  rb: "Ruby",
+  sh: "Shell",
+  bash: "Bash",
+};
+
+// Canonical language options for the dropdown (alphabetical, Plain Text first)
+export const languageOptions = [
+  { code: "", name: "Plain Text" },
+  { code: "c", name: "C" },
+  { code: "cpp", name: "C++" },
+  { code: "css", name: "CSS" },
+  { code: "go", name: "Go" },
+  { code: "html", name: "HTML" },
+  { code: "java", name: "Java" },
+  { code: "js", name: "JavaScript" },
+  { code: "json", name: "JSON" },
+  { code: "jsx", name: "JSX" },
+  { code: "md", name: "Markdown" },
+  { code: "php", name: "PHP" },
+  { code: "py", name: "Python" },
+  { code: "ruby", name: "Ruby" },
+  { code: "rust", name: "Rust" },
+  { code: "sh", name: "Shell" },
+  { code: "sql", name: "SQL" },
+  { code: "ts", name: "TypeScript" },
+  { code: "tsx", name: "TSX" },
+  { code: "xml", name: "XML" },
+];
+
+// Helper to wrap legacy mode in LanguageSupport-like structure
+async function wrapLegacyMode(modeImport) {
+  const { StreamLanguage } = await import("@codemirror/language");
+  const mode = await modeImport;
+  return { language: StreamLanguage.define(mode[Object.keys(mode)[0]]) };
+}
+
 const languageMap = {
   // Python
   py: () => import("@codemirror/lang-python").then((m) => m.python()),
@@ -41,6 +104,12 @@ const languageMap = {
   php: () => import("@codemirror/lang-php").then((m) => m.php()),
   // XML
   xml: () => import("@codemirror/lang-xml").then((m) => m.xml()),
+  // Ruby (legacy mode)
+  ruby: () => wrapLegacyMode(import("@codemirror/legacy-modes/mode/ruby")),
+  rb: () => wrapLegacyMode(import("@codemirror/legacy-modes/mode/ruby")),
+  // Shell (legacy mode)
+  sh: () => wrapLegacyMode(import("@codemirror/legacy-modes/mode/shell")),
+  bash: () => wrapLegacyMode(import("@codemirror/legacy-modes/mode/shell")),
 };
 
 const cache = new Map();

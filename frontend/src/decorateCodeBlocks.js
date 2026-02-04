@@ -2,7 +2,12 @@ import { Decoration, ViewPlugin, WidgetType, EditorView } from "@codemirror/view
 import { showToast } from "./lib/toast.js";
 import { highlightTree } from "@lezer/highlight";
 import { classHighlighter } from "@lezer/highlight";
-import { getLanguage, isLanguageSupported } from "./codeSyntax/languageLoader.js";
+import {
+  getLanguage,
+  isLanguageSupported,
+  languageDisplayNames,
+  languageOptions,
+} from "./codeSyntax/languageLoader.js";
 
 const CODE_FENCE_REGEX = /^```(\w*)$/;
 
@@ -37,6 +42,40 @@ class CopyButtonWidget extends WidgetType {
     btn.dataset.codeBlockEnd = this.codeBlockEnd;
     btn.dataset.unclosed = this.unclosed ? "true" : "false";
     return btn;
+  }
+
+  ignoreEvent() {
+    return false;
+  }
+}
+
+class LanguageSelectorWidget extends WidgetType {
+  constructor(fenceLine, lang) {
+    super();
+    this.fenceLine = fenceLine;
+    this.lang = lang || "";
+  }
+
+  eq(other) {
+    return this.fenceLine === other.fenceLine && this.lang === other.lang;
+  }
+
+  toDOM() {
+    const wrapper = document.createElement("div");
+    wrapper.className = "code-block-lang-selector";
+
+    const displayName = languageDisplayNames[this.lang?.toLowerCase()] || this.lang || "Plain Text";
+
+    const btn = document.createElement("button");
+    btn.className = "lang-selector-btn";
+    btn.dataset.fenceLine = this.fenceLine;
+    btn.innerHTML = `<span class="lang-name">${displayName}</span><span class="lang-chevron">▾</span>`;
+
+    wrapper.appendChild(btn);
+    wrapper.dataset.fenceLine = this.fenceLine;
+    wrapper.dataset.currentLang = this.lang || "";
+
+    return wrapper;
   }
 
   ignoreEvent() {
@@ -118,7 +157,8 @@ export const decorateCodeBlocks = ViewPlugin.fromClass(
     }
 
     update(update) {
-      if (update.docChanged || update.viewportChanged) {
+      // Recompute on doc change, viewport change, or any transaction (for async language loads)
+      if (update.docChanged || update.viewportChanged || update.transactions.length > 0) {
         this.decorations = this.computeDecorations(update.view);
       }
     }
@@ -144,6 +184,14 @@ export const decorateCodeBlocks = ViewPlugin.fromClass(
           if (block.unclosed && firstContentLine > state.doc.lines) continue;
 
           const contentStartLine = state.doc.line(firstContentLine);
+
+          // Add language selector widget
+          builder.push(
+            Decoration.widget({
+              widget: new LanguageSelectorWidget(block.start, block.lang),
+              side: 1,
+            }).range(contentStartLine.from)
+          );
 
           // Add copy button widget
           builder.push(
@@ -232,6 +280,58 @@ async function handleCopyClick(btn) {
   }
 }
 
+function showLanguageDropdown(button, fenceLine, currentLang) {
+  // Remove any existing dropdown
+  document.querySelector(".lang-dropdown-menu")?.remove();
+
+  const menu = document.createElement("div");
+  menu.className = "lang-dropdown-menu";
+
+  for (const { code, name } of languageOptions) {
+    const item = document.createElement("button");
+    item.className = "lang-dropdown-item";
+    if (code === currentLang || (code === "" && !currentLang)) {
+      item.classList.add("selected");
+    }
+    item.textContent = name;
+    item.dataset.langCode = code;
+    item.dataset.fenceLine = fenceLine;
+    menu.appendChild(item);
+  }
+
+  // Position near the button
+  const rect = button.getBoundingClientRect();
+  menu.style.position = "fixed";
+  menu.style.top = `${rect.bottom + 4}px`;
+  menu.style.left = `${rect.left}px`;
+
+  document.body.appendChild(menu);
+
+  // Close on outside click (use setTimeout to avoid immediate close)
+  setTimeout(() => {
+    const closeMenu = (e) => {
+      if (!menu.contains(e.target) && !button.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener("click", closeMenu, true);
+      }
+    };
+    document.addEventListener("click", closeMenu, true);
+  }, 0);
+}
+
+function changeCodeBlockLanguage(view, fenceLine, newLang) {
+  const line = view.state.doc.line(fenceLine);
+  const newText = "```" + newLang;
+
+  view.dispatch({
+    changes: {
+      from: line.from,
+      to: line.to,
+      insert: newText,
+    },
+  });
+}
+
 let copyHandlerAttached = false;
 
 function setupGlobalCopyHandler() {
@@ -262,3 +362,65 @@ function setupGlobalCopyHandler() {
 }
 
 setupGlobalCopyHandler();
+
+// Language selector click handlers
+let langSelectorHandlerAttached = false;
+
+function setupGlobalLangSelectorHandler() {
+  if (langSelectorHandlerAttached) return;
+  langSelectorHandlerAttached = true;
+
+  // Handle language selector button click
+  document.addEventListener(
+    "click",
+    (event) => {
+      const langBtn = event.target.closest(".lang-selector-btn");
+      if (langBtn) {
+        event.preventDefault();
+        event.stopPropagation();
+        const fenceLine = parseInt(langBtn.dataset.fenceLine, 10);
+        const wrapper = langBtn.closest(".code-block-lang-selector");
+        const currentLang = wrapper?.dataset.currentLang || "";
+        showLanguageDropdown(langBtn, fenceLine, currentLang);
+        return;
+      }
+
+      // Handle dropdown item click
+      const dropdownItem = event.target.closest(".lang-dropdown-item");
+      if (dropdownItem) {
+        event.preventDefault();
+        event.stopPropagation();
+        const newLang = dropdownItem.dataset.langCode;
+        const fenceLine = parseInt(dropdownItem.dataset.fenceLine, 10);
+
+        // Find editor view from the DOM
+        const cmContent = document.querySelector(".cm-content");
+        if (cmContent) {
+          const editorView = EditorView.findFromDOM(cmContent);
+          if (editorView) {
+            changeCodeBlockLanguage(editorView, fenceLine, newLang);
+          }
+        }
+
+        // Close dropdown
+        document.querySelector(".lang-dropdown-menu")?.remove();
+      }
+    },
+    true
+  );
+
+  // Prevent mousedown from moving cursor when clicking selector
+  document.addEventListener(
+    "mousedown",
+    (event) => {
+      const langBtn = event.target.closest(".lang-selector-btn");
+      const dropdownItem = event.target.closest(".lang-dropdown-item");
+      if (langBtn || dropdownItem) {
+        event.stopPropagation();
+      }
+    },
+    true
+  );
+}
+
+setupGlobalLangSelectorHandler();
