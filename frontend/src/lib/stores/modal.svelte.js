@@ -270,3 +270,25 @@ export function openImport(options = {}) {
 export function closeImport() {
   importState.open = false;
 }
+
+let codePasteState = $state({
+  open: false,
+  suggestedLang: "",
+  onconfirm: () => {},
+  oncancel: () => {},
+});
+
+export function getCodePasteState() {
+  return codePasteState;
+}
+
+export function openCodePaste(options = {}) {
+  codePasteState.suggestedLang = options.suggestedLang || "";
+  codePasteState.onconfirm = options.onConfirm || (() => {});
+  codePasteState.oncancel = options.onCancel || (() => {});
+  codePasteState.open = true;
+}
+
+export function closeCodePaste() {
+  codePasteState.open = false;
+}

@@ -46,6 +46,7 @@ import { mentionCompletionSource } from "./mentionAutocomplete.js";
 import { findSectionFold } from "./findSectionFold.js";
 import { largeFileModeExtension } from "./largeFileMode.js";
 import { sectionFoldHover } from "./sectionFoldHover.js";
+import { pasteCodeDetection } from "./pasteCodeDetection.js";
 import { foldChangeListener, setCurrentPageIdForFolds } from "./foldChangeListener.js";
 import { restoreFoldedRanges } from "./foldPersistence.js";
 import { setupUserAvatar } from "./gravatar.js";
@@ -1488,6 +1489,7 @@ function initializeEditor(pageContent = "", additionalExtensions = [], filetype 
           checkboxClickHandler,
           decorateFormatting,
           decorateCodeBlocks,
+          pasteCodeDetection,
         ]),
     decorateEmails,
     decorateLinks,

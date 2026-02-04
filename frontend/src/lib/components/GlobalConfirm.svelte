@@ -10,7 +10,8 @@
   import ReadOnlyLinkModal from './ReadOnlyLinkModal.svelte';
   import HelpModal from './HelpModal.svelte';
   import ImportModal from './ImportModal.svelte';
-  import { getConfirmState, getPromptState, getShareProjectState, getCreateProjectState, getNewPageState, getChangePageTypeState, getCommandPaletteState, getReadonlyLinkState, getSharePageState, getHelpState, getImportState } from '../stores/modal.svelte.js';
+  import CodePasteModal from './CodePasteModal.svelte';
+  import { getConfirmState, getPromptState, getShareProjectState, getCreateProjectState, getNewPageState, getChangePageTypeState, getCommandPaletteState, getReadonlyLinkState, getSharePageState, getHelpState, getImportState, getCodePasteState } from '../stores/modal.svelte.js';
 
   const confirmState = getConfirmState();
   const promptState = getPromptState();
@@ -23,6 +24,7 @@
   const readonlyLinkState = getReadonlyLinkState();
   const helpState = getHelpState();
   const importState = getImportState();
+  const codePasteState = getCodePasteState();
 </script>
 
 <ConfirmModal
@@ -110,4 +112,11 @@
   projectId={importState.projectId}
   projectName={importState.projectName}
   onimported={importState.onimported}
+/>
+
+<CodePasteModal
+  bind:open={codePasteState.open}
+  suggestedLang={codePasteState.suggestedLang}
+  onconfirm={codePasteState.onconfirm}
+  oncancel={codePasteState.oncancel}
 />
