@@ -270,6 +270,11 @@ BILLING_ADMIN_EMAILS = config(
     "WS_BILLING_ADMIN_EMAILS", default="", cast=lambda v: [e.strip() for e in v.split(",") if e.strip()]
 )
 
+# Billing authorization settings
+# When True, only org admins can initiate checkout and access the billing portal
+# When False, any org member can manage billing
+ALLOW_ONLY_ORG_ADMIN_TO_MANAGE_BILLING = config("WS_ALLOW_ONLY_ORG_ADMIN_TO_MANAGE_BILLING", cast=bool, default=True)
+
 
 # Redis
 
