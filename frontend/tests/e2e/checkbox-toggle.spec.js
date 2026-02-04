@@ -224,4 +224,89 @@ test.describe("Checkbox Toggle", () => {
     expect(checkedAfter).toBe(true);
     console.log("✅ Checkbox toggled with mouse click!");
   });
+
+  test("multi-line selection converts all lines to checkboxes via toolbar", async ({ page }) => {
+    console.log(`\n🔧 Logging in as: ${TEST_EMAIL}`);
+    await login(page);
+    console.log("✅ Logged in");
+
+    // Create a new page
+    const newPageBtn = page.locator(".sidebar-new-page-btn").first();
+    await newPageBtn.click();
+
+    const modal = page.locator(".modal");
+    await expect(modal).toBeVisible({ timeout: 5000 });
+
+    const titleInput = page.locator("#page-title-input");
+    await titleInput.fill(`Multi-line Checkbox Test ${Date.now()}`);
+
+    const createBtn = page.locator(".modal-btn-primary");
+    await createBtn.click();
+
+    await page.waitForSelector(".cm-content", { timeout: 10000 });
+    await page.waitForTimeout(1000);
+    console.log("✅ Created test page");
+
+    // Type multiple plain text lines
+    const editor = page.locator(".cm-content");
+    await editor.click();
+    await page.keyboard.type("First task");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("Second task");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("Third task");
+    await page.waitForTimeout(500);
+    console.log("✅ Added three plain text lines");
+
+    // Take screenshot before
+    await page.screenshot({ path: "test-results/multiline-checkbox-before.png" });
+    console.log("📸 Screenshot saved: multiline-checkbox-before.png");
+
+    // Select all lines (Ctrl+A / Cmd+A)
+    const isMac = process.platform === "darwin";
+    await page.keyboard.press(isMac ? "Meta+a" : "Control+a");
+    await page.waitForTimeout(300);
+    console.log("✅ Selected all text");
+
+    // Click the checklist toolbar button (find by title attribute)
+    const checklistBtn = page.locator('button.toolbar-btn[title^="Checklist"]');
+    await expect(checklistBtn).toBeVisible({ timeout: 5000 });
+    await checklistBtn.click();
+    await page.waitForTimeout(500);
+    console.log("✅ Clicked checklist toolbar button");
+
+    // Take screenshot after
+    await page.screenshot({ path: "test-results/multiline-checkbox-after.png" });
+    console.log("📸 Screenshot saved: multiline-checkbox-after.png");
+
+    // Move cursor away so decorations render
+    await page.keyboard.press("End");
+    await page.waitForTimeout(300);
+
+    // Verify all three lines have checkboxes
+    const checkboxes = page.locator(".format-checkbox");
+    const checkboxCount = await checkboxes.count();
+    console.log(`Found ${checkboxCount} checkboxes`);
+
+    expect(checkboxCount).toBe(3);
+    console.log("✅ All three lines converted to checkboxes!");
+
+    // Also verify the raw content has checkbox syntax on all lines
+    const docContent = await page.evaluate(() => {
+      const cmContent = document.querySelector(".cm-content");
+      const editorView = cmContent?.__codemirrorView || window.editorView;
+      if (editorView) {
+        return editorView.state.doc.toString();
+      }
+      return null;
+    });
+
+    if (docContent) {
+      const lines = docContent.split("\n");
+      const checkboxLines = lines.filter((line) => line.match(/^- \[[ xX]\] /));
+      console.log(`Lines with checkbox syntax: ${checkboxLines.length}`);
+      console.log(`Content:\n${docContent}`);
+      expect(checkboxLines.length).toBe(3);
+    }
+  });
 });

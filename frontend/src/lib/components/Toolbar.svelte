@@ -25,6 +25,7 @@
   } from "lucide-static";
   import { openSidebar, setActiveTab } from "../stores/sidebar.svelte.js";
   import { toggleCheckbox } from "../../decorateFormatting.js";
+  import { toggleLinePrefix as toggleLinePrefixFn, toggleOrderedList as toggleOrderedListFn } from "../listFormatting.js";
   import { helpModal } from "../modal.js";
   import LinkModal from "./LinkModal.svelte";
 
@@ -103,128 +104,14 @@
 
   function toggleLinePrefix(prefix) {
     if (!editorView) return;
-    const { state } = editorView;
-    const { from, to } = state.selection.main;
-
-    const startLine = state.doc.lineAt(from);
-    const endLine = state.doc.lineAt(to);
-
-    const changes = [];
-    let allHavePrefix = true;
-
-    for (let lineNum = startLine.number; lineNum <= endLine.number; lineNum++) {
-      const line = state.doc.line(lineNum);
-      if (!line.text.startsWith(prefix)) {
-        allHavePrefix = false;
-        break;
-      }
-    }
-
-    const headingPrefixes = ["# ", "## ", "### ", "#### ", "##### ", "###### "];
-    const isHeadingPrefix = headingPrefixes.includes(prefix);
-
-    let offset = 0;
-    for (let lineNum = startLine.number; lineNum <= endLine.number; lineNum++) {
-      const line = state.doc.line(lineNum);
-
-      if (allHavePrefix) {
-        changes.push({
-          from: line.from + offset,
-          to: line.from + offset + prefix.length,
-          insert: ""
-        });
-        offset -= prefix.length;
-      } else {
-        let insertAt = line.from + offset;
-        let removeEnd = insertAt;
-
-        if (isHeadingPrefix) {
-          const existingHeading = headingPrefixes.find(p => line.text.startsWith(p));
-          if (existingHeading) {
-            removeEnd = insertAt + existingHeading.length;
-          }
-        }
-
-        changes.push({
-          from: insertAt,
-          to: removeEnd,
-          insert: prefix
-        });
-        offset += prefix.length - (removeEnd - insertAt);
-      }
-    }
-
-    const newCursorPos = startLine.from + (allHavePrefix ? 0 : prefix.length);
-    editorView.dispatch({
-      changes,
-      selection: { anchor: newCursorPos }
-    });
+    toggleLinePrefixFn(editorView, prefix);
     editorView.focus();
     headingMenuOpen = false;
   }
 
   function toggleOrderedList() {
     if (!editorView) return;
-    const { state } = editorView;
-    const { from, to } = state.selection.main;
-
-    const startLine = state.doc.lineAt(from);
-    const endLine = state.doc.lineAt(to);
-
-    const changes = [];
-    const olPattern = /^\d+\.\s/;
-    let allHavePrefix = true;
-
-    for (let lineNum = startLine.number; lineNum <= endLine.number; lineNum++) {
-      const line = state.doc.line(lineNum);
-      if (!olPattern.test(line.text)) {
-        allHavePrefix = false;
-        break;
-      }
-    }
-
-    let offset = 0;
-    let itemNum = 1;
-    let firstLinePrefix = "";
-
-    for (let lineNum = startLine.number; lineNum <= endLine.number; lineNum++) {
-      const line = state.doc.line(lineNum);
-      const match = line.text.match(olPattern);
-
-      if (allHavePrefix && match) {
-        changes.push({
-          from: line.from + offset,
-          to: line.from + offset + match[0].length,
-          insert: ""
-        });
-        offset -= match[0].length;
-      } else {
-        const prefix = `${itemNum}. `;
-        if (lineNum === startLine.number) {
-          firstLinePrefix = prefix;
-        }
-        let insertAt = line.from + offset;
-        let removeLen = 0;
-
-        if (match) {
-          removeLen = match[0].length;
-        }
-
-        changes.push({
-          from: insertAt,
-          to: insertAt + removeLen,
-          insert: prefix
-        });
-        offset += prefix.length - removeLen;
-        itemNum++;
-      }
-    }
-
-    const newCursorPos = startLine.from + (allHavePrefix ? 0 : firstLinePrefix.length);
-    editorView.dispatch({
-      changes,
-      selection: { anchor: newCursorPos }
-    });
+    toggleOrderedListFn(editorView);
     editorView.focus();
   }
 

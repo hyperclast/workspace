@@ -676,37 +676,79 @@ function handleListUnindent(view) {
 
 export function toggleCheckbox(view) {
   const { state } = view;
-  const line = state.doc.lineAt(state.selection.main.head);
-  const match = line.text.match(CHECKBOX_REGEX);
+  const { from, to } = state.selection.main;
 
-  if (match) {
-    const indent = match[1].length;
-    const currentState = match[2];
-    const newState = currentState === " " ? "x" : " ";
-    const bracketPos = line.from + indent + 3;
+  const startLine = state.doc.lineAt(from);
+  const endLine = state.doc.lineAt(to);
 
+  // Single line case - original behavior
+  if (startLine.number === endLine.number) {
+    const line = startLine;
+    const match = line.text.match(CHECKBOX_REGEX);
+
+    if (match) {
+      const indent = match[1].length;
+      const currentState = match[2];
+      const newState = currentState === " " ? "x" : " ";
+      const bracketPos = line.from + indent + 3;
+
+      view.dispatch({
+        changes: { from: bracketPos, to: bracketPos + 1, insert: newState },
+      });
+      return true;
+    }
+
+    const bulletMatch = line.text.match(BULLET_REGEX);
+    if (bulletMatch) {
+      const indent = bulletMatch[1].length;
+      const insertPos = line.from + indent + 2;
+      view.dispatch({
+        changes: { from: insertPos, insert: "[ ] " },
+        selection: { anchor: state.selection.main.head + 4 },
+      });
+      return true;
+    }
+
+    const insertText = "- [ ] ";
     view.dispatch({
-      changes: { from: bracketPos, to: bracketPos + 1, insert: newState },
+      changes: { from: line.from, insert: insertText },
+      selection: { anchor: state.selection.main.head + insertText.length },
     });
     return true;
   }
 
-  const bulletMatch = line.text.match(BULLET_REGEX);
-  if (bulletMatch) {
-    const indent = bulletMatch[1].length;
-    const insertPos = line.from + indent + 2;
-    view.dispatch({
-      changes: { from: insertPos, insert: "[ ] " },
-      selection: { anchor: state.selection.main.head + 4 },
-    });
-    return true;
+  // Multi-line case: apply checkbox to all selected lines
+  // Note: CodeMirror expects positions from the original document when batching changes
+  const changes = [];
+
+  for (let lineNum = startLine.number; lineNum <= endLine.number; lineNum++) {
+    const line = state.doc.line(lineNum);
+    const match = line.text.match(CHECKBOX_REGEX);
+
+    if (match) {
+      // Already a checkbox - toggle its state
+      const indent = match[1].length;
+      const currentState = match[2];
+      const newState = currentState === " " ? "x" : " ";
+      const bracketPos = line.from + indent + 3;
+
+      changes.push({ from: bracketPos, to: bracketPos + 1, insert: newState });
+    } else {
+      const bulletMatch = line.text.match(BULLET_REGEX);
+      if (bulletMatch) {
+        // Bullet point - convert to checkbox by inserting "[ ] " after "- "
+        const indent = bulletMatch[1].length;
+        const insertPos = line.from + indent + 2;
+        changes.push({ from: insertPos, to: insertPos, insert: "[ ] " });
+      } else {
+        // Plain text - prepend checkbox prefix
+        const insertText = "- [ ] ";
+        changes.push({ from: line.from, to: line.from, insert: insertText });
+      }
+    }
   }
 
-  const insertText = "- [ ] ";
-  view.dispatch({
-    changes: { from: line.from, insert: insertText },
-    selection: { anchor: state.selection.main.head + insertText.length },
-  });
+  view.dispatch({ changes });
   return true;
 }
 

@@ -7,7 +7,7 @@
 import { describe, test, expect, afterEach } from "vitest";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { decorateFormatting, codeFenceField } from "../../decorateFormatting.js";
+import { decorateFormatting, codeFenceField, toggleCheckbox } from "../../decorateFormatting.js";
 import {
   generateDocumentWithFormatting,
   generateDocumentWithPatternsAt,
@@ -352,6 +352,90 @@ describe("decorateFormatting", () => {
       ({ view, parent } = createEditor("Before\n> Quote text\nAfter"));
       view.dispatch({ selection: { anchor: 0 } });
       expect(hasClass(view, "format-blockquote")).toBe(true);
+    });
+  });
+
+  describe("toggleCheckbox function", () => {
+    test("single line: plain text becomes checkbox", () => {
+      ({ view, parent } = createEditor("Task one"));
+      view.dispatch({ selection: { anchor: 0 } });
+      toggleCheckbox(view);
+      expect(view.state.doc.toString()).toBe("- [ ] Task one");
+    });
+
+    test("single line: bullet becomes checkbox", () => {
+      ({ view, parent } = createEditor("- Task one"));
+      view.dispatch({ selection: { anchor: 0 } });
+      toggleCheckbox(view);
+      expect(view.state.doc.toString()).toBe("- [ ] Task one");
+    });
+
+    test("single line: unchecked checkbox becomes checked", () => {
+      ({ view, parent } = createEditor("- [ ] Task one"));
+      view.dispatch({ selection: { anchor: 0 } });
+      toggleCheckbox(view);
+      expect(view.state.doc.toString()).toBe("- [x] Task one");
+    });
+
+    test("single line: checked checkbox becomes unchecked", () => {
+      ({ view, parent } = createEditor("- [x] Task one"));
+      view.dispatch({ selection: { anchor: 0 } });
+      toggleCheckbox(view);
+      expect(view.state.doc.toString()).toBe("- [ ] Task one");
+    });
+
+    test("multi-line: all plain text lines become checkboxes", () => {
+      ({ view, parent } = createEditor("First task\nSecond task\nThird task"));
+      // Select all lines (from start of first to end of last)
+      view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } });
+      toggleCheckbox(view);
+      expect(view.state.doc.toString()).toBe(
+        "- [ ] First task\n- [ ] Second task\n- [ ] Third task"
+      );
+    });
+
+    test("multi-line: all bullet lines become checkboxes", () => {
+      ({ view, parent } = createEditor("- First task\n- Second task\n- Third task"));
+      view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } });
+      toggleCheckbox(view);
+      expect(view.state.doc.toString()).toBe(
+        "- [ ] First task\n- [ ] Second task\n- [ ] Third task"
+      );
+    });
+
+    test("multi-line: all unchecked checkboxes become checked", () => {
+      ({ view, parent } = createEditor("- [ ] First task\n- [ ] Second task\n- [ ] Third task"));
+      view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } });
+      toggleCheckbox(view);
+      expect(view.state.doc.toString()).toBe(
+        "- [x] First task\n- [x] Second task\n- [x] Third task"
+      );
+    });
+
+    test("multi-line: mixed content - each line transforms appropriately", () => {
+      ({ view, parent } = createEditor(
+        "Plain text\n- Bullet item\n- [ ] Unchecked\n- [x] Checked"
+      ));
+      view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } });
+      toggleCheckbox(view);
+      // Plain -> checkbox, bullet -> checkbox, unchecked -> checked, checked -> unchecked
+      expect(view.state.doc.toString()).toBe(
+        "- [ ] Plain text\n- [ ] Bullet item\n- [x] Unchecked\n- [ ] Checked"
+      );
+    });
+
+    test("multi-line: indented content preserves indentation", () => {
+      ({ view, parent } = createEditor("  First task\n  Second task"));
+      view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } });
+      toggleCheckbox(view);
+      expect(view.state.doc.toString()).toBe("- [ ]   First task\n- [ ]   Second task");
+    });
+
+    test("multi-line: indented bullets become checkboxes", () => {
+      ({ view, parent } = createEditor("  - First task\n  - Second task"));
+      view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } });
+      toggleCheckbox(view);
+      expect(view.state.doc.toString()).toBe("  - [ ] First task\n  - [ ] Second task");
     });
   });
 });
