@@ -106,6 +106,22 @@ func main() {
       expect(looksLikeCode(code)).toBe(true);
     });
 
+    test("Kotlin function", () => {
+      const code = `fun main() {
+    val message = "Hello, World!"
+    println(message)
+}`;
+      expect(looksLikeCode(code)).toBe(true);
+    });
+
+    test("Lisp function", () => {
+      const code = `(defun hello-world ()
+  (format t "Hello, World!~%"))
+
+(hello-world)`;
+      expect(looksLikeCode(code)).toBe(true);
+    });
+
     test("C/C++ with include", () => {
       const code = `#include <stdio.h>
 
@@ -268,6 +284,16 @@ describe("detectLanguage", () => {
 
   test("detects Java", () => {
     expect(detectLanguage("public class Main {\n}")).toBe("java");
+  });
+
+  test("detects Kotlin", () => {
+    expect(detectLanguage('fun main() {\n    println("Hello")\n}')).toBe("kotlin");
+    expect(detectLanguage("data class User(val name: String)")).toBe("kotlin");
+  });
+
+  test("detects Lisp", () => {
+    expect(detectLanguage('(defun hello () (print "hi"))')).toBe("lisp");
+    expect(detectLanguage("(defmacro when (test &body body))")).toBe("lisp");
   });
 
   test("detects C/C++", () => {

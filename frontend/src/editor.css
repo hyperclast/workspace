@@ -634,7 +634,7 @@
   background: var(--bg-secondary);
   border: 1px solid var(--border-primary);
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-secondary);
   cursor: pointer;
   opacity: 0.7;

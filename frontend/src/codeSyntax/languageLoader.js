@@ -19,6 +19,8 @@ export const languageDisplayNames = {
   go: "Go",
   golang: "Go",
   java: "Java",
+  kotlin: "Kotlin",
+  kt: "Kotlin",
   c: "C",
   cpp: "C++",
   "c++": "C++",
@@ -28,6 +30,8 @@ export const languageDisplayNames = {
   rb: "Ruby",
   sh: "Shell",
   bash: "Bash",
+  lisp: "Lisp",
+  commonlisp: "Lisp",
 };
 
 // Canonical language options for the dropdown (alphabetical, Plain Text first)
@@ -42,6 +46,8 @@ export const languageOptions = [
   { code: "js", name: "JavaScript" },
   { code: "json", name: "JSON" },
   { code: "jsx", name: "JSX" },
+  { code: "kotlin", name: "Kotlin" },
+  { code: "lisp", name: "Lisp" },
   { code: "md", name: "Markdown" },
   { code: "php", name: "PHP" },
   { code: "py", name: "Python" },
@@ -96,6 +102,17 @@ const languageMap = {
   golang: () => import("@codemirror/lang-go").then((m) => m.go()),
   // Java
   java: () => import("@codemirror/lang-java").then((m) => m.java()),
+  // Kotlin (legacy mode from clike)
+  kotlin: async () => {
+    const { StreamLanguage } = await import("@codemirror/language");
+    const { kotlin } = await import("@codemirror/legacy-modes/mode/clike");
+    return { language: StreamLanguage.define(kotlin) };
+  },
+  kt: async () => {
+    const { StreamLanguage } = await import("@codemirror/language");
+    const { kotlin } = await import("@codemirror/legacy-modes/mode/clike");
+    return { language: StreamLanguage.define(kotlin) };
+  },
   // C/C++
   c: () => import("@codemirror/lang-cpp").then((m) => m.cpp()),
   cpp: () => import("@codemirror/lang-cpp").then((m) => m.cpp()),
@@ -110,6 +127,17 @@ const languageMap = {
   // Shell (legacy mode)
   sh: () => wrapLegacyMode(import("@codemirror/legacy-modes/mode/shell")),
   bash: () => wrapLegacyMode(import("@codemirror/legacy-modes/mode/shell")),
+  // Lisp (legacy mode)
+  lisp: async () => {
+    const { StreamLanguage } = await import("@codemirror/language");
+    const { commonLisp } = await import("@codemirror/legacy-modes/mode/commonlisp");
+    return { language: StreamLanguage.define(commonLisp) };
+  },
+  commonlisp: async () => {
+    const { StreamLanguage } = await import("@codemirror/language");
+    const { commonLisp } = await import("@codemirror/legacy-modes/mode/commonlisp");
+    return { language: StreamLanguage.define(commonLisp) };
+  },
 };
 
 const cache = new Map();

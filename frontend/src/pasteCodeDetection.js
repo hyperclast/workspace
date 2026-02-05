@@ -17,6 +17,8 @@ const LANGUAGE_PATTERNS = {
   go: /^(func|package|import|type|struct|interface|var|const|if|else|for|range|switch|case|default|return|defer|go|chan|map)\s/m,
   rust: /^(fn|impl|struct|enum|pub|use|mod|trait|let|mut|const|if|else|for|while|loop|match|return|async|await)\s/m,
   java: /^(public|private|protected|class|interface|enum|void|int|long|double|float|boolean|String|static|final|abstract|extends|implements|return|if|else|for|while|try|catch|throw|new)\s/m,
+  kotlin:
+    /^(fun|val|var|class|object|interface|sealed|data|enum|when|if|else|for|while|return|throw|try|catch|import|package|suspend|inline|companion)\s/m,
   c: /^(#include|#define|#ifdef|#ifndef|int|void|char|float|double|long|short|unsigned|signed|struct|union|enum|typedef|return|if|else|for|while|switch|case|break|continue)\s/m,
   cpp: /^(#include|#define|class|public|private|protected|virtual|template|typename|namespace|using|std::|vector|string|int|void|char|float|double|return|if|else|for|while|new|delete)\s/m,
   css: /^(\.|#|@media|@import|@keyframes|@font-face|:root|\*|body|html|div|span|a|p|h[1-6])\s*\{/m,
@@ -24,6 +26,7 @@ const LANGUAGE_PATTERNS = {
   ruby: /^(def|class|module|require|include|extend|attr_|if|elsif|else|unless|case|when|for|while|do|end|return|yield|lambda|proc)\s/m,
   php: /^(<\?php|\$[a-zA-Z_]|function|class|public|private|protected|namespace|use|echo|print|return|if|else|elseif|for|foreach|while)\s?/m,
   xml: /^<(\?xml|!DOCTYPE|[a-zA-Z][\w:-]*(\s|>|$))/m,
+  lisp: /^(\(defun|\(defmacro|\(defvar|\(defparameter|\(let|\(let\*|\(lambda|\(if|\(cond|\(when|\(unless|\(loop|\(setq|\(setf)/m,
 };
 
 /**
@@ -301,6 +304,11 @@ export function detectLanguage(text) {
     return "ruby";
   }
 
+  // Lisp-specific (parentheses-heavy, defun/defmacro)
+  if (/^\(defun\s+/.test(trimmed)) return "lisp";
+  if (/^\(defmacro\s+/.test(trimmed)) return "lisp";
+  if (/^\(lambda\s+/.test(trimmed) && /\(/.test(trimmed.slice(7))) return "lisp";
+
   // Go-specific
   if (/^package\s+\w+/.test(trimmed)) return "go";
   if (/^func\s+\w+.*\{/.test(trimmed)) return "go";
@@ -314,6 +322,15 @@ export function detectLanguage(text) {
   // Java-specific
   if (/^(public|private|protected)\s+(class|interface|enum)\s/.test(trimmed)) {
     return "java";
+  }
+
+  // Kotlin-specific (fun keyword, val/var without type prefix)
+  if (/^fun\s+\w+/.test(trimmed)) return "kotlin";
+  if (/^(val|var)\s+\w+\s*[=:]/.test(trimmed) && /\{/.test(trimmed)) {
+    return "kotlin";
+  }
+  if (/^(data\s+class|sealed\s+class|object\s+\w+)/.test(trimmed)) {
+    return "kotlin";
   }
 
   // C/C++ specific
