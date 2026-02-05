@@ -95,6 +95,7 @@ import { getPageIdFromPath } from "./router.js";
 import { initTheme } from "./theme.js";
 import { mount, unmount } from "svelte";
 import ThemeToggle from "./lib/components/ThemeToggle.svelte";
+import PdfViewer from "./pdf/PdfViewer.svelte";
 import { addRecentPage } from "./lib/recentPages.js";
 import { commandPalette } from "./lib/modal.js";
 
@@ -2351,6 +2352,9 @@ async function startApp() {
   if (themeToggleRoot) {
     mount(ThemeToggle, { target: themeToggleRoot });
   }
+
+  // Mount PDF viewer (global modal, triggers from link clicks)
+  mount(PdfViewer, { target: document.body });
 
   // Setup file drag-drop upload (once, with dynamic permission checks)
   const featureFlags = getFeatureFlags();

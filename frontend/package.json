@@ -50,6 +50,7 @@
     "blueimp-md5": "^2.19.0",
     "codemirror": "^6.0.1",
     "lucide-static": "^0.518.0",
+    "pdfjs-dist": "^4.8.69",
     "y-codemirror.next": "^0.3.5",
     "y-protocols": "^1.0.6",
     "y-websocket": "^3.0.0",

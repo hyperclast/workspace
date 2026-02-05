@@ -181,7 +181,7 @@ export const imageClickHandler = EditorView.domEventHandlers({
 /**
  * Opens a lightbox overlay to view the image at full size
  */
-function openLightbox(src, alt) {
+export function openLightbox(src, alt) {
   // Remove existing lightbox if any
   const existingLightbox = document.querySelector(".image-lightbox");
   if (existingLightbox) {
@@ -198,10 +198,24 @@ function openLightbox(src, alt) {
   img.alt = alt || "Full size image";
   img.className = "image-lightbox-img";
 
+  // Toolbar with download and close buttons
+  const toolbar = document.createElement("div");
+  toolbar.className = "image-lightbox-toolbar";
+
+  const downloadBtn = document.createElement("button");
+  downloadBtn.className = "image-lightbox-btn";
+  downloadBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
+  downloadBtn.setAttribute("aria-label", "Download image");
+  downloadBtn.title = "Download";
+
   const closeBtn = document.createElement("button");
-  closeBtn.className = "image-lightbox-close";
-  closeBtn.innerHTML = "&times;";
+  closeBtn.className = "image-lightbox-btn image-lightbox-close-btn";
+  closeBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
   closeBtn.setAttribute("aria-label", "Close lightbox");
+  closeBtn.title = "Close (Escape)";
+
+  toolbar.appendChild(downloadBtn);
+  toolbar.appendChild(closeBtn);
 
   // Close on click outside image or on close button
   const closeLightbox = () => {
@@ -216,15 +230,18 @@ function openLightbox(src, alt) {
   };
 
   lightbox.addEventListener("click", (e) => {
-    if (e.target === lightbox || e.target === closeBtn) {
+    if (e.target === lightbox) {
       closeLightbox();
     }
   });
 
   closeBtn.addEventListener("click", closeLightbox);
+  downloadBtn.addEventListener("click", () => {
+    window.open(src, "_blank");
+  });
   document.addEventListener("keydown", handleKeydown);
 
-  lightbox.appendChild(closeBtn);
+  lightbox.appendChild(toolbar);
   lightbox.appendChild(img);
   document.body.appendChild(lightbox);
 

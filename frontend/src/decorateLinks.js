@@ -1,7 +1,45 @@
 import { Decoration, ViewPlugin, WidgetType, EditorView } from "@codemirror/view";
+import { openPdfViewer } from "./lib/stores/pdfViewer.svelte.js";
+import { openLightbox } from "./decorateImagePreviews.js";
 
 const MARKDOWN_LINK_REGEX = /\[([^\]]+)\]\(([^)]+)\)/g;
 const INTERNAL_LINK_PATTERN = /^\/pages\/([a-zA-Z0-9]+)\/?$/;
+
+// Pattern for internal file URLs - matches /files/{project}/{file}/{token}/
+const FILE_LINK_PATTERN =
+  /^(https?:\/\/[^/]+)?\/files\/[a-zA-Z0-9]+\/[a-zA-Z0-9-]+\/[a-zA-Z0-9_-]+\/?$/;
+
+// Image extensions that can be previewed
+const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico"];
+
+/**
+ * Check if a link points to a PDF file.
+ * Detects by filename extension in the link text.
+ * @param {string} url - The URL to check
+ * @param {string} linkText - The visible link text (often the filename)
+ * @returns {boolean}
+ */
+function isPdfLink(url, linkText) {
+  // Only check internal file URLs
+  if (!FILE_LINK_PATTERN.test(url)) return false;
+  // Check if link text ends with .pdf (case-insensitive)
+  return linkText.toLowerCase().endsWith(".pdf");
+}
+
+/**
+ * Check if a link points to an image file.
+ * Detects by filename extension in the link text.
+ * @param {string} url - The URL to check
+ * @param {string} linkText - The visible link text (often the filename)
+ * @returns {boolean}
+ */
+function isImageLink(url, linkText) {
+  // Only check internal file URLs
+  if (!FILE_LINK_PATTERN.test(url)) return false;
+  // Check if link text ends with an image extension
+  const lowerText = linkText.toLowerCase();
+  return IMAGE_EXTENSIONS.some((ext) => lowerText.endsWith(ext));
+}
 
 class LinkWidget extends WidgetType {
   constructor(isInternal, url) {
@@ -111,34 +149,87 @@ export const decorateLinks = ViewPlugin.fromClass(
   }
 );
 
+/**
+ * Helper to extract link info from a click/mousedown target
+ */
+function getLinkInfo(target) {
+  if (!target.classList.contains("format-link") && !target.closest(".format-link")) {
+    return null;
+  }
+  const linkEl = target.classList.contains("format-link") ? target : target.closest(".format-link");
+  const url = linkEl.dataset.url;
+  if (!url) return null;
+  return {
+    url,
+    isInternal: linkEl.dataset.internal === "true",
+    linkText: linkEl.textContent || "",
+  };
+}
+
 export const linkClickHandler = EditorView.domEventHandlers({
+  // Intercept mousedown to prevent cursor positioning for previewable file links
+  mousedown(event, view) {
+    const linkInfo = getLinkInfo(event.target);
+    if (!linkInfo) return false;
+
+    // For PDF and image links, prevent default to stop cursor positioning
+    // This keeps the link decorated (not showing raw markdown)
+    if (
+      isPdfLink(linkInfo.url, linkInfo.linkText) ||
+      isImageLink(linkInfo.url, linkInfo.linkText)
+    ) {
+      event.preventDefault();
+      return true;
+    }
+    return false;
+  },
+
   click(event, view) {
-    const target = event.target;
+    const linkInfo = getLinkInfo(event.target);
+    if (!linkInfo) return false;
 
-    if (target.classList.contains("format-link") || target.closest(".format-link")) {
-      const linkEl = target.classList.contains("format-link")
-        ? target
-        : target.closest(".format-link");
-      const url = linkEl.dataset.url;
-      const isInternal = linkEl.dataset.internal === "true";
+    const { url, isInternal, linkText } = linkInfo;
 
-      if (!url) return false;
-
+    // Handle PDF links: regular click opens viewer, Cmd/Ctrl+click opens in new tab
+    if (isPdfLink(url, linkText)) {
+      event.preventDefault();
       if (event.metaKey || event.ctrlKey) {
-        event.preventDefault();
-
-        if (isInternal) {
-          const pageIdMatch = url.match(INTERNAL_LINK_PATTERN);
-          if (pageIdMatch) {
-            const pageId = pageIdMatch[1];
-            window.history.pushState({}, "", `/pages/${pageId}/`);
-            window.dispatchEvent(new PopStateEvent("popstate"));
-          }
-        } else {
-          window.open(url, "_blank", "noopener,noreferrer");
-        }
-        return true;
+        // Power-user escape hatch: open PDF in new tab
+        window.open(url, "_blank", "noopener,noreferrer");
+      } else {
+        // Regular click: open in-app PDF viewer
+        openPdfViewer({ url, filename: linkText });
       }
+      return true;
+    }
+
+    // Handle image links: regular click opens lightbox, Cmd/Ctrl+click opens in new tab
+    if (isImageLink(url, linkText)) {
+      event.preventDefault();
+      if (event.metaKey || event.ctrlKey) {
+        // Power-user escape hatch: open image in new tab
+        window.open(url, "_blank", "noopener,noreferrer");
+      } else {
+        // Regular click: open in-app lightbox
+        openLightbox(url, linkText);
+      }
+      return true;
+    }
+
+    if (event.metaKey || event.ctrlKey) {
+      event.preventDefault();
+
+      if (isInternal) {
+        const pageIdMatch = url.match(INTERNAL_LINK_PATTERN);
+        if (pageIdMatch) {
+          const pageId = pageIdMatch[1];
+          window.history.pushState({}, "", `/pages/${pageId}/`);
+          window.dispatchEvent(new PopStateEvent("popstate"));
+        }
+      } else {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+      return true;
     }
     return false;
   },

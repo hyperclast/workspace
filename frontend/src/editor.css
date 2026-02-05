@@ -1229,39 +1229,48 @@
 
 .image-lightbox-img {
   max-width: 90vw;
-  max-height: 90vh;
+  max-height: calc(90vh - 60px);
   object-fit: contain;
   border-radius: 4px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   cursor: default;
 }
 
-.image-lightbox-close {
+.image-lightbox-toolbar {
   position: absolute;
   top: 16px;
   right: 16px;
+  display: flex;
+  gap: 8px;
+}
+
+.image-lightbox-btn {
   width: 40px;
   height: 40px;
   border: none;
   background: rgba(255, 255, 255, 0.1);
-  color: white;
-  font-size: 24px;
-  line-height: 1;
-  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.8);
+  border-radius: 8px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, color 0.15s;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.image-lightbox-close:hover {
+.image-lightbox-btn:hover {
   background: rgba(255, 255, 255, 0.2);
+  color: white;
 }
 
-.image-lightbox-close:focus {
+.image-lightbox-btn:focus {
   outline: 2px solid rgba(255, 255, 255, 0.5);
   outline-offset: 2px;
+}
+
+.image-lightbox-close-btn:hover {
+  background: rgba(220, 38, 38, 0.3);
+  color: #f87171;
 }
 
 /* Dark mode image preview styles */
@@ -1286,4 +1295,62 @@
 :root.dark .image-syntax-raw,
 [data-theme="dark"] .image-syntax-raw {
   background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* ============================================================================
+   PDF Viewer Styles
+   ============================================================================ */
+
+/* PDF file link indicator - shown for .pdf file links */
+.format-link-pdf {
+  color: #dc2626;
+}
+
+.format-link-pdf::before {
+  content: "PDF ";
+  font-size: 0.75em;
+  font-weight: 600;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+/* PDF Viewer Modal - mounted via Svelte component */
+/* Most styles are scoped in PdfViewer.svelte, but global overrides go here */
+
+/* Ensure PDF viewer appears above everything */
+.pdf-viewer-overlay {
+  z-index: 10000 !important;
+}
+
+/* PDF text layer positioning (PDF.js TextLayer) */
+.pdf-text-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  opacity: 0.2;
+  line-height: 1;
+}
+
+.pdf-text-layer span {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  transform-origin: 0 0;
+}
+
+.pdf-text-layer span::selection {
+  background: rgba(35, 131, 226, 0.5);
+}
+
+.pdf-text-layer br {
+  display: none;
+}
+
+/* Dark mode: ensure PDF page background stays white for readability */
+:root.dark .pdf-page,
+[data-theme="dark"] .pdf-page {
+  background: white;
 }

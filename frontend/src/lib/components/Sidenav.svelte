@@ -27,6 +27,12 @@
     addFileToProject,
   } from "../stores/sidenav.svelte.js";
   import { deleteFile, restoreFile, fetchFileReferences } from "../../api.js";
+  import { openLightbox } from "../../decorateImagePreviews.js";
+  import { openPdfViewer } from "../stores/pdfViewer.svelte.js";
+
+  // File extensions for preview detection
+  const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico"];
+  const PDF_EXTENSION = ".pdf";
 
   // Icons
   const chevronIcon = `<svg class="project-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
@@ -338,10 +344,24 @@
 
   function handleFileClick(e, file) {
     e.stopPropagation();
-    // Copy the file link to clipboard or open in new tab
-    if (file.link) {
-      window.open(file.link, "_blank");
+    if (!file.link) return;
+
+    const filename = file.filename?.toLowerCase() || "";
+
+    // Preview images in lightbox
+    if (IMAGE_EXTENSIONS.some((ext) => filename.endsWith(ext))) {
+      openLightbox(file.link, file.filename);
+      return;
     }
+
+    // Preview PDFs in viewer
+    if (filename.endsWith(PDF_EXTENSION)) {
+      openPdfViewer({ url: file.link, filename: file.filename });
+      return;
+    }
+
+    // Other files: download (open in new tab)
+    window.open(file.link, "_blank");
   }
 
   function getFilesList(projectId) {
