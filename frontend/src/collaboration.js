@@ -2,9 +2,11 @@
  * Yjs Collaboration Setup
  * Integrates Yjs CRDT with CodeMirror for real-time collaborative editing
  */
-import { yCollab } from "y-codemirror.next";
+import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 import { WebsocketProvider } from "y-websocket";
 import * as Y from "yjs";
+import { keymap } from "@codemirror/view";
+import { Prec } from "@codemirror/state";
 import { WS_HOST } from "./config.js";
 
 // Track pages that have had access denied - don't retry these
@@ -351,7 +353,12 @@ export function createCollaborationObjects(pageExternalId, displayName = "Anonym
     undoManager,
     get extension() {
       if (!_extension) {
-        _extension = yCollab(ytext, awareness, { undoManager });
+        // yCollab returns plugins for sync, awareness, and undo tracking
+        // but does NOT include the keyboard bindings for undo/redo.
+        // We must add yUndoManagerKeymap with high precedence so it
+        // intercepts Mod-z before CodeMirror's defaultKeymap.
+        const collabPlugins = yCollab(ytext, awareness, { undoManager });
+        _extension = [Prec.high(keymap.of(yUndoManagerKeymap)), ...collabPlugins];
         console.log("yCollab extension created, ytext.length=" + ytext.length);
       }
       return _extension;
