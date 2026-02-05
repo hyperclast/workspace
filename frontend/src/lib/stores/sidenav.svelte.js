@@ -258,6 +258,14 @@ export function addFileToProject(projectId, file) {
   projectFiles = { ...projectFiles, [projectId]: [...files, file] };
 }
 
+export function removeFileFromProject(projectId, fileExternalId) {
+  const files = projectFiles[projectId] || [];
+  projectFiles = {
+    ...projectFiles,
+    [projectId]: files.filter((f) => f.external_id !== fileExternalId),
+  };
+}
+
 // Export reactive getters
 export function getProjects() {
   return projects;

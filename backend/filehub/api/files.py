@@ -11,7 +11,7 @@ from ninja.responses import Response
 from core.authentication import session_auth, token_auth
 from filehub.constants import BlobStatus, FileUploadStatus
 from filehub.exceptions import FileSizeExceededError
-from filehub.models import FileUpload
+from filehub.models import FileLink, FileUpload
 from filehub.schemas import (
     DownloadOut,
     FileListQueryParams,
@@ -292,3 +292,69 @@ def delete_file_upload(request: HttpRequest, external_id: str):
 
     file_upload.soft_delete()
     return 204, None
+
+
+@files_router.post("/{external_id}/restore/", response={200: FileUploadOut, 400: dict, 403: dict, 404: dict})
+def restore_file_upload(request: HttpRequest, external_id: str):
+    """Restore a soft-deleted file upload.
+
+    Only the user who uploaded the file can restore it.
+    Returns the restored file upload object.
+    """
+    # Use all_objects to include soft-deleted records
+    file_upload = get_object_or_404(
+        FileUpload.all_objects.select_related("project"),
+        external_id=external_id,
+    )
+
+    # Only the uploader can restore their file
+    if not file_upload.is_uploaded_by(request.user):
+        return 403, {"error": "forbidden", "message": "Only the uploader can restore this file"}
+
+    # Check if file is actually deleted
+    if not file_upload.is_deleted:
+        return 400, {"error": "not_deleted", "message": "File is not deleted"}
+
+    # Restore the file upload
+    file_upload.restore()
+
+    # Also restore any blobs that were soft-deleted along with the file
+    from filehub.models import Blob
+
+    Blob.all_objects.filter(file_upload=file_upload).update(deleted=None)
+
+    return file_upload
+
+
+@files_router.get("/{external_id}/references/", response={200: dict, 403: dict, 404: dict})
+def get_file_references(request: HttpRequest, external_id: str):
+    """Get pages that reference this file.
+
+    Returns a list of pages that link to this file, useful for
+    warning users before deleting a file that is in use.
+    """
+    file_upload = get_object_or_404(
+        FileUpload.objects.filter(deleted__isnull=True).select_related("project"),
+        external_id=external_id,
+    )
+
+    if file_upload.project and not user_can_access_project(request.user, file_upload.project):
+        return 403, {"error": "forbidden", "message": "You do not have access to this file"}
+
+    refs = FileLink.objects.filter(
+        target_file=file_upload,
+        source_page__is_deleted=False,
+        source_page__project__is_deleted=False,
+    ).select_related("source_page")
+
+    return {
+        "references": [
+            {
+                "page_external_id": str(r.source_page.external_id),
+                "page_title": r.source_page.title or "Untitled",
+                "link_text": r.link_text,
+            }
+            for r in refs
+        ],
+        "count": refs.count(),
+    }

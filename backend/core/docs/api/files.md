@@ -365,6 +365,46 @@ Soft-delete a file upload.
 
 ---
 
+## Get File References
+
+Get a list of pages that link to this file. Useful for warning users before deleting a file that is referenced in pages.
+
+|              |                                   |
+| ------------ | --------------------------------- |
+| **Endpoint** | `GET /api/files/{id}/references/` |
+| **Auth**     | Bearer token                      |
+
+**Response (200):**
+
+```json
+{
+  "references": [
+    {
+      "page_external_id": "page-123-...",
+      "page_title": "My Notes",
+      "link_text": "screenshot"
+    }
+  ],
+  "count": 1
+}
+```
+
+**Notes:**
+
+- Returns pages that contain markdown links to this file
+- Excludes deleted pages and pages in deleted projects
+- Pages without a title show "Untitled"
+- The `link_text` is the text displayed in the markdown link (e.g., `[link_text](/files/...)`)
+
+**Access:** Requires read access to the file's project (org member or project editor/viewer).
+
+**Errors:**
+
+- `403` - User does not have access to the file's project
+- `404` - File not found or deleted
+
+---
+
 ## Complete Example
 
 ```python

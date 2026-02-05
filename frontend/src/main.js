@@ -1,6 +1,6 @@
 import { defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { foldGutter, foldService } from "@codemirror/language";
+import { foldGutter, foldService, codeFolding } from "@codemirror/language";
 import { EditorState, Prec } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 
@@ -44,6 +44,7 @@ import { decorateMentions } from "./decorateMentions.js";
 import { linkCompletionSource } from "./linkAutocomplete.js";
 import { mentionCompletionSource } from "./mentionAutocomplete.js";
 import { findSectionFold } from "./findSectionFold.js";
+import { languageDisplayNames } from "./codeSyntax/languageLoader.js";
 import { largeFileModeExtension } from "./largeFileMode.js";
 import { sectionFoldHover } from "./sectionFoldHover.js";
 import { pasteCodeDetection } from "./pasteCodeDetection.js";
@@ -1366,6 +1367,54 @@ function showEditorLoading() {
 }
 
 /**
+ * Prepare fold placeholder data. Called when a fold is created.
+ * Returns info about what's being folded (line count, language if code block).
+ */
+function prepareFoldPlaceholder(state, range) {
+  const doc = state.doc;
+  const startLine = doc.lineAt(range.from);
+  const endLine = doc.lineAt(range.to);
+  const lineCount = endLine.number - startLine.number;
+
+  // Check if this is a code block by looking at the line containing fold start
+  const lineText = startLine.text;
+  const codeFenceMatch = lineText.match(/^```(\w*)$/);
+
+  if (codeFenceMatch) {
+    const langCode = codeFenceMatch[1]?.toLowerCase() || "";
+    const language = languageDisplayNames[langCode] || (langCode ? langCode : "");
+    return { lineCount, language, isCodeBlock: true };
+  }
+
+  return { lineCount, language: "", isCodeBlock: false };
+}
+
+/**
+ * Create a custom fold placeholder DOM element.
+ * Uses the prepared data to show contextual information.
+ */
+function createFoldPlaceholder(view, onclick, prepared) {
+  const placeholder = document.createElement("span");
+  placeholder.className = "cm-foldPlaceholder";
+  placeholder.onclick = onclick;
+  placeholder.title = view.state.phrase("unfold");
+  placeholder.setAttribute("aria-label", view.state.phrase("folded code"));
+
+  if (prepared && prepared.lineCount > 0) {
+    const { lineCount, language, isCodeBlock } = prepared;
+    if (isCodeBlock && language) {
+      placeholder.textContent = `${lineCount} line${lineCount === 1 ? "" : "s"} of ${language}`;
+    } else {
+      placeholder.textContent = `${lineCount} line${lineCount === 1 ? "" : "s"}`;
+    }
+  } else {
+    placeholder.textContent = "…";
+  }
+
+  return placeholder;
+}
+
+/**
  * Hide the loading state. Called implicitly when loadPage() populates the editor.
  * This is a no-op since loadPage() replaces editor content, but we reset the title.
  */
@@ -1504,6 +1553,10 @@ function initializeEditor(pageContent = "", additionalExtensions = [], filetype 
       icons: true,
     }),
     foldGutter(),
+    codeFolding({
+      preparePlaceholder: prepareFoldPlaceholder,
+      placeholderDOM: createFoldPlaceholder,
+    }),
     foldService.of(findSectionFold),
     sectionFoldHover,
     foldChangeListener,

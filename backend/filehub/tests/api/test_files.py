@@ -862,6 +862,98 @@ class TestDeleteFileUploadAPI(BaseAuthenticatedViewTestCase):
         self.assertIsNone(file_upload.deleted)
 
 
+class TestRestoreFileUploadAPI(BaseAuthenticatedViewTestCase):
+    """Test POST /api/files/{external_id}/restore/ endpoint."""
+
+    def setUp(self):
+        super().setUp()
+        self.org = OrgFactory()
+        OrgMemberFactory(org=self.org, user=self.user)
+        self.project = ProjectFactory(org=self.org, creator=self.user)
+
+    def test_restore_own_deleted_file_succeeds(self):
+        """Uploader can restore their deleted file."""
+        file_upload = FileUploadFactory(
+            uploaded_by=self.user,
+            project=self.project,
+            deleted=datetime.now(UTC),
+        )
+
+        response = self.send_api_request(
+            url=f"/api/files/{file_upload.external_id}/restore/",
+            method="post",
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        # Verify restored
+        file_upload.refresh_from_db()
+        self.assertIsNone(file_upload.deleted)
+
+        # Should appear in normal queries
+        self.assertTrue(FileUpload.objects.filter(external_id=file_upload.external_id).exists())
+
+    def test_restore_other_users_file_returns_403(self):
+        """Only the uploader can restore their file."""
+        other_user = UserFactory()
+        file_upload = FileUploadFactory(
+            uploaded_by=other_user,
+            project=self.project,
+            deleted=datetime.now(UTC),
+        )
+
+        response = self.send_api_request(
+            url=f"/api/files/{file_upload.external_id}/restore/",
+            method="post",
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+
+        # Verify still deleted
+        file_upload.refresh_from_db()
+        self.assertIsNotNone(file_upload.deleted)
+
+    def test_restore_non_deleted_file_returns_400(self):
+        """Cannot restore a file that is not deleted."""
+        file_upload = FileUploadFactory(uploaded_by=self.user, project=self.project)
+
+        response = self.send_api_request(
+            url=f"/api/files/{file_upload.external_id}/restore/",
+            method="post",
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        data = response.json()
+        self.assertEqual(data["error"], "not_deleted")
+
+    def test_restore_nonexistent_file_returns_404(self):
+        response = self.send_api_request(
+            url="/api/files/00000000-0000-0000-0000-000000000000/restore/",
+            method="post",
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+    def test_restore_unauthenticated_returns_401(self):
+        file_upload = FileUploadFactory(
+            uploaded_by=self.user,
+            project=self.project,
+            deleted=datetime.now(UTC),
+        )
+        self.client.logout()
+
+        response = self.send_api_request(
+            url=f"/api/files/{file_upload.external_id}/restore/",
+            method="post",
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+
+        # Verify still deleted
+        file_upload.refresh_from_db()
+        self.assertIsNotNone(file_upload.deleted)
+
+
 class TestFileSizeValidation(BaseAuthenticatedViewTestCase):
     """Tests for file size limit enforcement."""
 

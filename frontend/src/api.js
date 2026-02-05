@@ -508,3 +508,47 @@ export async function fetchStorageSummary() {
   }
   return response.json();
 }
+
+/**
+ * Delete a file upload (soft delete).
+ * @param {string} fileId - External ID of the file to delete
+ * @returns {Promise<void>}
+ */
+export async function deleteFile(fileId) {
+  const response = await csrfFetch(`${API_BASE}/files/${fileId}/`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || `Failed to delete file: ${response.statusText}`);
+  }
+}
+
+/**
+ * Restore a soft-deleted file upload.
+ * @param {string} fileId - External ID of the file to restore
+ * @returns {Promise<Object>} The restored file upload object
+ */
+export async function restoreFile(fileId) {
+  const response = await csrfFetch(`${API_BASE}/files/${fileId}/restore/`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || `Failed to restore file: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Fetch pages that reference a file.
+ * @param {string} fileId - External ID of the file
+ * @returns {Promise<{references: Array, count: number}>}
+ */
+export async function fetchFileReferences(fileId) {
+  const response = await csrfFetch(`${API_BASE}/files/${fileId}/references/`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch file references: ${response.statusText}`);
+  }
+  return response.json();
+}

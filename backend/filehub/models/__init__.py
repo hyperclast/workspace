@@ -4,10 +4,12 @@ from .deletes import (
     SoftDeleteModel,
     SoftDeleteQuerySet,
 )
+from .links import FileLink
 from .uploads import Blob, FileUpload, FileUploadManager
 
 __all__ = [
     "Blob",
+    "FileLink",
     "FileUpload",
     "FileUploadManager",
     "SoftDeleteAllManager",

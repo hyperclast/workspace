@@ -5,6 +5,7 @@ from django.conf import settings
 from ask.tasks import update_page_embedding
 from backend.utils import log_error, log_info
 from core.helpers import task
+from filehub.models import FileLink
 from pages.models import Page, PageLink, PageMention
 
 from .models import YSnapshot
@@ -56,6 +57,11 @@ def sync_snapshot_with_page(room_id: str):
         _, mentions_changed = PageMention.objects.sync_mentions_for_page(page, content)
         if mentions_changed:
             log_info("Mentions changed for %s", room_id)
+
+        # Sync file links
+        _, file_links_changed = FileLink.objects.sync_links_for_page(page, content)
+        if file_links_changed:
+            log_info("File links changed for %s", room_id)
 
         if not settings.ASK_FEATURE_ENABLED:
             log_info("Skipping embedding compute ask ask feature is disabled.")

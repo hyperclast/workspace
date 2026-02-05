@@ -9,6 +9,7 @@
 - [Finalize a file upload](#finalize-a-file-upload)
 - [Get a download URL](#get-a-download-url)
 - [Delete a file upload](#delete-a-file-upload)
+- [Get file references](#get-file-references)
 - [Webhooks](#webhooks)
   - [R2 Event Webhook](#r2-event-webhook)
 
@@ -571,6 +572,78 @@ See [Overview](./overview.md)
 
 - Status Code: 403 - User is not the uploader or does not have project access
 - Status Code: 404 - File not found
+
+---
+
+## Get file references
+
+Get a list of pages that link to this file. This is useful for warning users before deleting a file that is referenced in pages.
+
+### URL
+
+`/api/files/{external_id}/references/`
+
+### HTTP Method
+
+`GET`
+
+### Path Params
+
+- `external_id` (String, required): The external ID of the file upload
+
+### Query Params
+
+None
+
+### Data Params
+
+None
+
+### Authorization
+
+Requires authentication. User must have **read access** to the file's project via `user_can_access_project()`:
+
+- Org admin (Tier 0)
+- Org member when `org_members_can_access=True` (Tier 1)
+- Project editor with any role (Tier 2)
+
+**Note:** Page-only users (Tier 3) cannot view file references because files are project-scoped.
+
+### Request Headers
+
+See [Overview](./overview.md)
+
+### Response
+
+- Status Code: 200
+- Schema:
+
+```json
+{
+  "references": [
+    {
+      "page_external_id": "page-123-abc-...",
+      "page_title": "My Notes",
+      "link_text": "screenshot"
+    }
+  ],
+  "count": 1
+}
+```
+
+**Notes:**
+
+- Returns pages that contain markdown links to this file (e.g., `[screenshot](/files/proj/file/token/)`)
+- Excludes deleted pages and pages in deleted projects
+- Pages without a title show "Untitled" in the response
+- The `link_text` field contains the display text from the markdown link
+- File links are tracked automatically when pages are saved via real-time collaboration
+- Uses the `FileLink` model which mirrors the `PageLink` pattern for page-to-page links
+
+**Error Responses:**
+
+- Status Code: 403 - User does not have access to the file's project
+- Status Code: 404 - File not found or deleted
 
 ---
 

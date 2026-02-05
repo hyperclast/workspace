@@ -23,7 +23,10 @@
     getExpandedFilesSections,
     toggleFilesSectionExpanded,
     getAllProjectFiles,
+    removeFileFromProject,
+    addFileToProject,
   } from "../stores/sidenav.svelte.js";
+  import { deleteFile, restoreFile, fetchFileReferences } from "../../api.js";
 
   // Icons
   const chevronIcon = `<svg class="project-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
@@ -39,10 +42,13 @@
   const fileIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>`;
   const smallChevronIcon = `<svg class="files-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
   const importIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
+  const copyIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+  const insertIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>`;
 
   // Local state
   let openMenuId = $state(null);
   let openPageMenuId = $state(null);
+  let openFileMenuId = $state(null);
 
   // Derived state using getters
   let projects = $derived(getProjects());
@@ -99,6 +105,7 @@
   function closeAllMenus() {
     openMenuId = null;
     openPageMenuId = null;
+    openFileMenuId = null;
   }
 
   async function handleShare(e, project) {
@@ -341,6 +348,170 @@
     return projectFiles[projectId] || [];
   }
 
+  // Copy/Insert link helpers
+  function copyToClipboard(text, successMessage = "Link copied to clipboard") {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast(successMessage);
+    }).catch(() => {
+      showToast("Failed to copy link", "error");
+    });
+  }
+
+  function insertIntoEditor(markdown) {
+    if (!window.editorView) {
+      showToast("No editor available", "error");
+      return;
+    }
+    const view = window.editorView;
+    const cursor = view.state.selection.main.head;
+    view.dispatch({
+      changes: { from: cursor, insert: markdown },
+      selection: { anchor: cursor + markdown.length },
+    });
+    view.focus();
+    showToast("Link inserted");
+  }
+
+  // Page link actions
+  function handlePageCopyLink(e, pageId) {
+    e.stopPropagation();
+    closeAllMenus();
+    const url = `${window.location.origin}/pages/${pageId}/`;
+    copyToClipboard(url);
+  }
+
+  function handlePageInsertLink(e, pageId, pageTitle) {
+    e.stopPropagation();
+    closeAllMenus();
+    const markdown = `[${pageTitle || "Untitled"}](/pages/${pageId}/)\n`;
+    insertIntoEditor(markdown);
+  }
+
+  // File menu handlers
+  function handleFileMenuBtnClick(e, fileId) {
+    e.stopPropagation();
+    openFileMenuId = openFileMenuId === fileId ? null : fileId;
+    openMenuId = null;
+    openPageMenuId = null;
+  }
+
+  function handleFileCopyLink(e, file) {
+    e.stopPropagation();
+    closeAllMenus();
+    if (file.link) {
+      copyToClipboard(file.link);
+    } else {
+      showToast("No download link available", "error");
+    }
+  }
+
+  function handleFileInsertLink(e, file) {
+    e.stopPropagation();
+    closeAllMenus();
+    if (file.link) {
+      const markdown = `[${file.filename}](${file.link})\n`;
+      insertIntoEditor(markdown);
+    } else {
+      showToast("No download link available", "error");
+    }
+  }
+
+  function handleFileDownload(e, file) {
+    e.stopPropagation();
+    closeAllMenus();
+    if (file.link) {
+      window.open(file.link, "_blank");
+    } else {
+      showToast("No download link available", "error");
+    }
+  }
+
+  async function handleFileDelete(e, file, projectId) {
+    e.stopPropagation();
+    closeAllMenus();
+
+    if (isDemoMode()) {
+      showToast("Not available in demo", "error");
+      return;
+    }
+
+    // Check for references before deleting
+    // 1. Check current editor content (catches unsaved links)
+    // 2. Check database via API (catches links in other pages)
+    let refWarning = "";
+    let hasLocalReference = false;
+    let hasRemoteReferences = false;
+
+    // Check current editor for unsaved references to this file
+    if (window.editorView) {
+      const content = window.editorView.state.doc.toString();
+      // Match file links: [text](/files/{project_id}/{file_id}/{token}/)
+      const fileIdPattern = new RegExp(`/files/[^/]+/${file.external_id}/`, "g");
+      if (fileIdPattern.test(content)) {
+        hasLocalReference = true;
+      }
+    }
+
+    // Check database for saved references in other pages
+    try {
+      const refs = await fetchFileReferences(file.external_id);
+      if (refs.count > 0) {
+        hasRemoteReferences = true;
+        const names = refs.references.slice(0, 3).map(r => r.page_title).join(", ");
+        const more = refs.count > 3 ? ` and ${refs.count - 3} more` : "";
+        refWarning = `This file is linked in ${refs.count} page${refs.count > 1 ? "s" : ""}: ${names}${more}.`;
+      }
+    } catch (err) {
+      console.error("Failed to check file references:", err);
+    }
+
+    // Show confirmation if there are any references
+    if (hasLocalReference || hasRemoteReferences) {
+      let description = "";
+      if (hasLocalReference && !hasRemoteReferences) {
+        description = "This file is linked in the current page.";
+      } else if (hasRemoteReferences) {
+        description = refWarning;
+        if (hasLocalReference) {
+          description += " It's also linked in the current page.";
+        }
+      }
+      description += " Those links will break.";
+
+      const confirmed = await confirm({
+        title: "Delete File",
+        message: `Delete "${file.filename}"?`,
+        description,
+        confirmText: "Delete",
+        danger: true,
+      });
+
+      if (!confirmed) return;
+    }
+
+    // Delete the file and show toast with undo
+    try {
+      await deleteFile(file.external_id);
+      removeFileFromProject(projectId, file.external_id);
+      showToast(`"${file.filename}" deleted`, "success", {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            try {
+              await restoreFile(file.external_id);
+              addFileToProject(projectId, file);
+              showToast(`"${file.filename}" restored`);
+            } catch (err) {
+              showToast(err.message || "Failed to restore file", "error");
+            }
+          },
+        },
+      });
+    } catch (error) {
+      showToast(error.message || "Failed to delete file", "error");
+    }
+  }
+
   // Keyboard handlers for interactive divs (a11y)
   // Only triggers when the event target is the element itself (not a child button)
   // Enter activates on keydown, Space activates on keyup (matching native button behavior)
@@ -365,7 +536,7 @@
 
   // Close menus when clicking outside
   function handleGlobalClick(e) {
-    if (!e.target.closest(".project-menu") && !e.target.closest(".page-menu")) {
+    if (!e.target.closest(".project-menu") && !e.target.closest(".page-menu") && !e.target.closest(".file-menu")) {
       closeAllMenus();
     }
   }
@@ -516,6 +687,20 @@
                     Share
                   </button>
                   <button
+                    class="page-menu-item"
+                    onclick={(e) => handlePageCopyLink(e, page.external_id)}
+                  >
+                    {@html copyIcon}
+                    Copy link
+                  </button>
+                  <button
+                    class="page-menu-item"
+                    onclick={(e) => handlePageInsertLink(e, page.external_id, page.title)}
+                  >
+                    {@html insertIcon}
+                    Insert link
+                  </button>
+                  <button
                     class="page-menu-item page-menu-delete"
                     onclick={(e) => handlePageDelete(e, page.external_id, page.title)}
                   >
@@ -567,6 +752,46 @@
                       {#if file.size_bytes}
                         <span class="file-size">{formatFileSize(file.size_bytes, { compact: true })}</span>
                       {/if}
+                      <div class="file-menu">
+                        <button
+                          class="file-menu-btn"
+                          title="File options"
+                          onclick={(e) => handleFileMenuBtnClick(e, file.external_id)}
+                        >
+                          {@html pageMenuIcon}
+                        </button>
+                        <div class="file-menu-dropdown" class:open={openFileMenuId === file.external_id}>
+                          <div class="menu-title">FILE</div>
+                          <button
+                            class="file-menu-item"
+                            onclick={(e) => handleFileCopyLink(e, file)}
+                          >
+                            {@html copyIcon}
+                            Copy link
+                          </button>
+                          <button
+                            class="file-menu-item"
+                            onclick={(e) => handleFileInsertLink(e, file)}
+                          >
+                            {@html insertIcon}
+                            Insert link
+                          </button>
+                          <button
+                            class="file-menu-item"
+                            onclick={(e) => handleFileDownload(e, file)}
+                          >
+                            {@html downloadIcon}
+                            Download
+                          </button>
+                          <button
+                            class="file-menu-item file-menu-delete"
+                            onclick={(e) => handleFileDelete(e, file, project.external_id)}
+                          >
+                            {@html deleteIcon}
+                            Delete
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   {/each}
                 {/if}
