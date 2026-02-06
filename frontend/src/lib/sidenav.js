@@ -3,6 +3,7 @@
  */
 
 import { mount } from "svelte";
+import { SIDEBAR_OVERLAY_BREAKPOINT } from "../config.js";
 import Sidenav from "./components/Sidenav.svelte";
 import {
   setProjects,
@@ -153,24 +154,94 @@ export { getProjectFiles };
  */
 export { addFileToProject };
 
+const LEFT_COLLAPSED_KEY = "ws-left-sidebar-collapsed";
+
 /**
- * Setup sidebar toggle behavior for mobile.
+ * Setup sidebar toggle behavior.
+ * - At <=1024px (overlay mode): toggle opens/closes sidebar as fixed overlay with backdrop.
+ * - At >1024px (inline mode): toggle collapses/expands sidebar inline. State saved to localStorage.
  */
 function setupToggle() {
   const toggle = document.getElementById("sidebar-toggle");
   const sidebar = document.getElementById("note-sidebar");
   const overlay = document.getElementById("sidebar-overlay");
 
-  function open() {
-    sidebar?.classList.add("open");
+  if (!toggle || !sidebar) return;
+
+  const isOverlayMode = () => window.innerWidth <= SIDEBAR_OVERLAY_BREAKPOINT;
+
+  function openOverlay() {
+    sidebar.classList.add("open");
     overlay?.classList.add("visible");
   }
 
-  function close() {
-    sidebar?.classList.remove("open");
+  function closeOverlay() {
+    sidebar.classList.remove("open");
     overlay?.classList.remove("visible");
   }
 
-  toggle?.addEventListener("click", open);
-  overlay?.addEventListener("click", close);
+  function collapseInline() {
+    sidebar.classList.add("collapsed");
+    // Clear inline width set by resize handler — otherwise it overrides .collapsed { width: 0 }
+    sidebar.style.width = "";
+    localStorage.setItem(LEFT_COLLAPSED_KEY, "true");
+  }
+
+  function expandInline() {
+    sidebar.classList.remove("collapsed");
+    // Restore saved resize width if any
+    const savedWidth = localStorage.getItem("ws-left-sidebar-width");
+    if (savedWidth) {
+      sidebar.style.width = `${savedWidth}px`;
+    }
+    localStorage.setItem(LEFT_COLLAPSED_KEY, "false");
+  }
+
+  // Toggle click handler
+  toggle.addEventListener("click", () => {
+    if (isOverlayMode()) {
+      if (sidebar.classList.contains("open")) {
+        closeOverlay();
+      } else {
+        openOverlay();
+      }
+    } else {
+      if (sidebar.classList.contains("collapsed")) {
+        expandInline();
+      } else {
+        collapseInline();
+      }
+    }
+  });
+
+  // Overlay click closes sidebar
+  overlay?.addEventListener("click", closeOverlay);
+
+  // Handle resize: transition between overlay and inline modes
+  window.addEventListener("resize", () => {
+    if (!isOverlayMode()) {
+      // Moved to desktop: close overlay if open, restore inline state
+      if (sidebar.classList.contains("open")) {
+        closeOverlay();
+      }
+    } else {
+      // Moved to overlay mode: remove inline collapsed state and restore width
+      if (sidebar.classList.contains("collapsed")) {
+        sidebar.classList.remove("collapsed");
+        const savedWidth = localStorage.getItem("ws-left-sidebar-width");
+        if (savedWidth) {
+          sidebar.style.width = `${savedWidth}px`;
+        }
+      }
+    }
+  });
+
+  // On load at >1024px: restore collapsed state from localStorage
+  if (!isOverlayMode()) {
+    const saved = localStorage.getItem(LEFT_COLLAPSED_KEY);
+    if (saved === "true") {
+      sidebar.classList.add("collapsed");
+      sidebar.style.width = "";
+    }
+  }
 }

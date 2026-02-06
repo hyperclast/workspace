@@ -87,6 +87,56 @@ describe("decorateFormatting", () => {
     });
   });
 
+  describe("Italic formatting", () => {
+    test("*text* gets format-italic class", () => {
+      ({ view, parent } = createEditor("*italic text*"));
+      expect(hasClass(view, "format-italic")).toBe(true);
+    });
+
+    test("cursor elsewhere hides * markers", () => {
+      ({ view, parent } = createEditor("Line 1\n*italic*\nLine 3"));
+      view.dispatch({ selection: { anchor: 0 } });
+
+      const text = view.contentDOM.textContent;
+      expect(text).toContain("italic");
+      expect(text).not.toContain("*italic*");
+    });
+
+    test("cursor on line shows * markers", () => {
+      ({ view, parent } = createEditor("*italic*"));
+      view.dispatch({ selection: { anchor: 4 } });
+
+      const text = view.contentDOM.textContent;
+      expect(text).toContain("*italic*");
+    });
+
+    test("multiple italic on same line", () => {
+      ({ view, parent } = createEditor("*a* and *b* and *c*"));
+      view.dispatch({ selection: { anchor: 0 } });
+
+      expect(countClass(view, "format-italic")).toBe(3);
+    });
+
+    test("**bold** is not styled as italic", () => {
+      ({ view, parent } = createEditor("**bold**"));
+      expect(hasClass(view, "format-italic")).toBe(false);
+      expect(hasClass(view, "format-bold")).toBe(true);
+    });
+
+    test("bold and italic on same line", () => {
+      ({ view, parent } = createEditor("**bold** and *italic*"));
+      view.dispatch({ selection: { anchor: 0 } });
+
+      expect(hasClass(view, "format-bold")).toBe(true);
+      expect(hasClass(view, "format-italic")).toBe(true);
+    });
+
+    test("asterisk in middle of word is not italic", () => {
+      ({ view, parent } = createEditor("test*word"));
+      expect(hasClass(view, "format-italic")).toBe(false);
+    });
+  });
+
   describe("Underline formatting", () => {
     test("__text__ gets format-underline class", () => {
       ({ view, parent } = createEditor("__underlined__"));

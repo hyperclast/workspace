@@ -32,6 +32,7 @@ export function setupPresenceUI(awareness) {
     // Update user count
     const count = users.length;
     userCountSpan.textContent = count === 1 ? "1 user editing" : `${count} users editing`;
+    userCountSpan.setAttribute("data-count", count);
 
     // Update presence list
     presenceList.innerHTML = users
@@ -74,6 +75,20 @@ export function setupPresenceUI(awareness) {
     hideTimeout = setTimeout(() => {
       presencePopover.style.display = "none";
     }, 300);
+  });
+
+  // Click to open (for touch devices where hover doesn't work)
+  presenceIndicator.addEventListener("click", () => {
+    clearTimeout(hideTimeout);
+    presencePopover.style.display = "block";
+  });
+
+  // Close on click outside
+  document.addEventListener("click", (e) => {
+    if (!presenceIndicator.contains(e.target)) {
+      clearTimeout(hideTimeout);
+      presencePopover.style.display = "none";
+    }
   });
 
   // Return cleanup function

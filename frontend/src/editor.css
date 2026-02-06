@@ -266,6 +266,10 @@
   text-decoration: underline;
 }
 
+.format-italic {
+  font-style: italic;
+}
+
 .format-heading {
   font-weight: 600;
   color: var(--text-primary);

@@ -5,6 +5,10 @@
  * All API requests use relative URLs (same origin).
  */
 
+// Layout breakpoint: below this width, sidebars use overlay mode.
+// Keep in sync with @media (max-width: 1024px) in style.css.
+export const SIDEBAR_OVERLAY_BREAKPOINT = 1024;
+
 // API base URL is always empty string in single-origin setup
 export const API_BASE_URL = "";
 

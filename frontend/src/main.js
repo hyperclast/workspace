@@ -76,6 +76,7 @@ import {
   notifyPageChange,
   setupSidebar,
   openSidebar,
+  closeSidebar,
   setActiveTab,
 } from "./lib/sidebar.js";
 import {
@@ -253,14 +254,7 @@ function renderAppHTML() {
                 </div>
               </div>
             </div>
-            <div class="note-header-actions">
-              <button id="chat-toggle-btn" class="chat-toggle-btn" title="Toggle AI chat">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                </svg>
-                <span>AI</span>
-              </button>
-            </div>
+            <div class="note-header-actions"></div>
           </div>
         </div>
 
@@ -1098,6 +1092,20 @@ function setupIndicatorPopover(wrapper, popover) {
     hideTimeout = setTimeout(() => {
       popover.style.display = "none";
     }, 200);
+  });
+
+  // Click to open (for touch devices where hover doesn't work)
+  wrapper.addEventListener("click", () => {
+    clearTimeout(hideTimeout);
+    popover.style.display = "block";
+  });
+
+  // Close on click/tap outside
+  document.addEventListener("click", (e) => {
+    if (!wrapper.contains(e.target)) {
+      clearTimeout(hideTimeout);
+      popover.style.display = "none";
+    }
   });
 }
 

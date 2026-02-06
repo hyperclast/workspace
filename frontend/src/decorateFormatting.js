@@ -4,6 +4,7 @@ import { CODE_FENCE_SCAN_LIMIT_LINES } from "./config/performance.js";
 import { getShortcut, isShortcutDisabled, onShortcutChange } from "./lib/keyboardShortcuts.js";
 
 const BOLD_REGEX = /\*\*(.+?)\*\*/g;
+const ITALIC_REGEX = /(?<!\*)\*(?!\*)([^*\n]+?)\*(?!\*)/g;
 const UNDERLINE_REGEX = /__(.+?)__/g;
 const INLINE_CODE_REGEX = /`([^`\n]+)`/g;
 export const HEADING_REGEX = /^(#{1,6})\s+(.*)$/;
@@ -439,6 +440,24 @@ export const decorateFormatting = ViewPlugin.fromClass(
         }
 
         builder.push(Decoration.mark({ class: "format-bold" }).range(innerStart, innerEnd));
+
+        if (!cursorOnLine) {
+          builder.push(Decoration.replace({}).range(innerEnd, end));
+        }
+      }
+
+      const italicRegex = new RegExp(ITALIC_REGEX.source, "gu");
+      while ((match = italicRegex.exec(lineText)) !== null) {
+        const start = line.from + match.index;
+        const end = start + match[0].length;
+        const innerStart = start + 1;
+        const innerEnd = end - 1;
+
+        if (!cursorOnLine) {
+          builder.push(Decoration.replace({}).range(start, innerStart));
+        }
+
+        builder.push(Decoration.mark({ class: "format-italic" }).range(innerStart, innerEnd));
 
         if (!cursorOnLine) {
           builder.push(Decoration.replace({}).range(innerEnd, end));

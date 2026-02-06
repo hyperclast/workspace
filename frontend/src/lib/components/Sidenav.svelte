@@ -34,6 +34,12 @@
   const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico"];
   const PDF_EXTENSION = ".pdf";
 
+  // Check if a file is an image based on filename
+  function isImageFile(filename) {
+    const lower = (filename || "").toLowerCase();
+    return IMAGE_EXTENSIONS.some((ext) => lower.endsWith(ext));
+  }
+
   // Icons
   const chevronIcon = `<svg class="project-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
   const menuIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>`;
@@ -50,6 +56,7 @@
   const importIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
   const copyIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
   const insertIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>`;
+  const imageIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>`;
 
   // Local state
   let openMenuId = $state(null);
@@ -387,6 +394,7 @@
     view.dispatch({
       changes: { from: cursor, insert: markdown },
       selection: { anchor: cursor + markdown.length },
+      scrollIntoView: true,
     });
     view.focus();
     showToast("Link inserted");
@@ -430,6 +438,17 @@
     closeAllMenus();
     if (file.link) {
       const markdown = `[${file.filename}](${file.link})\n`;
+      insertIntoEditor(markdown);
+    } else {
+      showToast("No download link available", "error");
+    }
+  }
+
+  function handleFileInsertPreview(e, file) {
+    e.stopPropagation();
+    closeAllMenus();
+    if (file.link) {
+      const markdown = `![${file.filename}](${file.link})\n`;
       insertIntoEditor(markdown);
     } else {
       showToast("No download link available", "error");
@@ -796,6 +815,15 @@
                             {@html insertIcon}
                             Insert link
                           </button>
+                          {#if isImageFile(file.filename)}
+                            <button
+                              class="file-menu-item"
+                              onclick={(e) => handleFileInsertPreview(e, file)}
+                            >
+                              {@html imageIcon}
+                              Insert preview
+                            </button>
+                          {/if}
                           <button
                             class="file-menu-item"
                             onclick={(e) => handleFileDownload(e, file)}

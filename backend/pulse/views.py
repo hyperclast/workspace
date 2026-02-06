@@ -55,14 +55,16 @@ def dashboard(request):
     # Calculate DAU/MAU ratio (average DAU over last 30 days / current MAU)
     dau_mau_ratio = None
     if current_mau and current_mau > 0:
+        # Use 29 days ago to match MAU's 30-day window (today - 29 days to today = 30 days)
+        dau_start = today - timedelta(days=29)
         recent_dau = PulseMetric.objects.filter(
             metric_type="dau",
-            date__gte=thirty_days_ago,
+            date__gte=dau_start,
             date__lte=today,
         ).values_list("value", flat=True)
         if recent_dau:
             avg_dau = sum(recent_dau) / len(recent_dau)
-            dau_mau_ratio = round((avg_dau / current_mau) * 100, 1)
+            dau_mau_ratio = round((avg_dau / current_mau) * 100, 2)
 
     # Get last computed time
     last_computed = (
@@ -180,14 +182,16 @@ def growth_dashboard(request):
     # Calculate DAU/MAU ratio (average DAU over last 30 days / current MAU)
     dau_mau_ratio = None
     if current_mau and current_mau > 0:
+        # Use 29 days ago to match MAU's 30-day window (today - 29 days to today = 30 days)
+        dau_start = today - timedelta(days=29)
         recent_dau = PulseMetric.objects.filter(
             metric_type="dau",
-            date__gte=thirty_days_ago,
+            date__gte=dau_start,
             date__lte=today,
         ).values_list("value", flat=True)
         if recent_dau:
             avg_dau = sum(recent_dau) / len(recent_dau)
-            dau_mau_ratio = round((avg_dau / current_mau) * 100, 1)
+            dau_mau_ratio = round((avg_dau / current_mau) * 100, 2)
 
     context = {
         "mau_data_json": json.dumps(mau_data),

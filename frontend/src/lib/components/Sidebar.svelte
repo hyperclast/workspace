@@ -8,7 +8,7 @@
     closeSidebar,
     openSidebar,
   } from "../stores/sidebar.svelte.js";
-  import { getFeatureFlags } from "../../config.js";
+  import { getFeatureFlags, SIDEBAR_OVERLAY_BREAKPOINT } from "../../config.js";
   import AskTab from "./sidebar/AskTab.svelte";
   import LinksTab from "./sidebar/LinksTab.svelte";
   import DevTab from "./sidebar/DevTab.svelte";
@@ -22,8 +22,8 @@
   let activeTab = $derived(state.activeTab);
   let tabs = $derived(state.tabs);
 
-  // Check if mobile
-  const isMobile = () => window.innerWidth <= 640;
+  // Check if in overlay mode (sidebars overlay content instead of pushing it)
+  const isMobile = () => window.innerWidth <= SIDEBAR_OVERLAY_BREAKPOINT;
 
   function handleClose() {
     if (isMobile()) {
@@ -41,16 +41,27 @@
     }
   }
 
-  function handleTabClick(tabId) {
-    setActiveTab(tabId);
-  }
-
-  // Handle clicks outside sidebar on mobile
-  function handleOverlayClick() {
-    closeSidebar();
-  }
-
   onMount(() => {
+    // Manually attach click handlers since Svelte's onclick doesn't work with mount().
+    // Use getElementById instead of bind:this since $state refs cause errors with mount().
+    const expandBtn = document.getElementById("chat-expand-btn");
+    const closeBtn = document.getElementById("chat-close-btn");
+    const overlay = document.getElementById("chat-overlay");
+    const tabsContainer = document.querySelector(".sidebar-tabs");
+
+    expandBtn?.addEventListener("click", handleExpand);
+    closeBtn?.addEventListener("click", handleClose);
+    overlay?.addEventListener("click", () => closeSidebar());
+
+    // Tab clicks via delegation on the tabs container
+    const handleTabContainerClick = (e) => {
+      const tab = e.target.closest(".sidebar-tab");
+      if (tab?.dataset.tab) {
+        setActiveTab(tab.dataset.tab);
+      }
+    };
+    tabsContainer?.addEventListener("click", handleTabContainerClick);
+
     // Handle window resize
     const handleResize = () => {
       // Close mobile sidebar when switching to desktop
@@ -58,9 +69,15 @@
         closeSidebar();
       }
     };
-
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+
+    return () => {
+      expandBtn?.removeEventListener("click", handleExpand);
+      closeBtn?.removeEventListener("click", handleClose);
+      overlay?.removeEventListener("click", () => closeSidebar());
+      tabsContainer?.removeEventListener("click", handleTabContainerClick);
+      window.removeEventListener("resize", handleResize);
+    };
   });
 </script>
 
@@ -69,8 +86,6 @@
   id="chat-overlay"
   class="chat-overlay"
   class:visible={isOpen}
-  onclick={handleOverlayClick}
-  onkeydown={(e) => e.key === 'Escape' && handleOverlayClick()}
   role="button"
   tabindex="-1"
   aria-label="Close sidebar"
@@ -91,13 +106,12 @@
           class="sidebar-tab"
           class:active={activeTab === tab.id}
           data-tab={tab.id}
-          onclick={() => handleTabClick(tab.id)}
         >
           {tab.label}
         </button>
       {/each}
     </div>
-    <button id="chat-close-btn" class="chat-close-btn" title="Collapse sidebar" onclick={handleClose}>
+    <button id="chat-close-btn" class="chat-close-btn" title="Collapse sidebar">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="9 18 15 12 9 6"></polyline>
       </svg>
@@ -146,16 +160,13 @@
   {/each}
 </aside>
 
-<!-- Expand button (outside sidebar, shown when collapsed) -->
-{#if isCollapsed}
-  <button
-    id="chat-expand-btn"
-    class="chat-expand-btn visible"
-    title="Open sidebar"
-    onclick={handleExpand}
-  >
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <polyline points="15 18 9 12 15 6"></polyline>
-    </svg>
-  </button>
-{/if}
+<!-- Expand button (outside sidebar) — visibility controlled by CSS sibling selectors -->
+<button
+  id="chat-expand-btn"
+  class="chat-expand-btn"
+  title="Open sidebar"
+>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="15 18 9 12 15 6"></polyline>
+  </svg>
+</button>

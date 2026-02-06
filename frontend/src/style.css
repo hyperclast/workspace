@@ -648,6 +648,19 @@ nav {
   border-right: 1px solid var(--border-light);
   display: flex;
   flex-direction: column;
+  transition: width 0.2s ease, min-width 0.2s ease;
+}
+
+/* Desktop inline collapse */
+.note-sidebar.collapsed {
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+  border-right: none;
+}
+
+.note-sidebar.collapsed .sidebar-resize-handle {
+  display: none;
 }
 
 .sidebar-header {
@@ -1350,9 +1363,11 @@ body.sidebar-resizing .chat-sidebar {
   min-height: 0;
 }
 
-/* Mobile sidebar toggle button */
+/* Sidebar toggle button (hamburger) */
 .sidebar-toggle {
-  display: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
   padding: 0.5rem;
@@ -1960,39 +1975,8 @@ body.sidebar-resizing .chat-sidebar {
   text-overflow: ellipsis;
 }
 
-/* Chat toggle button in header (mobile only) */
-.chat-toggle-btn {
-  display: none;
-  background: transparent;
-  border: 1px solid var(--border-light);
-  padding: 0.35rem 0.6rem;
-  border-radius: 4px;
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  align-items: center;
-  gap: 0.35rem;
-  transition: all 0.15s;
-}
-
-.chat-toggle-btn:hover {
-  background: rgba(55, 53, 47, 0.04);
-  color: var(--text-primary);
-  border-color: var(--text-secondary);
-}
-
-.chat-toggle-btn.active {
-  background: rgba(35, 131, 226, 0.1);
-  color: #2383e2;
-  border-color: #2383e2;
-}
-
-.chat-toggle-btn svg {
-  width: 14px;
-  height: 14px;
-}
-
-/* Floating expand button (desktop, when collapsed) */
+/* Floating expand button — shown when sidebar is not visible.
+   Default: hidden. Shown via sibling selectors on .chat-sidebar state. */
 .chat-expand-btn {
   position: absolute;
   right: 0;
@@ -2005,11 +1989,16 @@ body.sidebar-resizing .chat-sidebar {
   border-radius: 6px 0 0 6px;
   cursor: pointer;
   color: var(--text-secondary);
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   transition: all 0.15s;
   box-shadow: -2px 0 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Desktop: show when sidebar is collapsed */
+.chat-sidebar.collapsed ~ .chat-expand-btn {
+  display: flex;
 }
 
 .chat-expand-btn:hover {
@@ -2034,17 +2023,9 @@ body.sidebar-resizing .chat-sidebar {
   z-index: 999;
 }
 
-@media (max-width: 640px) {
-  :root {
-    --page-padding: 16px;
-  }
-
-  .sidebar-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
+/* Sidebar overlay mode: both sidebars collapse and open as overlays.
+   Keep breakpoint in sync with SIDEBAR_OVERLAY_BREAKPOINT in config.js. */
+@media (max-width: 1024px) {
   .note-sidebar {
     position: fixed;
     top: 0;
@@ -2056,31 +2037,30 @@ body.sidebar-resizing .chat-sidebar {
     box-shadow: 2px 0 12px rgba(0, 0, 0, 0.1);
   }
 
+  /* Override desktop collapsed state in overlay mode */
+  .note-sidebar.collapsed {
+    width: 260px;
+    border-right: 1px solid var(--border-light);
+    overflow: visible;
+  }
+
   .note-sidebar.open {
     transform: translateX(0);
   }
 
-  /* Project hierarchy adjustments for mobile */
-  .sidebar-project-pages {
-    margin-left: 0.25rem;
-    padding-left: 0.5rem;
-  }
-
-  .sidebar-project-header {
-    padding: 0.4rem 0.6rem;
-    font-size: 0.8rem;
-  }
-
-  .project-org {
-    display: none; /* Hide org name on mobile to save space */
-  }
-
-  .chat-toggle-btn {
-    display: flex;
-  }
-
+  /* Show expand chevron on mobile (sidebar is off-screen by default) */
   .chat-expand-btn {
-    display: none !important;
+    display: flex;
+    position: fixed;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 999;
+  }
+
+  /* Hide when sidebar overlay is open */
+  .chat-sidebar.open ~ .chat-expand-btn {
+    display: none;
   }
 
   .chat-overlay.visible {
@@ -2101,18 +2081,48 @@ body.sidebar-resizing .chat-sidebar {
     border-left: 1px solid var(--border-light);
   }
 
+  /* Override desktop collapsed styles — in overlay mode, transform handles hiding */
   .chat-sidebar.collapsed {
     width: 100%;
     max-width: 360px;
+    flex: none;
     border-left: 1px solid var(--border-light);
+    visibility: visible;
+    overflow: visible;
   }
 
   .chat-sidebar.open {
     transform: translateX(0);
   }
 
+  /* Hide resize handles in overlay mode */
+  .sidebar-resize-handle {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --page-padding: 16px;
+  }
+
   .note-title-input {
     font-size: 1.5rem;
+  }
+
+  /* Project hierarchy adjustments for small screens */
+  .sidebar-project-pages {
+    margin-left: 0.25rem;
+    padding-left: 0.5rem;
+  }
+
+  .sidebar-project-header {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+  }
+
+  .project-org {
+    display: none; /* Hide org name on small screens to save space */
   }
 }
 
@@ -2187,6 +2197,7 @@ body.sidebar-resizing .chat-sidebar {
   justify-content: space-between;
   margin-bottom: 0.25rem;
   gap: 0.75rem;
+  container-type: inline-size;
 }
 
 .breadcrumb {
@@ -2197,6 +2208,7 @@ body.sidebar-resizing .chat-sidebar {
   color: rgba(55, 53, 47, 0.65);
   flex: 1;
   min-width: 0;
+  overflow: hidden;
 }
 
 .breadcrumb-item {
@@ -2208,15 +2220,18 @@ body.sidebar-resizing .chat-sidebar {
   transition: background 0.15s ease;
   cursor: default;
   text-decoration: none;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Page title in breadcrumb - takes remaining space and truncates */
 .breadcrumb-item.breadcrumb-page {
-  flex: none;
+  flex: 0 1 auto;
   min-width: 0;
   max-width: none;
-  display: inline;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2262,6 +2277,7 @@ body.sidebar-resizing .chat-sidebar {
   color: rgba(55, 53, 47, 0.35);
   margin: 0 0.125rem;
   user-select: none;
+  flex-shrink: 0;
 }
 
 [data-theme="dark"] .breadcrumb {
@@ -2332,6 +2348,7 @@ body.sidebar-resizing .chat-sidebar {
   color: #2383e2;
   cursor: pointer;
   transition: background 0.15s;
+  white-space: nowrap;
 }
 
 .presence-indicator:hover {
@@ -2379,6 +2396,52 @@ body.sidebar-resizing .chat-sidebar {
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+/* Breadcrumb responsive — container queries react to actual available width */
+@container (max-width: 400px) {
+  .presence-indicator #user-count {
+    font-size: 0;
+  }
+
+  .presence-indicator #user-count::before {
+    content: attr(data-count);
+    font-size: 0.8rem;
+  }
+
+  #breadcrumb-org,
+  #breadcrumb-org + .breadcrumb-sep {
+    display: none;
+  }
+
+  .breadcrumb-item {
+    max-width: 100px;
+  }
+}
+
+@container (max-width: 250px) {
+  .breadcrumb-actions .actions-btn {
+    font-size: 0;
+    padding: 0.25rem 0.4rem;
+    line-height: 1;
+  }
+
+  .breadcrumb-actions .actions-btn::before {
+    content: "\22EE";
+    font-size: 1rem;
+  }
+
+  .breadcrumb-actions .actions-btn .btn-chevron {
+    display: none;
+  }
+
+  .breadcrumb-sep {
+    display: none;
+  }
+
+  .breadcrumb-item {
+    max-width: 80px;
+  }
 }
 
 /* Collaboration status indicator */
@@ -2720,7 +2783,9 @@ body.sidebar-resizing .chat-sidebar {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   min-width: 180px;
   z-index: 1000;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: calc(100vh - 120px);
 }
 
 .actions-dropdown-item {

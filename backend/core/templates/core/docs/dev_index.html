@@ -48,7 +48,14 @@
       line-height: 1.5;
     }
     .dev-highlight-card .highlight-icon {
-      font-size: 1.25rem;
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      color: #667eea;
+    }
+    :root.dark .dev-highlight-card .highlight-icon,
+    :root[data-theme="dark"] .dev-highlight-card .highlight-icon {
+      color: #a0b4ff;
     }
 
     .dev-section {
@@ -191,28 +198,57 @@
 
     <div class="dev-highlight-grid">
       <a href="{% url 'core:api_docs' 'ask' %}" class="dev-highlight-card">
-        <h3><span class="highlight-icon">&#x2728;</span> AI-Powered Q&A</h3>
+        <h3>
+          <svg class="highlight-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
+            <path d="M19 13l1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3z"/>
+            <path d="M5 17l.5 1.5L7 19l-1.5.5L5 21l-.5-1.5L3 19l1.5-.5L5 17z"/>
+          </svg>
+          AI-Powered Q&A
+        </h3>
         <p>
           Ask questions in natural language and get answers grounded in your pages.
           RAG-based retrieval with citations.
         </p>
       </a>
       <a href="{% url 'core:oss_index' %}" class="dev-highlight-card">
-        <h3><span class="highlight-icon">&#x1F4BB;</span> Real-Time Collaboration</h3>
+        <h3>
+          <svg class="highlight-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          Real-Time Collaboration
+        </h3>
         <p>
           Multiple users editing the same doc simultaneously. CRDT-based sync via
           WebSockets means no conflicts, ever.
         </p>
       </a>
       <a href="{% url 'core:api_docs' 'overview' %}" class="dev-highlight-card">
-        <h3><span class="highlight-icon">&#x26A1;</span> Full REST API</h3>
+        <h3>
+          <svg class="highlight-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"/>
+            <polyline points="8 6 2 12 8 18"/>
+          </svg>
+          Full REST API
+        </h3>
         <p>
           Everything you can do in the UI, you can do via API. Pages, projects,
           orgs, sharing — all programmable.
         </p>
       </a>
       <a href="{% url 'core:oss_index' %}" class="dev-highlight-card">
-        <h3><span class="highlight-icon">&#x1F513;</span> Fully Open Source</h3>
+        <h3>
+          <svg class="highlight-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="6" y1="3" x2="6" y2="15"/>
+            <circle cx="18" cy="6" r="3"/>
+            <circle cx="6" cy="18" r="3"/>
+            <path d="M18 9a9 9 0 0 1-9 9"/>
+          </svg>
+          Fully Open Source
+        </h3>
         <p>
           Not just an API — the entire platform is open source. Fork it, self-host it,
           learn from it, contribute to it.
