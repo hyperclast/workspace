@@ -6,6 +6,7 @@ import { getShortcut, isShortcutDisabled, onShortcutChange } from "./lib/keyboar
 const BOLD_REGEX = /\*\*(.+?)\*\*/g;
 const ITALIC_REGEX = /(?<!\*)\*(?!\*)([^*\n]+?)\*(?!\*)/g;
 const UNDERLINE_REGEX = /__(.+?)__/g;
+const STRIKETHROUGH_REGEX = /~~(.+?)~~/g;
 const INLINE_CODE_REGEX = /`([^`\n]+)`/g;
 export const HEADING_REGEX = /^(#{1,6})\s+(.*)$/;
 const HR_REGEX = /^(\s*)(-{3,}|\*{3,}|_{3,})(\s*)$/;
@@ -476,6 +477,26 @@ export const decorateFormatting = ViewPlugin.fromClass(
         }
 
         builder.push(Decoration.mark({ class: "format-underline" }).range(innerStart, innerEnd));
+
+        if (!cursorOnLine) {
+          builder.push(Decoration.replace({}).range(innerEnd, end));
+        }
+      }
+
+      const strikethroughRegex = new RegExp(STRIKETHROUGH_REGEX.source, "g");
+      while ((match = strikethroughRegex.exec(lineText)) !== null) {
+        const start = line.from + match.index;
+        const end = start + match[0].length;
+        const innerStart = start + 2;
+        const innerEnd = end - 2;
+
+        if (!cursorOnLine) {
+          builder.push(Decoration.replace({}).range(start, innerStart));
+        }
+
+        builder.push(
+          Decoration.mark({ class: "format-strikethrough" }).range(innerStart, innerEnd)
+        );
 
         if (!cursorOnLine) {
           builder.push(Decoration.replace({}).range(innerEnd, end));
