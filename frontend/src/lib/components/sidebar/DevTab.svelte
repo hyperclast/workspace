@@ -910,7 +910,7 @@ func main() {
   }
 
   .lang-btn.active {
-    background: white;
+    background: var(--bg-primary, white);
     color: var(--text-primary);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   }
@@ -943,9 +943,9 @@ func main() {
     top: calc(100% + 0.25rem);
     left: 0;
     right: 0;
-    background: white;
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    background: var(--bg-primary, white);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--border-light, #e5e5e5);
     z-index: 100;
     overflow: hidden;
   }
@@ -1044,7 +1044,7 @@ func main() {
     gap: 0.375rem;
     padding: 0.375rem 0.625rem;
     border: none;
-    background: white;
+    background: var(--bg-primary, white);
     border-radius: 6px;
     font-size: 0.75rem;
     font-weight: 500;

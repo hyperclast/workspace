@@ -332,7 +332,7 @@
     display: block;
     font-weight: 500;
     font-size: 0.85rem;
-    color: #374151;
+    color: var(--text-primary, #374151);
     margin-bottom: 0.375rem;
   }
 
@@ -344,9 +344,10 @@
     width: 100%;
     padding: 0.5rem 0.75rem;
     font-size: 0.9rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border-medium, #d1d5db);
     border-radius: 6px;
-    background: white;
+    background: var(--bg-primary, white);
+    color: var(--text-primary, #1f2937);
     transition: border-color 0.15s, box-shadow 0.15s;
   }
 
@@ -362,10 +363,9 @@
     left: 0;
     right: 0;
     margin-top: 4px;
-    background: white;
-    border: 1px solid #e5e7eb;
+    background: var(--bg-primary, white);
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--border-light, #e5e7eb);
     max-height: 200px;
     overflow-y: auto;
     z-index: 100;
@@ -382,13 +382,13 @@
     text-align: left;
     cursor: pointer;
     font-size: 0.875rem;
-    color: #374151;
+    color: var(--text-primary, #374151);
     transition: background 0.1s;
   }
 
   .suggestion-item:hover,
   .suggestion-item.selected {
-    background: #f3f4f6;
+    background: var(--bg-secondary, #f3f4f6);
   }
 
   .suggestion-title {
@@ -400,8 +400,8 @@
 
   .suggestion-badge {
     font-size: 0.7rem;
-    color: #6b7280;
-    background: #e5e7eb;
+    color: var(--text-secondary, #6b7280);
+    background: var(--border-light, #e5e7eb);
     padding: 0.125rem 0.375rem;
     border-radius: 4px;
     margin-left: 0.5rem;

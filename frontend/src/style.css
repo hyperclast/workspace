@@ -917,6 +917,21 @@ nav {
   background: rgba(235, 87, 87, 0.08);
 }
 
+:root.dark .project-menu-btn:hover,
+[data-theme="dark"] .project-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:root.dark .project-menu-item:hover,
+[data-theme="dark"] .project-menu-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+:root.dark .project-menu-item.project-menu-delete:hover,
+[data-theme="dark"] .project-menu-item.project-menu-delete:hover {
+  background: rgba(235, 87, 87, 0.15);
+}
+
 .project-name {
   flex: 1;
   color: var(--text-primary);
@@ -1015,17 +1030,17 @@ nav {
 }
 
 .sidebar-project-pages .sidebar-item .page-menu-btn:hover {
-  background: rgba(0, 0, 0, 0.08);
+  background: rgba(55, 53, 47, 0.08);
+  color: var(--text-primary);
 }
 
 .sidebar-project-pages .sidebar-item .page-menu-dropdown {
   position: absolute;
   right: 0;
   top: 100%;
-  background: white;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: var(--bg-primary);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--border-light);
   min-width: 140px;
   z-index: 100;
   display: none;
@@ -1052,15 +1067,30 @@ nav {
 }
 
 .sidebar-project-pages .sidebar-item .page-menu-item:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(55, 53, 47, 0.06);
 }
 
 .sidebar-project-pages .sidebar-item .page-menu-item.page-menu-delete {
-  color: #dc2626;
+  color: #eb5757;
 }
 
 .sidebar-project-pages .sidebar-item .page-menu-item.page-menu-delete:hover {
-  background: rgba(220, 38, 38, 0.08);
+  background: rgba(235, 87, 87, 0.08);
+}
+
+:root.dark .sidebar-project-pages .sidebar-item .page-menu-btn:hover,
+[data-theme="dark"] .sidebar-project-pages .sidebar-item .page-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:root.dark .sidebar-project-pages .sidebar-item .page-menu-item:hover,
+[data-theme="dark"] .sidebar-project-pages .sidebar-item .page-menu-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+:root.dark .sidebar-project-pages .sidebar-item .page-menu-item.page-menu-delete:hover,
+[data-theme="dark"] .sidebar-project-pages .sidebar-item .page-menu-item.page-menu-delete:hover {
+  background: rgba(235, 87, 87, 0.15);
 }
 
 /* Sidebar Files Section */
@@ -1188,17 +1218,17 @@ nav {
 }
 
 .sidebar-file-item .file-menu-btn:hover {
-  background: rgba(0, 0, 0, 0.08);
+  background: rgba(55, 53, 47, 0.08);
+  color: var(--text-primary);
 }
 
 .sidebar-file-item .file-menu-dropdown {
   position: absolute;
   right: 0;
   top: 100%;
-  background: white;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: var(--bg-primary);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--border-light);
   min-width: 140px;
   z-index: 100;
   display: none;
@@ -1225,21 +1255,15 @@ nav {
 }
 
 .sidebar-file-item .file-menu-item:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(55, 53, 47, 0.06);
 }
 
 .sidebar-file-item .file-menu-item.file-menu-delete {
-  color: #dc2626;
+  color: #eb5757;
 }
 
 .sidebar-file-item .file-menu-item.file-menu-delete:hover {
-  background: rgba(220, 38, 38, 0.08);
-}
-
-:root.dark .sidebar-file-item .file-menu-dropdown,
-[data-theme="dark"] .sidebar-file-item .file-menu-dropdown {
-  background: var(--bg-primary);
-  border-color: var(--border-color);
+  background: rgba(235, 87, 87, 0.08);
 }
 
 :root.dark .sidebar-file-item .file-menu-btn:hover,
@@ -1276,6 +1300,12 @@ nav {
   background: rgba(55, 53, 47, 0.04);
   color: var(--text-primary);
   border-color: rgba(55, 53, 47, 0.16);
+}
+
+:root.dark .sidebar-new-page-btn:hover,
+[data-theme="dark"] .sidebar-new-page-btn:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 /* ============================================
@@ -1835,10 +1865,9 @@ body.sidebar-resizing .chat-sidebar {
 
 /* Autocomplete dropdown */
 .autocomplete-dropdown {
-  background: white;
-  border: 1px solid rgba(55, 53, 47, 0.16);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: var(--bg-primary, white);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--border-light);
   max-height: 300px;
   overflow-y: auto;
   z-index: 1000;
@@ -1858,6 +1887,13 @@ body.sidebar-resizing .chat-sidebar {
 .autocomplete-item:hover,
 .autocomplete-item.selected {
   background: rgba(55, 53, 47, 0.06);
+}
+
+:root.dark .autocomplete-item:hover,
+:root.dark .autocomplete-item.selected,
+[data-theme="dark"] .autocomplete-item:hover,
+[data-theme="dark"] .autocomplete-item.selected {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .autocomplete-item-title {
@@ -2360,7 +2396,7 @@ body.sidebar-resizing .chat-sidebar {
   top: 100%;
   right: 0;
   margin-top: 0.5rem;
-  background: white;
+  background: var(--bg-primary, white);
   border-radius: 8px;
   padding: 0.75rem;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--border-light);
@@ -2507,7 +2543,7 @@ body.sidebar-resizing .chat-sidebar {
   top: 100%;
   right: 0;
   margin-top: 0.5rem;
-  background: white;
+  background: var(--bg-primary, white);
   border-radius: 8px;
   padding: 0.75rem;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--border-light);
@@ -2926,7 +2962,7 @@ body.sidebar-resizing .chat-sidebar {
 .share-input-group input:focus {
   outline: none;
   border-color: #667eea;
-  background: white;
+  background: var(--bg-primary, white);
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 

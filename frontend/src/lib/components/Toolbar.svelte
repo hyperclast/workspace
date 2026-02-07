@@ -570,10 +570,9 @@
     position: absolute;
     top: 100%;
     left: 0;
-    background: white;
-    border: 1px solid var(--border-light, #e5e5e5);
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    background: var(--bg-primary, white);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--border-light, #e5e5e5);
     min-width: 120px;
     z-index: 1000;
     padding: 4px 0;
@@ -656,5 +655,10 @@
 
   .toolbar-overflow-menu button:disabled:hover {
     background: none;
+  }
+
+  :global(:root.dark) .toolbar-dropdown-menu button:hover,
+  :global(:root[data-theme="dark"]) .toolbar-dropdown-menu button:hover {
+    background: rgba(255, 255, 255, 0.06);
   }
 </style>

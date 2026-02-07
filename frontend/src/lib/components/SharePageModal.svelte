@@ -474,7 +474,7 @@
 
 <style>
   .modal-description {
-    color: #374151;
+    color: var(--text-primary, #374151);
     font-size: 0.95rem;
     margin: 0 0 1.25rem 0;
   }
@@ -482,7 +482,7 @@
   .share-add-section {
     margin-bottom: 1.5rem;
     padding-bottom: 1.5rem;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--border-light, #e5e7eb);
   }
 
   .share-input-group {
@@ -494,9 +494,10 @@
     flex: 1;
     padding: 0.625rem 0.75rem;
     font-size: 0.95rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border-medium, #d1d5db);
     border-radius: 6px;
-    background: white;
+    background: var(--bg-primary, white);
+    color: var(--text-primary, #1f2937);
   }
 
   .share-input-group input:focus {
@@ -506,15 +507,16 @@
   }
 
   .share-input-group input:disabled {
-    background: #f3f4f6;
+    background: var(--bg-secondary, #f3f4f6);
   }
 
   .add-role-select {
     padding: 0.625rem 0.5rem;
     font-size: 0.875rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border-medium, #d1d5db);
     border-radius: 6px;
-    background: white;
+    background: var(--bg-primary, white);
+    color: var(--text-primary, #1f2937);
     cursor: pointer;
     min-width: 100px;
   }
@@ -526,7 +528,7 @@
   }
 
   .add-role-select:disabled {
-    background: #f3f4f6;
+    background: var(--bg-secondary, #f3f4f6);
     cursor: not-allowed;
   }
 
@@ -574,9 +576,9 @@
   .share-empty {
     padding: 1.25rem;
     text-align: center;
-    color: #6b7280;
+    color: var(--text-secondary, #6b7280);
     font-size: 0.9rem;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-light, #e5e7eb);
     border-radius: 8px;
   }
 
@@ -596,9 +598,9 @@
   .access-summary-card {
     flex: 1;
     padding: 0.75rem;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-light, #e5e7eb);
     border-radius: 8px;
-    background: #f9fafb;
+    background: var(--bg-secondary, #f9fafb);
     min-width: 0; /* Prevent flex items from overflowing */
   }
 
@@ -612,27 +614,27 @@
   .access-summary-label {
     font-size: 0.8rem;
     font-weight: 600;
-    color: #374151;
+    color: var(--text-primary, #374151);
   }
 
   .access-summary-count {
     font-size: 0.7rem;
     font-weight: 500;
-    color: #6b7280;
-    background: #e5e7eb;
+    color: var(--text-secondary, #6b7280);
+    background: var(--border-light, #e5e7eb);
     padding: 0.1rem 0.4rem;
     border-radius: 10px;
   }
 
   .access-summary-description {
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--text-secondary, #6b7280);
     line-height: 1.4;
   }
 
   /* Page collaborators section */
   .page-collaborators-section {
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-light, #e5e7eb);
     border-radius: 8px;
     overflow: hidden;
   }
@@ -642,18 +644,18 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.75rem 1rem 0.25rem;
-    background: #f9fafb;
+    background: var(--bg-secondary, #f9fafb);
   }
 
   .page-collaborators-description {
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--text-secondary, #6b7280);
     padding: 0 1rem 0.75rem;
-    background: #f9fafb;
+    background: var(--bg-secondary, #f9fafb);
   }
 
   .page-collaborators-list {
-    background: white;
+    background: var(--bg-primary, white);
     max-height: 200px;
     overflow-y: auto;
   }
@@ -661,21 +663,21 @@
   .access-group-label {
     font-size: 0.8rem;
     font-weight: 600;
-    color: #374151;
+    color: var(--text-primary, #374151);
   }
 
   .access-group-count {
     font-size: 0.7rem;
     font-weight: 500;
-    color: #6b7280;
-    background: #e5e7eb;
+    color: var(--text-secondary, #6b7280);
+    background: var(--border-light, #e5e7eb);
     padding: 0.1rem 0.4rem;
     border-radius: 10px;
   }
 
   .share-empty-group {
     padding: 0.75rem 1rem;
-    color: #9ca3af;
+    color: var(--text-muted, #9ca3af);
     font-size: 0.875rem;
     font-style: italic;
   }
@@ -685,7 +687,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 0.75rem 1rem;
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid var(--border-light, #f3f4f6);
   }
 
   .share-editor-item:last-child {
@@ -771,7 +773,7 @@
     border: none;
     padding: 0.375rem;
     cursor: pointer;
-    color: #9ca3af;
+    color: var(--text-muted, #9ca3af);
     border-radius: 4px;
     display: flex;
     align-items: center;
@@ -781,7 +783,7 @@
 
   .share-remove-btn:hover {
     color: #ef4444;
-    background: #fef2f2;
+    background: rgba(239, 68, 68, 0.08);
   }
 
   .inline-confirm {
@@ -805,12 +807,12 @@
   }
 
   .inline-btn.cancel {
-    background: #f3f4f6;
-    color: #4b5563;
+    background: var(--bg-secondary, #f3f4f6);
+    color: var(--text-secondary, #4b5563);
   }
 
   .inline-btn.cancel:hover:not(:disabled) {
-    background: #e5e7eb;
+    background: var(--border-light, #e5e7eb);
   }
 
   .inline-btn.confirm {
@@ -824,12 +826,12 @@
 
   /* Public Link Section */
   .public-link-section {
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--border-light, #e5e7eb);
     padding-top: 1.5rem;
   }
 
   .link-active-box {
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-light, #e5e7eb);
     border-radius: 8px;
     padding: 1rem;
   }
@@ -847,10 +849,10 @@
     height: 38px;
     font-size: 0.875rem;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border-medium, #d1d5db);
     border-radius: 6px;
-    background: #f9fafb;
-    color: #374151;
+    background: var(--bg-secondary, #f9fafb);
+    color: var(--text-primary, #374151);
     cursor: default;
     caret-color: transparent;
   }
@@ -929,16 +931,16 @@
 
   .link-inactive-box {
     padding: 1rem;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-light, #e5e7eb);
     border-radius: 8px;
-    background: #f9fafb;
+    background: var(--bg-secondary, #f9fafb);
     text-align: center;
   }
 
   .link-inactive-description {
     margin: 0 0 1rem 0;
     font-size: 0.9rem;
-    color: #6b7280;
+    color: var(--text-secondary, #6b7280);
     line-height: 1.4;
   }
 

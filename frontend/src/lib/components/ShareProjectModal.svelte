@@ -384,7 +384,7 @@
 
 <style>
   .modal-description {
-    color: #374151;
+    color: var(--text-primary, #374151);
     font-size: 0.95rem;
     margin: 0 0 1.25rem 0;
   }
@@ -392,7 +392,7 @@
   .share-add-section {
     margin-bottom: 1.5rem;
     padding-bottom: 1.5rem;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--border-light, #e5e7eb);
   }
 
   .share-input-group {
@@ -404,9 +404,10 @@
     flex: 1;
     padding: 0.625rem 0.75rem;
     font-size: 0.95rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border-medium, #d1d5db);
     border-radius: 6px;
-    background: white;
+    background: var(--bg-primary, white);
+    color: var(--text-primary, #1f2937);
   }
 
   .share-input-group input:focus {
@@ -416,7 +417,7 @@
   }
 
   .share-input-group input:disabled {
-    background: #f3f4f6;
+    background: var(--bg-secondary, #f3f4f6);
   }
 
   .footer-message {
@@ -459,14 +460,14 @@
   .share-editors-list {
     max-height: 240px;
     overflow-y: auto;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-light, #e5e7eb);
     border-radius: 8px;
   }
 
   .share-empty {
     padding: 1.25rem;
     text-align: center;
-    color: #6b7280;
+    color: var(--text-secondary, #6b7280);
     font-size: 0.9rem;
   }
 
@@ -475,7 +476,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 0.75rem 1rem;
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid var(--border-light, #f3f4f6);
   }
 
   .share-editor-item:last-child {
@@ -561,7 +562,7 @@
     border: none;
     padding: 0.375rem;
     cursor: pointer;
-    color: #9ca3af;
+    color: var(--text-muted, #9ca3af);
     border-radius: 4px;
     display: flex;
     align-items: center;
@@ -571,7 +572,7 @@
 
   .share-remove-btn:hover {
     color: #ef4444;
-    background: #fef2f2;
+    background: rgba(239, 68, 68, 0.08);
   }
 
   .inline-confirm {
@@ -595,12 +596,12 @@
   }
 
   .inline-btn.cancel {
-    background: #f3f4f6;
-    color: #4b5563;
+    background: var(--bg-secondary, #f3f4f6);
+    color: var(--text-secondary, #4b5563);
   }
 
   .inline-btn.cancel:hover:not(:disabled) {
-    background: #e5e7eb;
+    background: var(--border-light, #e5e7eb);
   }
 
   .inline-btn.confirm {

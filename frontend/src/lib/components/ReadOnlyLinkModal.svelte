@@ -150,7 +150,7 @@
 
 <style>
   .modal-description {
-    color: #374151;
+    color: var(--text-primary, #374151);
     font-size: 0.95rem;
     margin: 0 0 1.25rem 0;
   }
@@ -171,10 +171,10 @@
     height: 38px;
     font-size: 0.875rem;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border-medium, #d1d5db);
     border-radius: 6px;
-    background: #f9fafb;
-    color: #374151;
+    background: var(--bg-secondary, #f9fafb);
+    color: var(--text-primary, #374151);
     cursor: default;
     caret-color: transparent;
   }
@@ -268,13 +268,13 @@
   }
 
   .inline-btn.cancel {
-    background: white;
-    color: #4b5563;
-    border: 1px solid #d1d5db;
+    background: var(--bg-primary, white);
+    color: var(--text-secondary, #4b5563);
+    border: 1px solid var(--border-medium, #d1d5db);
   }
 
   .inline-btn.cancel:hover:not(:disabled) {
-    background: #f9fafb;
+    background: var(--bg-secondary, #f9fafb);
   }
 
   .inline-btn.confirm {
