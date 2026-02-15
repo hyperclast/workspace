@@ -43,3 +43,15 @@ CLAUDE.*.md
 
 # Wrangler (Cloudflare Workers CLI) local state
 .wrangler/
+
+# Ansible
+deployment/ansible/.vagrant/
+deployment/ansible/.vault_password
+deployment/ansible/*.retry
+deployment/ansible/*.log
+deployment/ansible/*.pem
+deployment/ansible/*.key
+deployment/ansible/.env
+deployment/ansible/.env-*
+# Production secrets (contains db_password, etc.)
+deployment/ansible/inventory/production/group_vars/secrets.yml
