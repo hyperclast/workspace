@@ -972,6 +972,11 @@ function upgradeEditorToCollaborative(collabObjects, filetype) {
     window.editorView.scrollDOM.scrollTop = scrollTop;
   }
 
+  // Restore fold state (saved in localStorage before the editor was destroyed)
+  if (window.editorView && currentPage?.external_id) {
+    restoreFoldedRanges(window.editorView, currentPage.external_id);
+  }
+
   console.log("[Collab] Editor upgraded to collaborative mode");
 }
 

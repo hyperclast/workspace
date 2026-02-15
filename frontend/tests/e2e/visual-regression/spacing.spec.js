@@ -128,7 +128,11 @@ test.describe("Spacing Measurements", () => {
   });
 
   test("bullet items have consistent spacing between them", async ({ page }) => {
-    const bulletContent = `- Item one
+    // Prefix with a blank line so cursor at position 0 (from Ctrl+Home in
+    // setupTestPage) doesn't land on the first bullet line, which would
+    // show raw "- " syntax instead of the "●" widget and change line height.
+    const bulletContent = `Bullets:
+- Item one
 - Item two
 - Item three
 - Item four

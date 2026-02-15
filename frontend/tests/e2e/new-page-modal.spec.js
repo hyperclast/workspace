@@ -131,10 +131,41 @@ test.describe("New Page Modal", () => {
     await page.waitForTimeout(1000);
     console.log(`✅ Created template page: ${templateTitle}`);
 
-    await page.click(".cm-content");
-    await page.keyboard.type(templateContent);
-    await page.waitForTimeout(2000);
-    console.log("✅ Added content to template page");
+    // Get the page's external_id from the URL and set content via REST API.
+    // Typing via keyboard goes through Yjs CRDT → WebSocket → backend snapshot,
+    // and there's no reliable way to know when details.content is persisted.
+    // The REST API sets details.content directly in the database.
+    const pageId = await page.evaluate(() => {
+      const match = window.location.pathname.match(/\/pages\/([^/]+)\//);
+      return match ? match[1] : null;
+    });
+    expect(pageId).toBeTruthy();
+
+    const csrfToken = await page.evaluate(() => {
+      const cookie = document.cookie.split("; ").find((c) => c.startsWith("csrftoken="));
+      return cookie ? cookie.split("=")[1] : "";
+    });
+
+    const response = await page.evaluate(
+      async ({ pageId, title, content, csrfToken }) => {
+        const res = await fetch(`/api/pages/${pageId}/`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken,
+          },
+          body: JSON.stringify({
+            title,
+            details: { content },
+            mode: "overwrite",
+          }),
+        });
+        return { ok: res.ok, status: res.status };
+      },
+      { pageId, title: templateTitle, content: templateContent, csrfToken }
+    );
+    expect(response.ok).toBe(true);
+    console.log("✅ Added content to template page via API");
 
     // Step 2: Create a new page copying from the template
     const newPageTitle = `From Template ${Date.now()}`;

@@ -211,7 +211,9 @@ test.describe("Link Styling Consistency", () => {
   });
 
   test("multiple adjacent links have consistent spacing", async ({ page }) => {
-    const adjacentLinks = `[one](/pages/a/) [two](/pages/b/) [three](/pages/c/)`;
+    // Prefix with plain text so cursor at position 0 (from Ctrl+Home) doesn't
+    // land inside the first link, which would suppress its decoration.
+    const adjacentLinks = `Links: [one](/pages/a/) [two](/pages/b/) [three](/pages/c/)`;
     await setupTestPage(page, adjacentLinks, "Adjacent Links");
 
     const linkPositions = await page.evaluate(() => {

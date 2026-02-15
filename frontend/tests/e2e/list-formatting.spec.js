@@ -12,6 +12,7 @@
  */
 
 import { test, expect } from "@playwright/test";
+import { clickToolbarButton } from "./helpers.js";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:9800";
 const TEST_EMAIL = process.env.TEST_EMAIL || "dev@localhost";
@@ -196,10 +197,9 @@ test.describe("List Formatting", () => {
     expect(content).toBe("- Task A\n- Task B\n- Task C");
     console.log("✅ Converted to bullets");
 
-    // Convert to checkboxes
+    // Convert to checkboxes (handles overflow menu)
     await selectAllText(page);
-    const checklistBtn = page.locator('button.toolbar-btn[title^="Checklist"]');
-    await checklistBtn.click();
+    await clickToolbarButton(page, "Checklist (Cmd+L)", "Checklist");
     await page.waitForTimeout(300);
 
     content = await getDocContent(page);
@@ -208,7 +208,7 @@ test.describe("List Formatting", () => {
 
     // Check all checkboxes
     await selectAllText(page);
-    await checklistBtn.click();
+    await clickToolbarButton(page, "Checklist (Cmd+L)", "Checklist");
     await page.waitForTimeout(300);
 
     content = await getDocContent(page);
@@ -329,20 +329,17 @@ test.describe("List Formatting", () => {
     const original = await getDocContent(page);
     console.log("✅ Created original content");
 
-    const bulletBtn = page.locator('button.toolbar-btn[title="Bullet list"]');
-    const checklistBtn = page.locator('button.toolbar-btn[title^="Checklist"]');
-
     // Step 1: Add bullets
     await selectAllText(page);
-    await bulletBtn.click();
+    await clickToolbarButton(page, "Bullet list", "Bullet list");
     await page.waitForTimeout(300);
     const step1 = await getDocContent(page);
     expect(step1).toBe("- Task A\n- Task B");
     console.log("✅ Step 1: Added bullets");
 
-    // Step 2: Convert to checkboxes
+    // Step 2: Convert to checkboxes (handles overflow menu)
     await selectAllText(page);
-    await checklistBtn.click();
+    await clickToolbarButton(page, "Checklist (Cmd+L)", "Checklist");
     await page.waitForTimeout(300);
     const step2 = await getDocContent(page);
     expect(step2).toBe("- [ ] Task A\n- [ ] Task B");
@@ -350,7 +347,7 @@ test.describe("List Formatting", () => {
 
     // Step 3: Check all
     await selectAllText(page);
-    await checklistBtn.click();
+    await clickToolbarButton(page, "Checklist (Cmd+L)", "Checklist");
     await page.waitForTimeout(300);
     const step3 = await getDocContent(page);
     expect(step3).toBe("- [x] Task A\n- [x] Task B");

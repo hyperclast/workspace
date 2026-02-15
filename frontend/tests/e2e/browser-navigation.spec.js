@@ -51,8 +51,8 @@ async function verifySettingsPageIntegrity(page) {
   const settingsRoot = page.locator("#settings-page-root").first();
   await expect(settingsRoot).toBeVisible({ timeout: 5000 });
 
-  const settingsContent = page.locator(".settings-content, .settings-container").first();
-  await expect(settingsContent).toBeVisible({ timeout: 5000 });
+  const settingsMain = page.locator(".settings-main").first();
+  await expect(settingsMain).toBeVisible({ timeout: 5000 });
 }
 
 function getPageIdFromUrl(url) {
@@ -78,14 +78,10 @@ test.describe("Browser Back/Forward Navigation", () => {
     await newPageBtn.click();
 
     // Handle the modal
-    const modalInput = page.locator("#prompt-input, .modal-input");
-    try {
-      await modalInput.waitFor({ timeout: 2000 });
-      await modalInput.fill(`Test Page ${Date.now()}`);
-      await page.locator('button:has-text("Create")').click();
-    } catch {
-      console.log("ℹ️  No modal");
-    }
+    const modal = page.locator(".modal");
+    await modal.waitFor({ state: "visible", timeout: 5000 });
+    await page.locator("#page-title-input").fill(`Test Page ${Date.now()}`);
+    await page.locator(".modal-btn-primary").click();
 
     await page.waitForSelector(".cm-content", { timeout: 10000 });
     await page.waitForTimeout(1500);
@@ -208,14 +204,10 @@ test.describe("Browser Back/Forward Navigation", () => {
     // Create page 2 - wait for URL to actually change
     const newPageBtn = page.locator(".sidebar-new-page-btn").first();
     await newPageBtn.click();
-    const modalInput = page.locator("#prompt-input, .modal-input");
-    try {
-      await modalInput.waitFor({ timeout: 2000 });
-      await modalInput.fill(`Cycle Test ${Date.now()}`);
-      await page.locator('button:has-text("Create")').click();
-    } catch {
-      // no modal
-    }
+    const modal = page.locator(".modal");
+    await modal.waitFor({ state: "visible", timeout: 5000 });
+    await page.locator("#page-title-input").fill(`Cycle Test ${Date.now()}`);
+    await page.locator(".modal-btn-primary").click();
 
     // Wait for URL to change to a different page
     await page.waitForFunction(
@@ -349,14 +341,10 @@ test.describe("Browser Back/Forward Navigation", () => {
     const newPageBtn = page.locator(".sidebar-new-page-btn").first();
     await newPageBtn.click();
 
-    const modalInput = page.locator("#prompt-input, .modal-input");
-    try {
-      await modalInput.waitFor({ timeout: 2000 });
-      await modalInput.fill(`Link Test Page ${Date.now()}`);
-      await page.locator('button:has-text("Create")').click();
-    } catch {
-      // no modal
-    }
+    const modal = page.locator(".modal");
+    await modal.waitFor({ state: "visible", timeout: 5000 });
+    await page.locator("#page-title-input").fill(`Link Test Page ${Date.now()}`);
+    await page.locator(".modal-btn-primary").click();
 
     // Wait for URL to change to a different page
     await page.waitForFunction(

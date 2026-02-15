@@ -38,18 +38,12 @@ test.describe("Page Creation URL Update", () => {
     const newPageBtn = page.locator(".sidebar-new-page-btn").first();
     await newPageBtn.click();
 
-    const modalInput = page.locator("#prompt-input, .modal-input");
-    const createBtn = page.locator('.modal button.primary-btn, button:has-text("Create")');
-
     const newPageTitle = `URL Test Page ${Date.now()}`;
-    try {
-      await modalInput.waitFor({ timeout: 2000 });
-      console.log("📝 Filling in page title...");
-      await modalInput.fill(newPageTitle);
-      await createBtn.click();
-    } catch {
-      console.log("ℹ️  No modal, continuing...");
-    }
+    const modal = page.locator(".modal");
+    await modal.waitFor({ state: "visible", timeout: 5000 });
+    console.log("📝 Filling in page title...");
+    await page.locator("#page-title-input").fill(newPageTitle);
+    await page.locator(".modal-btn-primary").click();
 
     await page.waitForSelector(".sidebar-item.active", { timeout: 10000 });
     await page.waitForSelector(".cm-content", { timeout: 10000 });

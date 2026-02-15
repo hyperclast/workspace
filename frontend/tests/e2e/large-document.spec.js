@@ -61,6 +61,7 @@ test.describe("Large Document Handling", () => {
   });
 
   test("editor renders 5000-line document within acceptable time", async ({ page }) => {
+    test.setTimeout(60000); // Large document insertion + rendering can be slow in Docker/CI
     const content = generateLargeContent(5000);
 
     await page.click(".cm-content");
@@ -76,10 +77,13 @@ test.describe("Large Document Handling", () => {
       }
     }, content);
 
+    // Check document length via CodeMirror state, not DOM textContent.
+    // CodeMirror 6 uses viewport-based rendering — .cm-content only contains
+    // visible lines, so textContent.length may be much less than the full document.
     await page.waitForFunction(
       () => {
-        const cm = document.querySelector(".cm-content");
-        return cm && cm.textContent.length > 1000;
+        const view = window.editorView;
+        return view && view.state.doc.length > 1000;
       },
       { timeout: 10000 }
     );

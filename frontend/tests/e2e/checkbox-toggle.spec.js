@@ -10,6 +10,7 @@
  */
 
 import { test, expect } from "@playwright/test";
+import { clickToolbarButton } from "./helpers.js";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:9800";
 const TEST_EMAIL = process.env.TEST_EMAIL || "dev@localhost";
@@ -268,10 +269,8 @@ test.describe("Checkbox Toggle", () => {
     await page.waitForTimeout(300);
     console.log("✅ Selected all text");
 
-    // Click the checklist toolbar button (find by title attribute)
-    const checklistBtn = page.locator('button.toolbar-btn[title^="Checklist"]');
-    await expect(checklistBtn).toBeVisible({ timeout: 5000 });
-    await checklistBtn.click();
+    // Click the checklist toolbar button (handles overflow menu)
+    await clickToolbarButton(page, "Checklist (Cmd+L)", "Checklist");
     await page.waitForTimeout(500);
     console.log("✅ Clicked checklist toolbar button");
 

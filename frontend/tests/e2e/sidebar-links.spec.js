@@ -14,6 +14,7 @@
  */
 
 import { test, expect } from "@playwright/test";
+import { dismissSocratesPanel } from "./helpers.js";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:9800";
 const TEST_EMAIL = process.env.TEST_EMAIL || "dev@localhost";
@@ -34,6 +35,7 @@ test.describe("Sidebar Links Navigation", () => {
 
     await page.waitForSelector("#editor", { timeout: 20000 });
     await page.waitForSelector(".cm-content", { timeout: 10000 });
+    await dismissSocratesPanel(page);
     console.log("✅ Logged in");
 
     // Step 1: Create target page
@@ -41,16 +43,10 @@ test.describe("Sidebar Links Navigation", () => {
     const newPageBtn = page.locator(".sidebar-new-page-btn").first();
     await newPageBtn.click();
 
-    const modalInput = page.locator("#prompt-input, .modal-input");
-    const createBtn = page.locator('.modal button.primary-btn, button:has-text("Create")');
-
-    try {
-      await modalInput.waitFor({ timeout: 2000 });
-      await modalInput.fill(targetPageTitle);
-      await createBtn.click();
-    } catch {
-      // Modal might not appear in some UI states
-    }
+    const modal = page.locator(".modal");
+    await modal.waitFor({ state: "visible", timeout: 5000 });
+    await page.locator("#page-title-input").fill(targetPageTitle);
+    await page.locator(".modal-btn-primary").click();
 
     await page.waitForSelector(".sidebar-item.active", { timeout: 10000 });
     await page.waitForSelector(".cm-content", { timeout: 10000 });
@@ -74,16 +70,15 @@ test.describe("Sidebar Links Navigation", () => {
     console.log(`   Target page ID: ${targetPageId}`);
 
     // Step 2: Create source page with link to target
+    // Ensure the modal from step 1 is fully closed before proceeding
+    await modal.waitFor({ state: "hidden", timeout: 5000 });
+
     const sourcePageTitle = `Source ${Date.now()}`;
     await newPageBtn.click();
 
-    try {
-      await modalInput.waitFor({ timeout: 2000 });
-      await modalInput.fill(sourcePageTitle);
-      await createBtn.click();
-    } catch {
-      // Modal might not appear
-    }
+    await modal.waitFor({ state: "visible", timeout: 5000 });
+    await page.locator("#page-title-input").fill(sourcePageTitle);
+    await page.locator(".modal-btn-primary").click();
 
     await page.waitForSelector(".sidebar-item.active", { timeout: 10000 });
     await page.waitForSelector(".cm-content", { timeout: 10000 });

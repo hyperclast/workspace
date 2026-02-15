@@ -250,6 +250,14 @@ export async function login(page, baseUrl) {
  * Create a new test page and insert content.
  */
 export async function setupTestPage(page, content, pageName = "Visual Test") {
+  // At narrow viewports (≤1024px), the sidebar is hidden — open it first
+  const viewport = page.viewportSize();
+  if (viewport && viewport.width <= 1024) {
+    const sidebarToggle = page.locator("#sidebar-toggle");
+    await sidebarToggle.click();
+    await page.waitForTimeout(300);
+  }
+
   // Click new page button
   const newPageBtn = page.locator(".sidebar-new-page-btn").first();
   await newPageBtn.click();
@@ -267,6 +275,17 @@ export async function setupTestPage(page, content, pageName = "Visual Test") {
   // Wait for editor
   await page.waitForSelector(".cm-content", { timeout: 10000 });
   await page.waitForTimeout(500);
+
+  // At narrow viewports, close the sidebar overlay so it doesn't block the editor.
+  // Click the backdrop (#sidebar-overlay) instead of #sidebar-toggle, because
+  // the open sidebar (z-index: 1000) covers the toggle button at this width.
+  if (viewport && viewport.width <= 1024) {
+    const overlay = page.locator("#sidebar-overlay.visible");
+    if (await overlay.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await overlay.click();
+      await page.waitForTimeout(300);
+    }
+  }
 
   // Insert content
   const editor = page.locator(".cm-content");

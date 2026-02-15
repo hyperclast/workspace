@@ -10,6 +10,7 @@
 
 import { test, expect } from "@playwright/test";
 import { login } from "./visual-regression/fixtures.js";
+import { dismissSocratesPanel } from "./helpers.js";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:9800";
 
@@ -40,6 +41,7 @@ test.describe("Breadcrumb Responsive Layout", () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await login(page, BASE_URL);
+    await dismissSocratesPanel(page);
     await page.waitForSelector("#breadcrumb-row", {
       state: "visible",
       timeout: 10000,
