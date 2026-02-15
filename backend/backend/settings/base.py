@@ -535,9 +535,6 @@ WS_FILEHUB_DEFAULT_ALLOWED_CONTENT_TYPES = frozenset(
 # Comma-separated list of private features to enable, e.g., "feature1,feature2"
 PRIVATE_FEATURES = config("WS_PRIVATE_FEATURES", cast=Csv(), default="")
 
-# Socratic preview output directory
-SOCRATIC_PREVIEW_DIR = config("WS_SOCRATIC_PREVIEW_DIR", default="/tmp/socratic")
-
 # Imports temp directory (must be shared between web and worker containers)
 WS_IMPORTS_TEMP_DIR = config("WS_IMPORTS_TEMP_DIR", default="/tmp")
 

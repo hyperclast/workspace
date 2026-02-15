@@ -69,7 +69,6 @@ services:
       - WS_WEB_INTERNAL_PORT=${WS_WEB_INTERNAL_PORT:-9800}
       - WS_JOB_RUNNER=rq
       - WS_EMAIL_BACKEND=local
-      - WS_SOCRATIC_PREVIEW_DIR=/tmp/socratic
       - WS_IMPORTS_TEMP_DIR=/app/shared/imports
     ports:
       - "${WS_WEB_EXTERNAL_PORT:-9800}:${WS_WEB_INTERNAL_PORT:-9800}"
@@ -77,8 +76,6 @@ services:
       - ./:/app/
       # Mount frontend dist for symlinks to resolve correctly
       - ../frontend/dist:/frontend/dist
-      # Shared directory for socratic preview files
-      - ${SOCRATIC_PREVIEW_DIR:-./tmp/socratic}:/tmp/socratic
       # Shared directory for import temp files (between web and rq worker)
       - imports-temp:/app/shared/imports
     depends_on:
@@ -112,14 +109,11 @@ services:
       - WS_LOG_FILE=/app/ws.log
       - WS_JOB_RUNNER=rq
       - WS_EMAIL_BACKEND=local
-      - WS_SOCRATIC_PREVIEW_DIR=/tmp/socratic
       - WS_IMPORTS_TEMP_DIR=/app/shared/imports
     volumes:
       - ./:/app/
       # Mount frontend dist for symlinks to resolve correctly
       - ../frontend/dist:/frontend/dist
-      # Shared directory for socratic preview files
-      - ${SOCRATIC_PREVIEW_DIR:-./tmp/socratic}:/tmp/socratic
       # Shared directory for import temp files (between web and rq worker)
       - imports-temp:/app/shared/imports
     depends_on:
@@ -131,18 +125,6 @@ services:
         condition: service_healthy
     entrypoint: ["/rq-entrypoint.sh"]
     restart: always
-    networks:
-      - ws-net
-
-  ws-preview:
-    image: python:3.12-alpine
-    working_dir: /srv
-    volumes:
-      - ${SOCRATIC_PREVIEW_DIR:-./tmp/socratic}:/srv
-    command: python -m http.server ${WS_PREVIEW_PORT:-9494} --bind 0.0.0.0
-    ports:
-      - "${WS_PREVIEW_PORT:-9494}:${WS_PREVIEW_PORT:-9494}"
-    restart: unless-stopped
     networks:
       - ws-net
 

@@ -180,7 +180,12 @@ case "$SERVICE" in
     rebuild_frontend
     # Phase 3: App services — now that infra is healthy
     echo "Phase 3: Restarting app services..."
-    $DC restart ws-web ws-rq ws-preview
+    APP_SERVICES="ws-web ws-rq"
+    # Include ws-preview only if it's running (requires --socratic flag)
+    if $DC ps --status running 2>/dev/null | grep -q ws-preview; then
+      APP_SERVICES="$APP_SERVICES ws-preview"
+    fi
+    $DC restart $APP_SERVICES
     wait_healthy ws-web 30
     ;;
   *)
