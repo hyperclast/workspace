@@ -265,4 +265,85 @@ describe("decorateImagePreviews", () => {
       expect(hasClass(view, "image-preview-container")).toBe(true);
     });
   });
+
+  describe("XSS prevention in image error handler", () => {
+    /**
+     * Helper: create an editor with a malicious alt text in an internal file URL,
+     * find the rendered image widget, and trigger its onerror handler to simulate
+     * a failed image load. Returns the container element after error.
+     */
+    function triggerImageError(altText) {
+      const content = `x ![${altText}](/files/abc123/def456/token789/)`;
+      ({ view, parent } = createEditor(content));
+      view.dispatch({ selection: { anchor: 0 } });
+
+      const container = view.contentDOM.querySelector(".image-preview-container");
+      expect(container).not.toBeNull();
+
+      const img = container.querySelector("img");
+      expect(img).not.toBeNull();
+
+      // Trigger the onerror handler to simulate failed image load
+      img.onerror();
+
+      return container;
+    }
+
+    test("script tag in alt text is not rendered as HTML in error message", () => {
+      const container = triggerImageError("<script>alert('xss')</script>");
+
+      // The script tag must not appear as an actual element
+      expect(container.querySelector("script")).toBeNull();
+      // The error message should display the literal text
+      const errorDiv = container.querySelector(".image-preview-error");
+      expect(errorDiv).not.toBeNull();
+      expect(errorDiv.textContent).toContain("<script>");
+    });
+
+    test("img onerror payload in alt text is not rendered as HTML", () => {
+      const container = triggerImageError("<img src=x onerror=\"alert('xss')\">");
+
+      // Should not create an actual img element from the alt text
+      // (the only img should be gone after onerror cleared the container)
+      expect(container.querySelector("img")).toBeNull();
+      const errorDiv = container.querySelector(".image-preview-error");
+      expect(errorDiv).not.toBeNull();
+      expect(errorDiv.textContent).toContain("<img");
+    });
+
+    test("event handler attribute in alt text is not rendered as HTML", () => {
+      const container = triggerImageError('<div onmouseover="alert(1)">hover</div>');
+
+      const errorDiv = container.querySelector(".image-preview-error");
+      expect(errorDiv).not.toBeNull();
+      // Should not have any element with an event handler
+      const allElements = errorDiv.querySelectorAll("*");
+      allElements.forEach((el) => {
+        expect(el.getAttribute("onmouseover")).toBeNull();
+      });
+    });
+
+    test("safe alt text is displayed correctly in error message", () => {
+      const container = triggerImageError("My Photo");
+
+      const errorDiv = container.querySelector(".image-preview-error");
+      expect(errorDiv).not.toBeNull();
+      expect(errorDiv.textContent).toContain("Failed to load:");
+      expect(errorDiv.textContent).toContain("My Photo");
+    });
+
+    test("empty alt text shows 'image' fallback in error message", () => {
+      const content = "x ![](/files/abc123/def456/token789/)";
+      ({ view, parent } = createEditor(content));
+      view.dispatch({ selection: { anchor: 0 } });
+
+      const container = view.contentDOM.querySelector(".image-preview-container");
+      const img = container.querySelector("img");
+      img.onerror();
+
+      const errorDiv = container.querySelector(".image-preview-error");
+      expect(errorDiv).not.toBeNull();
+      expect(errorDiv.textContent).toContain("image");
+    });
+  });
 });

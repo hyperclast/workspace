@@ -57,14 +57,18 @@ class ImagePreviewWidget extends WidgetType {
       openLightbox(src, alt);
     });
 
-    // Error handling for failed loads
+    // Error handling for failed loads — uses DOM APIs to prevent XSS via alt text
     img.onerror = () => {
       container.innerHTML = "";
       const errorDiv = document.createElement("div");
       errorDiv.className = "image-preview-error";
-      errorDiv.innerHTML = `<span class="image-preview-error-icon">&#x26A0;</span> Failed to load: ${
-        this.alt || "image"
-      }`;
+
+      const iconSpan = document.createElement("span");
+      iconSpan.className = "image-preview-error-icon";
+      iconSpan.textContent = "\u26A0";
+
+      errorDiv.appendChild(iconSpan);
+      errorDiv.append(` Failed to load: ${this.alt || "image"}`);
       container.appendChild(errorDiv);
     };
 

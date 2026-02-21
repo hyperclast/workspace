@@ -34,17 +34,23 @@ export function setupPresenceUI(awareness) {
     userCountSpan.textContent = count === 1 ? "1 user editing" : `${count} users editing`;
     userCountSpan.setAttribute("data-count", count);
 
-    // Update presence list
-    presenceList.innerHTML = users
-      .map(
-        (user) => `
-      <div class="presence-user">
-        <div class="presence-user-color" style="background-color: ${user.color}"></div>
-        <span>${user.name}</span>
-      </div>
-    `
-      )
-      .join("");
+    // Update presence list using DOM APIs to prevent XSS via user names/colors
+    presenceList.innerHTML = "";
+    for (const user of users) {
+      const userDiv = document.createElement("div");
+      userDiv.className = "presence-user";
+
+      const colorDiv = document.createElement("div");
+      colorDiv.className = "presence-user-color";
+      colorDiv.style.backgroundColor = user.color;
+
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = user.name;
+
+      userDiv.appendChild(colorDiv);
+      userDiv.appendChild(nameSpan);
+      presenceList.appendChild(userDiv);
+    }
   }
 
   // Listen to awareness changes
