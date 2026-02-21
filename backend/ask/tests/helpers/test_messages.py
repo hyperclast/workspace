@@ -18,15 +18,15 @@ class TestBuildAskRequestMessages(TestCase):
         question = "What did we discuss?"
         messages = build_ask_request_messages(question, [page])
 
-        # Should return 3 messages: system, assistant, user
+        # Should return 3 messages: system, context (user), question (user)
         self.assertEqual(len(messages), 3)
 
         # Verify system message
         self.assertEqual(messages[0]["role"], "system")
         self.assertIn("assistant that helps users answer questions", messages[0]["content"])
 
-        # Verify assistant message contains page content with XML structure
-        self.assertEqual(messages[1]["role"], "assistant")
+        # Verify context message contains page content with XML structure
+        self.assertEqual(messages[1]["role"], "user")
         self.assertIn("Meeting Pages", messages[1]["content"])
         self.assertIn("Discussed project timeline", messages[1]["content"])
         self.assertIn("<page>", messages[1]["content"])
@@ -49,10 +49,10 @@ class TestBuildAskRequestMessages(TestCase):
         # Verify structure
         self.assertEqual(len(messages), 3)
         self.assertEqual(messages[0]["role"], "system")
-        self.assertEqual(messages[1]["role"], "assistant")
+        self.assertEqual(messages[1]["role"], "user")
         self.assertEqual(messages[2]["role"], "user")
 
-        # Verify all pages are included in assistant message
+        # Verify all pages are included in context message
         assistant_content = messages[1]["content"]
         self.assertIn("Meeting Pages", assistant_content)
         self.assertIn("Budget Review", assistant_content)
@@ -75,7 +75,7 @@ class TestBuildAskRequestMessages(TestCase):
 
         self.assertEqual(len(messages), 3)
 
-        # Assistant message should include title but not <content> section
+        # Context message should include title but not <content> section
         assistant_content = messages[1]["content"]
         self.assertIn("Empty Page", assistant_content)
         self.assertIn("<title>", assistant_content)
@@ -90,7 +90,7 @@ class TestBuildAskRequestMessages(TestCase):
         question = "What's here?"
         messages = build_ask_request_messages(question, [page])
 
-        # Assistant message should include title but not <content> section
+        # Context message should include title but not <content> section
         # because empty string is falsy in template
         assistant_content = messages[1]["content"]
         self.assertIn("Page with Empty Content", assistant_content)
@@ -147,7 +147,7 @@ class TestBuildAskRequestMessages(TestCase):
         # Should still return 3 messages
         self.assertEqual(len(messages), 3)
 
-        # Assistant message should still have the header but no pages
+        # Context message should still have the header but no pages
         assistant_content = messages[1]["content"]
         self.assertIn("Here are the most relevant pages", assistant_content)
         # Should not have any <title> sections

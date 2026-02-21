@@ -21,7 +21,7 @@ def build_ask_request_messages(question: str, pages: List[Page]) -> List[dict]:
             ),
         },
         {
-            "role": "assistant",
+            "role": "user",
             "content": aug_content,
         },
         {
