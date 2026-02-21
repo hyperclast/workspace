@@ -67,7 +67,9 @@ See [Overview](./overview.md)
 
 ```json
 {
-  "message": "Not authenticated"
+  "error": "error",
+  "message": "Unauthorized",
+  "detail": "Unauthorized"
 }
 ```
 
@@ -128,7 +130,9 @@ See [Overview](./overview.md)
 
 ```json
 {
-  "message": "Not authenticated"
+  "error": "error",
+  "message": "Unauthorized",
+  "detail": "Unauthorized"
 }
 ```
 
@@ -192,7 +196,9 @@ See [Overview](./overview.md)
 
 ```json
 {
-  "message": "Not authenticated"
+  "error": "error",
+  "message": "Unauthorized",
+  "detail": "Unauthorized"
 }
 ```
 
@@ -270,7 +276,9 @@ See [Overview](./overview.md)
 
 ```json
 {
-  "message": "Not authenticated"
+  "error": "error",
+  "message": "Unauthorized",
+  "detail": "Unauthorized"
 }
 ```
 
@@ -331,7 +339,9 @@ See [Overview](./overview.md)
 
 ```json
 {
-  "message": "Unauthorized"
+  "error": "error",
+  "message": "Unauthorized",
+  "detail": "Unauthorized"
 }
 ```
 
@@ -339,7 +349,9 @@ See [Overview](./overview.md)
 
 ```json
 {
-  "message": "Unexpected error"
+  "error": "error",
+  "message": "Unexpected error",
+  "detail": null
 }
 ```
 
@@ -407,7 +419,9 @@ See [Overview](./overview.md)
 
 ```json
 {
-  "message": "Unauthorized"
+  "error": "error",
+  "message": "Unauthorized",
+  "detail": "Unauthorized"
 }
 ```
 
@@ -415,6 +429,8 @@ See [Overview](./overview.md)
 
 ```json
 {
-  "message": "Unexpected error"
+  "error": "error",
+  "message": "Unexpected error",
+  "detail": null
 }
 ```

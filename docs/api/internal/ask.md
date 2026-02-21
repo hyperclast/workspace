@@ -85,7 +85,8 @@ Returned when the query processing fails. The error code and message vary based 
 ```json
 {
   "error": "empty_question",
-  "message": "Blank or empty question"
+  "message": "Blank or empty question",
+  "detail": null
 }
 ```
 
@@ -96,7 +97,8 @@ Returned when the query is blank or contains only whitespace (after mention pars
 ```json
 {
   "error": "no_matching_pages",
-  "message": "No matching pages"
+  "message": "No matching pages",
+  "detail": null
 }
 ```
 
@@ -107,7 +109,8 @@ Returned when no pages match the query (either via explicit page_ids, mentions, 
 ```json
 {
   "error": "api_error",
-  "message": "API returned an error"
+  "message": "API returned an error",
+  "detail": null
 }
 ```
 
@@ -118,7 +121,8 @@ Returned when the LLM API encounters an error (rate limits, service unavailable,
 ```json
 {
   "error": "unexpected",
-  "message": "Unable to process question"
+  "message": "Unable to process question",
+  "detail": null
 }
 ```
 
@@ -128,6 +132,8 @@ Returned when an unexpected error occurs during query processing.
 
 ```json
 {
+  "error": "error",
+  "message": "An error occurred.",
   "detail": [
     {
       "loc": ["body", "query"],
@@ -145,7 +151,8 @@ Returned when the request body validation fails (e.g., empty query or query exce
 ```json
 {
   "error": "ask_feature_disabled",
-  "message": "This feature is not available at this time."
+  "message": "This feature is not available at this time.",
+  "detail": null
 }
 ```
 

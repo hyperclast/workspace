@@ -74,6 +74,7 @@ MIDDLEWARE = [
     "core.middlewares.RestrictAuthMiddleware",
     "allauth.account.middleware.AccountMiddleware",
     "hijack.middleware.HijackUserMiddleware",
+    "core.middlewares.APIErrorNormalizerMiddleware",  # Must be last: normalizes API error responses
 ]
 
 # Hyperclast settings (moved up for use in other settings)

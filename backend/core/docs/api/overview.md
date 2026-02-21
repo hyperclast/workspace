@@ -85,10 +85,36 @@ Include these headers with all requests:
 | 404    | Not found         |
 | 422    | Validation error  |
 
-**Error format:**
+All error responses (status 400+) use a consistent shape:
 
 ```json
-{ "message": "Error description" }
+{
+  "error": "error_code",
+  "message": "Human-readable description",
+  "detail": null
+}
+```
+
+| Field     | Type              | Description                                                                 |
+| --------- | ----------------- | --------------------------------------------------------------------------- |
+| `error`   | string            | Machine-readable error code (e.g., `"forbidden"`, `"error"`)                |
+| `message` | string            | Human-readable description, always present                                  |
+| `detail`  | object/array/null | Additional context. Array for validation errors (422), null for most errors |
+
+**Validation error (422):**
+
+```json
+{
+  "error": "error",
+  "message": "An error occurred.",
+  "detail": [
+    {
+      "loc": ["body", "title"],
+      "msg": "Field required",
+      "type": "missing"
+    }
+  ]
+}
 ```
 
 ---

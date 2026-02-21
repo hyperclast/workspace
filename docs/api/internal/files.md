@@ -281,7 +281,7 @@ The file upload creation endpoint is rate-limited to prevent abuse:
 When rate limited, the API returns:
 
 - **Status Code**: `429 Too Many Requests`
-- **Response**: `{"detail": "Request was throttled"}`
+- **Response**: `{"error": "error", "message": "Request was throttled.", "detail": "Request was throttled."}`
 
 ### File Size Limits
 

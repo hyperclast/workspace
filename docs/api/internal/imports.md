@@ -182,7 +182,8 @@ If a user triggers too many security violations (e.g., uploading zip bombs), the
 ```json
 {
   "error": "temporarily_blocked",
-  "message": "Import temporarily unavailable. Please try again later."
+  "message": "Import temporarily unavailable. Please try again later.",
+  "detail": null
 }
 ```
 

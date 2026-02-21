@@ -2,11 +2,13 @@
 Custom middleware for the application.
 """
 
+import json
 import logging
 
 from asgiref.sync import iscoroutinefunction, markcoroutinefunction
 
 from django.conf import settings
+from django.http import StreamingHttpResponse
 from django.shortcuts import redirect
 from django.utils import timezone
 from django.utils.deprecation import MiddlewareMixin
@@ -202,3 +204,76 @@ class ClientHeaderMiddleware(MiddlewareMixin):
         client_header = request.headers.get("X-Hyperclast-Client", "")
         if client_header:
             logger.info(f"API request: path={request.path}, client={client_header}")
+
+
+class APIErrorNormalizerMiddleware:
+    """
+    Normalizes all API error responses (status >= 400) into a consistent shape:
+
+        {"error": "...", "message": "...", "detail": ... | null}
+
+    This ensures frontend code can reliably read error.message and error.detail
+    regardless of which backend pattern produced the error.
+
+    Only processes responses where:
+    - Path starts with /api/ (API endpoints)
+    - Path does NOT start with /api/browser/ (allauth headless has its own format)
+    - Status code >= 400 (error responses only)
+    - Content-Type is application/json
+    - Response is not streaming
+    """
+
+    API_PREFIX = "/api/"
+    EXCLUDED_PREFIXES = ("/api/browser/",)
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+
+        if not request.path.startswith(self.API_PREFIX):
+            return response
+
+        for prefix in self.EXCLUDED_PREFIXES:
+            if request.path.startswith(prefix):
+                return response
+
+        if response.status_code < 400:
+            return response
+
+        content_type = response.get("Content-Type", "")
+        if "application/json" not in content_type:
+            return response
+
+        if isinstance(response, StreamingHttpResponse):
+            return response
+
+        try:
+            data = json.loads(response.content)
+        except (json.JSONDecodeError, ValueError):
+            return response
+
+        if not isinstance(data, dict):
+            return response
+
+        detail = data.get("detail")
+
+        normalized = {
+            "error": data.get("error", "error"),
+            "message": data.get(
+                "message",
+                detail if isinstance(detail, str) else "An error occurred.",
+            ),
+            "detail": detail,
+        }
+
+        # Preserve extra fields (e.g., "config" from AI endpoints)
+        for key, value in data.items():
+            if key not in ("error", "message", "detail"):
+                normalized[key] = value
+
+        response.content = json.dumps(normalized).encode()
+        response["Content-Length"] = len(response.content)
+
+        return response

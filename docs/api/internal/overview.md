@@ -177,34 +177,51 @@ Error responses include appropriate HTTP status codes and a JSON body with error
 
 **Error Response Format:**
 
-```json
-{
-  "message": "Error description",
-  "ok": false
-}
-```
-
-Or for validation errors:
+All API error responses (status >= 400) are normalized into a consistent shape:
 
 ```json
 {
-  "detail": [
-    {
-      "loc": ["body", "title"],
-      "msg": "field required",
-      "type": "value_error.missing"
-    }
-  ]
+  "error": "error_code",
+  "message": "Human-readable description",
+  "detail": null
 }
 ```
 
-**Common Error Codes:**
+| Field     | Type              | Description                                                                                                                                                                           |
+| --------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `error`   | string            | Machine-readable error code. Defaults to `"error"` when no specific code is set. Some endpoints provide specific codes (e.g., `"forbidden"`, `"empty_question"`, `"file_too_large"`). |
+| `message` | string            | Human-readable error description. Always present, always a string.                                                                                                                    |
+| `detail`  | object/array/null | Additional context. Array for validation errors (422), string for auth/404 errors, null for most other errors.                                                                        |
+
+**Common Error Examples:**
 
 - `401 Unauthorized` - Not authenticated or session expired
 
   ```json
   {
-    "message": "Not authenticated"
+    "error": "error",
+    "message": "Unauthorized",
+    "detail": "Unauthorized"
+  }
+  ```
+
+- `403 Forbidden` - Permission denied
+
+  ```json
+  {
+    "error": "error",
+    "message": "Only admins can update the organization",
+    "detail": null
+  }
+  ```
+
+- `403 Forbidden` - Permission denied (with specific error code)
+
+  ```json
+  {
+    "error": "forbidden",
+    "message": "You do not have permission to upload files to this project",
+    "detail": null
   }
   ```
 
@@ -212,17 +229,34 @@ Or for validation errors:
 
   ```json
   {
-    "ok": false,
-    "message": "No such item."
+    "error": "error",
+    "message": "Not Found",
+    "detail": "Not Found"
   }
   ```
 
-- `400 Bad Request` - Invalid request data
+- `422 Unprocessable Entity` - Validation error
+
   ```json
   {
-    "message": "User already has access to this page"
+    "error": "error",
+    "message": "An error occurred.",
+    "detail": [
+      {
+        "loc": ["body", "title"],
+        "msg": "Field required",
+        "type": "missing"
+      }
+    ]
   }
   ```
+
+**Notes:**
+
+- The normalized shape is enforced by the `APIErrorNormalizerMiddleware` — individual endpoints don't need to produce this shape manually.
+- Extra fields from specific endpoints (e.g., `"config"` from AI endpoints) are preserved alongside the standard three fields.
+- Allauth headless endpoints (`/api/browser/...`) use their own error format and are **not** normalized.
+- WebSocket error messages use a different format (`{"type": "error", "code": "...", "message": "..."}`) and are not affected.
 
 ## Rate Limiting
 
