@@ -1,7 +1,7 @@
 """
 Tests for PageManager's two-tier access control.
 
-Tests the get_user_editable_pages() method which implements:
+Tests the get_user_accessible_pages() method which implements:
 - Tier 1 (Org): Access via org membership
 - Tier 2 (Project): Access via project editors
 
@@ -17,7 +17,7 @@ from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory
 
 
 class TestPageManagerTwoTierAccess(TestCase):
-    """Test PageManager.get_user_editable_pages() with two-tier access."""
+    """Test PageManager.get_user_accessible_pages() with two-tier access."""
 
     def setUp(self):
         """Set up test data for two-tier access scenarios."""
@@ -39,7 +39,7 @@ class TestPageManagerTwoTierAccess(TestCase):
         """Test that org members can access pages in org projects (Tier 1)."""
         page = PageFactory(project=self.project, creator=self.org_admin)
 
-        accessible_pages = Page.objects.get_user_editable_pages(self.org_member)
+        accessible_pages = Page.objects.get_user_accessible_pages(self.org_member)
 
         self.assertIn(page, accessible_pages)
         self.assertEqual(accessible_pages.count(), 1)
@@ -48,7 +48,7 @@ class TestPageManagerTwoTierAccess(TestCase):
         """Test that org admins can access pages in org projects (Tier 1)."""
         page = PageFactory(project=self.project, creator=self.org_admin)
 
-        accessible_pages = Page.objects.get_user_editable_pages(self.org_admin)
+        accessible_pages = Page.objects.get_user_accessible_pages(self.org_admin)
 
         self.assertIn(page, accessible_pages)
 
@@ -56,7 +56,7 @@ class TestPageManagerTwoTierAccess(TestCase):
         """Test that external users cannot access org pages without project sharing."""
         page = PageFactory(project=self.project, creator=self.org_admin)
 
-        accessible_pages = Page.objects.get_user_editable_pages(self.external_user)
+        accessible_pages = Page.objects.get_user_accessible_pages(self.external_user)
 
         self.assertNotIn(page, accessible_pages)
         self.assertEqual(accessible_pages.count(), 0)
@@ -65,7 +65,7 @@ class TestPageManagerTwoTierAccess(TestCase):
         """Test that project editors can access pages in shared projects (Tier 2)."""
         page = PageFactory(project=self.project, creator=self.org_admin)
 
-        accessible_pages = Page.objects.get_user_editable_pages(self.project_editor)
+        accessible_pages = Page.objects.get_user_accessible_pages(self.project_editor)
 
         self.assertIn(page, accessible_pages)
         self.assertEqual(accessible_pages.count(), 1)
@@ -76,7 +76,7 @@ class TestPageManagerTwoTierAccess(TestCase):
         page2 = PageFactory(project=self.project, creator=self.org_admin, title="Page 2")
         page3 = PageFactory(project=self.project, creator=self.org_member, title="Page 3")
 
-        accessible_pages = Page.objects.get_user_editable_pages(self.project_editor)
+        accessible_pages = Page.objects.get_user_accessible_pages(self.project_editor)
 
         self.assertEqual(accessible_pages.count(), 3)
         self.assertIn(page1, accessible_pages)
@@ -89,7 +89,7 @@ class TestPageManagerTwoTierAccess(TestCase):
         page_in_shared_project = PageFactory(project=self.project, creator=self.org_admin)
         page_in_other_project = PageFactory(project=other_project, creator=self.org_admin)
 
-        accessible_pages = Page.objects.get_user_editable_pages(self.project_editor)
+        accessible_pages = Page.objects.get_user_accessible_pages(self.project_editor)
 
         self.assertIn(page_in_shared_project, accessible_pages)
         self.assertNotIn(page_in_other_project, accessible_pages)
@@ -100,7 +100,7 @@ class TestPageManagerTwoTierAccess(TestCase):
         page2 = PageFactory(project=self.project, creator=self.org_admin, title="Page 2")
         page3 = PageFactory(project=self.project, creator=self.org_member, title="Page 3")
 
-        accessible_pages = Page.objects.get_user_editable_pages(self.org_member)
+        accessible_pages = Page.objects.get_user_accessible_pages(self.org_member)
 
         self.assertEqual(accessible_pages.count(), 3)
         self.assertIn(page1, accessible_pages)
@@ -113,7 +113,7 @@ class TestPageManagerTwoTierAccess(TestCase):
 
         self.project.editors.add(self.org_member)
 
-        accessible_pages = Page.objects.get_user_editable_pages(self.org_member)
+        accessible_pages = Page.objects.get_user_accessible_pages(self.org_member)
 
         self.assertEqual(accessible_pages.count(), 1)
         self.assertEqual(accessible_pages.filter(id=page.id).count(), 1)
@@ -129,7 +129,7 @@ class TestPageManagerTwoTierAccess(TestCase):
 
         self.project.editors.add(self.org_member)
 
-        accessible_pages = Page.objects.get_user_editable_pages(self.org_member)
+        accessible_pages = Page.objects.get_user_accessible_pages(self.org_member)
         fetched_page = accessible_pages.get(external_id=page.external_id)
 
         self.assertEqual(fetched_page.id, page.id)
@@ -142,12 +142,12 @@ class TestPageManagerTwoTierAccess(TestCase):
         page2 = PageFactory(project=other_project, creator=self.org_admin, title="Other Org Page")
         other_project.editors.add(self.external_user)
 
-        org_member_pages = Page.objects.get_user_editable_pages(self.org_member)
+        org_member_pages = Page.objects.get_user_accessible_pages(self.org_member)
         self.assertEqual(org_member_pages.count(), 2)
         self.assertIn(page1, org_member_pages)
         self.assertIn(page2, org_member_pages)
 
-        external_pages = Page.objects.get_user_editable_pages(self.external_user)
+        external_pages = Page.objects.get_user_accessible_pages(self.external_user)
         self.assertEqual(external_pages.count(), 1)
         self.assertNotIn(page1, external_pages)
         self.assertIn(page2, external_pages)
@@ -156,11 +156,11 @@ class TestPageManagerTwoTierAccess(TestCase):
         """Test that is_owner annotation works correctly with two-tier access."""
         page = PageFactory(project=self.project, creator=self.org_admin)
 
-        admin_pages = Page.objects.get_user_editable_pages(self.org_admin)
+        admin_pages = Page.objects.get_user_accessible_pages(self.org_admin)
         page_for_admin = admin_pages.get(id=page.id)
         self.assertTrue(page_for_admin.is_owner)
 
-        member_pages = Page.objects.get_user_editable_pages(self.org_member)
+        member_pages = Page.objects.get_user_accessible_pages(self.org_member)
         page_for_member = member_pages.get(id=page.id)
         self.assertFalse(page_for_member.is_owner)
 
@@ -168,7 +168,7 @@ class TestPageManagerTwoTierAccess(TestCase):
         """Test that is_owner annotation works for project editors."""
         page = PageFactory(project=self.project, creator=self.org_admin)
 
-        editor_pages = Page.objects.get_user_editable_pages(self.project_editor)
+        editor_pages = Page.objects.get_user_accessible_pages(self.project_editor)
         page_for_editor = editor_pages.get(id=page.id)
         self.assertFalse(page_for_editor.is_owner)
 
@@ -176,14 +176,14 @@ class TestPageManagerTwoTierAccess(TestCase):
         """Test that removing user from org revokes org-based page access."""
         page = PageFactory(project=self.project, creator=self.org_admin)
 
-        accessible_pages = Page.objects.get_user_editable_pages(self.org_member)
+        accessible_pages = Page.objects.get_user_accessible_pages(self.org_member)
         self.assertIn(page, accessible_pages)
 
         from users.models import OrgMember
 
         OrgMember.objects.filter(org=self.org, user=self.org_member).delete()
 
-        accessible_pages = Page.objects.get_user_editable_pages(self.org_member)
+        accessible_pages = Page.objects.get_user_accessible_pages(self.org_member)
         self.assertNotIn(page, accessible_pages)
         self.assertEqual(accessible_pages.count(), 0)
 
@@ -191,12 +191,12 @@ class TestPageManagerTwoTierAccess(TestCase):
         """Test that removing user from project editors revokes project-level access."""
         page = PageFactory(project=self.project, creator=self.org_admin)
 
-        accessible_pages = Page.objects.get_user_editable_pages(self.project_editor)
+        accessible_pages = Page.objects.get_user_accessible_pages(self.project_editor)
         self.assertIn(page, accessible_pages)
 
         self.project.editors.remove(self.project_editor)
 
-        accessible_pages = Page.objects.get_user_editable_pages(self.project_editor)
+        accessible_pages = Page.objects.get_user_accessible_pages(self.project_editor)
         self.assertNotIn(page, accessible_pages)
         self.assertEqual(accessible_pages.count(), 0)
 
@@ -212,7 +212,7 @@ class TestPageManagerTwoTierAccess(TestCase):
         page1 = PageFactory(project=self.project, creator=self.org_admin, title="Org 1 Page")
         page2 = PageFactory(project=project2, creator=user_in_both_orgs, title="Org 2 Page")
 
-        accessible_pages = Page.objects.get_user_editable_pages(user_in_both_orgs)
+        accessible_pages = Page.objects.get_user_accessible_pages(user_in_both_orgs)
         self.assertEqual(accessible_pages.count(), 2)
         self.assertIn(page1, accessible_pages)
         self.assertIn(page2, accessible_pages)
@@ -223,7 +223,7 @@ class TestPageManagerTwoTierAccess(TestCase):
 
         isolated_user = UserFactory(email="isolated@example.com")
 
-        accessible_pages = Page.objects.get_user_editable_pages(isolated_user)
+        accessible_pages = Page.objects.get_user_accessible_pages(isolated_user)
         self.assertEqual(accessible_pages.count(), 0)
 
     def test_queryset_is_distinct(self):
@@ -232,7 +232,7 @@ class TestPageManagerTwoTierAccess(TestCase):
 
         self.project.editors.add(self.org_member)
 
-        accessible_pages = Page.objects.get_user_editable_pages(self.org_member)
+        accessible_pages = Page.objects.get_user_accessible_pages(self.org_member)
 
         page_ids = list(accessible_pages.values_list("id", flat=True))
         self.assertEqual(len(page_ids), len(set(page_ids)), "Queryset should be distinct")
@@ -243,17 +243,17 @@ class TestPageManagerTwoTierAccess(TestCase):
         page2 = PageFactory(project=self.project, creator=self.org_admin, title="C Page")
         page3 = PageFactory(project=self.project, creator=self.org_admin, title="B Page")
 
-        accessible_pages = Page.objects.get_user_editable_pages(self.org_member).order_by("title")
+        accessible_pages = Page.objects.get_user_accessible_pages(self.org_member).order_by("title")
 
         titles = [p.title for p in accessible_pages]
         self.assertEqual(titles, ["A Page", "B Page", "C Page"])
 
     def test_chaining_with_other_filters(self):
-        """Test that get_user_editable_pages() can be chained with other filters."""
+        """Test that get_user_accessible_pages() can be chained with other filters."""
         page1 = PageFactory(project=self.project, creator=self.org_admin, title="Active")
         page2 = PageFactory(project=self.project, creator=self.org_admin, title="Deleted", is_deleted=True)
 
-        active_pages = Page.objects.get_user_editable_pages(self.org_member).filter(is_deleted=False)
+        active_pages = Page.objects.get_user_accessible_pages(self.org_member).filter(is_deleted=False)
 
         self.assertIn(page1, active_pages)
         self.assertNotIn(page2, active_pages)
@@ -275,7 +275,7 @@ class TestCreateWithOwner(TestCase):
         self.assertEqual(page.creator, user)
         self.assertIn(user, page.editors.all())
 
-        accessible_pages = Page.objects.get_user_editable_pages(user)
+        accessible_pages = Page.objects.get_user_accessible_pages(user)
         self.assertIn(page, accessible_pages)
 
 
@@ -423,8 +423,8 @@ class TestGetEditablePages(TestCase):
         self.assertEqual(editable_pages.count(), 0)
 
 
-class TestGetUserEditablePagesExcludesDeleted(TestCase):
-    """Test that get_user_editable_pages() excludes soft-deleted pages."""
+class TestGetUserAccessiblePagesExcludesDeleted(TestCase):
+    """Test that get_user_accessible_pages() excludes soft-deleted pages."""
 
     def setUp(self):
         self.org = OrgFactory()
@@ -432,12 +432,12 @@ class TestGetUserEditablePagesExcludesDeleted(TestCase):
         OrgMemberFactory(org=self.org, user=self.user)
         self.project = ProjectFactory(org=self.org, creator=self.user)
 
-    def test_get_user_editable_pages_excludes_deleted_org_pages(self):
+    def test_get_user_accessible_pages_excludes_deleted_org_pages(self):
         """Test that org members don't see soft-deleted pages in org projects."""
         active_page = PageFactory(project=self.project, creator=self.user, title="Active")
         deleted_page = PageFactory(project=self.project, creator=self.user, title="Deleted", is_deleted=True)
 
-        accessible_pages = Page.objects.get_user_editable_pages(self.user)
+        accessible_pages = Page.objects.get_user_accessible_pages(self.user)
 
         self.assertIn(active_page, accessible_pages)
         self.assertNotIn(deleted_page, accessible_pages)

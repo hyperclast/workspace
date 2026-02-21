@@ -28,7 +28,7 @@ def homepage(request):
         landing_template = getattr(settings, "LANDING_TEMPLATE", "core/landing.html")
         return render(request, landing_template)
 
-    first_page = Page.objects.get_user_editable_pages(request.user).order_by("-modified").first()
+    first_page = Page.objects.get_user_accessible_pages(request.user).order_by("-modified").first()
     if first_page:
         return redirect("core:page", page_id=first_page.external_id)
 

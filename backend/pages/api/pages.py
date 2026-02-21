@@ -26,10 +26,10 @@ from pages.permissions import (
     get_user_page_access_label,
     is_org_member_email,
     user_can_access_page,
+    user_can_delete_page_in_project,
     user_can_edit_in_page,
     user_can_edit_in_project,
     user_can_manage_page_sharing,
-    user_can_modify_page,
 )
 from pages.schemas import (
     AccessCodeOut,
@@ -63,18 +63,18 @@ pages_router = Router(auth=[token_auth, session_auth])
 @pages_router.get("/", response=List[PageOut])
 @paginate
 def list_pages(request: HttpRequest):
-    """Return all pages editable by the authenticated user with pagination."""
-    return Page.objects.get_user_editable_pages(request.user).order_by("-updated")
+    """Return all pages accessible by the authenticated user with pagination."""
+    return Page.objects.get_user_accessible_pages(request.user).order_by("-updated")
 
 
 @pages_router.get("/autocomplete/", response=PagesAutocompleteOut)
 def autocomplete_pages(request: HttpRequest, q: str = ""):
     """Return pages matching the query for autocomplete.
 
-    Searches page titles (case-insensitive) for pages the user can edit.
+    Searches page titles (case-insensitive) for pages the user can access.
     Returns up to 10 results ordered by most recently updated.
     """
-    queryset = Page.objects.get_user_editable_pages(request.user)
+    queryset = Page.objects.get_user_accessible_pages(request.user)
 
     if q:
         # Case-insensitive search on title
@@ -134,7 +134,7 @@ def create_page(request: HttpRequest, payload: PageIn):
 def get_page(request: HttpRequest, external_id: str):
     """Get a specific page by external ID."""
     page = get_object_or_404(
-        Page.objects.get_user_editable_pages(request.user),
+        Page.objects.get_user_accessible_pages(request.user),
         external_id=external_id,
     )
     return page
@@ -154,7 +154,7 @@ def update_page(
         return 404, {"message": "Page not found"}
 
     # User has access but may not be the creator
-    if not user_can_modify_page(request.user, page):
+    if not user_can_delete_page_in_project(request.user, page):
         return 403, {"message": "Only the creator can update this page"}
 
     page.title = payload.title
@@ -206,7 +206,7 @@ def delete_page(request: HttpRequest, external_id: str):
         return 404, {"message": "Page not found"}
 
     # Use permission helper - only creator can delete
-    if not user_can_modify_page(request.user, page):
+    if not user_can_delete_page_in_project(request.user, page):
         return 403, {"message": "Only the creator can delete this page"}
 
     page.mark_as_deleted()
@@ -217,7 +217,7 @@ def delete_page(request: HttpRequest, external_id: str):
 def download_page(request: HttpRequest, external_id: str):
     """Download a page as a file with appropriate extension based on filetype."""
     page = get_object_or_404(
-        Page.objects.get_user_editable_pages(request.user),
+        Page.objects.get_user_accessible_pages(request.user),
         external_id=external_id,
     )
 

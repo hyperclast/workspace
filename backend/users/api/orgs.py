@@ -14,6 +14,7 @@ from backend.utils import log_info
 from core.authentication import session_auth, token_auth
 from core.throttling import AddMemberBurstThrottle, AddMemberDailyThrottle
 from pages.models import Page
+from pages.permissions import user_is_org_admin
 from users.models import Org, OrgMember
 from users.schemas import (
     OrgIn,
@@ -109,10 +110,7 @@ def update_org(request: HttpRequest, external_id: str, payload: OrgUpdateIn):
         external_id=external_id,
     )
 
-    # Check if user is admin
-    is_admin = OrgMember.objects.filter(org=org, user=request.user, role="admin").exists()
-
-    if not is_admin:
+    if not user_is_org_admin(request.user, org):
         return 403, {"message": "Only admins can update the organization"}
 
     if payload.name is not None:
@@ -134,10 +132,7 @@ def delete_org(request: HttpRequest, external_id: str):
         external_id=external_id,
     )
 
-    # Check if user is admin
-    is_admin = OrgMember.objects.filter(org=org, user=request.user, role="admin").exists()
-
-    if not is_admin:
+    if not user_is_org_admin(request.user, org):
         return 403, {"message": "Only admins can delete the organization"}
 
     log_info(f"User {request.user.email} deleted org {org.external_id}")
@@ -280,8 +275,7 @@ def remove_org_member(request: HttpRequest, external_id: str, user_external_id: 
     if not target_membership:
         return Response({"message": "User is not a member of this organization"}, status=404)
 
-    # Check if requester is admin
-    requester_is_admin = OrgMember.objects.filter(org=org, user=request.user, role="admin").exists()
+    requester_is_admin = user_is_org_admin(request.user, org)
     target_is_admin = target_membership.role == "admin"
 
     # Non-admins cannot remove admins
@@ -318,9 +312,7 @@ def update_org_member_role(request: HttpRequest, external_id: str, user_external
         external_id=external_id,
     )
 
-    # Check if requester is admin
-    is_admin = OrgMember.objects.filter(org=org, user=request.user, role="admin").exists()
-    if not is_admin:
+    if not user_is_org_admin(request.user, org):
         return 403, {"message": "Only admins can change member roles"}
 
     user_to_update = get_object_or_404(User, external_id=user_external_id)

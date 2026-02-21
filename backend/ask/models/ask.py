@@ -70,7 +70,7 @@ class AskRequestManager(models.Manager):
 
             # If we have priority pages, retrieve them directly
             if priority_page_ids:
-                pages = list(Page.objects.get_user_editable_pages(user).filter(external_id__in=priority_page_ids))
+                pages = list(Page.objects.get_user_accessible_pages(user).filter(external_id__in=priority_page_ids))
             # Otherwise, use similarity search
             else:
                 input_embedding = compute_embedding(question, user=user)
@@ -79,7 +79,7 @@ class AskRequestManager(models.Manager):
                         user=user, input_embedding=input_embedding, limit=limit
                     ).values_list("page__external_id", flat=True)
                 )
-                pages = list(Page.objects.get_user_editable_pages(user).filter(external_id__in=search_page_ids))
+                pages = list(Page.objects.get_user_accessible_pages(user).filter(external_id__in=search_page_ids))
 
             if not pages:
                 ask_request.mark_as_failed(AskRequestError.NO_MATCHING_PAGES.value)

@@ -7,8 +7,8 @@ from core.tests.common import BaseAuthenticatedViewTestCase
 from imports.constants import ImportJobStatus, ImportProvider
 from imports.models import ImportArchive, ImportedPage, ImportJob
 from imports.tests.factories import ImportedPageFactory, ImportJobFactory
-from pages.constants import ProjectEditorRole
-from pages.tests.factories import PageFactory, ProjectEditorFactory, ProjectFactory
+from pages.constants import PageEditorRole, ProjectEditorRole
+from pages.tests.factories import PageEditorFactory, PageFactory, ProjectEditorFactory, ProjectFactory
 from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory
 
 
@@ -602,3 +602,47 @@ class TestDeleteImportJobAPI(BaseAuthenticatedViewTestCase):
         from pages.models import Page
 
         self.assertTrue(Page.objects.filter(id=page_id).exists())
+
+
+class TestPageLevelAccessImport(BaseAuthenticatedViewTestCase):
+    """Test that page-only access (Tier 3) does NOT grant import permissions.
+
+    Imports create pages in a project, which requires project-level write access.
+    Users with only page-level access should not be able to start imports.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.project_owner = UserFactory()
+        self.org = OrgFactory()
+        OrgMemberFactory(org=self.org, user=self.project_owner)
+        self.project = ProjectFactory(org=self.org, creator=self.project_owner)
+        self.project.org_members_can_access = False
+        self.project.save()
+
+        # Give self.user page-level access only (not project or org access)
+        self.page = PageFactory(project=self.project, creator=self.project_owner)
+        PageEditorFactory(page=self.page, user=self.user, role=PageEditorRole.EDITOR.value)
+
+        self.test_zip = create_test_zip()
+
+    @patch("imports.api.imports.process_notion_import")
+    def test_page_editor_cannot_start_import(self, mock_task):
+        """User with only page-level access cannot start an import into the project."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        file = SimpleUploadedFile("notion_export.zip", self.test_zip, content_type="application/zip")
+
+        response = self.client.post(
+            "/api/imports/notion/",
+            data={
+                "project_id": str(self.project.external_id),
+                "file": file,
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+
+        # No import job should be created
+        self.assertFalse(ImportJob.objects.filter(project=self.project, user=self.user).exists())

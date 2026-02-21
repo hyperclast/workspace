@@ -42,7 +42,14 @@ services:
       - ../frontend:/app
       # Cache node_modules for faster builds
       - frontend-node-modules:/app/node_modules
-    command: sh -c "npm install && npm run dev"
+    # Start as root to fix named-volume ownership, then drop to host user
+    command: >-
+      sh -c "
+        apk add --no-cache su-exec &&
+        chown ${WS_DOCKER_UID:-1000}:${WS_DOCKER_GID:-1000} /app/node_modules &&
+        chown -R ${WS_DOCKER_UID:-1000}:${WS_DOCKER_GID:-1000} /app/dist 2>/dev/null || true &&
+        exec su-exec ${WS_DOCKER_UID:-1000}:${WS_DOCKER_GID:-1000} sh -c 'npm install && npm run dev'
+      "
     restart: unless-stopped
     networks:
       - ws-net
@@ -60,6 +67,8 @@ services:
     env_file:
       - .env-docker
     environment:
+      - WS_DOCKER_UID=${WS_DOCKER_UID:-1000}
+      - WS_DOCKER_GID=${WS_DOCKER_GID:-1000}
       - DJANGO_SETTINGS_MODULE=backend.settings.dev
       - WS_DB_HOST=ws-db
       - WS_DB_PORT=5432
@@ -101,6 +110,8 @@ services:
     env_file:
       - .env-docker
     environment:
+      - WS_DOCKER_UID=${WS_DOCKER_UID:-1000}
+      - WS_DOCKER_GID=${WS_DOCKER_GID:-1000}
       - DJANGO_SETTINGS_MODULE=backend.settings.dev
       - WS_DB_HOST=ws-db
       - WS_DB_PORT=5432

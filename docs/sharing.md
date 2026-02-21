@@ -242,11 +242,13 @@ user_can_access_page(user, page)         # Tier 0, 1, 2, or 3 (read access)
 user_can_edit_in_project(user, project)  # Write access at project level
 user_can_edit_in_page(user, page)        # Write access at page level (NEW)
 user_can_manage_page_sharing(user, page) # Can add/remove page editors (NEW)
-user_can_modify_project(user, project)   # Same as edit_in_project
 user_can_delete_project(user, project)   # Creator only
 user_can_delete_page_in_project(user, page) # Creator only
 get_page_access_source(user, page)       # Returns access source string
-get_user_page_access_label(user, page)   # Human-readable access level (NEW)
+get_user_page_access_label(user, page)   # Human-readable access level
+get_user_project_access_label(user, project) # Human-readable access level
+get_project_access_level(user, project)  # Returns AccessLevel enum (NONE/VIEWER/EDITOR/ADMIN)
+get_page_access_level(user, page)        # Returns AccessLevel enum (NONE/VIEWER/EDITOR/ADMIN)
 ```
 
 ## Key Manager Methods
@@ -256,7 +258,7 @@ get_user_page_access_label(user, page)   # Human-readable access level (NEW)
 Project.objects.get_user_accessible_projects(user)
 
 # Get all pages user can access (Tier 0, 1, 2, or 3)
-Page.objects.get_user_editable_pages(user)
+Page.objects.get_user_accessible_pages(user)
 
 # Get all orgs user belongs to
 Org.objects.filter(members=user)

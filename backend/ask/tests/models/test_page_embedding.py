@@ -7,7 +7,8 @@ from django.utils import timezone
 from ask.models import PageEmbedding
 from ask.tests.factories import PageEmbeddingFactory
 from pages.models import Page
-from pages.tests.factories import PageFactory
+from pages.tests.factories import PageFactory, ProjectEditorFactory, ProjectFactory
+from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory
 
 
 class TestPageEmbeddingModel(TestCase):
@@ -122,18 +123,19 @@ class TestPageEmbeddingSimilaritySearch(TestCase):
         self.embedding5 = PageEmbeddingFactory(page=self.page5, embedding=[0.5] + [0.0] * 1535)  # Distance ~0.5
         self.embedding6 = PageEmbeddingFactory(page=self.page6, embedding=[0.6] + [0.0] * 1535)  # Distance ~0.6
 
-    def test_similarity_search_returns_pages_user_can_edit(self):
-        """Test that similarity search returns only pages the user can edit."""
+    def test_similarity_search_returns_pages_user_can_access(self):
+        """Test that similarity search returns only pages the user can access."""
         results = PageEmbedding.objects.similarity_search(
             user=self.user1, input_embedding=self.query_embedding, limit=5
         )
 
-        # Should return 5 closest pages that user1 can edit
+        # Should return 5 closest pages that user1 can access
         self.assertEqual(results.count(), 5)
 
-        # Verify all returned pages are editable by user1
+        # Verify all returned pages are accessible by user1 via the three-tier model
+        accessible_page_ids = set(Page.objects.get_user_accessible_pages(self.user1).values_list("id", flat=True))
         for embedding in results:
-            self.assertTrue(embedding.page.editors.filter(id=self.user1.id).exists())
+            self.assertIn(embedding.page.id, accessible_page_ids)
 
     def test_similarity_search_excludes_other_users_pages(self):
         """Test that similarity search doesn't return pages from other users."""
@@ -290,3 +292,88 @@ class TestPageEmbeddingSimilaritySearch(TestCase):
         for embedding in results:
             self.assertTrue(hasattr(embedding, "distance"))
             self.assertIsNotNone(embedding.distance)
+
+
+class TestSimilaritySearchMultiTierAccess(TestCase):
+    """Test that similarity_search uses the full three-tier access model."""
+
+    def setUp(self):
+        self.query_embedding = [0.0] * 1536
+        self.user = UserFactory()
+
+    def test_similarity_search_includes_org_admin_pages(self):
+        """Tier 0: Org admins can find pages in their org via similarity search."""
+        org = OrgFactory()
+        OrgMemberFactory(org=org, user=self.user, role="admin")
+        project = ProjectFactory(org=org, creator=UserFactory())
+        # Page created by another user in the same org
+        page = PageFactory(project=project, creator=project.creator, title="Admin Page")
+        PageEmbeddingFactory(page=page, embedding=[0.1] + [0.0] * 1535)
+
+        results = PageEmbedding.objects.similarity_search(user=self.user, input_embedding=self.query_embedding, limit=5)
+
+        result_page_ids = [emb.page.id for emb in results]
+        self.assertIn(page.id, result_page_ids)
+
+    def test_similarity_search_includes_org_member_pages(self):
+        """Tier 1: Org members can find pages when org_members_can_access is True."""
+        org = OrgFactory()
+        OrgMemberFactory(org=org, user=self.user, role="member")
+        project = ProjectFactory(org=org, creator=UserFactory(), org_members_can_access=True)
+        page = PageFactory(project=project, creator=project.creator, title="Org Member Page")
+        PageEmbeddingFactory(page=page, embedding=[0.1] + [0.0] * 1535)
+
+        results = PageEmbedding.objects.similarity_search(user=self.user, input_embedding=self.query_embedding, limit=5)
+
+        result_page_ids = [emb.page.id for emb in results]
+        self.assertIn(page.id, result_page_ids)
+
+    def test_similarity_search_excludes_org_member_pages_when_access_disabled(self):
+        """Tier 1: Org members cannot find pages when org_members_can_access is False."""
+        org = OrgFactory()
+        OrgMemberFactory(org=org, user=self.user, role="member")
+        project = ProjectFactory(org=org, creator=UserFactory(), org_members_can_access=False)
+        page = PageFactory(project=project, creator=project.creator, title="Restricted Page")
+        PageEmbeddingFactory(page=page, embedding=[0.1] + [0.0] * 1535)
+
+        results = PageEmbedding.objects.similarity_search(user=self.user, input_embedding=self.query_embedding, limit=5)
+
+        result_page_ids = [emb.page.id for emb in results]
+        self.assertNotIn(page.id, result_page_ids)
+
+    def test_similarity_search_includes_project_editor_pages(self):
+        """Tier 2: Project editors can find pages in their project via similarity search."""
+        org = OrgFactory()
+        project = ProjectFactory(org=org, creator=UserFactory())
+        ProjectEditorFactory(user=self.user, project=project)
+        page = PageFactory(project=project, creator=project.creator, title="Project Editor Page")
+        PageEmbeddingFactory(page=page, embedding=[0.1] + [0.0] * 1535)
+
+        results = PageEmbedding.objects.similarity_search(user=self.user, input_embedding=self.query_embedding, limit=5)
+
+        result_page_ids = [emb.page.id for emb in results]
+        self.assertIn(page.id, result_page_ids)
+
+    def test_similarity_search_includes_page_editor_pages(self):
+        """Tier 3: Direct page editors can find pages via similarity search."""
+        page = PageFactory(creator=UserFactory(), title="Shared Page")
+        page.editors.add(self.user)
+        PageEmbeddingFactory(page=page, embedding=[0.1] + [0.0] * 1535)
+
+        results = PageEmbedding.objects.similarity_search(user=self.user, input_embedding=self.query_embedding, limit=5)
+
+        result_page_ids = [emb.page.id for emb in results]
+        self.assertIn(page.id, result_page_ids)
+
+    def test_similarity_search_excludes_inaccessible_pages(self):
+        """Pages not accessible via any tier should not appear in similarity search."""
+        # Page in a different org, not shared with user
+        other_org = OrgFactory()
+        other_project = ProjectFactory(org=other_org, creator=UserFactory())
+        page = PageFactory(project=other_project, creator=other_project.creator, title="Inaccessible Page")
+        PageEmbeddingFactory(page=page, embedding=[0.05] + [0.0] * 1535)  # Very close distance
+
+        results = PageEmbedding.objects.similarity_search(user=self.user, input_embedding=self.query_embedding, limit=5)
+
+        result_page_ids = [emb.page.id for emb in results]
+        self.assertNotIn(page.id, result_page_ids)

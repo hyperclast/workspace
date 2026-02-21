@@ -38,6 +38,15 @@ Run:
 
 See `backend/.env-template` for all configuration options.
 
+> **Upgrading?** If you previously ran the Docker stack, the `frontend-node-modules` volume may be owned by root. Remove it once so it gets recreated with correct permissions:
+>
+> ```sh
+> # Find the volume name
+> docker volume ls | grep frontend-node-modules
+> # Remove it (stack must be stopped)
+> docker volume rm <volume-name>
+> ```
+
 ## Development
 
 See [Local Development Guide](docs/local-development.md) for running without Docker.

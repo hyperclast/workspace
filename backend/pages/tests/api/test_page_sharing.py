@@ -435,8 +435,8 @@ class TestPageLevelAccess(TestPageEditorAPIBase):
         self.assertIn(str(self.page.external_id), page_ids)
         self.assertIn(str(another_page.external_id), page_ids)
 
-    def test_user_editable_pages_includes_page_level_access(self):
-        """Test get_user_editable_pages includes pages with page-level access."""
+    def test_user_accessible_pages_includes_page_level_access(self):
+        """Test get_user_accessible_pages includes pages with page-level access."""
         # Create a page in a project where user has no access
         other_org = OrgFactory()
         other_project = ProjectFactory(org=other_org, org_members_can_access=False)
@@ -446,7 +446,7 @@ class TestPageLevelAccess(TestPageEditorAPIBase):
         PageEditorFactory(page=other_page, user=self.user, role=PageEditorRole.VIEWER.value)
 
         # Check via manager method
-        user_pages = Page.objects.get_user_editable_pages(self.user)
+        user_pages = Page.objects.get_user_accessible_pages(self.user)
         page_ids = list(user_pages.values_list("id", flat=True))
 
         self.assertIn(other_page.id, page_ids)

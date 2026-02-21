@@ -102,7 +102,7 @@ class TestPagesAutocompleteAPI(BaseAuthenticatedViewTestCase):
         self.assertEqual(returned_ids[1], str(page2.external_id))
         self.assertEqual(returned_ids[2], str(page1.external_id))
 
-    def test_autocomplete_only_returns_user_editable_pages(self):
+    def test_autocomplete_only_returns_user_accessible_pages(self):
         """Test autocomplete only returns pages the user can edit."""
         user_page1 = PageFactory(project=self.project, creator=self.user, title="My Page 1")
         user_page2 = PageFactory(project=self.project, creator=self.user, title="My Page 2")

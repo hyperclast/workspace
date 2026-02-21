@@ -367,6 +367,8 @@ ASK_EMBEDDINGS_DEFAULT_MODEL = "text-embedding-3-small"
 ASK_EMBEDDINGS_DEFAULT_ENCODING = "cl100k_base"
 ASK_EMBEDDINGS_DEFAULT_MAX_INPUT = 8191
 ASK_EMBEDDINGS_MAX_PAGES = 5
+WS_ASK_RATE_LIMIT_REQUESTS = config("WS_ASK_RATE_LIMIT_REQUESTS", cast=int, default=30)
+WS_ASK_RATE_LIMIT_WINDOW_SECONDS = config("WS_ASK_RATE_LIMIT_WINDOW_SECONDS", cast=int, default=60)
 
 # Dev sidebar (shows API code snippets in the sidebar)
 DEV_SIDEBAR_ENABLED = config("WS_DEV_SIDEBAR_ENABLED", cast=bool, default=False)

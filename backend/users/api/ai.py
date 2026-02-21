@@ -14,8 +14,8 @@ from ask.models import AskRequest, PageEmbedding
 from ask.models_catalog import get_default_model, get_models_for_provider
 from core.authentication import session_auth, token_auth
 from pages.models import Page
-from users.constants import OrgMemberRole
-from users.models import AIProviderConfig, Org, OrgMember
+from pages.permissions import user_can_access_org, user_is_org_admin
+from users.models import AIProviderConfig, Org
 from ninja import Query
 
 from users.schemas import (
@@ -183,8 +183,7 @@ def list_org_ai_providers(request: HttpRequest, org_id: str):
     if not org:
         return Response({"message": "Organization not found"}, status=HTTPStatus.NOT_FOUND)
 
-    membership = OrgMember.objects.filter(org=org, user=request.user).first()
-    if not membership or membership.role != OrgMemberRole.ADMIN.value:
+    if not user_is_org_admin(request.user, org):
         return Response({"message": "Admin access required"}, status=HTTPStatus.FORBIDDEN)
 
     configs = AIProviderConfig.objects.get_for_org(org)
@@ -203,8 +202,7 @@ def list_org_ai_providers_summary(request: HttpRequest, org_id: str):
     if not org:
         return Response({"message": "Organization not found"}, status=HTTPStatus.NOT_FOUND)
 
-    membership = OrgMember.objects.filter(org=org, user=request.user).first()
-    if not membership:
+    if not user_can_access_org(request.user, org):
         return Response({"message": "Not a member of this organization"}, status=HTTPStatus.FORBIDDEN)
 
     configs = AIProviderConfig.objects.filter(org=org)
@@ -218,8 +216,7 @@ def create_org_ai_provider(request: HttpRequest, org_id: str, payload: AIProvide
     if not org:
         return Response({"message": "Organization not found"}, status=HTTPStatus.NOT_FOUND)
 
-    membership = OrgMember.objects.filter(org=org, user=request.user).first()
-    if not membership or membership.role != OrgMemberRole.ADMIN.value:
+    if not user_is_org_admin(request.user, org):
         return Response({"message": "Admin access required"}, status=HTTPStatus.FORBIDDEN)
 
     config = AIProviderConfig(
@@ -258,8 +255,7 @@ def update_org_ai_provider(request: HttpRequest, org_id: str, config_id: str, pa
     if not org:
         return Response({"message": "Organization not found"}, status=HTTPStatus.NOT_FOUND)
 
-    membership = OrgMember.objects.filter(org=org, user=request.user).first()
-    if not membership or membership.role != OrgMemberRole.ADMIN.value:
+    if not user_is_org_admin(request.user, org):
         return Response({"message": "Admin access required"}, status=HTTPStatus.FORBIDDEN)
 
     config = AIProviderConfig.objects.filter(org=org, external_id=config_id).first()
@@ -321,8 +317,7 @@ def delete_org_ai_provider(request: HttpRequest, org_id: str, config_id: str):
     if not org:
         return Response({"message": "Organization not found"}, status=HTTPStatus.NOT_FOUND)
 
-    membership = OrgMember.objects.filter(org=org, user=request.user).first()
-    if not membership or membership.role != OrgMemberRole.ADMIN.value:
+    if not user_is_org_admin(request.user, org):
         return Response({"message": "Admin access required"}, status=HTTPStatus.FORBIDDEN)
 
     config = AIProviderConfig.objects.filter(org=org, external_id=config_id).first()
@@ -342,8 +337,7 @@ def validate_org_ai_provider(request: HttpRequest, org_id: str, config_id: str):
     if not org:
         return Response({"message": "Organization not found"}, status=HTTPStatus.NOT_FOUND)
 
-    membership = OrgMember.objects.filter(org=org, user=request.user).first()
-    if not membership or membership.role != OrgMemberRole.ADMIN.value:
+    if not user_is_org_admin(request.user, org):
         return Response({"message": "Admin access required"}, status=HTTPStatus.FORBIDDEN)
 
     config = AIProviderConfig.objects.filter(org=org, external_id=config_id).first()
@@ -433,8 +427,7 @@ def get_org_usage(request: HttpRequest, org_id: str, query: UsageQueryParams = Q
     if not org:
         return Response({"message": "Organization not found"}, status=HTTPStatus.NOT_FOUND)
 
-    membership = OrgMember.objects.filter(org=org, user=request.user).first()
-    if not membership or membership.role != OrgMemberRole.ADMIN.value:
+    if not user_is_org_admin(request.user, org):
         return Response({"message": "Admin access required"}, status=HTTPStatus.FORBIDDEN)
 
     org_config_ids = AIProviderConfig.objects.filter(org=org).values_list("id", flat=True)
@@ -445,7 +438,7 @@ def get_org_usage(request: HttpRequest, org_id: str, query: UsageQueryParams = Q
 @ai_router.get("/indexing/status/", response=IndexingStatusOut)
 def get_indexing_status(request: HttpRequest):
     """Get the indexing status for the user's pages."""
-    user_pages = Page.objects.get_user_editable_pages(request.user).filter(is_deleted=False)
+    user_pages = Page.objects.get_user_accessible_pages(request.user).filter(is_deleted=False)
     total_pages = user_pages.count()
 
     indexed_page_ids = set(PageEmbedding.objects.filter(page__in=user_pages).values_list("page_id", flat=True))
@@ -474,7 +467,7 @@ def trigger_indexing(request: HttpRequest):
             status=HTTPStatus.BAD_REQUEST,
         )
 
-    user_pages = Page.objects.get_user_editable_pages(request.user).filter(is_deleted=False)
+    user_pages = Page.objects.get_user_accessible_pages(request.user).filter(is_deleted=False)
     indexed_page_ids = set(PageEmbedding.objects.filter(page__in=user_pages).values_list("page_id", flat=True))
     pending_page_ids = list(user_pages.exclude(id__in=indexed_page_ids).values_list("external_id", flat=True))
 

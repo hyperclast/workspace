@@ -40,8 +40,6 @@ from pages.permissions import (
     user_can_change_project_access,
     user_can_delete_project,
     user_can_edit_in_project,
-    user_can_modify_project,
-    user_is_org_admin,
 )
 from pages.schemas import (
     ErrorResponse,
@@ -300,7 +298,7 @@ def update_project(request: HttpRequest, external_id: str, payload: ProjectUpdat
         external_id=external_id,
     )
 
-    if not user_can_modify_project(request.user, project):
+    if not user_can_access_project(request.user, project):
         return Response({"message": "You don't have permission to modify this project"}, status=403)
 
     if payload.name is not None:
@@ -669,12 +667,7 @@ def update_project_editor_role(
         external_id=external_id,
     )
 
-    # Check if current user can modify roles
-    is_creator = project.creator_id == request.user.id
-    is_admin = project.org and user_is_org_admin(request.user, project.org)
-    can_edit = user_can_edit_in_project(request.user, project)
-
-    if not (is_creator or is_admin or can_edit):
+    if not user_can_edit_in_project(request.user, project):
         return Response(
             {"message": "You don't have permission to change roles in this project"},
             status=403,

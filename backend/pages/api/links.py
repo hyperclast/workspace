@@ -42,7 +42,7 @@ class SyncLinksOut(Schema):
 def get_page_links(request: HttpRequest, external_id: str):
     """Get outgoing and incoming links for a page."""
     page = get_object_or_404(
-        Page.objects.get_user_editable_pages(request.user),
+        Page.objects.get_user_accessible_pages(request.user),
         external_id=external_id,
     )
 
@@ -81,7 +81,7 @@ def sync_page_links(request: HttpRequest, external_id: str, payload: SyncLinksIn
     Returns the updated link lists.
     """
     page = get_object_or_404(
-        Page.objects.get_user_editable_pages(request.user),
+        Page.objects.get_user_accessible_pages(request.user),
         external_id=external_id,
     )
 

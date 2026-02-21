@@ -6,8 +6,8 @@ from django.test import override_settings
 from collab.models import YSnapshot, YUpdate
 from core.tests.common import BaseAuthenticatedViewTestCase
 from pages.models import Page
-from pages.constants import ProjectEditorRole
-from pages.tests.factories import PageFactory, ProjectEditorFactory, ProjectFactory
+from pages.constants import PageEditorRole, ProjectEditorRole
+from pages.tests.factories import PageEditorFactory, PageFactory, ProjectEditorFactory, ProjectFactory
 from users.constants import OrgMemberRole
 from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory
 
@@ -884,3 +884,48 @@ class TestPageAccessControlSecurity(BaseAuthenticatedViewTestCase):
 
         # Page should still exist
         self.assertTrue(Page.objects.filter(external_id=page.external_id).exists())
+
+
+class TestPageLevelAccessCreatePage(BaseAuthenticatedViewTestCase):
+    """Test that page-only access (Tier 3) does NOT grant page creation permissions.
+
+    Creating pages requires project-level write access. Users with only page-level
+    access can read/edit the specific pages they have access to, but cannot create
+    new pages in the project.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.project_owner = UserFactory()
+        self.org = OrgFactory()
+        OrgMemberFactory(org=self.org, user=self.project_owner)
+        self.project = ProjectFactory(org=self.org, creator=self.project_owner)
+        self.project.org_members_can_access = False
+        self.project.save()
+
+        # Give self.user page-level access only (not project or org access)
+        self.page = PageFactory(project=self.project, creator=self.project_owner)
+        PageEditorFactory(page=self.page, user=self.user, role=PageEditorRole.EDITOR.value)
+
+    def test_page_editor_cannot_create_page_in_project(self):
+        """User with only page-level access cannot create new pages in the project."""
+        pages_before = Page.objects.count()
+
+        response = self.send_api_request(
+            url="/api/pages/",
+            method="post",
+            data={"title": "New Page", "project_id": self.project.external_id},
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        self.assertEqual(Page.objects.count(), pages_before)
+
+    def test_page_editor_can_read_their_page(self):
+        """Verify page editor CAN read the page they have access to (sanity check)."""
+        response = self.send_api_request(
+            url=f"/api/pages/{self.page.external_id}/",
+            method="get",
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.json()["external_id"], self.page.external_id)

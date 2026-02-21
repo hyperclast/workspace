@@ -96,7 +96,7 @@ class PageManager(models.Manager):
     def get_editable_pages(self):
         return self.get_queryset().filter(is_deleted=False)
 
-    def get_user_editable_pages(self, user):
+    def get_user_accessible_pages(self, user):
         """
         Get all pages the user can access via org membership, project sharing, or page sharing.
 

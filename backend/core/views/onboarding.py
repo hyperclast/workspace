@@ -139,7 +139,7 @@ def welcome(request):
     user = request.user
 
     # If user already has pages, redirect to their first page
-    first_page = Page.objects.get_user_editable_pages(user).first()
+    first_page = Page.objects.get_user_accessible_pages(user).first()
     if first_page:
         return redirect("core:page", page_id=first_page.external_id)
 

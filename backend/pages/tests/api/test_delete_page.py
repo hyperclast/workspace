@@ -37,7 +37,7 @@ class TestDeletePageAPI(BaseAuthenticatedViewTestCase):
         page = PageFactory(project=self.project, creator=self.user)
 
         # Verify page is visible before deletion
-        accessible_pages = Page.objects.get_user_editable_pages(self.user)
+        accessible_pages = Page.objects.get_user_accessible_pages(self.user)
         self.assertIn(page, accessible_pages)
 
         # Delete the page
@@ -45,7 +45,7 @@ class TestDeletePageAPI(BaseAuthenticatedViewTestCase):
         self.assertEqual(response.status_code, HTTPStatus.NO_CONTENT)
 
         # Page should no longer be visible
-        accessible_pages = Page.objects.get_user_editable_pages(self.user)
+        accessible_pages = Page.objects.get_user_accessible_pages(self.user)
         self.assertNotIn(page, accessible_pages)
 
     def test_delete_page_cleans_up_crdt_updates(self):

@@ -39,7 +39,7 @@ def get_my_mentions(request: HttpRequest, query: MentionsQueryParams = Query(...
     Results are paginated and ordered by page modified date (most recent first).
     """
     # Get IDs of pages user can access
-    accessible_page_ids = Page.objects.get_user_editable_pages(request.user).values_list("id", flat=True)
+    accessible_page_ids = Page.objects.get_user_accessible_pages(request.user).values_list("id", flat=True)
 
     # Filter mentions to only accessible, non-deleted pages
     mentions_qs = (

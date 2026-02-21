@@ -8,6 +8,7 @@ from pgvector.django import CosineDistance, HnswIndex, VectorField
 
 from ask.helpers import compute_embedding
 from core.helpers import hashify
+from pages.models import Page
 
 
 class PageEmbeddingManager(models.Manager):
@@ -47,9 +48,10 @@ class PageEmbeddingManager(models.Manager):
         exclude_pages: Optional[List[str]] = None,
         limit: Optional[int] = 5,
     ) -> QuerySet:
+        accessible_page_ids = Page.objects.get_user_accessible_pages(user).values_list("id", flat=True)
         qs = (
             self.get_queryset()
-            .filter(page__editors=user)
+            .filter(page_id__in=accessible_page_ids)
             .annotate(distance=CosineDistance("embedding", input_embedding))
             .select_related("page")
         )

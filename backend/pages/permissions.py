@@ -10,7 +10,7 @@ Three-tier access model:
 Access is granted if ANY tier condition is true (additive/union model).
 """
 
-from pages.constants import PageEditorRole, ProjectEditorRole
+from pages.constants import AccessLevel, PageEditorRole, ProjectEditorRole
 from users.models import OrgMember
 
 
@@ -86,54 +86,6 @@ def user_can_access_page(user, page):
     return page.editors.filter(id=user.id).exists()
 
 
-def user_can_modify_page(user, page):
-    """
-    Check if user can update/delete page.
-
-    Preserves current behavior: Only creator can update/delete pages.
-
-    Args:
-        user: User instance
-        page: Page instance
-
-    Returns:
-        bool: True if user is the page creator
-    """
-    return page.creator_id == user.id
-
-
-def user_can_share_page(user, page):
-    """
-    Check if user can share the page.
-
-    Users with project access can share pages.
-
-    Args:
-        user: User instance
-        page: Page instance
-
-    Returns:
-        bool: True if user can access the page's project
-    """
-    return user_can_access_page(user, page)
-
-
-def user_can_modify_project(user, project):
-    """
-    Check if user can update project metadata (name, description, etc.).
-
-    Project editing is allowed if user has project access (org member or project editor).
-
-    Args:
-        user: User instance
-        project: Project instance
-
-    Returns:
-        bool: True if user can modify the project
-    """
-    return user_can_access_project(user, project)
-
-
 def user_can_delete_project(user, project):
     """
     Check if user can delete project.
@@ -172,22 +124,6 @@ def user_can_change_project_access(user, project):
         return True
 
     return False
-
-
-def user_can_share_project(user, project):
-    """
-    Check if user can add/remove project editors.
-
-    Any user with project access can share the project (add/remove editors).
-
-    Args:
-        user: User instance
-        project: Project instance
-
-    Returns:
-        bool: True if user can access the project
-    """
-    return user_can_access_project(user, project)
 
 
 def user_can_edit_in_project(user, project):
@@ -261,6 +197,85 @@ def user_is_org_admin(user, org):
         bool: True if user is an admin of the org
     """
     return OrgMember.objects.filter(user=user, org=org, role="admin").exists()
+
+
+def get_project_access_level(user, project):
+    """
+    Return the user's highest access level for a project.
+
+    Checks all tiers and returns the highest:
+    - ADMIN: User is project creator or org admin
+    - EDITOR: User is org member (when org_members_can_access=True)
+              or ProjectEditor with role='editor'
+    - VIEWER: ProjectEditor with role='viewer'
+    - NONE: No access
+
+    Query complexity: 3-4 queries (checks all tiers, no short-circuit).
+    For yes/no access checks in hot paths, use user_can_access_project() instead.
+    """
+    from pages.models import ProjectEditor
+
+    if project.creator_id == user.id:
+        return AccessLevel.ADMIN
+
+    level = AccessLevel.NONE
+
+    if project.org:
+        if user_is_org_admin(user, project.org):
+            return AccessLevel.ADMIN
+
+        if project.org_members_can_access:
+            if user_can_access_org(user, project.org):
+                level = AccessLevel.EDITOR
+
+    try:
+        pe = ProjectEditor.objects.get(user=user, project=project)
+        role_level = AccessLevel.EDITOR if pe.role == ProjectEditorRole.EDITOR.value else AccessLevel.VIEWER
+        level = max(level, role_level, key=_access_level_order)
+    except ProjectEditor.DoesNotExist:
+        pass
+
+    return level
+
+
+def get_page_access_level(user, page):
+    """
+    Return the user's highest access level for a page.
+
+    Checks all tiers and returns the highest:
+    - ADMIN: User is page creator, project creator, or org admin
+    - EDITOR: Project-level editor access or PageEditor with role='editor'
+    - VIEWER: Project-level viewer access or PageEditor with role='viewer'
+    - NONE: No access
+
+    Query complexity: 4-5 queries (checks all tiers, no short-circuit).
+    For yes/no access checks in hot paths, use user_can_access_page() instead.
+    """
+    from pages.models import PageEditor
+
+    if not page.project:
+        return AccessLevel.NONE
+
+    if page.creator_id == user.id:
+        return AccessLevel.ADMIN
+
+    level = get_project_access_level(user, page.project)
+    if level == AccessLevel.ADMIN:
+        return level
+
+    try:
+        pe = PageEditor.objects.get(user=user, page=page)
+        role_level = AccessLevel.EDITOR if pe.role == PageEditorRole.EDITOR.value else AccessLevel.VIEWER
+        level = max(level, role_level, key=_access_level_order)
+    except PageEditor.DoesNotExist:
+        pass
+
+    return level
+
+
+def _access_level_order(level):
+    """Return sort key for AccessLevel ordering (NONE < VIEWER < EDITOR < ADMIN)."""
+    return (AccessLevel.NONE, AccessLevel.VIEWER, AccessLevel.EDITOR, AccessLevel.ADMIN).index(level)
 
 
 def get_page_access_source(user, page):
@@ -366,35 +381,11 @@ def get_user_page_access_label(user, page):
     Returns:
         str: One of "Owner", "Admin", "Can edit", "Can view", or ""
     """
-    from pages.models import PageEditor
-
-    # Check if user is the creator (owner)
     if page.creator_id == user.id:
         return "Owner"
 
-    # Check if user is org admin
-    if page.project and page.project.org and user_is_org_admin(user, page.project.org):
-        return "Admin"
-
-    # Check if user has project-level write access
-    if page.project and user_can_edit_in_project(user, page.project):
-        return "Can edit"
-
-    # Check page editor role
-    try:
-        page_editor = PageEditor.objects.get(user=user, page=page)
-        if page_editor.role == PageEditorRole.EDITOR.value:
-            return "Can edit"
-        else:
-            return "Can view"
-    except PageEditor.DoesNotExist:
-        pass
-
-    # Check if user has project-level read access (viewer)
-    if page.project and user_can_access_project(user, page.project):
-        return "Can view"
-
-    return ""
+    level = get_page_access_level(user, page)
+    return _access_level_to_label(level)
 
 
 def get_user_project_access_label(user, project):
@@ -408,30 +399,21 @@ def get_user_project_access_label(user, project):
     Returns:
         str: One of "Owner", "Admin", "Can edit", "Can view", or ""
     """
-    from pages.models import ProjectEditor
-
-    # Check if user is the creator (owner)
     if project.creator_id == user.id:
         return "Owner"
 
-    # Check if user is org admin
-    if project.org and user_is_org_admin(user, project.org):
+    level = get_project_access_level(user, project)
+    return _access_level_to_label(level)
+
+
+def _access_level_to_label(level):
+    """Convert AccessLevel to human-readable label."""
+    if level == AccessLevel.ADMIN:
         return "Admin"
-
-    # Check if user is org member (when org access is enabled)
-    if project.org and project.org_members_can_access and user_can_access_org(user, project.org):
+    elif level == AccessLevel.EDITOR:
         return "Can edit"
-
-    # Check project editor role
-    try:
-        project_editor = ProjectEditor.objects.get(user=user, project=project)
-        if project_editor.role == ProjectEditorRole.EDITOR.value:
-            return "Can edit"
-        else:
-            return "Can view"
-    except ProjectEditor.DoesNotExist:
-        pass
-
+    elif level == AccessLevel.VIEWER:
+        return "Can view"
     return ""
 
 

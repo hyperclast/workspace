@@ -1,6 +1,7 @@
 from django.test import TestCase
 
 from pages.models import Page
+from pages.constants import PageEditorRole, ProjectEditorRole
 from pages.permissions import (
     get_page_access_source,
     get_user_project_access_label,
@@ -9,13 +10,11 @@ from pages.permissions import (
     user_can_access_project,
     user_can_delete_page_in_project,
     user_can_delete_project,
-    user_can_modify_page,
-    user_can_modify_project,
-    user_can_share_page,
-    user_can_share_project,
+    user_can_edit_in_page,
+    user_can_edit_in_project,
     user_is_org_admin,
 )
-from pages.tests.factories import PageFactory, ProjectFactory
+from pages.tests.factories import PageEditorFactory, PageFactory, ProjectEditorFactory, ProjectFactory
 from users.constants import OrgMemberRole
 from users.models import OrgMember
 from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory
@@ -80,34 +79,34 @@ class TestTwoTierAccess(TestCase):
 
     def test_only_creator_can_modify(self):
         """Test that only page creator can update/delete page."""
-        self.assertTrue(user_can_modify_page(self.org_admin, self.page))
-        self.assertFalse(user_can_modify_page(self.org_member, self.page))
-        self.assertFalse(user_can_modify_page(self.external_user, self.page))
+        self.assertTrue(user_can_delete_page_in_project(self.org_admin, self.page))
+        self.assertFalse(user_can_delete_page_in_project(self.org_member, self.page))
+        self.assertFalse(user_can_delete_page_in_project(self.external_user, self.page))
 
     def test_users_with_project_access_can_share(self):
         """Test that users with project access can share pages."""
-        self.assertTrue(user_can_share_page(self.org_admin, self.page))
-        self.assertTrue(user_can_share_page(self.org_member, self.page))
-        self.assertTrue(user_can_share_page(self.project_editor, self.page))
-        self.assertFalse(user_can_share_page(self.external_user, self.page))
+        self.assertTrue(user_can_access_page(self.org_admin, self.page))
+        self.assertTrue(user_can_access_page(self.org_member, self.page))
+        self.assertTrue(user_can_access_page(self.project_editor, self.page))
+        self.assertFalse(user_can_access_page(self.external_user, self.page))
 
-    def test_get_user_editable_pages_org_access(self):
+    def test_get_user_accessible_pages_org_access(self):
         """Test PageManager returns org pages."""
-        pages = Page.objects.get_user_editable_pages(self.org_member)
+        pages = Page.objects.get_user_accessible_pages(self.org_member)
 
         self.assertIn(self.page, pages)
 
-    def test_get_user_editable_pages_project_editor_access(self):
+    def test_get_user_accessible_pages_project_editor_access(self):
         """Test PageManager returns pages via project editor access."""
-        pages = Page.objects.get_user_editable_pages(self.project_editor)
+        pages = Page.objects.get_user_accessible_pages(self.project_editor)
 
         self.assertIn(self.page, pages)
 
-    def test_get_user_editable_pages_no_duplicates(self):
+    def test_get_user_accessible_pages_no_duplicates(self):
         """Test that pages appear only once when user has both org and project access."""
         self.project.editors.add(self.org_member)
 
-        pages = Page.objects.get_user_editable_pages(self.org_member)
+        pages = Page.objects.get_user_accessible_pages(self.org_member)
 
         self.assertEqual(pages.filter(id=self.page.id).count(), 1)
 
@@ -195,17 +194,17 @@ class TestProjectAccessHelpers(TestCase):
         """Test that non-members without project editor access cannot access org projects."""
         self.assertFalse(user_can_access_project(self.external_user, self.project))
 
-    def test_user_can_modify_project_for_org_member(self):
-        """Test that org members can modify org projects."""
-        self.assertTrue(user_can_modify_project(self.org_member, self.project))
+    def test_user_can_access_project_for_org_member(self):
+        """Test that org members can access (and modify) org projects."""
+        self.assertTrue(user_can_access_project(self.org_member, self.project))
 
-    def test_user_can_modify_project_for_project_editor(self):
-        """Test that project editors can modify shared projects."""
-        self.assertTrue(user_can_modify_project(self.project_editor, self.project))
+    def test_user_can_access_project_for_project_editor(self):
+        """Test that project editors can access (and modify) shared projects."""
+        self.assertTrue(user_can_access_project(self.project_editor, self.project))
 
-    def test_user_cannot_modify_project_for_non_member(self):
-        """Test that non-members cannot modify org projects."""
-        self.assertFalse(user_can_modify_project(self.external_user, self.project))
+    def test_user_cannot_access_project_for_non_member(self):
+        """Test that non-members cannot access org projects."""
+        self.assertFalse(user_can_access_project(self.external_user, self.project))
 
     def test_user_can_delete_project_for_creator(self):
         """Test that project creator can delete the project."""
@@ -219,18 +218,6 @@ class TestProjectAccessHelpers(TestCase):
         other_member = UserFactory()
         OrgMemberFactory(org=self.org, user=other_member)
         self.assertFalse(user_can_delete_project(other_member, self.project))
-
-    def test_user_can_share_project_for_org_member(self):
-        """Test that org members can share org projects."""
-        self.assertTrue(user_can_share_project(self.org_member, self.project))
-
-    def test_user_can_share_project_for_project_editor(self):
-        """Test that project editors can share shared projects."""
-        self.assertTrue(user_can_share_project(self.project_editor, self.project))
-
-    def test_user_cannot_share_project_for_non_member(self):
-        """Test that non-members cannot share org projects."""
-        self.assertFalse(user_can_share_project(self.external_user, self.project))
 
 
 class TestPageAccessHelpers(TestCase):
@@ -248,32 +235,32 @@ class TestPageAccessHelpers(TestCase):
         self.project.editors.add(self.project_editor)
         self.page = PageFactory(project=self.project, creator=self.org_member)
 
-    def test_creator_can_modify_page(self):
-        """Test that page creator can modify the page."""
-        self.assertTrue(user_can_modify_page(self.org_member, self.page))
+    def test_creator_can_delete_page(self):
+        """Test that page creator can delete the page."""
+        self.assertTrue(user_can_delete_page_in_project(self.org_member, self.page))
 
-    def test_non_creator_cannot_modify_page(self):
-        """Test that non-creators cannot modify the page."""
+    def test_non_creator_cannot_delete_page(self):
+        """Test that non-creators cannot delete the page."""
         other_member = UserFactory()
         OrgMemberFactory(org=self.org, user=other_member)
 
-        self.assertFalse(user_can_modify_page(other_member, self.page))
+        self.assertFalse(user_can_delete_page_in_project(other_member, self.page))
 
-    def test_project_editor_cannot_modify_page(self):
-        """Test that project editors cannot modify pages they didn't create."""
-        self.assertFalse(user_can_modify_page(self.project_editor, self.page))
+    def test_project_editor_cannot_delete_page(self):
+        """Test that project editors cannot delete pages they didn't create."""
+        self.assertFalse(user_can_delete_page_in_project(self.project_editor, self.page))
 
-    def test_org_member_can_share_page(self):
-        """Test that org members can share pages."""
-        self.assertTrue(user_can_share_page(self.org_member, self.page))
+    def test_org_member_can_access_page(self):
+        """Test that org members can access pages."""
+        self.assertTrue(user_can_access_page(self.org_member, self.page))
 
-    def test_project_editor_can_share_page(self):
-        """Test that project editors can share pages in their projects."""
-        self.assertTrue(user_can_share_page(self.project_editor, self.page))
+    def test_project_editor_can_access_page(self):
+        """Test that project editors can access pages in their projects."""
+        self.assertTrue(user_can_access_page(self.project_editor, self.page))
 
-    def test_non_member_cannot_share_page(self):
-        """Test that users without project access cannot share the page."""
-        self.assertFalse(user_can_share_page(self.external_user, self.page))
+    def test_non_member_cannot_access_page(self):
+        """Test that users without project access cannot access the page."""
+        self.assertFalse(user_can_access_page(self.external_user, self.page))
 
     def test_creator_can_delete_page_in_project(self):
         """Test that page creator can delete their page in project."""
@@ -337,7 +324,7 @@ class TestPermissionEdgeCases(TestCase):
         self.assertEqual(get_page_access_source(user, page1), "org+page")
         self.assertEqual(get_page_access_source(user, page2), "org+page")
 
-    def test_get_user_editable_pages_across_multiple_orgs(self):
+    def test_get_user_accessible_pages_across_multiple_orgs(self):
         """Test that PageManager returns pages from all orgs user is member of."""
         org1 = OrgFactory()
         org2 = OrgFactory()
@@ -352,7 +339,7 @@ class TestPermissionEdgeCases(TestCase):
         page1 = PageFactory(project=project1, creator=user)
         page2 = PageFactory(project=project2, creator=user)
 
-        pages = Page.objects.get_user_editable_pages(user)
+        pages = Page.objects.get_user_accessible_pages(user)
 
         self.assertIn(page1, pages)
         self.assertIn(page2, pages)
@@ -568,3 +555,87 @@ class TestGetUserProjectAccessLabel(TestCase):
 
         # Should get "Can edit" from org membership, not "Can view" from editor role
         self.assertEqual(get_user_project_access_label(self.org_member, self.project), "Can edit")
+
+
+class TestCrossTierAccessConflicts(TestCase):
+    """Test that cross-tier access resolves to the highest level (additive model).
+
+    When a user has access via multiple tiers (e.g., org member AND project viewer),
+    the highest access level should win. This is critical for the permission refactor
+    to ensure the additive model is preserved.
+    """
+
+    def setUp(self):
+        self.org = OrgFactory()
+        self.project_owner = UserFactory()
+        OrgMemberFactory(org=self.org, user=self.project_owner, role=OrgMemberRole.ADMIN.value)
+        self.project = ProjectFactory(org=self.org, creator=self.project_owner, org_members_can_access=True)
+        self.page = PageFactory(project=self.project, creator=self.project_owner)
+
+    def test_org_member_with_project_viewer_gets_edit_access(self):
+        """Org member (edit via Tier 1) + project viewer (read via Tier 2) = edit access.
+
+        The org membership grants edit access, which is higher than the viewer role
+        on the project editor. The additive model means the highest wins.
+        """
+        user = UserFactory()
+        OrgMemberFactory(org=self.org, user=user, role=OrgMemberRole.MEMBER.value)
+        ProjectEditorFactory(project=self.project, user=user, role=ProjectEditorRole.VIEWER.value)
+
+        # Should have edit access via org membership (Tier 1)
+        self.assertTrue(user_can_access_project(user, self.project))
+        self.assertTrue(user_can_edit_in_project(user, self.project))
+        self.assertTrue(user_can_access_page(user, self.page))
+        self.assertTrue(user_can_edit_in_page(user, self.page))
+
+    def test_org_member_with_page_viewer_gets_edit_access(self):
+        """Org member (edit via Tier 1) + page viewer (read via Tier 3) = edit access."""
+        user = UserFactory()
+        OrgMemberFactory(org=self.org, user=user, role=OrgMemberRole.MEMBER.value)
+        PageEditorFactory(page=self.page, user=user, role=PageEditorRole.VIEWER.value)
+
+        self.assertTrue(user_can_edit_in_page(user, self.page))
+
+    def test_project_viewer_with_page_editor_gets_edit_on_page(self):
+        """Project viewer (read via Tier 2) + page editor (edit via Tier 3) = edit on page.
+
+        The user can't edit at project level (viewer), but CAN edit the specific page
+        they have page-level editor access to.
+        """
+        user = UserFactory()
+        # Disable org access so Tier 1 doesn't apply
+        self.project.org_members_can_access = False
+        self.project.save()
+
+        ProjectEditorFactory(project=self.project, user=user, role=ProjectEditorRole.VIEWER.value)
+        PageEditorFactory(page=self.page, user=user, role=PageEditorRole.EDITOR.value)
+
+        # Project level: viewer only (cannot create pages)
+        self.assertTrue(user_can_access_project(user, self.project))
+        self.assertFalse(user_can_edit_in_project(user, self.project))
+
+        # Page level: editor (can edit this specific page)
+        self.assertTrue(user_can_access_page(user, self.page))
+        self.assertTrue(user_can_edit_in_page(user, self.page))
+
+    def test_org_admin_always_wins_over_lower_tiers(self):
+        """Org admin (Tier 0) always has full access regardless of other tier roles."""
+        user = UserFactory()
+        OrgMemberFactory(org=self.org, user=user, role=OrgMemberRole.ADMIN.value)
+        # Also add as project viewer and page viewer (lower roles)
+        ProjectEditorFactory(project=self.project, user=user, role=ProjectEditorRole.VIEWER.value)
+        PageEditorFactory(page=self.page, user=user, role=PageEditorRole.VIEWER.value)
+
+        # Admin always wins
+        self.assertTrue(user_can_edit_in_project(user, self.project))
+        self.assertTrue(user_can_edit_in_page(user, self.page))
+
+    def test_access_source_shows_multiple_tiers(self):
+        """Access source should show all tiers through which user has access."""
+        user = UserFactory()
+        OrgMemberFactory(org=self.org, user=user, role=OrgMemberRole.MEMBER.value)
+        PageEditorFactory(page=self.page, user=user, role=PageEditorRole.EDITOR.value)
+
+        source = get_page_access_source(user, self.page)
+        self.assertIn("org", source)
+        self.assertIn("page", source)

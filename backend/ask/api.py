@@ -7,12 +7,13 @@ from ninja.responses import Response
 from ask.constants import AskRequestError, ask_request_error_map
 from ask.models import AskRequest
 from ask.schemas import AskIn, AskOut
+from ask.throttling import AskRateThrottle
 from core.authentication import session_auth, token_auth
 
 router = Router(auth=[token_auth, session_auth])
 
 
-@router.post("/", response={200: AskOut, 400: dict})
+@router.post("/", response={200: AskOut, 400: dict}, throttle=[AskRateThrottle()])
 def ask(request, payload: AskIn):
     """Process a user query and return an AI-generated answer.
 

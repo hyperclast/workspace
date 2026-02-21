@@ -55,6 +55,7 @@ Submit a question and receive an AI-generated answer based on relevant page cont
 | 400  | `api_error`            | LLM API error (rate limits, unavailable)   |
 | 400  | `unexpected`           | Unexpected processing error                |
 | 422  | Validation error       | Invalid request body                       |
+| 429  | Too Many Requests      | Rate limit exceeded (default: 30 req/min)  |
 | 503  | `ask_feature_disabled` | Feature temporarily unavailable            |
 
 ---

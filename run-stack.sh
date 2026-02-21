@@ -31,6 +31,13 @@ export WS_WEB_EXTERNAL_PORT="$PORT"
 WORKTREE_NAME=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "default")")
 PROJECT_NAME="backend-${WORKTREE_NAME}-${PORT}"
 
+export SOCRATIC_PREVIEW_DIR="${HOME}/tmp/socratic-${PORT}"
+mkdir -p "$SOCRATIC_PREVIEW_DIR"
+
+# Pass host UID/GID so containers create files with correct ownership
+export WS_DOCKER_UID="$(id -u)"
+export WS_DOCKER_GID="$(id -g)"
+
 echo "Port: $PORT"
 echo "Project: $PROJECT_NAME"
 
