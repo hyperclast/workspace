@@ -16,10 +16,10 @@ The file upload process follows a three-step flow:
 
 List all file uploads for a specific project.
 
-|              |                                 |
-| ------------ | ------------------------------- |
-| **Endpoint** | `GET /api/files/projects/{id}/` |
-| **Auth**     | Bearer token                    |
+|              |                                    |
+| ------------ | ---------------------------------- |
+| **Endpoint** | `GET /api/v1/files/projects/{id}/` |
+| **Auth**     | Bearer token                       |
 
 | Param    | Type   | Description                   |
 | -------- | ------ | ----------------------------- |
@@ -64,10 +64,10 @@ List all file uploads for a specific project.
 
 List all file uploads by the authenticated user.
 
-|              |                        |
-| ------------ | ---------------------- |
-| **Endpoint** | `GET /api/files/mine/` |
-| **Auth**     | Bearer token           |
+|              |                           |
+| ------------ | ------------------------- |
+| **Endpoint** | `GET /api/v1/files/mine/` |
+| **Auth**     | Bearer token              |
 
 | Param    | Type   | Description                   |
 | -------- | ------ | ----------------------------- |
@@ -87,10 +87,10 @@ List all file uploads by the authenticated user.
 
 Request a signed URL to upload a file.
 
-|              |                    |
-| ------------ | ------------------ |
-| **Endpoint** | `POST /api/files/` |
-| **Auth**     | Bearer token       |
+|              |                       |
+| ------------ | --------------------- |
+| **Endpoint** | `POST /api/v1/files/` |
+| **Auth**     | Bearer token          |
 
 | Field             | Type   | Required? | Description                                            |
 | ----------------- | ------ | --------- | ------------------------------------------------------ |
@@ -174,10 +174,10 @@ curl -X PUT "$upload_url" \
 
 Retrieve detailed file information.
 
-|              |                        |
-| ------------ | ---------------------- |
-| **Endpoint** | `GET /api/files/{id}/` |
-| **Auth**     | Bearer token           |
+|              |                           |
+| ------------ | ------------------------- |
+| **Endpoint** | `GET /api/v1/files/{id}/` |
+| **Auth**     | Bearer token              |
 
 **Response (200):**
 
@@ -222,10 +222,10 @@ Mark the upload as complete after uploading the file.
 
 **Note:** When `webhook_enabled` is `true`, finalization happens automatically. This endpoint is only needed when webhooks are disabled or for error recovery.
 
-|              |                                  |
-| ------------ | -------------------------------- |
-| **Endpoint** | `POST /api/files/{id}/finalize/` |
-| **Auth**     | Bearer token (owner only)        |
+|              |                                     |
+| ------------ | ----------------------------------- |
+| **Endpoint** | `POST /api/v1/files/{id}/finalize/` |
+| **Auth**     | Bearer token (owner only)           |
 
 | Field  | Type   | Required? | Description               |
 | ------ | ------ | --------- | ------------------------- |
@@ -265,10 +265,10 @@ The `link` field contains the permanent download URL for the finalized file.
 
 Get a permanent download URL for the file.
 
-|              |                                 |
-| ------------ | ------------------------------- |
-| **Endpoint** | `GET /api/files/{id}/download/` |
-| **Auth**     | Bearer token                    |
+|              |                                    |
+| ------------ | ---------------------------------- |
+| **Endpoint** | `GET /api/v1/files/{id}/download/` |
+| **Auth**     | Bearer token                       |
 
 **Response (200):**
 
@@ -319,10 +319,10 @@ Download a file using its permanent URL with access token.
 
 Regenerate the access token, invalidating all existing download links.
 
-|              |                                          |
-| ------------ | ---------------------------------------- |
-| **Endpoint** | `POST /api/files/{id}/regenerate-token/` |
-| **Auth**     | Bearer token (uploader only)             |
+|              |                                             |
+| ------------ | ------------------------------------------- |
+| **Endpoint** | `POST /api/v1/files/{id}/regenerate-token/` |
+| **Auth**     | Bearer token (uploader only)                |
 
 **Response (200):**
 
@@ -351,10 +351,10 @@ Regenerate the access token, invalidating all existing download links.
 
 Soft-delete a file upload.
 
-|              |                           |
-| ------------ | ------------------------- |
-| **Endpoint** | `DELETE /api/files/{id}/` |
-| **Auth**     | Bearer token (owner only) |
+|              |                              |
+| ------------ | ---------------------------- |
+| **Endpoint** | `DELETE /api/v1/files/{id}/` |
+| **Auth**     | Bearer token (owner only)    |
 
 **Response (204):** No content
 
@@ -369,10 +369,10 @@ Soft-delete a file upload.
 
 Get a list of pages that link to this file. Useful for warning users before deleting a file that is referenced in pages.
 
-|              |                                   |
-| ------------ | --------------------------------- |
-| **Endpoint** | `GET /api/files/{id}/references/` |
-| **Auth**     | Bearer token                      |
+|              |                                      |
+| ------------ | ------------------------------------ |
+| **Endpoint** | `GET /api/v1/files/{id}/references/` |
+| **Auth**     | Bearer token                         |
 
 **Response (200):**
 
@@ -412,7 +412,7 @@ import requests
 
 # 1. Create upload (requires project_id)
 response = requests.post(
-    "https://api.example.com/api/files/",
+    "https://api.example.com/api/v1/files/",
     headers={"Authorization": f"Bearer {token}"},
     json={
         "project_id": "proj-xyz-...",  # Required: project external ID
@@ -435,13 +435,13 @@ with open("report.pdf", "rb") as f:
 
 # 3. Finalize
 requests.post(
-    f"https://api.example.com/api/files/{file_id}/finalize/",
+    f"https://api.example.com/api/v1/files/{file_id}/finalize/",
     headers={"Authorization": f"Bearer {token}"}
 )
 
 # 4. Download
 response = requests.get(
-    f"https://api.example.com/api/files/{file_id}/download/",
+    f"https://api.example.com/api/v1/files/{file_id}/download/",
     headers={"Authorization": f"Bearer {token}"}
 )
 download_url = response.json()["download_url"]

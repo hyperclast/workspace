@@ -6,7 +6,7 @@
  * without XSS vulnerabilities.
  */
 
-import { describe, test, expect, beforeEach, afterEach } from "vitest";
+import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 import { setupPresenceUI } from "../presence.js";
 
 /**
@@ -45,27 +45,28 @@ function createMockAwareness(users = []) {
 }
 
 /**
- * Create the DOM elements that setupPresenceUI expects.
+ * Create the mount target that setupPresenceUI expects.
+ * Child elements (#user-count, #presence-popover, #presence-list)
+ * are created by the Svelte component after mount, so we return
+ * getters that query the DOM fresh each time.
  */
 function createPresenceDOM() {
   const indicator = document.createElement("div");
   indicator.id = "presence-indicator";
-
-  const popover = document.createElement("div");
-  popover.id = "presence-popover";
-
-  const userCount = document.createElement("span");
-  userCount.id = "user-count";
-
-  const presenceList = document.createElement("div");
-  presenceList.id = "presence-list";
-
-  indicator.appendChild(userCount);
-  popover.appendChild(presenceList);
-  indicator.appendChild(popover);
   document.body.appendChild(indicator);
 
-  return { indicator, popover, userCount, presenceList };
+  return {
+    indicator,
+    get popover() {
+      return document.getElementById("presence-popover");
+    },
+    get userCount() {
+      return document.getElementById("user-count");
+    },
+    get presenceList() {
+      return document.getElementById("presence-list");
+    },
+  };
 }
 
 describe("presence UI", () => {
@@ -182,6 +183,212 @@ describe("presence UI", () => {
 
       expect(dom.presenceList.textContent).toContain("Alice");
       expect(dom.presenceList.textContent).toContain("Bob");
+    });
+
+    test("sets data-count attribute on user count span", () => {
+      const awareness = createMockAwareness([
+        { name: "Alice", color: "#f00" },
+        { name: "Bob", color: "#0f0" },
+        { name: "Charlie", color: "#00f" },
+      ]);
+      cleanup = setupPresenceUI(awareness);
+
+      expect(dom.userCount.getAttribute("data-count")).toBe("3");
+    });
+
+    test("renders user color indicators with correct background", () => {
+      const awareness = createMockAwareness([{ name: "Alice", color: "#ff0000" }]);
+      cleanup = setupPresenceUI(awareness);
+
+      const colorDiv = dom.presenceList.querySelector(".presence-user-color");
+      expect(colorDiv).not.toBeNull();
+      // jsdom may return the value as-is or normalized; check it was set
+      expect(colorDiv.style.backgroundColor).toBe("#ff0000");
+    });
+
+    test("renders correct DOM structure for each user entry", () => {
+      const awareness = createMockAwareness([{ name: "Alice", color: "#f00" }]);
+      cleanup = setupPresenceUI(awareness);
+
+      const userDiv = dom.presenceList.querySelector(".presence-user");
+      expect(userDiv).not.toBeNull();
+      expect(userDiv.querySelector(".presence-user-color")).not.toBeNull();
+      expect(userDiv.querySelector("span")).not.toBeNull();
+      expect(userDiv.querySelector("span").textContent).toBe("Alice");
+    });
+  });
+
+  describe("edge cases", () => {
+    test("defaults to 'Anonymous' when user name is missing", () => {
+      const awareness = createMockAwareness([{ color: "#f00" }]);
+      cleanup = setupPresenceUI(awareness);
+
+      expect(dom.presenceList.textContent).toContain("Anonymous");
+    });
+
+    test("defaults to '#999' color when user color is missing", () => {
+      const awareness = createMockAwareness([{ name: "Alice" }]);
+      cleanup = setupPresenceUI(awareness);
+
+      const colorDiv = dom.presenceList.querySelector(".presence-user-color");
+      expect(colorDiv.style.backgroundColor).toBe("#999");
+    });
+
+    test("skips awareness states without a user property", () => {
+      const awareness = createMockAwareness([]);
+      // Manually add a state without .user
+      awareness.getStates().set(99, { cursor: { line: 5 } });
+      cleanup = setupPresenceUI(awareness);
+
+      expect(dom.userCount.textContent).toBe("0 users editing");
+      expect(dom.presenceList.children.length).toBe(0);
+    });
+
+    test("awareness update replaces previous list (does not append)", () => {
+      const awareness = createMockAwareness([
+        { name: "Alice", color: "#f00" },
+        { name: "Bob", color: "#0f0" },
+      ]);
+      cleanup = setupPresenceUI(awareness);
+      expect(dom.presenceList.querySelectorAll(".presence-user").length).toBe(2);
+
+      // Update to a single user
+      awareness._setUsers([{ name: "Charlie", color: "#00f" }]);
+      expect(dom.presenceList.querySelectorAll(".presence-user").length).toBe(1);
+      expect(dom.presenceList.textContent).toContain("Charlie");
+      expect(dom.presenceList.textContent).not.toContain("Alice");
+    });
+
+    test("handles zero users", () => {
+      const awareness = createMockAwareness([]);
+      cleanup = setupPresenceUI(awareness);
+
+      expect(dom.userCount.textContent).toBe("0 users editing");
+      expect(dom.presenceList.children.length).toBe(0);
+    });
+  });
+
+  describe("popover show/hide behavior", () => {
+    test("shows popover on mouseenter", () => {
+      const awareness = createMockAwareness([{ name: "Alice", color: "#f00" }]);
+      cleanup = setupPresenceUI(awareness);
+
+      dom.indicator.dispatchEvent(new Event("mouseenter"));
+      expect(dom.popover.style.display).toBe("block");
+    });
+
+    test("hides popover on mouseleave after delay", () => {
+      vi.useFakeTimers();
+      const awareness = createMockAwareness([{ name: "Alice", color: "#f00" }]);
+      cleanup = setupPresenceUI(awareness);
+
+      // Show popover
+      dom.indicator.dispatchEvent(new Event("mouseenter"));
+      expect(dom.popover.style.display).toBe("block");
+
+      // Start hiding
+      dom.indicator.dispatchEvent(new Event("mouseleave"));
+      // Should not hide immediately
+      expect(dom.popover.style.display).toBe("block");
+
+      // Advance past the 300ms timeout
+      vi.advanceTimersByTime(300);
+      expect(dom.popover.style.display).toBe("none");
+
+      vi.useRealTimers();
+    });
+
+    test("cancels hide when re-entering indicator before timeout", () => {
+      vi.useFakeTimers();
+      const awareness = createMockAwareness([{ name: "Alice", color: "#f00" }]);
+      cleanup = setupPresenceUI(awareness);
+
+      dom.indicator.dispatchEvent(new Event("mouseenter"));
+      dom.indicator.dispatchEvent(new Event("mouseleave"));
+
+      // Re-enter before timeout fires
+      vi.advanceTimersByTime(100);
+      dom.indicator.dispatchEvent(new Event("mouseenter"));
+
+      // Advance past original timeout
+      vi.advanceTimersByTime(300);
+      expect(dom.popover.style.display).toBe("block");
+
+      vi.useRealTimers();
+    });
+
+    test("keeps popover open when hovering over the popover itself", () => {
+      vi.useFakeTimers();
+      const awareness = createMockAwareness([{ name: "Alice", color: "#f00" }]);
+      cleanup = setupPresenceUI(awareness);
+
+      dom.indicator.dispatchEvent(new Event("mouseenter"));
+      dom.indicator.dispatchEvent(new Event("mouseleave"));
+
+      // Mouse enters the popover before timeout
+      vi.advanceTimersByTime(100);
+      dom.popover.dispatchEvent(new Event("mouseenter"));
+
+      vi.advanceTimersByTime(300);
+      expect(dom.popover.style.display).toBe("block");
+
+      vi.useRealTimers();
+    });
+
+    test("hides popover after leaving the popover", () => {
+      vi.useFakeTimers();
+      const awareness = createMockAwareness([{ name: "Alice", color: "#f00" }]);
+      cleanup = setupPresenceUI(awareness);
+
+      dom.indicator.dispatchEvent(new Event("mouseenter"));
+      dom.popover.dispatchEvent(new Event("mouseenter"));
+      dom.popover.dispatchEvent(new Event("mouseleave"));
+
+      vi.advanceTimersByTime(300);
+      expect(dom.popover.style.display).toBe("none");
+
+      vi.useRealTimers();
+    });
+
+    test("shows popover on click (touch devices)", () => {
+      const awareness = createMockAwareness([{ name: "Alice", color: "#f00" }]);
+      cleanup = setupPresenceUI(awareness);
+
+      dom.indicator.dispatchEvent(new Event("click", { bubbles: true }));
+      expect(dom.popover.style.display).toBe("block");
+    });
+
+    test("hides popover on click outside", () => {
+      const awareness = createMockAwareness([{ name: "Alice", color: "#f00" }]);
+      cleanup = setupPresenceUI(awareness);
+
+      // Open
+      dom.indicator.dispatchEvent(new Event("mouseenter"));
+      expect(dom.popover.style.display).toBe("block");
+
+      // Click outside (on document body, not inside the indicator)
+      const outsideClick = new Event("click", { bubbles: true });
+      document.body.dispatchEvent(outsideClick);
+      expect(dom.popover.style.display).toBe("none");
+    });
+  });
+
+  describe("cleanup", () => {
+    test("cleanup function removes awareness listener", () => {
+      const awareness = createMockAwareness([{ name: "Alice", color: "#f00" }]);
+      cleanup = setupPresenceUI(awareness);
+
+      expect(dom.presenceList.textContent).toContain("Alice");
+
+      // Call cleanup
+      cleanup();
+
+      // Awareness update should no longer affect the DOM
+      awareness._setUsers([{ name: "Bob", color: "#0f0" }]);
+      expect(dom.presenceList.textContent).toContain("Alice");
+      expect(dom.presenceList.textContent).not.toContain("Bob");
+
+      cleanup = null; // Prevent double-cleanup in afterEach
     });
   });
 });

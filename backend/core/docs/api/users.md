@@ -6,10 +6,10 @@ Manage user information and API access tokens.
 
 Returns the authenticated user's profile and access token.
 
-|              |                      |
-| ------------ | -------------------- |
-| **Endpoint** | `GET /api/users/me/` |
-| **Auth**     | Bearer token         |
+|              |                         |
+| ------------ | ----------------------- |
+| **Endpoint** | `GET /api/v1/users/me/` |
+| **Auth**     | Bearer token            |
 
 **Response (200):**
 
@@ -34,10 +34,10 @@ Returns the authenticated user's profile and access token.
 
 Returns only the access token. Useful for retrieving your token from the web app.
 
-|              |                            |
-| ------------ | -------------------------- |
-| **Endpoint** | `GET /api/users/me/token/` |
-| **Auth**     | Bearer token or session    |
+|              |                               |
+| ------------ | ----------------------------- |
+| **Endpoint** | `GET /api/v1/users/me/token/` |
+| **Auth**     | Bearer token or session       |
 
 **Response (200):**
 
@@ -53,10 +53,10 @@ Returns only the access token. Useful for retrieving your token from the web app
 
 Generate a new token, immediately invalidating the old one.
 
-|              |                                        |
-| ------------ | -------------------------------------- |
-| **Endpoint** | `POST /api/users/me/token/regenerate/` |
-| **Auth**     | Bearer token or session                |
+|              |                                           |
+| ------------ | ----------------------------------------- |
+| **Endpoint** | `POST /api/v1/users/me/token/regenerate/` |
+| **Auth**     | Bearer token or session                   |
 
 **Response (200):**
 
@@ -74,10 +74,10 @@ Generate a new token, immediately invalidating the old one.
 
 Get the total storage used by the current user.
 
-|              |                           |
-| ------------ | ------------------------- |
-| **Endpoint** | `GET /api/users/storage/` |
-| **Auth**     | Bearer token              |
+|              |                              |
+| ------------ | ---------------------------- |
+| **Endpoint** | `GET /api/v1/users/storage/` |
+| **Auth**     | Bearer token                 |
 
 **Response (200):**
 
@@ -105,7 +105,7 @@ Get the total storage used by the current user.
 BASE_URL="<BASE_URL>"
 TOKEN="<ACCESS_TOKEN>"
 
-curl "$BASE_URL/api/users/me/" \
+curl "$BASE_URL/api/v1/users/me/" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -116,7 +116,7 @@ BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
 response = requests.get(
-    f"{BASE_URL}/api/users/me/",
+    f"{BASE_URL}/api/v1/users/me/",
     headers={"Authorization": f"Bearer {TOKEN}"}
 )
 print(response.json())
@@ -126,7 +126,7 @@ print(response.json())
 const BASE_URL = "<BASE_URL>";
 const TOKEN = "<ACCESS_TOKEN>";
 
-const response = await fetch(`${BASE_URL}/api/users/me/`, {
+const response = await fetch(`${BASE_URL}/api/v1/users/me/`, {
   headers: { Authorization: `Bearer ${TOKEN}` },
 });
 console.log(await response.json());
@@ -140,7 +140,7 @@ require 'uri'
 BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
-uri = URI("#{BASE_URL}/api/users/me/")
+uri = URI("#{BASE_URL}/api/v1/users/me/")
 http = Net::HTTP.new(uri.host, uri.port)
 http.use_ssl = uri.scheme == 'https'
 
@@ -156,7 +156,7 @@ puts JSON.parse(response.body)
 $baseUrl = "<BASE_URL>";
 $token = "<ACCESS_TOKEN>";
 
-$ch = curl_init("$baseUrl/api/users/me/");
+$ch = curl_init("$baseUrl/api/v1/users/me/");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_HTTPHEADER => ["Authorization: Bearer $token"]
@@ -181,7 +181,7 @@ const (
 )
 
 func main() {
-    req, _ := http.NewRequest("GET", baseURL+"/api/users/me/", nil)
+    req, _ := http.NewRequest("GET", baseURL+"/api/v1/users/me/", nil)
     req.Header.Set("Authorization", "Bearer "+token)
 
     resp, _ := http.DefaultClient.Do(req)
@@ -199,7 +199,7 @@ func main() {
 BASE_URL="<BASE_URL>"
 TOKEN="<ACCESS_TOKEN>"
 
-curl "$BASE_URL/api/users/me/token/" \
+curl "$BASE_URL/api/v1/users/me/token/" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -210,7 +210,7 @@ BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
 response = requests.get(
-    f"{BASE_URL}/api/users/me/token/",
+    f"{BASE_URL}/api/v1/users/me/token/",
     headers={"Authorization": f"Bearer {TOKEN}"}
 )
 print(response.json())
@@ -220,7 +220,7 @@ print(response.json())
 const BASE_URL = "<BASE_URL>";
 const TOKEN = "<ACCESS_TOKEN>";
 
-const response = await fetch(`${BASE_URL}/api/users/me/token/`, {
+const response = await fetch(`${BASE_URL}/api/v1/users/me/token/`, {
   headers: { Authorization: `Bearer ${TOKEN}` },
 });
 console.log(await response.json());
@@ -234,7 +234,7 @@ require 'uri'
 BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
-uri = URI("#{BASE_URL}/api/users/me/token/")
+uri = URI("#{BASE_URL}/api/v1/users/me/token/")
 http = Net::HTTP.new(uri.host, uri.port)
 http.use_ssl = uri.scheme == 'https'
 
@@ -250,7 +250,7 @@ puts JSON.parse(response.body)
 $baseUrl = "<BASE_URL>";
 $token = "<ACCESS_TOKEN>";
 
-$ch = curl_init("$baseUrl/api/users/me/token/");
+$ch = curl_init("$baseUrl/api/v1/users/me/token/");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_HTTPHEADER => ["Authorization: Bearer $token"]
@@ -275,7 +275,7 @@ const (
 )
 
 func main() {
-    req, _ := http.NewRequest("GET", baseURL+"/api/users/me/token/", nil)
+    req, _ := http.NewRequest("GET", baseURL+"/api/v1/users/me/token/", nil)
     req.Header.Set("Authorization", "Bearer "+token)
 
     resp, _ := http.DefaultClient.Do(req)
@@ -293,7 +293,7 @@ func main() {
 BASE_URL="<BASE_URL>"
 TOKEN="<ACCESS_TOKEN>"
 
-curl -X POST "$BASE_URL/api/users/me/token/regenerate/" \
+curl -X POST "$BASE_URL/api/v1/users/me/token/regenerate/" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -304,7 +304,7 @@ BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
 response = requests.post(
-    f"{BASE_URL}/api/users/me/token/regenerate/",
+    f"{BASE_URL}/api/v1/users/me/token/regenerate/",
     headers={"Authorization": f"Bearer {TOKEN}"}
 )
 new_token = response.json()["access_token"]
@@ -315,7 +315,7 @@ print(f"New token: {new_token}")
 const BASE_URL = "<BASE_URL>";
 const TOKEN = "<ACCESS_TOKEN>";
 
-const response = await fetch(`${BASE_URL}/api/users/me/token/regenerate/`, {
+const response = await fetch(`${BASE_URL}/api/v1/users/me/token/regenerate/`, {
   method: "POST",
   headers: { Authorization: `Bearer ${TOKEN}` },
 });
@@ -331,7 +331,7 @@ require 'uri'
 BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
-uri = URI("#{BASE_URL}/api/users/me/token/regenerate/")
+uri = URI("#{BASE_URL}/api/v1/users/me/token/regenerate/")
 http = Net::HTTP.new(uri.host, uri.port)
 http.use_ssl = uri.scheme == 'https'
 
@@ -348,7 +348,7 @@ puts "New token: #{result['access_token']}"
 $baseUrl = "<BASE_URL>";
 $token = "<ACCESS_TOKEN>";
 
-$ch = curl_init("$baseUrl/api/users/me/token/regenerate/");
+$ch = curl_init("$baseUrl/api/v1/users/me/token/regenerate/");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST => true,
@@ -375,7 +375,7 @@ const (
 )
 
 func main() {
-    req, _ := http.NewRequest("POST", baseURL+"/api/users/me/token/regenerate/", nil)
+    req, _ := http.NewRequest("POST", baseURL+"/api/v1/users/me/token/regenerate/", nil)
     req.Header.Set("Authorization", "Bearer "+token)
 
     resp, _ := http.DefaultClient.Do(req)
@@ -393,7 +393,7 @@ func main() {
 BASE_URL="<BASE_URL>"
 TOKEN="<ACCESS_TOKEN>"
 
-curl "$BASE_URL/api/users/storage/" \
+curl "$BASE_URL/api/v1/users/storage/" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -404,7 +404,7 @@ BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
 response = requests.get(
-    f"{BASE_URL}/api/users/storage/",
+    f"{BASE_URL}/api/v1/users/storage/",
     headers={"Authorization": f"Bearer {TOKEN}"}
 )
 data = response.json()
@@ -415,7 +415,7 @@ print(f"Files: {data['file_count']}, Size: {data['total_bytes']} bytes")
 const BASE_URL = "<BASE_URL>";
 const TOKEN = "<ACCESS_TOKEN>";
 
-const response = await fetch(`${BASE_URL}/api/users/storage/`, {
+const response = await fetch(`${BASE_URL}/api/v1/users/storage/`, {
   headers: { Authorization: `Bearer ${TOKEN}` },
 });
 const { file_count, total_bytes } = await response.json();

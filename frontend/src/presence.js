@@ -1,105 +1,138 @@
 /**
  * Presence indicators UI management
  * Shows who's currently editing the document
+ *
+ * Thin wrapper around PresenceIndicator.svelte — maintains the same
+ * setupPresenceUI(awareness) API while delegating rendering to Svelte.
+ * Uses a reactive store so the component can be updated without unmount/remount.
  */
+
+import { mount, unmount, flushSync } from "svelte";
+import PresenceIndicator from "./lib/components/PresenceIndicator.svelte";
+import { setUsers, setShowPopover } from "./lib/stores/presence.svelte.js";
+
+let instance = null;
 
 /**
- * Setup presence UI and listen to awareness changes
+ * Setup presence UI and listen to awareness changes.
+ * Mounts a Svelte component into #presence-indicator.
+ *
  * @param {Object} awareness - Yjs awareness object
+ * @returns {Function} cleanup function
  */
 export function setupPresenceUI(awareness) {
-  const presenceIndicator = document.getElementById("presence-indicator");
-  const presencePopover = document.getElementById("presence-popover");
-  const userCountSpan = document.getElementById("user-count");
-  const presenceList = document.getElementById("presence-list");
+  const target = document.getElementById("presence-indicator");
+  if (!target) return () => {};
 
-  // Update presence UI when awareness changes
-  function updatePresenceUI() {
+  // Clean up previous instance if any
+  if (instance) {
+    unmount(instance);
+    instance = null;
+  }
+
+  target.innerHTML = "";
+
+  let hideTimeout;
+  let cleaned = false;
+
+  function collectUsers() {
     const states = awareness.getStates();
-    const users = [];
-
-    // Collect all users from awareness states
+    const collected = [];
     states.forEach((state, clientId) => {
       if (state.user) {
-        users.push({
+        collected.push({
           clientId,
           name: state.user.name || "Anonymous",
           color: state.user.color || "#999",
         });
       }
     });
+    return collected;
+  }
 
-    // Update user count
-    const count = users.length;
-    userCountSpan.textContent = count === 1 ? "1 user editing" : `${count} users editing`;
-    userCountSpan.setAttribute("data-count", count);
+  function updateUsers() {
+    if (cleaned) return;
+    flushSync(() => {
+      setUsers(collectUsers());
+    });
+  }
 
-    // Update presence list using DOM APIs to prevent XSS via user names/colors
-    presenceList.innerHTML = "";
-    for (const user of users) {
-      const userDiv = document.createElement("div");
-      userDiv.className = "presence-user";
+  function show() {
+    clearTimeout(hideTimeout);
+    flushSync(() => {
+      setShowPopover(true);
+    });
+  }
 
-      const colorDiv = document.createElement("div");
-      colorDiv.className = "presence-user-color";
-      colorDiv.style.backgroundColor = user.color;
+  function scheduleHide() {
+    hideTimeout = setTimeout(() => {
+      flushSync(() => {
+        setShowPopover(false);
+      });
+    }, 300);
+  }
 
-      const nameSpan = document.createElement("span");
-      nameSpan.textContent = user.name;
+  function cancelHide() {
+    clearTimeout(hideTimeout);
+  }
 
-      userDiv.appendChild(colorDiv);
-      userDiv.appendChild(nameSpan);
-      presenceList.appendChild(userDiv);
+  function handleClickOutside(e) {
+    if (!target.contains(e.target)) {
+      clearTimeout(hideTimeout);
+      flushSync(() => {
+        setShowPopover(false);
+      });
     }
   }
 
-  // Listen to awareness changes
-  awareness.on("change", updatePresenceUI);
-
-  // Initial update
-  updatePresenceUI();
-
-  // Show/hide popover on hover
-  let hideTimeout;
-
-  presenceIndicator.addEventListener("mouseenter", () => {
-    clearTimeout(hideTimeout);
-    presencePopover.style.display = "block";
+  // Mount the Svelte component (once — it reads from the store reactively)
+  flushSync(() => {
+    setUsers(collectUsers());
+    setShowPopover(false);
   });
 
-  presenceIndicator.addEventListener("mouseleave", () => {
-    hideTimeout = setTimeout(() => {
-      presencePopover.style.display = "none";
-    }, 300);
+  instance = mount(PresenceIndicator, { target });
+
+  // Force initial render with current users
+  flushSync(() => {
+    setUsers(collectUsers());
   });
 
-  presencePopover.addEventListener("mouseenter", () => {
-    clearTimeout(hideTimeout);
-  });
+  // Subscribe to awareness changes
+  awareness.on("change", updateUsers);
 
-  presencePopover.addEventListener("mouseleave", () => {
-    hideTimeout = setTimeout(() => {
-      presencePopover.style.display = "none";
-    }, 300);
-  });
+  // Hover handlers on the indicator (parent container)
+  target.addEventListener("mouseenter", show);
+  target.addEventListener("mouseleave", scheduleHide);
 
-  // Click to open (for touch devices where hover doesn't work)
-  presenceIndicator.addEventListener("click", () => {
-    clearTimeout(hideTimeout);
-    presencePopover.style.display = "block";
-  });
+  // Click to open (touch devices)
+  target.addEventListener("click", show);
 
-  // Close on click outside
-  document.addEventListener("click", (e) => {
-    if (!presenceIndicator.contains(e.target)) {
-      clearTimeout(hideTimeout);
-      presencePopover.style.display = "none";
-    }
-  });
+  // Click outside to close
+  document.addEventListener("click", handleClickOutside);
 
-  // Return cleanup function
+  // Popover hover handlers — the popover element is stable (not re-created)
+  // since we use store-based updates instead of unmount/remount.
+  const popover = document.getElementById("presence-popover");
+  if (popover) {
+    popover.addEventListener("mouseenter", cancelHide);
+    popover.addEventListener("mouseleave", scheduleHide);
+  }
+
   return () => {
-    awareness.off("change", updatePresenceUI);
+    cleaned = true;
+    awareness.off("change", updateUsers);
     clearTimeout(hideTimeout);
+    target.removeEventListener("mouseenter", show);
+    target.removeEventListener("mouseleave", scheduleHide);
+    target.removeEventListener("click", show);
+    document.removeEventListener("click", handleClickOutside);
+    if (popover) {
+      popover.removeEventListener("mouseenter", cancelHide);
+      popover.removeEventListener("mouseleave", scheduleHide);
+    }
+    // Don't unmount — leave the DOM as-is so existing content remains visible.
+    // The component will be cleaned up on next setupPresenceUI call or page navigation.
+    instance = null;
   };
 }

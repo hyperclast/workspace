@@ -6,10 +6,10 @@ AI-powered question answering about your pages using RAG (Retrieval-Augmented Ge
 
 Submit a question and receive an AI-generated answer based on relevant page content.
 
-|              |                  |
-| ------------ | ---------------- |
-| **Endpoint** | `POST /api/ask/` |
-| **Auth**     | Bearer token     |
+|              |                     |
+| ------------ | ------------------- |
+| **Endpoint** | `POST /api/v1/ask/` |
+| **Auth**     | Bearer token        |
 
 ### Request Body
 
@@ -70,7 +70,7 @@ Uses vector similarity to find relevant pages automatically:
 BASE_URL="<BASE_URL>"
 TOKEN="<ACCESS_TOKEN>"
 
-curl -X POST "$BASE_URL/api/ask/" \
+curl -X POST "$BASE_URL/api/v1/ask/" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d @- <<EOF
@@ -87,7 +87,7 @@ BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
 response = requests.post(
-    f"{BASE_URL}/api/ask/",
+    f"{BASE_URL}/api/v1/ask/",
     headers={"Authorization": f"Bearer {TOKEN}"},
     json={"query": "What did we discuss in yesterday's meeting?"}
 )
@@ -98,7 +98,7 @@ print(response.json())
 const BASE_URL = "<BASE_URL>";
 const TOKEN = "<ACCESS_TOKEN>";
 
-const response = await fetch(`${BASE_URL}/api/ask/`, {
+const response = await fetch(`${BASE_URL}/api/v1/ask/`, {
   method: "POST",
   headers: {
     Authorization: `Bearer ${TOKEN}`,
@@ -119,7 +119,7 @@ require 'uri'
 BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
-uri = URI("#{BASE_URL}/api/ask/")
+uri = URI("#{BASE_URL}/api/v1/ask/")
 http = Net::HTTP.new(uri.host, uri.port)
 http.use_ssl = uri.scheme == 'https'
 
@@ -137,7 +137,7 @@ puts JSON.parse(response.body)
 $baseUrl = "<BASE_URL>";
 $token = "<ACCESS_TOKEN>";
 
-$ch = curl_init("$baseUrl/api/ask/");
+$ch = curl_init("$baseUrl/api/v1/ask/");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST => true,
@@ -174,7 +174,7 @@ func main() {
         "query": "What did we discuss in yesterday's meeting?",
     })
 
-    req, _ := http.NewRequest("POST", baseURL+"/api/ask/", bytes.NewBuffer(body))
+    req, _ := http.NewRequest("POST", baseURL+"/api/v1/ask/", bytes.NewBuffer(body))
     req.Header.Set("Authorization", "Bearer "+token)
     req.Header.Set("Content-Type", "application/json")
 
@@ -195,7 +195,7 @@ Only uses the specified pages for context:
 BASE_URL="<BASE_URL>"
 TOKEN="<ACCESS_TOKEN>"
 
-curl -X POST "$BASE_URL/api/ask/" \
+curl -X POST "$BASE_URL/api/v1/ask/" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d @- <<EOF
@@ -214,7 +214,7 @@ TOKEN = "<ACCESS_TOKEN>"
 PAGE_IDS = ["abc123", "def456"]
 
 response = requests.post(
-    f"{BASE_URL}/api/ask/",
+    f"{BASE_URL}/api/v1/ask/",
     headers={"Authorization": f"Bearer {TOKEN}"},
     json={
         "query": "Summarize the key points",
@@ -229,7 +229,7 @@ const BASE_URL = "<BASE_URL>";
 const TOKEN = "<ACCESS_TOKEN>";
 const PAGE_IDS = ["abc123", "def456"];
 
-const response = await fetch(`${BASE_URL}/api/ask/`, {
+const response = await fetch(`${BASE_URL}/api/v1/ask/`, {
   method: "POST",
   headers: {
     Authorization: `Bearer ${TOKEN}`,
@@ -252,7 +252,7 @@ BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 PAGE_IDS = ["abc123", "def456"]
 
-uri = URI("#{BASE_URL}/api/ask/")
+uri = URI("#{BASE_URL}/api/v1/ask/")
 http = Net::HTTP.new(uri.host, uri.port)
 http.use_ssl = uri.scheme == 'https'
 
@@ -274,7 +274,7 @@ $baseUrl = "<BASE_URL>";
 $token = "<ACCESS_TOKEN>";
 $pageIds = ["abc123", "def456"];
 
-$ch = curl_init("$baseUrl/api/ask/");
+$ch = curl_init("$baseUrl/api/v1/ask/");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST => true,
@@ -315,7 +315,7 @@ func main() {
         "page_ids": pageIDs,
     })
 
-    req, _ := http.NewRequest("POST", baseURL+"/api/ask/", bytes.NewBuffer(body))
+    req, _ := http.NewRequest("POST", baseURL+"/api/v1/ask/", bytes.NewBuffer(body))
     req.Header.Set("Authorization", "Bearer "+token)
     req.Header.Set("Content-Type", "application/json")
 

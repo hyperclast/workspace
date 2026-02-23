@@ -40,7 +40,7 @@ Retrieve all projects the user has access to via org membership or project edito
 
 ### URL
 
-`/api/projects/`
+`/api/v1/projects/`
 
 ### HTTP Method
 
@@ -162,16 +162,16 @@ See [Overview](./overview.md)
 
 ```bash
 # Get all projects from all organizations
-GET /api/projects/
+GET /api/v1/projects/
 
 # Get all projects from a specific organization
-GET /api/projects/?org_id=org123
+GET /api/v1/projects/?org_id=org123
 
 # Get all projects with full details including pages
-GET /api/projects/?details=full
+GET /api/v1/projects/?details=full
 
 # Get projects from a specific organization with full details
-GET /api/projects/?org_id=org123&details=full
+GET /api/v1/projects/?org_id=org123&details=full
 ```
 
 ---
@@ -182,7 +182,7 @@ Retrieve a single project by its external ID.
 
 ### URL
 
-`/api/projects/{external_id}/`
+`/api/v1/projects/{external_id}/`
 
 ### HTTP Method
 
@@ -292,7 +292,7 @@ Create a new project in an organization.
 
 ### URL
 
-`/api/projects/`
+`/api/v1/projects/`
 
 ### HTTP Method
 
@@ -375,7 +375,7 @@ Update an existing project's name and/or description.
 
 ### URL
 
-`/api/projects/{external_id}/`
+`/api/v1/projects/{external_id}/`
 
 ### HTTP Method
 
@@ -432,7 +432,7 @@ See [Overview](./overview.md)
 
 - All fields are optional - you can update just the name, just the description, or both
 - The `modified` timestamp is automatically updated
-- The `pages` field is always `null` in the response (use `GET /api/projects/{id}/?details=full` to include pages)
+- The `pages` field is always `null` in the response (use `GET /api/v1/projects/{id}/?details=full` to include pages)
 
 **Error Responses:**
 
@@ -455,7 +455,7 @@ Soft-delete a project. The project and its pages are marked as deleted but not p
 
 ### URL
 
-`/api/projects/{external_id}/`
+`/api/v1/projects/{external_id}/`
 
 ### HTTP Method
 
@@ -504,7 +504,7 @@ Retrieve all editors for a specific project, including pending invitations.
 
 ### URL
 
-`/api/projects/{external_id}/editors/`
+`/api/v1/projects/{external_id}/editors/`
 
 ### HTTP Method
 
@@ -571,7 +571,7 @@ Add a user as an editor to the project. If the user doesn't exist, creates an in
 
 ### URL
 
-`/api/projects/{external_id}/editors/`
+`/api/v1/projects/{external_id}/editors/`
 
 ### HTTP Method
 
@@ -659,7 +659,7 @@ Remove a user from the project editors or cancel a pending invitation.
 
 ### URL
 
-`/api/projects/{external_id}/editors/{user_external_id}/`
+`/api/v1/projects/{external_id}/editors/{user_external_id}/`
 
 ### HTTP Method
 
@@ -716,7 +716,7 @@ Validate a project invitation token and return instructions for the frontend.
 
 ### URL
 
-`/api/projects/invitations/{token}/validate`
+`/api/v1/projects/invitations/{token}/validate`
 
 ### HTTP Method
 

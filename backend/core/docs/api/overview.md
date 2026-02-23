@@ -7,8 +7,10 @@ The Hyperclast API provides programmatic access to your pages, projects, and org
 All API endpoints are relative to:
 
 ```
-<BASE_URL>/api/
+<BASE_URL>/api/v1/
 ```
+
+> **Note:** The previous base path `/api/` continues to work as a backwards-compatible alias but is not recommended for new integrations.
 
 ---
 
@@ -30,7 +32,7 @@ Authorization: Bearer <ACCESS_TOKEN>
 
 ```bash
 curl -H "Authorization: Bearer <ACCESS_TOKEN>" \
-     <BASE_URL>/api/pages/
+     <BASE_URL>/api/v1/pages/
 ```
 
 ---
@@ -129,7 +131,7 @@ List endpoints support pagination:
 | `offset` | 0       | —   | Items to skip  |
 
 ```bash
-GET /api/pages/?limit=20&offset=40
+GET /api/v1/pages/?limit=20&offset=40
 ```
 
 ---

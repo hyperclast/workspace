@@ -10,7 +10,11 @@
 import { describe, test, expect, afterEach } from "vitest";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { decorateImagePreviews, imageClickHandler } from "../../decorateImagePreviews.js";
+import {
+  decorateImagePreviews,
+  imageClickHandler,
+  openLightbox,
+} from "../../decorateImagePreviews.js";
 
 // Re-create the regex patterns from decorateImagePreviews.js for direct testing
 // These should match the patterns defined in the source file
@@ -344,6 +348,162 @@ describe("decorateImagePreviews", () => {
       const errorDiv = container.querySelector(".image-preview-error");
       expect(errorDiv).not.toBeNull();
       expect(errorDiv.textContent).toContain("image");
+    });
+  });
+
+  describe("ImagePreviewWidget DOM structure", () => {
+    function getWidget(altText = "test image") {
+      const content = `x ![${altText}](/files/abc123/def456/token789/)`;
+      ({ view, parent } = createEditor(content));
+      view.dispatch({ selection: { anchor: 0 } });
+      return view.contentDOM.querySelector(".image-preview-container");
+    }
+
+    test("container has data-image-src attribute with the file URL", () => {
+      const container = getWidget();
+      expect(container.getAttribute("data-image-src")).toBe("/files/abc123/def456/token789/");
+    });
+
+    test("img element has correct src attribute", () => {
+      const container = getWidget();
+      const img = container.querySelector("img");
+      expect(img).not.toBeNull();
+      // jsdom resolves relative URLs against base, so check it ends with the path
+      expect(img.getAttribute("src")).toBe("/files/abc123/def456/token789/");
+    });
+
+    test("img element has correct alt attribute", () => {
+      const container = getWidget("my photo");
+      const img = container.querySelector("img");
+      expect(img.alt).toBe("my photo");
+    });
+
+    test("img element uses 'Image preview' as default alt when alt text is empty", () => {
+      const content = "x ![](/files/abc123/def456/token789/)";
+      ({ view, parent } = createEditor(content));
+      view.dispatch({ selection: { anchor: 0 } });
+
+      const img = view.contentDOM.querySelector(".image-preview-container img");
+      expect(img.alt).toBe("Image preview");
+    });
+
+    test("img element has lazy loading", () => {
+      const container = getWidget();
+      const img = container.querySelector("img");
+      expect(img.loading).toBe("lazy");
+    });
+
+    test("img element is not draggable", () => {
+      const container = getWidget();
+      const img = container.querySelector("img");
+      expect(img.draggable).toBe(false);
+    });
+
+    test("img element has image-preview class", () => {
+      const container = getWidget();
+      const img = container.querySelector("img");
+      expect(img.classList.contains("image-preview")).toBe(true);
+    });
+  });
+
+  describe("openLightbox", () => {
+    afterEach(() => {
+      // Clean up any lightboxes left in the DOM
+      document.querySelectorAll(".image-lightbox").forEach((el) => el.remove());
+    });
+
+    test("creates a lightbox overlay in the document body", () => {
+      openLightbox("/files/p/f/t/", "Test image");
+
+      const lightbox = document.querySelector(".image-lightbox");
+      expect(lightbox).not.toBeNull();
+      expect(lightbox.parentElement).toBe(document.body);
+    });
+
+    test("lightbox has role=dialog and aria-label", () => {
+      openLightbox("/files/p/f/t/", "Test image");
+
+      const lightbox = document.querySelector(".image-lightbox");
+      expect(lightbox.getAttribute("role")).toBe("dialog");
+      expect(lightbox.getAttribute("aria-label")).toBe("Image lightbox");
+    });
+
+    test("lightbox img has correct src and alt", () => {
+      openLightbox("/files/p/f/t/", "My photo");
+
+      const img = document.querySelector(".image-lightbox-img");
+      expect(img).not.toBeNull();
+      expect(img.getAttribute("src")).toBe("/files/p/f/t/");
+      expect(img.alt).toBe("My photo");
+    });
+
+    test("lightbox img defaults alt to 'Full size image' when alt is empty", () => {
+      openLightbox("/files/p/f/t/", "");
+
+      const img = document.querySelector(".image-lightbox-img");
+      expect(img.alt).toBe("Full size image");
+    });
+
+    test("lightbox has download and close buttons", () => {
+      openLightbox("/files/p/f/t/", "Test");
+
+      const toolbar = document.querySelector(".image-lightbox-toolbar");
+      expect(toolbar).not.toBeNull();
+
+      const buttons = toolbar.querySelectorAll("button");
+      expect(buttons.length).toBe(2);
+
+      // Download button
+      expect(buttons[0].getAttribute("aria-label")).toBe("Download image");
+      // Close button
+      expect(buttons[1].getAttribute("aria-label")).toBe("Close lightbox");
+    });
+
+    test("close button removes the lightbox", () => {
+      openLightbox("/files/p/f/t/", "Test");
+
+      const closeBtn = document.querySelector(".image-lightbox-close-btn");
+      closeBtn.click();
+
+      expect(document.querySelector(".image-lightbox")).toBeNull();
+    });
+
+    test("clicking the backdrop (outside image) closes the lightbox", () => {
+      openLightbox("/files/p/f/t/", "Test");
+
+      const lightbox = document.querySelector(".image-lightbox");
+      // Simulate click directly on the lightbox backdrop (not on child elements)
+      lightbox.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+      expect(document.querySelector(".image-lightbox")).toBeNull();
+    });
+
+    test("Escape key closes the lightbox", () => {
+      openLightbox("/files/p/f/t/", "Test");
+
+      expect(document.querySelector(".image-lightbox")).not.toBeNull();
+
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+
+      expect(document.querySelector(".image-lightbox")).toBeNull();
+    });
+
+    test("opening a new lightbox removes the existing one", () => {
+      openLightbox("/files/p/f/t1/", "First");
+      openLightbox("/files/p/f/t2/", "Second");
+
+      const lightboxes = document.querySelectorAll(".image-lightbox");
+      expect(lightboxes.length).toBe(1);
+
+      const img = document.querySelector(".image-lightbox-img");
+      expect(img.getAttribute("src")).toBe("/files/p/f/t2/");
+    });
+
+    test("close button receives focus after lightbox opens", () => {
+      openLightbox("/files/p/f/t/", "Test");
+
+      const closeBtn = document.querySelector(".image-lightbox-close-btn");
+      expect(document.activeElement).toBe(closeBtn);
     });
   });
 });

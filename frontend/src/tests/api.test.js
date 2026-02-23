@@ -31,7 +31,7 @@ describe("API Service", () => {
 
       const result = await fetchProjectsWithPages();
 
-      expect(csrfFetch).toHaveBeenCalledWith("/api/projects/?details=full");
+      expect(csrfFetch).toHaveBeenCalledWith("/api/v1/projects/?details=full");
       expect(result).toEqual(mockProjects);
     });
 
@@ -61,7 +61,7 @@ describe("API Service", () => {
 
       const result = await createProject("org1", "New Project", "Description");
 
-      expect(csrfFetch).toHaveBeenCalledWith("/api/projects/", {
+      expect(csrfFetch).toHaveBeenCalledWith("/api/v1/projects/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -103,7 +103,7 @@ describe("API Service", () => {
 
       const result = await createPage("proj1", "New Page");
 
-      expect(csrfFetch).toHaveBeenCalledWith("/api/pages/", {
+      expect(csrfFetch).toHaveBeenCalledWith("/api/v1/pages/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -141,7 +141,7 @@ describe("API Service", () => {
 
       const result = await fetchPage("page1");
 
-      expect(csrfFetch).toHaveBeenCalledWith("/api/pages/page1/");
+      expect(csrfFetch).toHaveBeenCalledWith("/api/v1/pages/page1/");
       expect(result).toEqual(mockPage);
     });
 
@@ -189,7 +189,7 @@ describe("API Service", () => {
 
       const result = await fetchOrgs();
 
-      expect(csrfFetch).toHaveBeenCalledWith("/api/orgs/");
+      expect(csrfFetch).toHaveBeenCalledWith("/api/v1/orgs/");
       expect(result).toEqual(mockOrgs);
     });
 

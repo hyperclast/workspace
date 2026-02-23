@@ -19,7 +19,7 @@ List all file uploads for a specific project with pagination.
 
 ### URL
 
-`/api/files/projects/{project_id}/`
+`/api/v1/files/projects/{project_id}/`
 
 ### HTTP Method
 
@@ -104,7 +104,7 @@ List all file uploads by the authenticated user with pagination.
 
 ### URL
 
-`/api/files/mine/`
+`/api/v1/files/mine/`
 
 ### HTTP Method
 
@@ -152,7 +152,7 @@ Create a new file upload and receive a signed URL for uploading the file directl
 
 ### URL
 
-`/api/files/`
+`/api/v1/files/`
 
 ### HTTP Method
 
@@ -302,7 +302,7 @@ Retrieve details of a specific file upload.
 
 ### URL
 
-`/api/files/{external_id}/`
+`/api/v1/files/{external_id}/`
 
 ### HTTP Method
 
@@ -383,7 +383,7 @@ Finalize a file upload after the file has been uploaded to storage. This verifie
 
 ### URL
 
-`/api/files/{external_id}/finalize/`
+`/api/v1/files/{external_id}/finalize/`
 
 ### HTTP Method
 
@@ -455,7 +455,7 @@ Generate a signed download URL for a file.
 
 ### URL
 
-`/api/files/{external_id}/download/`
+`/api/v1/files/{external_id}/download/`
 
 ### HTTP Method
 
@@ -517,10 +517,10 @@ See [Overview](./overview.md)
 
 ```bash
 # Get download URL with custom filename
-GET /api/files/abc123/download/?filename=my-report.pdf
+GET /api/v1/files/abc123/download/?filename=my-report.pdf
 
 # Get download URL from specific provider
-GET /api/files/abc123/download/?provider=local
+GET /api/v1/files/abc123/download/?provider=local
 ```
 
 ---
@@ -531,7 +531,7 @@ Soft-delete a file upload. The file is marked as deleted but not immediately rem
 
 ### URL
 
-`/api/files/{external_id}/`
+`/api/v1/files/{external_id}/`
 
 ### HTTP Method
 
@@ -581,7 +581,7 @@ Get a list of pages that link to this file. This is useful for warning users bef
 
 ### URL
 
-`/api/files/{external_id}/references/`
+`/api/v1/files/{external_id}/references/`
 
 ### HTTP Method
 
@@ -657,7 +657,7 @@ This endpoint receives R2 bucket event notifications from a Cloudflare Worker. I
 
 ### URL
 
-`/api/files/webhooks/r2-events/`
+`/api/v1/files/webhooks/r2-events/`
 
 ### HTTP Method
 

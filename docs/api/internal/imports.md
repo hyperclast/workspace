@@ -14,7 +14,7 @@ List all import jobs for the authenticated user with pagination.
 
 ### URL
 
-`/api/imports/`
+`/api/v1/imports/`
 
 ### HTTP Method
 
@@ -85,7 +85,7 @@ Upload a Notion export zip file and start async import processing.
 
 ### URL
 
-`/api/imports/notion/`
+`/api/v1/imports/notion/`
 
 ### HTTP Method
 
@@ -152,7 +152,7 @@ See [Overview](./overview.md)
 **Notes:**
 
 - The job is processed asynchronously via the `imports` RQ queue
-- Poll `GET /api/imports/{id}/` to check job status
+- Poll `GET /api/v1/imports/{id}/` to check job status
 - Duplicate pages (matching `source_hash` in the same project) are automatically skipped
 
 **Notion Export Format:**
@@ -226,7 +226,7 @@ Get detailed information about a specific import job.
 
 ### URL
 
-`/api/imports/{external_id}/`
+`/api/v1/imports/{external_id}/`
 
 ### HTTP Method
 
@@ -304,7 +304,7 @@ List all pages created by a specific import job with pagination.
 
 ### URL
 
-`/api/imports/{external_id}/pages/`
+`/api/v1/imports/{external_id}/pages/`
 
 ### HTTP Method
 
@@ -371,7 +371,7 @@ Delete an import job record. Note: This only deletes the job metadata, not the i
 
 ### URL
 
-`/api/imports/{external_id}/`
+`/api/v1/imports/{external_id}/`
 
 ### HTTP Method
 

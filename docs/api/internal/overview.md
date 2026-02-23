@@ -16,14 +16,16 @@
 All API endpoints are relative to the Hyperclast instance:
 
 ```
-https://hyperclast.com/api/
+https://hyperclast.com/api/v1/
 ```
 
 For local development:
 
 ```
-http://localhost:9800/api/
+http://localhost:9800/api/v1/
 ```
+
+> **Note:** The previous base path `/api/` continues to work as a backwards-compatible alias but is not recommended for new integrations.
 
 See the project README for setting the root URL.
 
@@ -94,7 +96,7 @@ function getCsrfToken() {
 }
 
 // Make a POST request
-fetch("/api/pages/", {
+fetch("/api/v1/pages/", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
@@ -110,7 +112,7 @@ fetch("/api/pages/", {
 ### Complete Request Example
 
 ```http
-POST /api/pages/ HTTP/1.1
+POST /api/v1/pages/ HTTP/1.1
 Host: localhost:9800
 Content-Type: application/json
 X-CSRFToken: abc123def456...
@@ -298,16 +300,16 @@ List endpoints support pagination using Django Ninja's built-in pagination with 
 
 ```javascript
 // Get first 10 pages
-fetch("/api/pages/?limit=10&offset=0");
+fetch("/api/v1/pages/?limit=10&offset=0");
 
 // Get next 10 pages
-fetch("/api/pages/?limit=10&offset=10");
+fetch("/api/v1/pages/?limit=10&offset=10");
 
 // Get links for a page
-fetch("/api/pages/abc123/links/");
+fetch("/api/v1/pages/abc123/links/");
 
 // Use default pagination (100 items)
-fetch("/api/pages/");
+fetch("/api/v1/pages/");
 ```
 
 **Iterating through pages:**
@@ -318,7 +320,7 @@ const limit = 50;
 let allItems = [];
 
 while (true) {
-  const response = await fetch(`/api/pages/?limit=${limit}&offset=${offset}`, {
+  const response = await fetch(`/api/v1/pages/?limit=${limit}&offset=${offset}`, {
     credentials: "same-origin",
   });
 

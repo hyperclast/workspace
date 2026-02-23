@@ -10,6 +10,10 @@ from core.views import email_confirm, email_verification_sent
 from .api import api
 
 
+api_urls = api.urls
+_api_url_patterns, _api_app_name, _api_namespace = api_urls
+
+
 urlpatterns = [
     path("sitemap.xml", sitemap, {"sitemaps": sitemaps}, name="sitemap"),
     path("accounts/confirm-email/<str:key>/", email_confirm, name="account_confirm_email"),
@@ -17,8 +21,9 @@ urlpatterns = [
     path("accounts/", include("allauth.urls")),
     path("admin/", admin.site.urls),
     path("anymail/", include("anymail.urls")),
+    path("api/v1/", api_urls),
+    path("api/", include((_api_url_patterns, _api_app_name), namespace="api-compat")),
     path("api/", include("allauth.headless.urls")),
-    path("api/", api.urls),
     path("hijack/", include("hijack.urls")),
     path("rq_dashboard/", include("django_rq.urls")),
     path("", include(("pages.urls", "pages"), namespace="pages")),

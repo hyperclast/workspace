@@ -10,7 +10,7 @@ Retrieve all pages where the authenticated user is @mentioned.
 
 ### URL
 
-`/api/mentions/`
+`/api/v1/mentions/`
 
 ### HTTP Method
 
@@ -96,10 +96,10 @@ This format allows:
 
 ```bash
 # Get first 50 mentions
-GET /api/mentions/
+GET /api/v1/mentions/
 
 # Get mentions with pagination
-GET /api/mentions/?limit=20&offset=40
+GET /api/v1/mentions/?limit=20&offset=40
 ```
 
 ---

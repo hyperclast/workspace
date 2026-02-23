@@ -29,10 +29,10 @@ Within project-level access, roles control what actions are allowed:
 
 ## List Projects
 
-|              |                      |
-| ------------ | -------------------- |
-| **Endpoint** | `GET /api/projects/` |
-| **Auth**     | Bearer token         |
+|              |                         |
+| ------------ | ----------------------- |
+| **Endpoint** | `GET /api/v1/projects/` |
+| **Auth**     | Bearer token            |
 
 **Query Parameters:**
 
@@ -89,10 +89,10 @@ With `?details=full`, `pages` contains an array of page objects and `files` cont
 
 ## Get Project
 
-|              |                                    |
-| ------------ | ---------------------------------- |
-| **Endpoint** | `GET /api/projects/{external_id}/` |
-| **Auth**     | Bearer token                       |
+|              |                                       |
+| ------------ | ------------------------------------- |
+| **Endpoint** | `GET /api/v1/projects/{external_id}/` |
+| **Auth**     | Bearer token                          |
 
 **Query:** `?details=full` to include pages and files.
 
@@ -128,7 +128,7 @@ With `?details=full`, includes `pages` and `files` arrays (files only for users 
 
 |              |                           |
 | ------------ | ------------------------- |
-| **Endpoint** | `POST /api/projects/`     |
+| **Endpoint** | `POST /api/v1/projects/`  |
 | **Auth**     | Bearer token (org member) |
 
 | Field         | Type   | Required? | Description     |
@@ -162,10 +162,10 @@ With `?details=full`, includes `pages` and `files` arrays (files only for users 
 
 ## Update Project
 
-|              |                                      |
-| ------------ | ------------------------------------ |
-| **Endpoint** | `PATCH /api/projects/{external_id}/` |
-| **Auth**     | Bearer token                         |
+|              |                                         |
+| ------------ | --------------------------------------- |
+| **Endpoint** | `PATCH /api/v1/projects/{external_id}/` |
+| **Auth**     | Bearer token                            |
 
 | Field         | Type   | Required? | Description  |
 | ------------- | ------ | --------- | ------------ |
@@ -197,10 +197,10 @@ With `?details=full`, includes `pages` and `files` arrays (files only for users 
 
 ## Delete Project
 
-|              |                                       |
-| ------------ | ------------------------------------- |
-| **Endpoint** | `DELETE /api/projects/{external_id}/` |
-| **Auth**     | Bearer token (creator only)           |
+|              |                                          |
+| ------------ | ---------------------------------------- |
+| **Endpoint** | `DELETE /api/v1/projects/{external_id}/` |
+| **Auth**     | Bearer token (creator only)              |
 
 **Response (204):** No content.
 
@@ -212,10 +212,10 @@ With `?details=full`, includes `pages` and `files` arrays (files only for users 
 
 ### List Editors
 
-|              |                                            |
-| ------------ | ------------------------------------------ |
-| **Endpoint** | `GET /api/projects/{external_id}/editors/` |
-| **Auth**     | Bearer token                               |
+|              |                                               |
+| ------------ | --------------------------------------------- |
+| **Endpoint** | `GET /api/v1/projects/{external_id}/editors/` |
+| **Auth**     | Bearer token                                  |
 
 **Response (200):**
 
@@ -246,10 +246,10 @@ With `?details=full`, includes `pages` and `files` arrays (files only for users 
 
 ### Add Editor
 
-|              |                                             |
-| ------------ | ------------------------------------------- |
-| **Endpoint** | `POST /api/projects/{external_id}/editors/` |
-| **Auth**     | Bearer token                                |
+|              |                                                |
+| ------------ | ---------------------------------------------- |
+| **Endpoint** | `POST /api/v1/projects/{external_id}/editors/` |
+| **Auth**     | Bearer token                                   |
 
 | Field   | Type   | Required? | Description                            |
 | ------- | ------ | --------- | -------------------------------------- |
@@ -275,10 +275,10 @@ With `?details=full`, includes `pages` and `files` arrays (files only for users 
 
 ### Update Editor Role
 
-|              |                                                        |
-| ------------ | ------------------------------------------------------ |
-| **Endpoint** | `PATCH /api/projects/{external_id}/editors/{user_id}/` |
-| **Auth**     | Bearer token                                           |
+|              |                                                           |
+| ------------ | --------------------------------------------------------- |
+| **Endpoint** | `PATCH /api/v1/projects/{external_id}/editors/{user_id}/` |
+| **Auth**     | Bearer token                                              |
 
 | Field  | Type   | Required? | Description          |
 | ------ | ------ | --------- | -------------------- |
@@ -298,10 +298,10 @@ With `?details=full`, includes `pages` and `files` arrays (files only for users 
 
 ### Remove Editor
 
-|              |                                                         |
-| ------------ | ------------------------------------------------------- |
-| **Endpoint** | `DELETE /api/projects/{external_id}/editors/{user_id}/` |
-| **Auth**     | Bearer token                                            |
+|              |                                                            |
+| ------------ | ---------------------------------------------------------- |
+| **Endpoint** | `DELETE /api/v1/projects/{external_id}/editors/{user_id}/` |
+| **Auth**     | Bearer token                                               |
 
 **Response (204):** No content.
 
@@ -309,10 +309,10 @@ With `?details=full`, includes `pages` and `files` arrays (files only for users 
 
 ### Validate Invitation
 
-|              |                                                  |
-| ------------ | ------------------------------------------------ |
-| **Endpoint** | `GET /api/projects/invitations/{token}/validate` |
-| **Auth**     | None required                                    |
+|              |                                                     |
+| ------------ | --------------------------------------------------- |
+| **Endpoint** | `GET /api/v1/projects/invitations/{token}/validate` |
+| **Auth**     | None required                                       |
 
 **Response (200):**
 
@@ -337,7 +337,7 @@ For unauthenticated users, `action` is `"signup"` to indicate they should create
 BASE_URL="<BASE_URL>"
 TOKEN="<ACCESS_TOKEN>"
 
-curl "$BASE_URL/api/projects/" \
+curl "$BASE_URL/api/v1/projects/" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -348,7 +348,7 @@ BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
 response = requests.get(
-    f"{BASE_URL}/api/projects/",
+    f"{BASE_URL}/api/v1/projects/",
     headers={"Authorization": f"Bearer {TOKEN}"}
 )
 print(response.json())
@@ -358,7 +358,7 @@ print(response.json())
 const BASE_URL = "<BASE_URL>";
 const TOKEN = "<ACCESS_TOKEN>";
 
-const response = await fetch(`${BASE_URL}/api/projects/`, {
+const response = await fetch(`${BASE_URL}/api/v1/projects/`, {
   headers: { Authorization: `Bearer ${TOKEN}` },
 });
 console.log(await response.json());
@@ -372,7 +372,7 @@ require 'uri'
 BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
-uri = URI("#{BASE_URL}/api/projects/")
+uri = URI("#{BASE_URL}/api/v1/projects/")
 http = Net::HTTP.new(uri.host, uri.port)
 http.use_ssl = uri.scheme == 'https'
 
@@ -388,7 +388,7 @@ puts JSON.parse(response.body)
 $baseUrl = "<BASE_URL>";
 $token = "<ACCESS_TOKEN>";
 
-$ch = curl_init("$baseUrl/api/projects/");
+$ch = curl_init("$baseUrl/api/v1/projects/");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_HTTPHEADER => ["Authorization: Bearer $token"]
@@ -413,7 +413,7 @@ const (
 )
 
 func main() {
-    req, _ := http.NewRequest("GET", baseURL+"/api/projects/", nil)
+    req, _ := http.NewRequest("GET", baseURL+"/api/v1/projects/", nil)
     req.Header.Set("Authorization", "Bearer "+token)
 
     resp, _ := http.DefaultClient.Do(req)
@@ -431,7 +431,7 @@ func main() {
 BASE_URL="<BASE_URL>"
 TOKEN="<ACCESS_TOKEN>"
 
-curl "$BASE_URL/api/projects/?details=full" \
+curl "$BASE_URL/api/v1/projects/?details=full" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -442,7 +442,7 @@ BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
 response = requests.get(
-    f"{BASE_URL}/api/projects/",
+    f"{BASE_URL}/api/v1/projects/",
     params={"details": "full"},
     headers={"Authorization": f"Bearer {TOKEN}"}
 )
@@ -453,7 +453,7 @@ print(response.json())
 const BASE_URL = "<BASE_URL>";
 const TOKEN = "<ACCESS_TOKEN>";
 
-const response = await fetch(`${BASE_URL}/api/projects/?details=full`, {
+const response = await fetch(`${BASE_URL}/api/v1/projects/?details=full`, {
   headers: { Authorization: `Bearer ${TOKEN}` },
 });
 console.log(await response.json());
@@ -467,7 +467,7 @@ require 'uri'
 BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
-uri = URI("#{BASE_URL}/api/projects/")
+uri = URI("#{BASE_URL}/api/v1/projects/")
 uri.query = URI.encode_www_form(details: "full")
 http = Net::HTTP.new(uri.host, uri.port)
 http.use_ssl = uri.scheme == 'https'
@@ -484,7 +484,7 @@ puts JSON.parse(response.body)
 $baseUrl = "<BASE_URL>";
 $token = "<ACCESS_TOKEN>";
 
-$ch = curl_init("$baseUrl/api/projects/?details=full");
+$ch = curl_init("$baseUrl/api/v1/projects/?details=full");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_HTTPHEADER => ["Authorization: Bearer $token"]
@@ -509,7 +509,7 @@ const (
 )
 
 func main() {
-    req, _ := http.NewRequest("GET", baseURL+"/api/projects/?details=full", nil)
+    req, _ := http.NewRequest("GET", baseURL+"/api/v1/projects/?details=full", nil)
     req.Header.Set("Authorization", "Bearer "+token)
 
     resp, _ := http.DefaultClient.Do(req)
@@ -527,7 +527,7 @@ func main() {
 BASE_URL="<BASE_URL>"
 TOKEN="<ACCESS_TOKEN>"
 
-curl -X POST "$BASE_URL/api/projects/" \
+curl -X POST "$BASE_URL/api/v1/projects/" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d @- <<EOF
@@ -547,7 +547,7 @@ TOKEN = "<ACCESS_TOKEN>"
 ORG_ID = "org123"
 
 response = requests.post(
-    f"{BASE_URL}/api/projects/",
+    f"{BASE_URL}/api/v1/projects/",
     headers={"Authorization": f"Bearer {TOKEN}"},
     json={
         "org_id": ORG_ID,
@@ -563,7 +563,7 @@ const BASE_URL = "<BASE_URL>";
 const TOKEN = "<ACCESS_TOKEN>";
 const ORG_ID = "org123";
 
-const response = await fetch(`${BASE_URL}/api/projects/`, {
+const response = await fetch(`${BASE_URL}/api/v1/projects/`, {
   method: "POST",
   headers: {
     Authorization: `Bearer ${TOKEN}`,
@@ -587,7 +587,7 @@ BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 ORG_ID = "org123"
 
-uri = URI("#{BASE_URL}/api/projects/")
+uri = URI("#{BASE_URL}/api/v1/projects/")
 http = Net::HTTP.new(uri.host, uri.port)
 http.use_ssl = uri.scheme == 'https'
 
@@ -610,7 +610,7 @@ $baseUrl = "<BASE_URL>";
 $token = "<ACCESS_TOKEN>";
 $orgId = "org123";
 
-$ch = curl_init("$baseUrl/api/projects/");
+$ch = curl_init("$baseUrl/api/v1/projects/");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST => true,
@@ -652,7 +652,7 @@ func main() {
         "description": "Project description",
     })
 
-    req, _ := http.NewRequest("POST", baseURL+"/api/projects/", bytes.NewBuffer(body))
+    req, _ := http.NewRequest("POST", baseURL+"/api/v1/projects/", bytes.NewBuffer(body))
     req.Header.Set("Authorization", "Bearer "+token)
     req.Header.Set("Content-Type", "application/json")
 
@@ -672,7 +672,7 @@ BASE_URL="<BASE_URL>"
 TOKEN="<ACCESS_TOKEN>"
 PROJECT_ID="abc123"
 
-curl -X POST "$BASE_URL/api/projects/$PROJECT_ID/editors/" \
+curl -X POST "$BASE_URL/api/v1/projects/$PROJECT_ID/editors/" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d @- <<EOF
@@ -691,7 +691,7 @@ TOKEN = "<ACCESS_TOKEN>"
 PROJECT_ID = "abc123"
 
 response = requests.post(
-    f"{BASE_URL}/api/projects/{PROJECT_ID}/editors/",
+    f"{BASE_URL}/api/v1/projects/{PROJECT_ID}/editors/",
     headers={"Authorization": f"Bearer {TOKEN}"},
     json={"email": "collaborator@example.com", "role": "editor"}
 )
@@ -703,7 +703,7 @@ const BASE_URL = "<BASE_URL>";
 const TOKEN = "<ACCESS_TOKEN>";
 const PROJECT_ID = "abc123";
 
-const response = await fetch(`${BASE_URL}/api/projects/${PROJECT_ID}/editors/`, {
+const response = await fetch(`${BASE_URL}/api/v1/projects/${PROJECT_ID}/editors/`, {
   method: "POST",
   headers: {
     Authorization: `Bearer ${TOKEN}`,
@@ -723,7 +723,7 @@ BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 PROJECT_ID = "abc123"
 
-uri = URI("#{BASE_URL}/api/projects/#{PROJECT_ID}/editors/")
+uri = URI("#{BASE_URL}/api/v1/projects/#{PROJECT_ID}/editors/")
 http = Net::HTTP.new(uri.host, uri.port)
 http.use_ssl = uri.scheme == 'https'
 
@@ -742,7 +742,7 @@ $baseUrl = "<BASE_URL>";
 $token = "<ACCESS_TOKEN>";
 $projectId = "abc123";
 
-$ch = curl_init("$baseUrl/api/projects/$projectId/editors/");
+$ch = curl_init("$baseUrl/api/v1/projects/$projectId/editors/");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST => true,
@@ -782,7 +782,7 @@ func main() {
         "role":  "editor",
     })
 
-    req, _ := http.NewRequest("POST", baseURL+"/api/projects/"+projectID+"/editors/", bytes.NewBuffer(body))
+    req, _ := http.NewRequest("POST", baseURL+"/api/v1/projects/"+projectID+"/editors/", bytes.NewBuffer(body))
     req.Header.Set("Authorization", "Bearer "+token)
     req.Header.Set("Content-Type", "application/json")
 

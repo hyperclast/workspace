@@ -4,16 +4,19 @@ APIErrorNormalizerMiddleware into a consistent shape:
 
     {"error": "<code>", "message": "<human-readable>", "detail": <obj|array|null>}
 
-The 5 endpoint error patterns covered:
+The 6 endpoint error patterns covered:
 
     Pattern A: return STATUS, {"message": "..."}
     Pattern B: return STATUS, {"error": "...", "message": "..."}
     Pattern C: return Response({"message": "..."}, status=...)
     Pattern D: raise HttpError(STATUS, "...")  →  {"detail": "..."}
     Ninja:     Built-in validation/auth/404  →  {"detail": "..."} or {"detail": [...]}
+    Throttle:  Ninja throttle → 429 {"detail": "..."}
 """
 
 from http import HTTPStatus
+
+from django.core.cache import cache
 
 from core.tests.common import BaseAuthenticatedViewTestCase
 from imports.tests.factories import ImportJobFactory
@@ -246,6 +249,50 @@ class TestNinjaValidationErrorNormalization(NormalizedErrorAssertionsMixin, Base
         self.assertIn("type", error)
 
 
+class TestVersionedPathErrorNormalization(NormalizedErrorAssertionsMixin, BaseAuthenticatedViewTestCase):
+    """Verify error normalization works on /api/v1/ paths.
+
+    These tests will FAIL until the versioned URL path is added to urls.py (Step 2).
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.org = OrgFactory()
+        OrgMemberFactory(org=cls.org, user=cls.user, role=OrgMemberRole.MEMBER.value)
+        cls.project = ProjectFactory(org=cls.org, creator=cls.user)
+
+    def test_unauthenticated_versioned_path_returns_normalized_401(self):
+        """Auth failure on /api/v1/ gets the same normalized error shape."""
+        self.client.logout()
+
+        response = self.client.get("/api/v1/pages/")
+
+        self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+        data = self.assert_normalized_error(
+            response,
+            expected_error="error",
+            expected_message="Unauthorized",
+        )
+        self.assertEqual(data["detail"], "Unauthorized")
+
+    def test_validation_error_versioned_path_returns_normalized_422(self):
+        """Pydantic validation error on /api/v1/ gets the same normalized error shape."""
+        response = self.send_api_request(
+            url="/api/v1/pages/",
+            method="post",
+            data={"project_id": str(self.project.external_id)},
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+        data = self.assert_normalized_error(
+            response,
+            expected_error="error",
+            expected_message="An error occurred.",
+        )
+        self.assertIsInstance(data["detail"], list)
+
+
 class TestNinjaAuthErrorNormalization(NormalizedErrorAssertionsMixin, BaseAuthenticatedViewTestCase):
     """Django Ninja built-in: auth failure → {"detail": "Unauthorized"}
 
@@ -295,3 +342,44 @@ class TestNinja404ErrorNormalization(NormalizedErrorAssertionsMixin, BaseAuthent
         data = self.assert_normalized_error(response, expected_error="error")
         self.assertTrue(data["detail"].startswith("Not Found"))
         self.assertTrue(data["message"].startswith("Not Found"))
+
+
+class TestThrottleErrorNormalization(NormalizedErrorAssertionsMixin, BaseAuthenticatedViewTestCase):
+    """Ninja throttle: rate limit exceeded → 429 {"detail": "..."}
+
+    Django Ninja throttle produces {"detail": "Request was throttled."}.
+    Middleware copies detail string into "message" and adds "error" ("error").
+
+    Tested via: POST /api/orgs/{id}/members/ — burst throttle (1 per 10s).
+    Location: users/api/orgs.py (AddMemberBurstThrottle)
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.org = OrgFactory()
+        OrgMemberFactory(org=cls.org, user=cls.user, role=OrgMemberRole.MEMBER.value)
+
+    def setUp(self):
+        super().setUp()
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+        super().tearDown()
+
+    def test_throttled_request_returns_429_normalized(self):
+        """Rate-limited request gets normalized error with detail as message."""
+        url = f"/api/orgs/{self.org.external_id}/members/"
+        payload = {"email": "someone@example.com", "role": "member"}
+
+        # First request consumes the burst quota (1 per 10s)
+        self.send_api_request(url=url, method="post", data=payload)
+
+        # Second request should be throttled
+        response = self.send_api_request(url=url, method="post", data=payload)
+
+        self.assertEqual(response.status_code, HTTPStatus.TOO_MANY_REQUESTS)
+        data = self.assert_normalized_error(response, expected_error="error")
+        self.assertIsInstance(data["detail"], str)
+        self.assertEqual(data["message"], data["detail"])

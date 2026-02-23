@@ -8,10 +8,10 @@ The Mentions API allows you to retrieve pages where the current user is @mention
 
 Retrieve all pages where you are @mentioned.
 
-|              |                      |
-| ------------ | -------------------- |
-| **Endpoint** | `GET /api/mentions/` |
-| **Auth**     | Bearer token         |
+|              |                         |
+| ------------ | ----------------------- |
+| **Endpoint** | `GET /api/v1/mentions/` |
+| **Auth**     | Bearer token            |
 
 **Query Parameters:**
 
@@ -62,4 +62,4 @@ Hey @[Alice](@user123) can you take a look?
 
 The `@` prefix inside the parentheses distinguishes mentions from regular markdown links.
 
-Use the [org members autocomplete](/dev/api/orgs#autocomplete-members) endpoint to get user IDs for mention insertion.
+Use the [org members autocomplete](/dev/api/v1/orgs#autocomplete-members) endpoint to get user IDs for mention insertion.

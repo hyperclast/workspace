@@ -10,7 +10,7 @@ Submit a question about your pages and receive an AI-generated answer based on r
 
 ### URL
 
-`/api/ask/`
+`/api/v1/ask/`
 
 ### HTTP Method
 
@@ -185,7 +185,7 @@ The ask endpoint processes queries using a Retrieval-Augmented Generation (RAG) 
 #### Basic Query (Similarity Search)
 
 ```bash
-POST /api/ask/
+POST /api/v1/ask/
 Content-Type: application/json
 
 {
@@ -198,7 +198,7 @@ The system will automatically find relevant pages using vector similarity.
 #### Query with Explicit Pages
 
 ```bash
-POST /api/ask/
+POST /api/v1/ask/
 Content-Type: application/json
 
 {
@@ -212,7 +212,7 @@ Only the specified pages will be used to generate the answer.
 #### Query with Mentions
 
 ```bash
-POST /api/ask/
+POST /api/v1/ask/
 Content-Type: application/json
 
 {
@@ -225,7 +225,7 @@ The mentioned pages will be used to generate the answer. Note titles are preserv
 #### Mixed: Explicit Pages + Mentions
 
 ```bash
-POST /api/ask/
+POST /api/v1/ask/
 Content-Type: application/json
 
 {

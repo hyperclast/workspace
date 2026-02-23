@@ -16,7 +16,7 @@ Retrieve all pages that the authenticated user can edit (owned pages and shared 
 
 ### URL
 
-`/api/pages/`
+`/api/v1/pages/`
 
 ### HTTP Method
 
@@ -84,7 +84,7 @@ Search for pages by title for autocomplete/typeahead functionality.
 
 ### URL
 
-`/api/pages/autocomplete/`
+`/api/v1/pages/autocomplete/`
 
 ### HTTP Method
 
@@ -149,10 +149,10 @@ See [Overview](./overview.md)
 
 ```bash
 # Search for pages with "python" in the title
-GET /api/pages/autocomplete/?q=python
+GET /api/v1/pages/autocomplete/?q=python
 
 # Get all pages (up to 10 most recent)
-GET /api/pages/autocomplete/
+GET /api/v1/pages/autocomplete/
 ```
 
 ---
@@ -163,7 +163,7 @@ Create a new page owned by the authenticated user within a project.
 
 ### URL
 
-`/api/pages/`
+`/api/v1/pages/`
 
 ### HTTP Method
 
@@ -246,7 +246,7 @@ Retrieve a single page by its external ID.
 
 ### URL
 
-`/api/pages/{external_id}/`
+`/api/v1/pages/{external_id}/`
 
 ### HTTP Method
 
@@ -303,7 +303,7 @@ Update an existing note's title and/or details. Only the owner can use this endp
 
 ### URL
 
-`/api/pages/{external_id}/`
+`/api/v1/pages/{external_id}/`
 
 ### HTTP Method
 
@@ -366,7 +366,7 @@ Delete a page permanently. Only the owner can delete a page.
 
 ### URL
 
-`/api/pages/{external_id}/`
+`/api/v1/pages/{external_id}/`
 
 ### HTTP Method
 
@@ -409,7 +409,7 @@ Retrieve outgoing (forward) and incoming (backlinks) internal links for a page.
 
 ### URL
 
-`/api/pages/{external_id}/links/`
+`/api/v1/pages/{external_id}/links/`
 
 ### HTTP Method
 
@@ -473,7 +473,7 @@ See [Overview](./overview.md)
 
 ```bash
 # Get links for a page
-GET /api/pages/abc123/links/
+GET /api/v1/pages/abc123/links/
 ```
 
 **Error Responses:**
@@ -490,7 +490,7 @@ Retrieve sharing settings for a page, including access groups and who can manage
 
 ### URL
 
-`/api/pages/{external_id}/sharing/`
+`/api/v1/pages/{external_id}/sharing/`
 
 ### HTTP Method
 
@@ -556,7 +556,7 @@ Add a collaborator to a page.
 
 ### URL
 
-`/api/pages/{external_id}/editors/`
+`/api/v1/pages/{external_id}/editors/`
 
 ### HTTP Method
 
@@ -604,7 +604,7 @@ Update a page editor's role.
 
 ### URL
 
-`/api/pages/{external_id}/editors/{user_external_id}/`
+`/api/v1/pages/{external_id}/editors/{user_external_id}/`
 
 ### HTTP Method
 
@@ -626,7 +626,7 @@ Remove a collaborator from a page.
 
 ### URL
 
-`/api/pages/{external_id}/editors/{user_external_id}/`
+`/api/v1/pages/{external_id}/editors/{user_external_id}/`
 
 ### HTTP Method
 
@@ -646,7 +646,7 @@ Generate or retrieve a read-only access code for a page.
 
 ### URL
 
-`/api/pages/{external_id}/access-code/`
+`/api/v1/pages/{external_id}/access-code/`
 
 ### HTTP Method
 
@@ -690,7 +690,7 @@ Remove the read-only access code from a page, revoking public access.
 
 ### URL
 
-`/api/pages/{external_id}/access-code/`
+`/api/v1/pages/{external_id}/access-code/`
 
 ### HTTP Method
 

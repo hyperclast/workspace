@@ -19,7 +19,7 @@ Retrieve all organizations that the authenticated user is a member of.
 
 ### URL
 
-`/api/orgs/`
+`/api/v1/orgs/`
 
 ### HTTP Method
 
@@ -86,7 +86,7 @@ Retrieve a single organization by its external ID.
 
 ### URL
 
-`/api/orgs/{external_id}/`
+`/api/v1/orgs/{external_id}/`
 
 ### HTTP Method
 
@@ -140,7 +140,7 @@ Create a new organization. The authenticated user automatically becomes an admin
 
 ### URL
 
-`/api/orgs/`
+`/api/v1/orgs/`
 
 ### HTTP Method
 
@@ -205,7 +205,7 @@ Update an organization's details. Only admins can update organizations.
 
 ### URL
 
-`/api/orgs/{external_id}/`
+`/api/v1/orgs/{external_id}/`
 
 ### HTTP Method
 
@@ -268,7 +268,7 @@ Permanently delete an organization. Only admins can delete organizations.
 
 ### URL
 
-`/api/orgs/{external_id}/`
+`/api/v1/orgs/{external_id}/`
 
 ### HTTP Method
 
@@ -317,7 +317,7 @@ Retrieve all members of an organization.
 
 ### URL
 
-`/api/orgs/{external_id}/members/`
+`/api/v1/orgs/{external_id}/members/`
 
 ### HTTP Method
 
@@ -384,7 +384,7 @@ Add a user as a member of the organization. Any existing member can invite new m
 
 ### URL
 
-`/api/orgs/{external_id}/members/`
+`/api/v1/orgs/{external_id}/members/`
 
 ### HTTP Method
 
@@ -453,7 +453,7 @@ Remove a member from the organization.
 
 ### URL
 
-`/api/orgs/{external_id}/members/{user_external_id}/`
+`/api/v1/orgs/{external_id}/members/{user_external_id}/`
 
 ### HTTP Method
 
@@ -511,7 +511,7 @@ Update a member's role within the organization. Only admins can change roles.
 
 ### URL
 
-`/api/orgs/{external_id}/members/{user_external_id}/`
+`/api/v1/orgs/{external_id}/members/{user_external_id}/`
 
 ### HTTP Method
 
@@ -579,7 +579,7 @@ Search for organization members by username or email for @mention autocomplete f
 
 ### URL
 
-`/api/orgs/{external_id}/members/autocomplete/`
+`/api/v1/orgs/{external_id}/members/autocomplete/`
 
 ### HTTP Method
 
@@ -639,10 +639,10 @@ See [Overview](./overview.md)
 
 ```bash
 # Search for members with "alice" in username or email
-GET /api/orgs/org123/members/autocomplete/?q=alice
+GET /api/v1/orgs/org123/members/autocomplete/?q=alice
 
 # Get all members (up to 10)
-GET /api/orgs/org123/members/autocomplete/
+GET /api/v1/orgs/org123/members/autocomplete/
 ```
 
 **Error Responses:**

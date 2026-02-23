@@ -13,10 +13,10 @@ Organizations are team workspaces containing projects and pages. Members can hav
 
 Get all organizations you're a member of.
 
-|              |                  |
-| ------------ | ---------------- |
-| **Endpoint** | `GET /api/orgs/` |
-| **Auth**     | Bearer token     |
+|              |                     |
+| ------------ | ------------------- |
+| **Endpoint** | `GET /api/v1/orgs/` |
+| **Auth**     | Bearer token        |
 
 **Response (200):**
 
@@ -42,10 +42,10 @@ Get all organizations you're a member of.
 
 ## Get Organization
 
-|              |                                |
-| ------------ | ------------------------------ |
-| **Endpoint** | `GET /api/orgs/{external_id}/` |
-| **Auth**     | Bearer token                   |
+|              |                                   |
+| ------------ | --------------------------------- |
+| **Endpoint** | `GET /api/v1/orgs/{external_id}/` |
+| **Auth**     | Bearer token                      |
 
 **Response (200):**
 
@@ -66,10 +66,10 @@ Get all organizations you're a member of.
 
 You'll automatically be added as an admin.
 
-|              |                   |
-| ------------ | ----------------- |
-| **Endpoint** | `POST /api/orgs/` |
-| **Auth**     | Bearer token      |
+|              |                      |
+| ------------ | -------------------- |
+| **Endpoint** | `POST /api/v1/orgs/` |
+| **Auth**     | Bearer token         |
 
 | Field  | Type   | Required? | Description       |
 | ------ | ------ | --------- | ----------------- |
@@ -94,10 +94,10 @@ You'll automatically be added as an admin.
 
 ## Update Organization
 
-|              |                                  |
-| ------------ | -------------------------------- |
-| **Endpoint** | `PATCH /api/orgs/{external_id}/` |
-| **Auth**     | Bearer token (admin only)        |
+|              |                                     |
+| ------------ | ----------------------------------- |
+| **Endpoint** | `PATCH /api/v1/orgs/{external_id}/` |
+| **Auth**     | Bearer token (admin only)           |
 
 | Field  | Type   | Required? | Description           |
 | ------ | ------ | --------- | --------------------- |
@@ -129,10 +129,10 @@ You'll automatically be added as an admin.
 
 Permanently deletes the organization and all its projects/pages.
 
-|              |                                   |
-| ------------ | --------------------------------- |
-| **Endpoint** | `DELETE /api/orgs/{external_id}/` |
-| **Auth**     | Bearer token (admin only)         |
+|              |                                      |
+| ------------ | ------------------------------------ |
+| **Endpoint** | `DELETE /api/v1/orgs/{external_id}/` |
+| **Auth**     | Bearer token (admin only)            |
 
 **Response (204):** No content.
 
@@ -151,10 +151,10 @@ Permanently deletes the organization and all its projects/pages.
 
 ### List Members
 
-|              |                                        |
-| ------------ | -------------------------------------- |
-| **Endpoint** | `GET /api/orgs/{external_id}/members/` |
-| **Auth**     | Bearer token                           |
+|              |                                           |
+| ------------ | ----------------------------------------- |
+| **Endpoint** | `GET /api/v1/orgs/{external_id}/members/` |
+| **Auth**     | Bearer token                              |
 
 **Response (200):**
 
@@ -184,10 +184,10 @@ Permanently deletes the organization and all its projects/pages.
 
 ### Add Member
 
-|              |                                         |
-| ------------ | --------------------------------------- |
-| **Endpoint** | `POST /api/orgs/{external_id}/members/` |
-| **Auth**     | Bearer token                            |
+|              |                                            |
+| ------------ | ------------------------------------------ |
+| **Endpoint** | `POST /api/v1/orgs/{external_id}/members/` |
+| **Auth**     | Bearer token                               |
 
 | Field   | Type   | Required? | Description                      |
 | ------- | ------ | --------- | -------------------------------- |
@@ -210,10 +210,10 @@ Permanently deletes the organization and all its projects/pages.
 
 ### Update Member Role
 
-|              |                                                    |
-| ------------ | -------------------------------------------------- |
-| **Endpoint** | `PATCH /api/orgs/{external_id}/members/{user_id}/` |
-| **Auth**     | Bearer token (admin only)                          |
+|              |                                                       |
+| ------------ | ----------------------------------------------------- |
+| **Endpoint** | `PATCH /api/v1/orgs/{external_id}/members/{user_id}/` |
+| **Auth**     | Bearer token (admin only)                             |
 
 | Field  | Type   | Required? | Description         |
 | ------ | ------ | --------- | ------------------- |
@@ -241,10 +241,10 @@ Permanently deletes the organization and all its projects/pages.
 
 ### Remove Member
 
-|              |                                                     |
-| ------------ | --------------------------------------------------- |
-| **Endpoint** | `DELETE /api/orgs/{external_id}/members/{user_id}/` |
-| **Auth**     | Bearer token                                        |
+|              |                                                        |
+| ------------ | ------------------------------------------------------ |
+| **Endpoint** | `DELETE /api/v1/orgs/{external_id}/members/{user_id}/` |
+| **Auth**     | Bearer token                                           |
 
 **Response (204):** No content.
 
@@ -259,10 +259,10 @@ Permanently deletes the organization and all its projects/pages.
 
 Search for org members by username or email. Used for @mention autocomplete.
 
-|              |                                                     |
-| ------------ | --------------------------------------------------- |
-| **Endpoint** | `GET /api/orgs/{external_id}/members/autocomplete/` |
-| **Auth**     | Bearer token                                        |
+|              |                                                        |
+| ------------ | ------------------------------------------------------ |
+| **Endpoint** | `GET /api/v1/orgs/{external_id}/members/autocomplete/` |
+| **Auth**     | Bearer token                                           |
 
 **Query:** `?q=search+term`
 
@@ -296,7 +296,7 @@ Search for org members by username or email. Used for @mention autocomplete.
 BASE_URL="<BASE_URL>"
 TOKEN="<ACCESS_TOKEN>"
 
-curl "$BASE_URL/api/orgs/" \
+curl "$BASE_URL/api/v1/orgs/" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -307,7 +307,7 @@ BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
 response = requests.get(
-    f"{BASE_URL}/api/orgs/",
+    f"{BASE_URL}/api/v1/orgs/",
     headers={"Authorization": f"Bearer {TOKEN}"}
 )
 print(response.json())
@@ -317,7 +317,7 @@ print(response.json())
 const BASE_URL = "<BASE_URL>";
 const TOKEN = "<ACCESS_TOKEN>";
 
-const response = await fetch(`${BASE_URL}/api/orgs/`, {
+const response = await fetch(`${BASE_URL}/api/v1/orgs/`, {
   headers: { Authorization: `Bearer ${TOKEN}` },
 });
 console.log(await response.json());
@@ -331,7 +331,7 @@ require 'uri'
 BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
-uri = URI("#{BASE_URL}/api/orgs/")
+uri = URI("#{BASE_URL}/api/v1/orgs/")
 http = Net::HTTP.new(uri.host, uri.port)
 http.use_ssl = uri.scheme == 'https'
 
@@ -347,7 +347,7 @@ puts JSON.parse(response.body)
 $baseUrl = "<BASE_URL>";
 $token = "<ACCESS_TOKEN>";
 
-$ch = curl_init("$baseUrl/api/orgs/");
+$ch = curl_init("$baseUrl/api/v1/orgs/");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_HTTPHEADER => ["Authorization: Bearer $token"]
@@ -372,7 +372,7 @@ const (
 )
 
 func main() {
-    req, _ := http.NewRequest("GET", baseURL+"/api/orgs/", nil)
+    req, _ := http.NewRequest("GET", baseURL+"/api/v1/orgs/", nil)
     req.Header.Set("Authorization", "Bearer "+token)
 
     resp, _ := http.DefaultClient.Do(req)
@@ -390,7 +390,7 @@ func main() {
 BASE_URL="<BASE_URL>"
 TOKEN="<ACCESS_TOKEN>"
 
-curl -X POST "$BASE_URL/api/orgs/" \
+curl -X POST "$BASE_URL/api/v1/orgs/" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d @- <<EOF
@@ -407,7 +407,7 @@ BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
 response = requests.post(
-    f"{BASE_URL}/api/orgs/",
+    f"{BASE_URL}/api/v1/orgs/",
     headers={"Authorization": f"Bearer {TOKEN}"},
     json={"name": "My New Organization"}
 )
@@ -418,7 +418,7 @@ print(response.json())
 const BASE_URL = "<BASE_URL>";
 const TOKEN = "<ACCESS_TOKEN>";
 
-const response = await fetch(`${BASE_URL}/api/orgs/`, {
+const response = await fetch(`${BASE_URL}/api/v1/orgs/`, {
   method: "POST",
   headers: {
     Authorization: `Bearer ${TOKEN}`,
@@ -437,7 +437,7 @@ require 'uri'
 BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
-uri = URI("#{BASE_URL}/api/orgs/")
+uri = URI("#{BASE_URL}/api/v1/orgs/")
 http = Net::HTTP.new(uri.host, uri.port)
 http.use_ssl = uri.scheme == 'https'
 
@@ -455,7 +455,7 @@ puts JSON.parse(response.body)
 $baseUrl = "<BASE_URL>";
 $token = "<ACCESS_TOKEN>";
 
-$ch = curl_init("$baseUrl/api/orgs/");
+$ch = curl_init("$baseUrl/api/v1/orgs/");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST => true,
@@ -488,7 +488,7 @@ const (
 func main() {
     body, _ := json.Marshal(map[string]string{"name": "My New Organization"})
 
-    req, _ := http.NewRequest("POST", baseURL+"/api/orgs/", bytes.NewBuffer(body))
+    req, _ := http.NewRequest("POST", baseURL+"/api/v1/orgs/", bytes.NewBuffer(body))
     req.Header.Set("Authorization", "Bearer "+token)
     req.Header.Set("Content-Type", "application/json")
 
@@ -508,7 +508,7 @@ BASE_URL="<BASE_URL>"
 TOKEN="<ACCESS_TOKEN>"
 ORG_ID="org123"
 
-curl -X POST "$BASE_URL/api/orgs/$ORG_ID/members/" \
+curl -X POST "$BASE_URL/api/v1/orgs/$ORG_ID/members/" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d @- <<EOF
@@ -527,7 +527,7 @@ TOKEN = "<ACCESS_TOKEN>"
 ORG_ID = "org123"
 
 response = requests.post(
-    f"{BASE_URL}/api/orgs/{ORG_ID}/members/",
+    f"{BASE_URL}/api/v1/orgs/{ORG_ID}/members/",
     headers={"Authorization": f"Bearer {TOKEN}"},
     json={"email": "newmember@example.com", "role": "member"}
 )
@@ -539,7 +539,7 @@ const BASE_URL = "<BASE_URL>";
 const TOKEN = "<ACCESS_TOKEN>";
 const ORG_ID = "org123";
 
-const response = await fetch(`${BASE_URL}/api/orgs/${ORG_ID}/members/`, {
+const response = await fetch(`${BASE_URL}/api/v1/orgs/${ORG_ID}/members/`, {
   method: "POST",
   headers: {
     Authorization: `Bearer ${TOKEN}`,
@@ -562,7 +562,7 @@ BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 ORG_ID = "org123"
 
-uri = URI("#{BASE_URL}/api/orgs/#{ORG_ID}/members/")
+uri = URI("#{BASE_URL}/api/v1/orgs/#{ORG_ID}/members/")
 http = Net::HTTP.new(uri.host, uri.port)
 http.use_ssl = uri.scheme == 'https'
 
@@ -581,7 +581,7 @@ $baseUrl = "<BASE_URL>";
 $token = "<ACCESS_TOKEN>";
 $orgId = "org123";
 
-$ch = curl_init("$baseUrl/api/orgs/$orgId/members/");
+$ch = curl_init("$baseUrl/api/v1/orgs/$orgId/members/");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST => true,
@@ -621,7 +621,7 @@ func main() {
         "role":  "member",
     })
 
-    req, _ := http.NewRequest("POST", baseURL+"/api/orgs/"+orgID+"/members/", bytes.NewBuffer(body))
+    req, _ := http.NewRequest("POST", baseURL+"/api/v1/orgs/"+orgID+"/members/", bytes.NewBuffer(body))
     req.Header.Set("Authorization", "Bearer "+token)
     req.Header.Set("Content-Type", "application/json")
 

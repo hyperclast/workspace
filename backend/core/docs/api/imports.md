@@ -19,10 +19,10 @@ Currently supported: **Notion** (Markdown & CSV export format)
 
 List all your import jobs.
 
-|              |                     |
-| ------------ | ------------------- |
-| **Endpoint** | `GET /api/imports/` |
-| **Auth**     | Bearer token        |
+|              |                        |
+| ------------ | ---------------------- |
+| **Endpoint** | `GET /api/v1/imports/` |
+| **Auth**     | Bearer token           |
 
 | Param      | Type   | Description                                            |
 | ---------- | ------ | ------------------------------------------------------ |
@@ -61,11 +61,11 @@ List all your import jobs.
 
 Upload a Notion export and start import processing.
 
-|              |                             |
-| ------------ | --------------------------- |
-| **Endpoint** | `POST /api/imports/notion/` |
-| **Auth**     | Bearer token                |
-| **Content**  | `multipart/form-data`       |
+|              |                                |
+| ------------ | ------------------------------ |
+| **Endpoint** | `POST /api/v1/imports/notion/` |
+| **Auth**     | Bearer token                   |
+| **Content**  | `multipart/form-data`          |
 
 | Field        | Type   | Required | Description                |
 | ------------ | ------ | -------- | -------------------------- |
@@ -135,10 +135,10 @@ Repeated security violations may result in a temporary import ban.
 
 Get the status of an import job.
 
-|              |                          |
-| ------------ | ------------------------ |
-| **Endpoint** | `GET /api/imports/{id}/` |
-| **Auth**     | Bearer token             |
+|              |                             |
+| ------------ | --------------------------- |
+| **Endpoint** | `GET /api/v1/imports/{id}/` |
+| **Auth**     | Bearer token                |
 
 **Response (200):**
 
@@ -176,10 +176,10 @@ Get the status of an import job.
 
 List pages created by an import job.
 
-|              |                                |
-| ------------ | ------------------------------ |
-| **Endpoint** | `GET /api/imports/{id}/pages/` |
-| **Auth**     | Bearer token                   |
+|              |                                   |
+| ------------ | --------------------------------- |
+| **Endpoint** | `GET /api/v1/imports/{id}/pages/` |
+| **Auth**     | Bearer token                      |
 
 | Param    | Type | Description                   |
 | -------- | ---- | ----------------------------- |
@@ -210,10 +210,10 @@ List pages created by an import job.
 
 Delete an import job record.
 
-|              |                             |
-| ------------ | --------------------------- |
-| **Endpoint** | `DELETE /api/imports/{id}/` |
-| **Auth**     | Bearer token                |
+|              |                                |
+| ------------ | ------------------------------ |
+| **Endpoint** | `DELETE /api/v1/imports/{id}/` |
+| **Auth**     | Bearer token                   |
 
 **Response:** 204 No Content
 

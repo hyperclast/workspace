@@ -29,10 +29,10 @@ Within each tier, roles control what actions are allowed:
 
 Get all pages you can access.
 
-|              |                   |
-| ------------ | ----------------- |
-| **Endpoint** | `GET /api/pages/` |
-| **Auth**     | Bearer token      |
+|              |                      |
+| ------------ | -------------------- |
+| **Endpoint** | `GET /api/v1/pages/` |
+| **Auth**     | Bearer token         |
 
 **Query Parameters:**
 
@@ -67,10 +67,10 @@ Get all pages you can access.
 
 Search pages by title for typeahead functionality.
 
-|              |                                |
-| ------------ | ------------------------------ |
-| **Endpoint** | `GET /api/pages/autocomplete/` |
-| **Auth**     | Bearer token                   |
+|              |                                   |
+| ------------ | --------------------------------- |
+| **Endpoint** | `GET /api/v1/pages/autocomplete/` |
+| **Auth**     | Bearer token                      |
 
 **Query:** `?q=search+term`
 
@@ -92,10 +92,10 @@ Search pages by title for typeahead functionality.
 
 ## Create Page
 
-|              |                    |
-| ------------ | ------------------ |
-| **Endpoint** | `POST /api/pages/` |
-| **Auth**     | Bearer token       |
+|              |                       |
+| ------------ | --------------------- |
+| **Endpoint** | `POST /api/v1/pages/` |
+| **Auth**     | Bearer token          |
 
 | Field        | Type   | Required? | Description               |
 | ------------ | ------ | --------- | ------------------------- |
@@ -122,10 +122,10 @@ Search pages by title for typeahead functionality.
 
 ## Get Page
 
-|              |                                 |
-| ------------ | ------------------------------- |
-| **Endpoint** | `GET /api/pages/{external_id}/` |
-| **Auth**     | Bearer token                    |
+|              |                                    |
+| ------------ | ---------------------------------- |
+| **Endpoint** | `GET /api/v1/pages/{external_id}/` |
+| **Auth**     | Bearer token                       |
 
 **Response (200):**
 
@@ -146,10 +146,10 @@ Search pages by title for typeahead functionality.
 
 ## Update Page
 
-|              |                                 |
-| ------------ | ------------------------------- |
-| **Endpoint** | `PUT /api/pages/{external_id}/` |
-| **Auth**     | Bearer token (owner only)       |
+|              |                                    |
+| ------------ | ---------------------------------- |
+| **Endpoint** | `PUT /api/v1/pages/{external_id}/` |
+| **Auth**     | Bearer token (owner only)          |
 
 | Field     | Type   | Required? | Description                                              |
 | --------- | ------ | --------- | -------------------------------------------------------- |
@@ -189,10 +189,10 @@ Search pages by title for typeahead functionality.
 
 ## Delete Page
 
-|              |                                    |
-| ------------ | ---------------------------------- |
-| **Endpoint** | `DELETE /api/pages/{external_id}/` |
-| **Auth**     | Bearer token (owner only)          |
+|              |                                       |
+| ------------ | ------------------------------------- |
+| **Endpoint** | `DELETE /api/v1/pages/{external_id}/` |
+| **Auth**     | Bearer token (owner only)             |
 
 **Response (204):** No content.
 
@@ -209,10 +209,10 @@ Search pages by title for typeahead functionality.
 
 Get outgoing and incoming (backlinks) internal links for a page.
 
-|              |                                       |
-| ------------ | ------------------------------------- |
-| **Endpoint** | `GET /api/pages/{external_id}/links/` |
-| **Auth**     | Bearer token                          |
+|              |                                          |
+| ------------ | ---------------------------------------- |
+| **Endpoint** | `GET /api/v1/pages/{external_id}/links/` |
+| **Auth**     | Bearer token                             |
 
 **Response (200):**
 
@@ -249,10 +249,10 @@ Get outgoing and incoming (backlinks) internal links for a page.
 
 ### List Editors
 
-|              |                                         |
-| ------------ | --------------------------------------- |
-| **Endpoint** | `GET /api/pages/{external_id}/editors/` |
-| **Auth**     | Bearer token                            |
+|              |                                            |
+| ------------ | ------------------------------------------ |
+| **Endpoint** | `GET /api/v1/pages/{external_id}/editors/` |
+| **Auth**     | Bearer token                               |
 
 **Response (200):**
 
@@ -280,10 +280,10 @@ Get outgoing and incoming (backlinks) internal links for a page.
 
 ### Add Editor
 
-|              |                                          |
-| ------------ | ---------------------------------------- |
-| **Endpoint** | `POST /api/pages/{external_id}/editors/` |
-| **Auth**     | Bearer token                             |
+|              |                                             |
+| ------------ | ------------------------------------------- |
+| **Endpoint** | `POST /api/v1/pages/{external_id}/editors/` |
+| **Auth**     | Bearer token                                |
 
 | Field   | Type   | Required? | Description                            |
 | ------- | ------ | --------- | -------------------------------------- |
@@ -305,10 +305,10 @@ Get outgoing and incoming (backlinks) internal links for a page.
 
 ### Update Editor Role
 
-|              |                                                     |
-| ------------ | --------------------------------------------------- |
-| **Endpoint** | `PATCH /api/pages/{external_id}/editors/{user_id}/` |
-| **Auth**     | Bearer token                                        |
+|              |                                                        |
+| ------------ | ------------------------------------------------------ |
+| **Endpoint** | `PATCH /api/v1/pages/{external_id}/editors/{user_id}/` |
+| **Auth**     | Bearer token                                           |
 
 | Field  | Type   | Required? | Description          |
 | ------ | ------ | --------- | -------------------- |
@@ -327,18 +327,18 @@ Get outgoing and incoming (backlinks) internal links for a page.
 
 ### Remove Editor
 
-|              |                                                      |
-| ------------ | ---------------------------------------------------- |
-| **Endpoint** | `DELETE /api/pages/{external_id}/editors/{user_id}/` |
-| **Auth**     | Bearer token                                         |
+|              |                                                         |
+| ------------ | ------------------------------------------------------- |
+| **Endpoint** | `DELETE /api/v1/pages/{external_id}/editors/{user_id}/` |
+| **Auth**     | Bearer token                                            |
 
 **Response (204):** No content.
 
 ### Validate Invitation
 
-|              |                                                        |
-| ------------ | ------------------------------------------------------ |
-| **Endpoint** | `GET /api/pages/invitations/{invitation_id}/validate/` |
+|              |                                                           |
+| ------------ | --------------------------------------------------------- |
+| **Endpoint** | `GET /api/v1/pages/invitations/{invitation_id}/validate/` |
 
 **Response (200):**
 
@@ -373,7 +373,7 @@ Get outgoing and incoming (backlinks) internal links for a page.
 BASE_URL="<BASE_URL>"
 TOKEN="<ACCESS_TOKEN>"
 
-curl "$BASE_URL/api/pages/" \
+curl "$BASE_URL/api/v1/pages/" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -384,7 +384,7 @@ BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
 response = requests.get(
-    f"{BASE_URL}/api/pages/",
+    f"{BASE_URL}/api/v1/pages/",
     headers={"Authorization": f"Bearer {TOKEN}"}
 )
 print(response.json())
@@ -394,7 +394,7 @@ print(response.json())
 const BASE_URL = "<BASE_URL>";
 const TOKEN = "<ACCESS_TOKEN>";
 
-const response = await fetch(`${BASE_URL}/api/pages/`, {
+const response = await fetch(`${BASE_URL}/api/v1/pages/`, {
   headers: { Authorization: `Bearer ${TOKEN}` },
 });
 console.log(await response.json());
@@ -408,7 +408,7 @@ require 'uri'
 BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
-uri = URI("#{BASE_URL}/api/pages/")
+uri = URI("#{BASE_URL}/api/v1/pages/")
 http = Net::HTTP.new(uri.host, uri.port)
 http.use_ssl = uri.scheme == 'https'
 
@@ -424,7 +424,7 @@ puts JSON.parse(response.body)
 $baseUrl = "<BASE_URL>";
 $token = "<ACCESS_TOKEN>";
 
-$ch = curl_init("$baseUrl/api/pages/");
+$ch = curl_init("$baseUrl/api/v1/pages/");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_HTTPHEADER => ["Authorization: Bearer $token"]
@@ -449,7 +449,7 @@ const (
 )
 
 func main() {
-    req, _ := http.NewRequest("GET", baseURL+"/api/pages/", nil)
+    req, _ := http.NewRequest("GET", baseURL+"/api/v1/pages/", nil)
     req.Header.Set("Authorization", "Bearer "+token)
 
     resp, _ := http.DefaultClient.Do(req)
@@ -467,7 +467,7 @@ func main() {
 BASE_URL="<BASE_URL>"
 TOKEN="<ACCESS_TOKEN>"
 
-curl -X POST "$BASE_URL/api/pages/" \
+curl -X POST "$BASE_URL/api/v1/pages/" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d @- <<EOF
@@ -486,7 +486,7 @@ TOKEN = "<ACCESS_TOKEN>"
 PROJECT_ID = "proj123"
 
 response = requests.post(
-    f"{BASE_URL}/api/pages/",
+    f"{BASE_URL}/api/v1/pages/",
     headers={"Authorization": f"Bearer {TOKEN}"},
     json={"project_id": PROJECT_ID, "title": "My New Page"}
 )
@@ -498,7 +498,7 @@ const BASE_URL = "<BASE_URL>";
 const TOKEN = "<ACCESS_TOKEN>";
 const PROJECT_ID = "proj123";
 
-const response = await fetch(`${BASE_URL}/api/pages/`, {
+const response = await fetch(`${BASE_URL}/api/v1/pages/`, {
   method: "POST",
   headers: {
     Authorization: `Bearer ${TOKEN}`,
@@ -521,7 +521,7 @@ BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 PROJECT_ID = "proj123"
 
-uri = URI("#{BASE_URL}/api/pages/")
+uri = URI("#{BASE_URL}/api/v1/pages/")
 http = Net::HTTP.new(uri.host, uri.port)
 http.use_ssl = uri.scheme == 'https'
 
@@ -540,7 +540,7 @@ $baseUrl = "<BASE_URL>";
 $token = "<ACCESS_TOKEN>";
 $projectId = "proj123";
 
-$ch = curl_init("$baseUrl/api/pages/");
+$ch = curl_init("$baseUrl/api/v1/pages/");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST => true,
@@ -580,7 +580,7 @@ func main() {
         "title":      "My New Page",
     })
 
-    req, _ := http.NewRequest("POST", baseURL+"/api/pages/", bytes.NewBuffer(body))
+    req, _ := http.NewRequest("POST", baseURL+"/api/v1/pages/", bytes.NewBuffer(body))
     req.Header.Set("Authorization", "Bearer "+token)
     req.Header.Set("Content-Type", "application/json")
 
@@ -600,7 +600,7 @@ BASE_URL="<BASE_URL>"
 TOKEN="<ACCESS_TOKEN>"
 PAGE_ID="abc123"
 
-curl "$BASE_URL/api/pages/$PAGE_ID/" \
+curl "$BASE_URL/api/v1/pages/$PAGE_ID/" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -612,7 +612,7 @@ TOKEN = "<ACCESS_TOKEN>"
 PAGE_ID = "abc123"
 
 response = requests.get(
-    f"{BASE_URL}/api/pages/{PAGE_ID}/",
+    f"{BASE_URL}/api/v1/pages/{PAGE_ID}/",
     headers={"Authorization": f"Bearer {TOKEN}"}
 )
 print(response.json())
@@ -623,7 +623,7 @@ const BASE_URL = "<BASE_URL>";
 const TOKEN = "<ACCESS_TOKEN>";
 const PAGE_ID = "abc123";
 
-const response = await fetch(`${BASE_URL}/api/pages/${PAGE_ID}/`, {
+const response = await fetch(`${BASE_URL}/api/v1/pages/${PAGE_ID}/`, {
   headers: { Authorization: `Bearer ${TOKEN}` },
 });
 console.log(await response.json());
@@ -638,7 +638,7 @@ BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 PAGE_ID = "abc123"
 
-uri = URI("#{BASE_URL}/api/pages/#{PAGE_ID}/")
+uri = URI("#{BASE_URL}/api/v1/pages/#{PAGE_ID}/")
 http = Net::HTTP.new(uri.host, uri.port)
 http.use_ssl = uri.scheme == 'https'
 
@@ -655,7 +655,7 @@ $baseUrl = "<BASE_URL>";
 $token = "<ACCESS_TOKEN>";
 $pageId = "abc123";
 
-$ch = curl_init("$baseUrl/api/pages/$pageId/");
+$ch = curl_init("$baseUrl/api/v1/pages/$pageId/");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_HTTPHEADER => ["Authorization: Bearer $token"]
@@ -681,7 +681,7 @@ const (
 )
 
 func main() {
-    req, _ := http.NewRequest("GET", baseURL+"/api/pages/"+pageID+"/", nil)
+    req, _ := http.NewRequest("GET", baseURL+"/api/v1/pages/"+pageID+"/", nil)
     req.Header.Set("Authorization", "Bearer "+token)
 
     resp, _ := http.DefaultClient.Do(req)
@@ -700,7 +700,7 @@ BASE_URL="<BASE_URL>"
 TOKEN="<ACCESS_TOKEN>"
 PAGE_ID="abc123"
 
-curl -X PUT "$BASE_URL/api/pages/$PAGE_ID/" \
+curl -X PUT "$BASE_URL/api/v1/pages/$PAGE_ID/" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"title": "Updated Title", "details": {"content": "New content..."}}'
@@ -714,7 +714,7 @@ TOKEN = "<ACCESS_TOKEN>"
 PAGE_ID = "abc123"
 
 response = requests.put(
-    f"{BASE_URL}/api/pages/{PAGE_ID}/",
+    f"{BASE_URL}/api/v1/pages/{PAGE_ID}/",
     headers={"Authorization": f"Bearer {TOKEN}"},
     json={"title": "Updated Title", "details": {"content": "New content..."}}
 )
@@ -726,7 +726,7 @@ const BASE_URL = "<BASE_URL>";
 const TOKEN = "<ACCESS_TOKEN>";
 const PAGE_ID = "abc123";
 
-const response = await fetch(`${BASE_URL}/api/pages/${PAGE_ID}/`, {
+const response = await fetch(`${BASE_URL}/api/v1/pages/${PAGE_ID}/`, {
   method: "PUT",
   headers: {
     Authorization: `Bearer ${TOKEN}`,
@@ -749,7 +749,7 @@ BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 PAGE_ID = "abc123"
 
-uri = URI("#{BASE_URL}/api/pages/#{PAGE_ID}/")
+uri = URI("#{BASE_URL}/api/v1/pages/#{PAGE_ID}/")
 http = Net::HTTP.new(uri.host, uri.port)
 http.use_ssl = uri.scheme == 'https'
 
@@ -771,7 +771,7 @@ $baseUrl = "<BASE_URL>";
 $token = "<ACCESS_TOKEN>";
 $pageId = "abc123";
 
-$ch = curl_init("$baseUrl/api/pages/$pageId/");
+$ch = curl_init("$baseUrl/api/v1/pages/$pageId/");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_CUSTOMREQUEST => "PUT",
@@ -811,7 +811,7 @@ func main() {
         "details": map[string]string{"content": "New content..."},
     })
 
-    req, _ := http.NewRequest("PUT", baseURL+"/api/pages/"+pageID+"/", bytes.NewBuffer(body))
+    req, _ := http.NewRequest("PUT", baseURL+"/api/v1/pages/"+pageID+"/", bytes.NewBuffer(body))
     req.Header.Set("Authorization", "Bearer "+token)
     req.Header.Set("Content-Type", "application/json")
 
@@ -831,7 +831,7 @@ BASE_URL="<BASE_URL>"
 TOKEN="<ACCESS_TOKEN>"
 PAGE_ID="abc123"
 
-curl "$BASE_URL/api/pages/$PAGE_ID/links/" \
+curl "$BASE_URL/api/v1/pages/$PAGE_ID/links/" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -843,7 +843,7 @@ TOKEN = "<ACCESS_TOKEN>"
 PAGE_ID = "abc123"
 
 response = requests.get(
-    f"{BASE_URL}/api/pages/{PAGE_ID}/links/",
+    f"{BASE_URL}/api/v1/pages/{PAGE_ID}/links/",
     headers={"Authorization": f"Bearer {TOKEN}"}
 )
 print(response.json())
@@ -854,7 +854,7 @@ const BASE_URL = "<BASE_URL>";
 const TOKEN = "<ACCESS_TOKEN>";
 const PAGE_ID = "abc123";
 
-const response = await fetch(`${BASE_URL}/api/pages/${PAGE_ID}/links/`, {
+const response = await fetch(`${BASE_URL}/api/v1/pages/${PAGE_ID}/links/`, {
   headers: { Authorization: `Bearer ${TOKEN}` },
 });
 console.log(await response.json());
@@ -866,7 +866,7 @@ console.log(await response.json());
 BASE_URL="<BASE_URL>"
 TOKEN="<ACCESS_TOKEN>"
 
-curl "$BASE_URL/api/pages/autocomplete/?q=python" \
+curl "$BASE_URL/api/v1/pages/autocomplete/?q=python" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -877,7 +877,7 @@ BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
 response = requests.get(
-    f"{BASE_URL}/api/pages/autocomplete/",
+    f"{BASE_URL}/api/v1/pages/autocomplete/",
     params={"q": "python"},
     headers={"Authorization": f"Bearer {TOKEN}"}
 )
@@ -888,7 +888,7 @@ print(response.json())
 const BASE_URL = "<BASE_URL>";
 const TOKEN = "<ACCESS_TOKEN>";
 
-const response = await fetch(`${BASE_URL}/api/pages/autocomplete/?q=python`, {
+const response = await fetch(`${BASE_URL}/api/v1/pages/autocomplete/?q=python`, {
   headers: { Authorization: `Bearer ${TOKEN}` },
 });
 console.log(await response.json());
@@ -902,7 +902,7 @@ require 'uri'
 BASE_URL = "<BASE_URL>"
 TOKEN = "<ACCESS_TOKEN>"
 
-uri = URI("#{BASE_URL}/api/pages/autocomplete/")
+uri = URI("#{BASE_URL}/api/v1/pages/autocomplete/")
 uri.query = URI.encode_www_form(q: "python")
 http = Net::HTTP.new(uri.host, uri.port)
 http.use_ssl = uri.scheme == 'https'
@@ -919,7 +919,7 @@ puts JSON.parse(response.body)
 $baseUrl = "<BASE_URL>";
 $token = "<ACCESS_TOKEN>";
 
-$ch = curl_init("$baseUrl/api/pages/autocomplete/?q=python");
+$ch = curl_init("$baseUrl/api/v1/pages/autocomplete/?q=python");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_HTTPHEADER => ["Authorization: Bearer $token"]
@@ -944,7 +944,7 @@ const (
 )
 
 func main() {
-    req, _ := http.NewRequest("GET", baseURL+"/api/pages/autocomplete/?q=python", nil)
+    req, _ := http.NewRequest("GET", baseURL+"/api/v1/pages/autocomplete/?q=python", nil)
     req.Header.Set("Authorization", "Bearer "+token)
 
     resp, _ := http.DefaultClient.Do(req)

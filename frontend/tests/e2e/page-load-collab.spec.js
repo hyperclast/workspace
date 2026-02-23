@@ -368,6 +368,41 @@ test.describe("Collaboration Sync", () => {
       }
     }
   });
+
+  test("presence indicator should render after page load", async ({ page }) => {
+    const testContent = `Presence test ${Date.now()}`;
+
+    const testPage = await createPageWithContent(page, "Presence Test", testContent);
+    const pageId = testPage.external_id;
+
+    try {
+      await page.goto(`${BASE_URL}/pages/${pageId}/`);
+
+      // Wait for editor content to appear
+      await page.waitForFunction(
+        (expected) => document.querySelector(".cm-content")?.textContent.includes(expected),
+        testContent,
+        { timeout: 10000 }
+      );
+
+      // Wait for collaboration to connect (presence depends on awareness)
+      await page.waitForFunction(
+        () => document.getElementById("collab-status")?.className.includes("connected"),
+        { timeout: THRESHOLDS.COLLAB_CONNECTED_MS }
+      );
+
+      // Presence indicator should show "1 user editing" for the current user
+      const userCountText = await page.evaluate(() => {
+        const el = document.getElementById("user-count");
+        return el?.textContent || null;
+      });
+
+      expect(userCountText).toBe("1 user editing");
+      console.log("✅ Presence indicator rendered correctly");
+    } finally {
+      await deletePage(page, pageId);
+    }
+  });
 });
 
 // ============================================================================

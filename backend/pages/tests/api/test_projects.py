@@ -575,8 +575,8 @@ class TestProjectEditorAccess(BaseAuthenticatedViewTestCase):
         self.assertEqual(response.json()["external_id"], self.project.external_id)
 
     def test_project_editor_can_update_project(self):
-        """Project editor can update project details."""
-        self.project.editors.add(self.user)
+        """Project editor with 'editor' role can update project details."""
+        ProjectEditor.objects.create(user=self.user, project=self.project, role=ProjectEditorRole.EDITOR.value)
 
         response = self.send_api_request(
             url=f"/api/projects/{self.project.external_id}/",
@@ -587,6 +587,22 @@ class TestProjectEditorAccess(BaseAuthenticatedViewTestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
         self.project.refresh_from_db()
         self.assertEqual(self.project.name, "Updated by Editor")
+
+    def test_project_viewer_cannot_update_project(self):
+        """Project editor with 'viewer' role cannot update project details."""
+        ProjectEditor.objects.create(user=self.user, project=self.project, role=ProjectEditorRole.VIEWER.value)
+
+        response = self.send_api_request(
+            url=f"/api/projects/{self.project.external_id}/",
+            method="patch",
+            data={"name": "Updated by Viewer"},
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+
+        # Verify project was NOT updated
+        self.project.refresh_from_db()
+        self.assertNotEqual(self.project.name, "Updated by Viewer")
 
     def test_non_editor_cannot_access_project(self):
         """User without org membership or editor access cannot access project."""

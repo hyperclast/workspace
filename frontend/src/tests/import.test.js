@@ -37,7 +37,7 @@ describe("Import API", () => {
 
       expect(csrfFetch).toHaveBeenCalledTimes(1);
       const [url, options] = csrfFetch.mock.calls[0];
-      expect(url).toBe("/api/imports/notion/");
+      expect(url).toBe("/api/v1/imports/notion/");
       expect(options.method).toBe("POST");
       expect(options.body).toBeInstanceOf(FormData);
 
@@ -114,7 +114,7 @@ describe("Import API", () => {
 
       const result = await getImportStatus("job-123");
 
-      expect(csrfFetch).toHaveBeenCalledWith("/api/imports/job-123/");
+      expect(csrfFetch).toHaveBeenCalledWith("/api/v1/imports/job-123/");
       expect(result).toEqual(mockStatus);
     });
 
@@ -195,7 +195,7 @@ describe("Import API", () => {
 
       const result = await getImportedPages("job-123");
 
-      expect(csrfFetch).toHaveBeenCalledWith("/api/imports/job-123/pages/");
+      expect(csrfFetch).toHaveBeenCalledWith("/api/v1/imports/job-123/pages/");
       expect(result).toEqual(mockPages);
       expect(result).toHaveLength(2);
     });

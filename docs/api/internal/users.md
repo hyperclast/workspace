@@ -15,7 +15,7 @@ Get the current authenticated user's information. Used by the frontend to check 
 
 ### URL
 
-`/api/users/me/`
+`/api/v1/users/me/`
 
 ### HTTP Method
 
@@ -59,7 +59,7 @@ See [Overview](./overview.md)
 
 - The `access_token` field contains the user's API access token for external client access
 - This token can be used with bearer authentication for programmatic API access
-- The token can be regenerated from the Settings page or via the `/api/users/me/token/regenerate/` endpoint
+- The token can be regenerated from the Settings page or via the `/api/v1/users/me/token/regenerate/` endpoint
 
 **Error Responses:**
 
@@ -81,7 +81,7 @@ Retrieve the user's API access token. Useful for displaying the token in the UI 
 
 ### URL
 
-`/api/users/me/token/`
+`/api/v1/users/me/token/`
 
 ### HTTP Method
 
@@ -144,7 +144,7 @@ Generate a new API access token, immediately invalidating the old one. Useful fo
 
 ### URL
 
-`/api/users/me/token/regenerate/`
+`/api/v1/users/me/token/regenerate/`
 
 ### HTTP Method
 
@@ -206,7 +206,7 @@ See [Overview](./overview.md)
 
 ```javascript
 // From the SPA Settings page
-const response = await csrfFetch("/api/users/me/token/regenerate/", {
+const response = await csrfFetch("/api/v1/users/me/token/regenerate/", {
   method: "POST",
 });
 
@@ -225,7 +225,7 @@ Get the total storage used by the current user. Returns the sum of all file size
 
 ### URL
 
-`/api/users/storage/`
+`/api/v1/users/storage/`
 
 ### HTTP Method
 
@@ -290,7 +290,7 @@ Create a Stripe checkout session ID for subscribing to a plan.
 
 ### URL
 
-`/api/users/stripe/checkout/`
+`/api/v1/users/stripe/checkout/`
 
 ### HTTP Method
 
@@ -363,7 +363,7 @@ Update the current user's profile settings.
 
 ### URL
 
-`/api/users/settings/`
+`/api/v1/users/settings/`
 
 ### HTTP Method
 

@@ -26,6 +26,7 @@ import {
   destroyCollaboration,
   setupUnloadHandler,
 } from "./collaboration.js";
+import { updateCollabStatus, setupIndicatorPopover } from "./collabStatus.js";
 import { API_BASE_URL, getBrandName, getUserInfo, getFeatureFlags } from "./config.js";
 import { csrfFetch } from "./csrf.js";
 import { decorateCodeBlocks } from "./decorateCodeBlocks.js";
@@ -206,13 +207,7 @@ function renderAppHTML() {
                     <button class="indicator-popover-btn" id="readonly-popover-btn">Manage</button>
                   </div>
                 </div>
-                <div id="presence-indicator" class="presence-indicator" title="Users currently editing">
-                  <span id="user-count">1 user editing</span>
-                  <div id="presence-popover" class="presence-popover" style="display: none;">
-                    <div class="presence-popover-header">Users editing</div>
-                    <div id="presence-list" class="presence-list"></div>
-                  </div>
-                </div>
+                <div id="presence-indicator" class="presence-indicator" title="Users currently editing"></div>
                 <div id="note-actions" class="note-actions">
                   <button id="actions-btn" class="actions-btn" title="Page options">
                     Options <span class="btn-chevron">▾</span>
@@ -980,139 +975,7 @@ function upgradeEditorToCollaborative(collabObjects, filetype) {
   console.log("[Collab] Editor upgraded to collaborative mode");
 }
 
-/**
- * Update the collaboration status indicator in the UI.
- * Shows users the current state of real-time collaboration.
- */
-function updateCollabStatus(status) {
-  // Find or create the status indicator wrapper
-  let wrapper = document.getElementById("collab-status-wrapper");
-  let indicator = document.getElementById("collab-status");
-  let popover = document.getElementById("collab-popover");
-
-  if (!wrapper) {
-    // Create the wrapper with indicator and popover
-    const presenceIndicator = document.getElementById("presence-indicator");
-    if (presenceIndicator?.parentElement) {
-      wrapper = document.createElement("div");
-      wrapper.id = "collab-status-wrapper";
-      wrapper.className = "collab-status-wrapper";
-
-      indicator = document.createElement("span");
-      indicator.id = "collab-status";
-      indicator.className = "collab-status";
-
-      popover = document.createElement("div");
-      popover.id = "collab-popover";
-      popover.className = "indicator-popover collab-popover";
-      popover.innerHTML = `
-        <div class="indicator-popover-header" id="collab-popover-header">Connection</div>
-        <div class="indicator-popover-text" id="collab-popover-text"></div>
-      `;
-
-      wrapper.appendChild(indicator);
-      wrapper.appendChild(popover);
-      presenceIndicator.parentElement.insertBefore(wrapper, presenceIndicator);
-
-      // Setup hover handlers
-      setupIndicatorPopover(wrapper, popover);
-    }
-  }
-
-  if (!indicator) return;
-
-  // Update based on status
-  const statusConfig = {
-    connecting: {
-      icon: "◌",
-      header: "Connecting",
-      text: "Establishing connection to sync server...",
-      class: "connecting",
-    },
-    connected: {
-      icon: "●",
-      header: "Connected",
-      text: "Changes sync instantly with other editors.",
-      class: "connected",
-    },
-    offline: {
-      icon: "●",
-      header: "Offline",
-      text: "Changes are saved locally. They will sync when you reconnect.",
-      class: "offline",
-    },
-    denied: {
-      icon: "⊘",
-      header: "Unavailable",
-      text: "Real-time collaboration is not available for this page.",
-      class: "denied",
-    },
-    error: {
-      icon: "!",
-      header: "Connection Lost",
-      text: "Attempting to reconnect...",
-      class: "error",
-    },
-    unauthorized: {
-      icon: "○",
-      header: "Logged Out",
-      text: "Please log in to continue editing.",
-      class: "unauthorized",
-    },
-  };
-
-  const config = statusConfig[status] || statusConfig.offline;
-  indicator.textContent = config.icon;
-  indicator.className = `collab-status ${config.class}`;
-
-  // Update popover content
-  const headerEl = document.getElementById("collab-popover-header");
-  const textEl = document.getElementById("collab-popover-text");
-  if (headerEl) headerEl.textContent = config.header;
-  if (textEl) textEl.textContent = config.text;
-}
-
-/**
- * Setup hover handlers for indicator popovers
- */
-function setupIndicatorPopover(wrapper, popover) {
-  let hideTimeout;
-
-  wrapper.addEventListener("mouseenter", () => {
-    clearTimeout(hideTimeout);
-    popover.style.display = "block";
-  });
-
-  wrapper.addEventListener("mouseleave", () => {
-    hideTimeout = setTimeout(() => {
-      popover.style.display = "none";
-    }, 200);
-  });
-
-  popover.addEventListener("mouseenter", () => {
-    clearTimeout(hideTimeout);
-  });
-
-  popover.addEventListener("mouseleave", () => {
-    hideTimeout = setTimeout(() => {
-      popover.style.display = "none";
-    }, 200);
-  });
-
-  // Click to open (for touch devices where hover doesn't work)
-  wrapper.addEventListener("click", () => {
-    clearTimeout(hideTimeout);
-    popover.style.display = "block";
-  });
-
-  // Close on click/tap outside
-  document.addEventListener("click", (e) => {
-    if (!wrapper.contains(e.target)) {
-      clearTimeout(hideTimeout);
-      popover.style.display = "none";
-    }
-  });
-}
+// updateCollabStatus and setupIndicatorPopover are imported from ./collabStatus.js
 
 /**
  * Helper to find the project ID for a given page external_id.
