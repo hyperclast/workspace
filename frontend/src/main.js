@@ -389,6 +389,9 @@ let currentUser = null;
 // Store presence UI cleanup function
 let cleanupPresenceUI = null;
 
+// Store collab status cleanup function
+let cleanupCollabStatus = null;
+
 // Store unload handler cleanup function
 let cleanupUnloadHandler = null;
 
@@ -799,7 +802,10 @@ async function setupCollaborationAsync(page, restContent, filetype) {
     filetype,
   });
 
-  updateCollabStatus("connecting");
+  const collabStatusCleanup = updateCollabStatus("connecting");
+  if (collabStatusCleanup) {
+    cleanupCollabStatus = collabStatusCleanup;
+  }
 
   // Create collaboration objects
   const userInfo = getUserInfo();
@@ -1014,6 +1020,11 @@ function cleanupCurrentPage() {
   if (cleanupPresenceUI) {
     cleanupPresenceUI();
     cleanupPresenceUI = null;
+  }
+
+  if (cleanupCollabStatus) {
+    cleanupCollabStatus();
+    cleanupCollabStatus = null;
   }
 
   if (collabObjects) {

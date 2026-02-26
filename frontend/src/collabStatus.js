@@ -18,6 +18,8 @@ let instance = null;
 /**
  * Update the collaboration status indicator in the UI.
  * Creates the indicator DOM elements on first call if they don't exist.
+ *
+ * @returns {Function|undefined} cleanup function on first call, undefined on subsequent calls
  */
 export function updateCollabStatus(status) {
   // Find or create the wrapper
@@ -53,42 +55,49 @@ export function updateCollabStatus(status) {
     let hideTimeout;
     const popover = document.getElementById("collab-popover");
 
-    wrapper.addEventListener("mouseenter", () => {
+    function show() {
       clearTimeout(hideTimeout);
       flushSync(() => setShowPopover(true));
-    });
+    }
 
-    wrapper.addEventListener("mouseleave", () => {
+    function scheduleHide() {
       hideTimeout = setTimeout(() => {
         flushSync(() => setShowPopover(false));
       }, 200);
-    });
-
-    if (popover) {
-      popover.addEventListener("mouseenter", () => {
-        clearTimeout(hideTimeout);
-      });
-
-      popover.addEventListener("mouseleave", () => {
-        hideTimeout = setTimeout(() => {
-          flushSync(() => setShowPopover(false));
-        }, 200);
-      });
     }
 
-    wrapper.addEventListener("click", () => {
+    function cancelHide() {
       clearTimeout(hideTimeout);
-      flushSync(() => setShowPopover(true));
-    });
+    }
 
-    document.addEventListener("click", (e) => {
+    function handleClickOutside(e) {
       if (!wrapper.contains(e.target)) {
         clearTimeout(hideTimeout);
         flushSync(() => setShowPopover(false));
       }
-    });
+    }
 
-    return;
+    wrapper.addEventListener("mouseenter", show);
+    wrapper.addEventListener("mouseleave", scheduleHide);
+    wrapper.addEventListener("click", show);
+    document.addEventListener("click", handleClickOutside);
+
+    if (popover) {
+      popover.addEventListener("mouseenter", cancelHide);
+      popover.addEventListener("mouseleave", scheduleHide);
+    }
+
+    return () => {
+      clearTimeout(hideTimeout);
+      wrapper.removeEventListener("mouseenter", show);
+      wrapper.removeEventListener("mouseleave", scheduleHide);
+      wrapper.removeEventListener("click", show);
+      document.removeEventListener("click", handleClickOutside);
+      if (popover) {
+        popover.removeEventListener("mouseenter", cancelHide);
+        popover.removeEventListener("mouseleave", scheduleHide);
+      }
+    };
   }
 
   // Subsequent calls: just update the store
@@ -100,42 +109,48 @@ export function updateCollabStatus(status) {
 /**
  * Setup hover handlers for indicator popovers.
  * Used for both the collab status and readonly link indicators.
+ *
+ * @returns {Function} cleanup function that removes all listeners
  */
 export function setupIndicatorPopover(wrapper, popover) {
   let hideTimeout;
 
-  wrapper.addEventListener("mouseenter", () => {
+  function show() {
     clearTimeout(hideTimeout);
     popover.style.display = "block";
-  });
+  }
 
-  wrapper.addEventListener("mouseleave", () => {
+  function scheduleHide() {
     hideTimeout = setTimeout(() => {
       popover.style.display = "none";
     }, 200);
-  });
+  }
 
-  popover.addEventListener("mouseenter", () => {
+  function cancelHide() {
     clearTimeout(hideTimeout);
-  });
+  }
 
-  popover.addEventListener("mouseleave", () => {
-    hideTimeout = setTimeout(() => {
-      popover.style.display = "none";
-    }, 200);
-  });
-
-  // Click to open (for touch devices where hover doesn't work)
-  wrapper.addEventListener("click", () => {
-    clearTimeout(hideTimeout);
-    popover.style.display = "block";
-  });
-
-  // Close on click/tap outside
-  document.addEventListener("click", (e) => {
+  function handleClickOutside(e) {
     if (!wrapper.contains(e.target)) {
       clearTimeout(hideTimeout);
       popover.style.display = "none";
     }
-  });
+  }
+
+  wrapper.addEventListener("mouseenter", show);
+  wrapper.addEventListener("mouseleave", scheduleHide);
+  popover.addEventListener("mouseenter", cancelHide);
+  popover.addEventListener("mouseleave", scheduleHide);
+  wrapper.addEventListener("click", show);
+  document.addEventListener("click", handleClickOutside);
+
+  return () => {
+    clearTimeout(hideTimeout);
+    wrapper.removeEventListener("mouseenter", show);
+    wrapper.removeEventListener("mouseleave", scheduleHide);
+    popover.removeEventListener("mouseenter", cancelHide);
+    popover.removeEventListener("mouseleave", scheduleHide);
+    wrapper.removeEventListener("click", show);
+    document.removeEventListener("click", handleClickOutside);
+  };
 }
