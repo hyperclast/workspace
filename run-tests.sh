@@ -150,7 +150,7 @@ get_web_container() {
     fi
 }
 
-# Create test environment file and compose override
+# Create test environment file (compose override is tracked in git)
 create_test_env() {
     local env_file="$BACKEND_DIR/.env-tests"
     local compose_override="$BACKEND_DIR/docker-compose.tests.yaml"
@@ -172,24 +172,19 @@ WS_ASK_FEATURE_ENABLED=false
 WS_BRAND_NAME=Hyperclast-Tests
 WS_LANDING_TEMPLATE=core/landing.html
 WS_DEV_SIDEBAR_ENABLED=false
+
+# Performance test thresholds — relaxed for Docker overhead (3x defaults)
+WS_PERF_REQUEST_ID_GEN_NS=3000
+WS_PERF_CONTEXT_VAR_NS=300
+WS_PERF_MIDDLEWARE_NS=30000
+WS_PERF_LOGGING_NS=3000
 EOF
     log_success "Created $env_file"
 
-    log_info "Creating compose override for tests..."
-    cat > "$compose_override" << 'EOF'
-# Override env_file to use .env-tests instead of .env-docker
-services:
-  ws-db:
-    env_file:
-      - .env-tests
-  ws-web:
-    env_file:
-      - .env-tests
-  ws-rq:
-    env_file:
-      - .env-tests
-EOF
-    log_success "Created $compose_override"
+    if [ ! -f "$compose_override" ]; then
+        log_error "Missing $compose_override (should be tracked in git)"
+        exit 1
+    fi
 }
 
 # Check if port is available
@@ -310,7 +305,8 @@ run_backend_tests() {
     log_info "Running tests in container: $container"
     log_info "Command: python manage.py test --parallel --noinput"
 
-    if docker exec "$container" python manage.py test --parallel --noinput; then
+    if docker exec -e DJANGO_SETTINGS_MODULE=backend.settings.tests \
+        "$container" python manage.py test --parallel --noinput; then
         log_success "Backend tests passed!"
         return 0
     else

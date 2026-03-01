@@ -1,0 +1,80 @@
+name: Backend Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test_pw
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d testdb"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DJANGO_SETTINGS_MODULE: backend.settings.tests
+      WS_SECRET_KEY: ci-test-secret-key
+      WS_DB_USER: test
+      WS_DB_PASSWORD: test_pw
+      WS_DB_NAME: testdb
+      WS_DB_HOST: localhost
+      WS_DB_PORT: 5432
+      WS_REDIS_HOST: localhost
+      WS_REDIS_PORT: 6379
+      WS_ROOT_URL: http://localhost:8000
+      # Generous performance thresholds for shared CI runners
+      WS_PERF_REQUEST_ID_GEN_NS: 5000
+      WS_PERF_MIDDLEWARE_NS: 50000
+      WS_PERF_LOGGING_NS: 5000
+      WS_PERF_CONTEXT_VAR_ACCESS_NS: 500
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        working-directory: backend
+        run: uv sync --frozen --group dev
+
+      - name: Run migrations
+        working-directory: backend
+        run: uv run manage.py migrate --noinput
+
+      - name: Run tests
+        working-directory: backend
+        run: uv run manage.py test --parallel --noinput

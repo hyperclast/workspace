@@ -83,8 +83,17 @@ test.describe("Browser Back/Forward Navigation", () => {
     await page.locator("#page-title-input").fill(`Test Page ${Date.now()}`);
     await page.locator(".modal-btn-primary").click();
 
+    // Wait for URL to change to a different page
+    await page.waitForFunction(
+      (oldId) => {
+        const match = window.location.pathname.match(/\/pages\/([^/]+)/);
+        const newId = match ? match[1] : null;
+        return newId && newId !== oldId;
+      },
+      page1Id,
+      { timeout: 10000 }
+    );
     await page.waitForSelector(".cm-content", { timeout: 10000 });
-    await page.waitForTimeout(1500);
 
     const page2Url = page.url();
     const page2Id = getPageIdFromUrl(page2Url);
@@ -94,7 +103,7 @@ test.describe("Browser Back/Forward Navigation", () => {
     // Navigate back to page 1
     console.log("⬅️  Going back...");
     await page.goBack();
-    await page.waitForTimeout(1500);
+    await page.waitForURL(`**/pages/${page1Id}/**`, { timeout: 10000 });
 
     // Verify we're back on page 1
     const backUrl = page.url();
@@ -108,7 +117,7 @@ test.describe("Browser Back/Forward Navigation", () => {
     // Navigate forward to page 2
     console.log("➡️  Going forward...");
     await page.goForward();
-    await page.waitForTimeout(1500);
+    await page.waitForURL(`**/pages/${page2Id}/**`, { timeout: 10000 });
 
     // Verify we're on page 2
     const forwardUrl = page.url();
@@ -133,7 +142,6 @@ test.describe("Browser Back/Forward Navigation", () => {
     // Navigate to settings
     console.log("🔧 Navigating to settings...");
     await page.goto(`${BASE_URL}/settings/`);
-    await page.waitForTimeout(2000);
 
     // Verify settings page loaded
     await verifySettingsPageIntegrity(page);
@@ -142,7 +150,7 @@ test.describe("Browser Back/Forward Navigation", () => {
     // Navigate back to editor page
     console.log("⬅️  Going back to editor...");
     await page.goBack();
-    await page.waitForTimeout(2000);
+    await page.waitForURL(`**/pages/${pageId}/**`, { timeout: 10000 });
 
     // Verify URL
     const backUrl = page.url();
@@ -156,7 +164,6 @@ test.describe("Browser Back/Forward Navigation", () => {
     // Verify sidebar tabs are working
     const refTab = page.locator('button:has-text("Ref"), [data-tab="links"]').first();
     await refTab.click();
-    await page.waitForTimeout(500);
     const linksSection = page.locator(".links-section").first();
     await expect(linksSection).toBeVisible({ timeout: 5000 });
     console.log("✅ Sidebar is functional");
@@ -173,19 +180,18 @@ test.describe("Browser Back/Forward Navigation", () => {
     // Navigate to settings
     console.log("🔧 Navigating to settings...");
     await page.goto(`${BASE_URL}/settings/`);
-    await page.waitForTimeout(2000);
     await verifySettingsPageIntegrity(page);
 
     // Go back to editor
     console.log("⬅️  Going back...");
     await page.goBack();
-    await page.waitForTimeout(2000);
+    await page.waitForURL(`**/pages/**`, { timeout: 10000 });
     await verifyEditorPageIntegrity(page);
 
     // Go forward to settings
     console.log("➡️  Going forward to settings...");
     await page.goForward();
-    await page.waitForTimeout(2000);
+    await page.waitForURL("**/settings/**", { timeout: 10000 });
 
     // Verify settings page loaded correctly
     expect(page.url()).toContain("/settings/");
@@ -225,14 +231,14 @@ test.describe("Browser Back/Forward Navigation", () => {
 
     // Go to settings
     await page.goto(`${BASE_URL}/settings/`);
-    await page.waitForTimeout(1500);
+    await verifySettingsPageIntegrity(page);
 
     console.log(`📍 History: page1(${page1Id}) → page2(${page2Id}) → settings`);
 
     // Back to page 2
     console.log("⬅️  Back to page 2...");
     await page.goBack();
-    await page.waitForTimeout(1500);
+    await page.waitForURL(`**/pages/${page2Id}/**`, { timeout: 10000 });
     expect(getPageIdFromUrl(page.url())).toBe(page2Id);
     await verifyEditorPageIntegrity(page);
     console.log("✅ Cycle 1: Back to page 2");
@@ -240,7 +246,7 @@ test.describe("Browser Back/Forward Navigation", () => {
     // Back to page 1
     console.log("⬅️  Back to page 1...");
     await page.goBack();
-    await page.waitForTimeout(1500);
+    await page.waitForURL(`**/pages/${page1Id}/**`, { timeout: 10000 });
     expect(getPageIdFromUrl(page.url())).toBe(page1Id);
     await verifyEditorPageIntegrity(page);
     console.log("✅ Cycle 2: Back to page 1");
@@ -248,7 +254,7 @@ test.describe("Browser Back/Forward Navigation", () => {
     // Forward to page 2
     console.log("➡️  Forward to page 2...");
     await page.goForward();
-    await page.waitForTimeout(1500);
+    await page.waitForURL(`**/pages/${page2Id}/**`, { timeout: 10000 });
     expect(getPageIdFromUrl(page.url())).toBe(page2Id);
     await verifyEditorPageIntegrity(page);
     console.log("✅ Cycle 3: Forward to page 2");
@@ -256,7 +262,7 @@ test.describe("Browser Back/Forward Navigation", () => {
     // Forward to settings
     console.log("➡️  Forward to settings...");
     await page.goForward();
-    await page.waitForTimeout(1500);
+    await page.waitForURL("**/settings/**", { timeout: 10000 });
     expect(page.url()).toContain("/settings/");
     await verifySettingsPageIntegrity(page);
     console.log("✅ Cycle 4: Forward to settings");
@@ -264,9 +270,9 @@ test.describe("Browser Back/Forward Navigation", () => {
     // Back all the way to page 1
     console.log("⬅️⬅️  Back twice to page 1...");
     await page.goBack();
-    await page.waitForTimeout(1000);
+    await page.waitForURL(`**/pages/**`, { timeout: 10000 });
     await page.goBack();
-    await page.waitForTimeout(1500);
+    await page.waitForURL(`**/pages/${page1Id}/**`, { timeout: 10000 });
     expect(getPageIdFromUrl(page.url())).toBe(page1Id);
     await verifyEditorPageIntegrity(page);
     console.log("✅ Cycle 5: Double back to page 1");
@@ -279,7 +285,6 @@ test.describe("Browser Back/Forward Navigation", () => {
 
     // Wait for editor to be ready
     await page.waitForSelector(".cm-content", { timeout: 10000 });
-    await page.waitForTimeout(1000);
 
     // Wait for initial collaboration sync
     await page.waitForFunction(() => window.isCollabSynced?.() === true, { timeout: 15000 });
@@ -301,12 +306,12 @@ test.describe("Browser Back/Forward Navigation", () => {
 
     // Navigate to settings
     await page.goto(`${BASE_URL}/settings/`);
-    await page.waitForTimeout(1500);
+    await verifySettingsPageIntegrity(page);
 
     // Go back
     console.log("⬅️  Going back...");
     await page.goBack();
-    await page.waitForTimeout(2000);
+    await page.waitForURL(`**/pages/**`, { timeout: 10000 });
 
     // Verify page integrity
     await verifyEditorPageIntegrity(page);
@@ -366,7 +371,10 @@ test.describe("Browser Back/Forward Navigation", () => {
     console.log("🔗 Clicking on first page in sidenav...");
     const firstPageItem = page.locator(`.sidebar-item:not(.active)`).first();
     await firstPageItem.click();
-    await page.waitForTimeout(1500);
+    // Wait for URL to change away from page2
+    await page.waitForFunction((oldId) => !window.location.pathname.includes(oldId), page2Id, {
+      timeout: 10000,
+    });
 
     const page3Id = getPageIdFromUrl(page.url());
     expect(page3Id).not.toBe(page2Id);
@@ -377,7 +385,7 @@ test.describe("Browser Back/Forward Navigation", () => {
     // Use back button - should go back to page2
     console.log("⬅️  Going back...");
     await page.goBack();
-    await page.waitForTimeout(1500);
+    await page.waitForURL(`**/pages/${page2Id}/**`, { timeout: 10000 });
 
     expect(getPageIdFromUrl(page.url())).toBe(page2Id);
     await verifyEditorPageIntegrity(page);

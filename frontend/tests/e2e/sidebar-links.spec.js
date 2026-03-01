@@ -100,7 +100,7 @@ test.describe("Sidebar Links Navigation", () => {
     // Type a link to the target page
     await page.click(".cm-content");
     await page.keyboard.type(`Link to target: [${targetPageTitle}](/pages/${targetPageId}/)`);
-    await page.waitForTimeout(1000);
+    await page.waitForFunction(() => window.isCollabSynced?.() === true, { timeout: 15000 });
 
     // Get source page ID and trigger sync API directly
     const sourcePageId = await page.evaluate(() => {
@@ -135,7 +135,7 @@ test.describe("Sidebar Links Navigation", () => {
     const targetLink = page.locator(".sidebar-item").filter({ hasText: targetPageTitle }).first();
     await targetLink.click();
     await page.waitForSelector(".cm-content", { timeout: 10000 });
-    await page.waitForTimeout(2000);
+    await page.waitForFunction(() => window.isCollabSynced?.() === true, { timeout: 15000 });
     console.log("✅ Navigated to target page");
 
     // Open Ref sidebar - click another tab first, then Ref, to force a fresh fetch
@@ -151,7 +151,6 @@ test.describe("Sidebar Links Navigation", () => {
     }
 
     await refTabButton.click();
-    await page.waitForTimeout(2000);
     console.log("✅ Opened Ref sidebar");
 
     // Wait for backlinks to appear - the link-item button contains the source page title
@@ -167,12 +166,11 @@ test.describe("Sidebar Links Navigation", () => {
     // Step 4: Click the parent button to navigate
     const backlinkButton = page.locator(".link-item").filter({ hasText: sourcePageTitle }).first();
     await backlinkButton.click();
-    await page.waitForTimeout(1500);
     console.log("✅ Clicked backlink");
 
     // Verify we navigated to source page
     const editor = page.locator("#editor");
-    await expect(editor).toBeVisible({ timeout: 5000 });
+    await expect(editor).toBeVisible({ timeout: 10000 });
     console.log("✅ Editor is visible after navigation");
 
     const cmContent = page.locator(".cm-content");

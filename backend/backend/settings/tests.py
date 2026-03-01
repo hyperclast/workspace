@@ -40,8 +40,10 @@ FILEHUB_FEATURE_ENABLED = True  # Enable for existing filehub tests
 # Performance test thresholds (in nanoseconds)
 # These can be overridden via environment variables for different hardware
 WS_PERF_REQUEST_ID_GEN_NS = config("WS_PERF_REQUEST_ID_GEN_NS", default=1000, cast=int)
+WS_PERF_CONTEXT_VAR_NS = config("WS_PERF_CONTEXT_VAR_NS", default=100, cast=int)
 WS_PERF_MIDDLEWARE_NS = config("WS_PERF_MIDDLEWARE_NS", default=10000, cast=int)
 WS_PERF_LOGGING_NS = config("WS_PERF_LOGGING_NS", default=1000, cast=int)
+WS_PERF_CONTEXT_VAR_ACCESS_NS = config("WS_PERF_CONTEXT_VAR_ACCESS_NS", default=100, cast=int)
 
 # Filehub storage settings - disabled for tests, all storage should be mocked
 WS_FILEHUB_R2_ENDPOINT_URL = None

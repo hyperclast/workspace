@@ -25,5 +25,6 @@ exec uvicorn backend.asgi:application \
     --host 0.0.0.0 \
     --port ${PORT} \
     --reload \
-    --reload-include "*.html"
+    --reload-include "*.html" \
+    --reload-exclude "__pycache__"
 '

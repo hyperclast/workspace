@@ -18,8 +18,10 @@ import { test, expect } from "@playwright/test";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:9800";
 
-const MAX_ACCEPTABLE_LOAD_TIME_MS = 3000;
-const WARNING_LOAD_TIME_MS = 1000;
+// Performance thresholds — configurable via env vars for slow environments.
+// Override in .env-e2e or export directly before running tests.
+const MAX_ACCEPTABLE_LOAD_TIME_MS = parseInt(process.env.E2E_MAX_LOAD_TIME_MS || "3000");
+const WARNING_LOAD_TIME_MS = parseInt(process.env.E2E_WARNING_LOAD_TIME_MS || "1000");
 
 const TEST_EMAIL = process.env.TEST_EMAIL || "dev@localhost";
 const TEST_PASSWORD = process.env.TEST_PASSWORD || "dev";

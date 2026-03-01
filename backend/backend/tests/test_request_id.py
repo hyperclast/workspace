@@ -98,7 +98,8 @@ class TestRequestIdContext(TestCase):
         self.assertIsNone(get_request_id())
 
     def test_context_var_access_performance(self):
-        """Context variable access should be very fast."""
+        """Context variable access should be very fast (configurable threshold)."""
+        threshold_ns = getattr(settings, "WS_PERF_CONTEXT_VAR_ACCESS_NS", 100)
         set_request_id("perf_test")
         iterations = 10000
         start = time.perf_counter_ns()
@@ -107,8 +108,8 @@ class TestRequestIdContext(TestCase):
         elapsed_ns = time.perf_counter_ns() - start
         avg_ns = elapsed_ns / iterations
 
-        # Should be under 100ns on average
-        self.assertLess(avg_ns, 100, f"Average access time {avg_ns}ns exceeds 100ns")
+        threshold_ns = getattr(settings, "WS_PERF_CONTEXT_VAR_NS", 100)
+        self.assertLess(avg_ns, threshold_ns, f"Average access time {avg_ns}ns exceeds {threshold_ns}ns")
 
 
 class TestRequestContextFilter(TestCase):

@@ -1,4 +1,11 @@
+import { existsSync } from "node:fs";
 import { defineConfig } from "@playwright/test";
+
+// Load E2E-specific env vars (thresholds, credentials) if the file exists.
+// Copy .env-e2e-template to .env-e2e and uncomment values to override.
+if (existsSync(".env-e2e")) {
+  process.loadEnvFile(".env-e2e");
+}
 
 export default defineConfig({
   testDir: "./tests/e2e",

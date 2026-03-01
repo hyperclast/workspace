@@ -64,7 +64,7 @@ def sync_snapshot_with_page(room_id: str):
             log_info("File links changed for %s", room_id)
 
         if not settings.ASK_FEATURE_ENABLED:
-            log_info("Skipping embedding compute ask ask feature is disabled.")
+            log_info("Skipping embedding compute, ask feature is disabled.")
             return
 
         update_page_embedding.enqueue(page_id=page.external_id)

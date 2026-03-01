@@ -1,5 +1,8 @@
 # Hyperclast
 
+[![Backend Tests](https://github.com/hyperclast/workspace/actions/workflows/backend-tests.yml/badge.svg)](https://github.com/hyperclast/workspace/actions/workflows/backend-tests.yml)
+[![Frontend Tests](https://github.com/hyperclast/workspace/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/hyperclast/workspace/actions/workflows/frontend-tests.yml)
+
 Collaborative workspace with real-time editing, bidirectional links, and AI-powered search.
 
 ![Hyperclast workspace](backend/core/static/core/img/app-screenshot-min.png)

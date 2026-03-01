@@ -19,7 +19,7 @@ let instance = null;
  * Update the collaboration status indicator in the UI.
  * Creates the indicator DOM elements on first call if they don't exist.
  *
- * @returns {Function|undefined} cleanup function on first call, undefined on subsequent calls
+ * @returns {Function|undefined} cleanup function that removes listeners, or undefined if DOM is missing
  */
 export function updateCollabStatus(status) {
   // Find or create the wrapper
@@ -43,67 +43,62 @@ export function updateCollabStatus(status) {
 
     // Mount the Svelte component into the wrapper
     instance = mount(CollabStatus, { target: wrapper });
-
-    // Force render with status
-    flushSync(() => {
-      setStatus(status);
-    });
-
-    // Setup hover/click handlers for showing/hiding the popover.
-    // Unlike setupIndicatorPopover (which uses direct DOM mutation),
-    // this updates the Svelte store so re-renders don't overwrite visibility.
-    let hideTimeout;
-    const popover = document.getElementById("collab-popover");
-
-    function show() {
-      clearTimeout(hideTimeout);
-      flushSync(() => setShowPopover(true));
-    }
-
-    function scheduleHide() {
-      hideTimeout = setTimeout(() => {
-        flushSync(() => setShowPopover(false));
-      }, 200);
-    }
-
-    function cancelHide() {
-      clearTimeout(hideTimeout);
-    }
-
-    function handleClickOutside(e) {
-      if (!wrapper.contains(e.target)) {
-        clearTimeout(hideTimeout);
-        flushSync(() => setShowPopover(false));
-      }
-    }
-
-    wrapper.addEventListener("mouseenter", show);
-    wrapper.addEventListener("mouseleave", scheduleHide);
-    wrapper.addEventListener("click", show);
-    document.addEventListener("click", handleClickOutside);
-
-    if (popover) {
-      popover.addEventListener("mouseenter", cancelHide);
-      popover.addEventListener("mouseleave", scheduleHide);
-    }
-
-    return () => {
-      clearTimeout(hideTimeout);
-      wrapper.removeEventListener("mouseenter", show);
-      wrapper.removeEventListener("mouseleave", scheduleHide);
-      wrapper.removeEventListener("click", show);
-      document.removeEventListener("click", handleClickOutside);
-      if (popover) {
-        popover.removeEventListener("mouseenter", cancelHide);
-        popover.removeEventListener("mouseleave", scheduleHide);
-      }
-    };
   }
 
-  // Subsequent calls: just update the store
+  // Update the store (both first call and subsequent calls)
   flushSync(() => {
     setStatus(status);
   });
+
+  // Setup hover/click handlers for showing/hiding the popover.
+  // Unlike setupIndicatorPopover (which uses direct DOM mutation),
+  // this updates the Svelte store so re-renders don't overwrite visibility.
+  let hideTimeout;
+  const popover = document.getElementById("collab-popover");
+
+  function show() {
+    clearTimeout(hideTimeout);
+    flushSync(() => setShowPopover(true));
+  }
+
+  function scheduleHide() {
+    hideTimeout = setTimeout(() => {
+      flushSync(() => setShowPopover(false));
+    }, 200);
+  }
+
+  function cancelHide() {
+    clearTimeout(hideTimeout);
+  }
+
+  function handleClickOutside(e) {
+    if (!wrapper.contains(e.target)) {
+      clearTimeout(hideTimeout);
+      flushSync(() => setShowPopover(false));
+    }
+  }
+
+  wrapper.addEventListener("mouseenter", show);
+  wrapper.addEventListener("mouseleave", scheduleHide);
+  wrapper.addEventListener("click", show);
+  document.addEventListener("click", handleClickOutside);
+
+  if (popover) {
+    popover.addEventListener("mouseenter", cancelHide);
+    popover.addEventListener("mouseleave", scheduleHide);
+  }
+
+  return () => {
+    clearTimeout(hideTimeout);
+    wrapper.removeEventListener("mouseenter", show);
+    wrapper.removeEventListener("mouseleave", scheduleHide);
+    wrapper.removeEventListener("click", show);
+    document.removeEventListener("click", handleClickOutside);
+    if (popover) {
+      popover.removeEventListener("mouseenter", cancelHide);
+      popover.removeEventListener("mouseleave", scheduleHide);
+    }
+  };
 }
 
 /**

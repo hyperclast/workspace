@@ -19,11 +19,13 @@ const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:9800";
 const TEST_EMAIL = process.env.TEST_EMAIL || "dev@localhost";
 const TEST_PASSWORD = process.env.TEST_PASSWORD || "dev";
 
+// Performance thresholds — configurable via env vars for slow environments.
+// Override in .env-e2e or export directly before running tests.
 const PERF_THRESHOLDS = {
-  scrollDispatchMs: 50,
-  scrollTotalMs: 200,
-  contentInjectionMsPerKLines: 500,
-  decorationDelayThreshold: 1.5,
+  scrollDispatchMs: parseInt(process.env.E2E_SCROLL_DISPATCH_MS || "50"),
+  scrollTotalMs: parseInt(process.env.E2E_SCROLL_TOTAL_MS || "200"),
+  contentInjectionMsPerKLines: parseInt(process.env.E2E_CONTENT_INJECTION_MS_PER_KLINES || "500"),
+  decorationDelayThreshold: parseFloat(process.env.E2E_DECORATION_DELAY_THRESHOLD || "1.5"),
 };
 
 function generateLargeContent(lines) {

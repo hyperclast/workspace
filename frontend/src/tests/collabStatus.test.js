@@ -190,10 +190,47 @@ describe("updateCollabStatus", () => {
       expect(typeof cleanup).toBe("function");
     });
 
-    test("subsequent calls return undefined", () => {
+    test("subsequent calls also return a cleanup function", () => {
       updateCollabStatus("connected");
       const result = updateCollabStatus("offline");
-      expect(result).toBeUndefined();
+      expect(typeof result).toBe("function");
+    });
+
+    test("popover works after cleanup and re-initialization", () => {
+      vi.useFakeTimers();
+
+      // First call — setup
+      const cleanup = updateCollabStatus("connected");
+      const wrapper = document.getElementById("collab-status-wrapper");
+      const popover = document.getElementById("collab-popover");
+
+      // Verify popover works
+      wrapper.dispatchEvent(new Event("mouseenter"));
+      expect(popover.style.display).not.toBe("none");
+
+      // Hide it
+      wrapper.dispatchEvent(new Event("mouseleave"));
+      vi.advanceTimersByTime(200);
+      expect(popover.style.display).toBe("none");
+
+      // Cleanup (simulates page switch)
+      cleanup();
+
+      // Re-initialize (simulates loading a new page)
+      const cleanup2 = updateCollabStatus("connecting");
+      expect(typeof cleanup2).toBe("function");
+
+      // Popover should work again after re-initialization
+      wrapper.dispatchEvent(new Event("mouseenter"));
+      expect(popover.style.display).not.toBe("none");
+
+      // And hiding should also work
+      wrapper.dispatchEvent(new Event("mouseleave"));
+      vi.advanceTimersByTime(200);
+      expect(popover.style.display).toBe("none");
+
+      cleanup2();
+      vi.useRealTimers();
     });
 
     test("cleanup removes wrapper hover listeners", () => {

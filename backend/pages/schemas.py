@@ -65,12 +65,6 @@ class AccessCodeOut(Schema):
     access_code: str
 
 
-class PageList(Schema):
-    """Wrapper for list responses."""
-
-    data: List[PageOut]
-
-
 class PageEditorOut(Schema):
     """Single page editor details."""
 
@@ -82,12 +76,6 @@ class PageEditorOut(Schema):
 
     class Config:
         from_attributes = True
-
-
-class PageEditorList(Schema):
-    """Wrapper for page editors list."""
-
-    data: List[PageEditorOut]
 
 
 class PageEditorIn(Schema):

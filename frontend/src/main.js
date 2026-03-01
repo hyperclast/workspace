@@ -802,10 +802,7 @@ async function setupCollaborationAsync(page, restContent, filetype) {
     filetype,
   });
 
-  const collabStatusCleanup = updateCollabStatus("connecting");
-  if (collabStatusCleanup) {
-    cleanupCollabStatus = collabStatusCleanup;
-  }
+  cleanupCollabStatus = updateCollabStatus("connecting");
 
   // Create collaboration objects
   const userInfo = getUserInfo();
