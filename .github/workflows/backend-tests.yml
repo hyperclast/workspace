@@ -54,7 +54,7 @@ jobs:
       WS_PERF_REQUEST_ID_GEN_NS: 5000
       WS_PERF_MIDDLEWARE_NS: 50000
       WS_PERF_LOGGING_NS: 5000
-      WS_PERF_CONTEXT_VAR_ACCESS_NS: 500
+      WS_PERF_CONTEXT_VAR_NS: 500
 
     steps:
       - uses: actions/checkout@v4
