@@ -137,6 +137,29 @@ func (c *Client) Put(path string, body interface{}, result interface{}) error {
 	return nil
 }
 
+func (c *Client) Delete(path string) error {
+	resp, err := c.doRequest(http.MethodDelete, path, nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return fmt.Errorf("authentication failed: invalid or expired token")
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+func (c *Client) DeletePage(pageID string) error {
+	return c.Delete(fmt.Sprintf("/pages/%s/", pageID))
+}
+
 type User struct {
 	ExternalID  string `json:"external_id"`
 	Email       string `json:"email"`

@@ -33,7 +33,11 @@ func DefaultPath() string {
 
 func Load(path string) (*Config, error) {
 	if path == "" {
-		path = DefaultPath()
+		if envPath := os.Getenv("HYPERCLAST_CONFIG"); envPath != "" {
+			path = envPath
+		} else {
+			path = DefaultPath()
+		}
 	}
 
 	cfg := &Config{
@@ -44,6 +48,7 @@ func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
+			cfg.applyEnvOverrides()
 			return cfg, nil
 		}
 		return nil, fmt.Errorf("failed to read config file: %w", err)
@@ -54,7 +59,14 @@ func Load(path string) (*Config, error) {
 	}
 
 	cfg.path = path
+	cfg.applyEnvOverrides()
 	return cfg, nil
+}
+
+func (c *Config) applyEnvOverrides() {
+	if token := os.Getenv("HYPERCLAST_TOKEN"); token != "" {
+		c.Token = token
+	}
 }
 
 func (c *Config) Save() error {

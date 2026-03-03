@@ -369,6 +369,69 @@ $ hyperclast page get page_abc123 > backup.txt
 - No trailing newline added if content doesn't have one
 - Suitable for piping to other commands or redirecting to file
 
+### `hyperclast page delete <id>`
+
+Deletes a page permanently.
+
+```
+$ hyperclast page delete page_xyz789
+Delete page "Build Log" (page_xyz789)? [y/N] y
+✓ Deleted page "Build Log" (page_xyz789)
+
+$ hyperclast page delete page_xyz789 --force
+✓ Deleted page "Build Log" (page_xyz789)
+```
+
+**Flags:**
+
+- `--force` - Skip confirmation prompt
+
+**Behavior:**
+
+- Requires authentication
+- Fetches the page first to display its title in the confirmation prompt
+- Prompts for confirmation unless `--force` is used
+- In non-interactive mode (stdin is not a TTY), `--force` is required
+- Deletion is permanent
+
+---
+
+## Utility Commands
+
+### `hyperclast version`
+
+Prints version information.
+
+```
+$ hyperclast version
+hyperclast 0.1.0
+
+$ hyperclast version --verbose
+hyperclast 0.1.0
+  Build time: 2026-01-15T10:30:00Z
+  Git commit: abc1234
+  Go version: go1.23.0
+  OS/Arch:    linux/amd64
+```
+
+### `hyperclast completion [bash|zsh|fish|powershell]`
+
+Generates shell completion scripts.
+
+```
+# Bash
+$ source <(hyperclast completion bash)
+
+# Zsh
+$ hyperclast completion zsh > "${fpath[1]}/_hyperclast"
+
+# Fish
+$ hyperclast completion fish | source
+
+# PowerShell
+PS> hyperclast completion powershell | Out-String | Invoke-Expression
+```
+
 ---
 
 ## Global Flags
@@ -432,6 +495,20 @@ defaults:
   project_id: proj_xyz789
 ```
 
+### Environment Variables
+
+| Variable            | Description                                                                    |
+| ------------------- | ------------------------------------------------------------------------------ |
+| `HYPERCLAST_TOKEN`  | API token. Overrides the token in config file. Recommended for CI/CD.          |
+| `HYPERCLAST_CONFIG` | Path to config file. Overrides the default `~/.config/hyperclast/config.yaml`. |
+
+**Precedence (highest to lowest):**
+
+1. `--config` flag (for config path) / `HYPERCLAST_TOKEN` env var (for token)
+2. `HYPERCLAST_CONFIG` env var (for config path)
+3. Config file values
+4. Built-in defaults
+
 ### Permissions
 
 - Config directory created with `0700`
@@ -462,6 +539,7 @@ Authorization: Bearer <token>
 | `page get`                      | GET    | `/api/pages/{id}/`    |
 | `page new`                      | POST   | `/api/pages/`         |
 | `page append/prepend/overwrite` | PUT    | `/api/pages/{id}/`    |
+| `page delete`                   | DELETE | `/api/pages/{id}/`    |
 
 ### Backend Changes Required
 
@@ -492,10 +570,6 @@ Authorization: Bearer <token>
 ### Potential Commands (Not Yet Implemented)
 
 ```bash
-# Delete page
-hyperclast page delete <id>
-hyperclast page delete <id> --force
-
 # Watch mode - re-run on file changes
 hyperclast watch ./logs/ --project proj_abc
 
@@ -505,12 +579,9 @@ hyperclast interactive
 
 ### Potential Features
 
-- **Shell completions** - `hyperclast completion bash/zsh/fish`
-- **Token from environment** - `HYPERCLAST_TOKEN` env var
 - **Multiple profiles** - `--profile work` for different accounts
 - **Retry logic** - Automatic retry on transient failures
 - **Progress indicator** - For large file uploads
-- **Version command** - `hyperclast version`
 - **Auto filetype detection** - `--filetype auto` with heuristics
 
 ---
@@ -519,12 +590,23 @@ hyperclast interactive
 
 1. ~~Should `page new` support `--filetype` flag for non-markdown content?~~ **Yes, default txt**
 2. ~~Should there be a `hyperclast pipe` shorthand for `page new`?~~ **No, use explicit commands**
-3. Should we support reading token from environment variable?
+3. ~~Should we support reading token from environment variable?~~ **Yes, `HYPERCLAST_TOKEN`**
 4. What should happen if stdin is a TTY but no `--file` is provided - wait for input or error?
 
 ---
 
 ## Changelog
+
+### v0.2.0
+
+- `page delete` with `--force` flag and interactive confirmation
+- `completion` command for bash/zsh/fish/powershell
+- `version` command with `--verbose` for build details
+- `HYPERCLAST_TOKEN` environment variable for CI/CD authentication
+- `HYPERCLAST_CONFIG` environment variable for custom config path
+- `--quiet` mode outputs page external ID for scripting
+- Auto-detection of CSV/TSV and HTTP access log filetypes
+- Non-interactive mode requires `--force` for `page delete`
 
 ### v0.1.0 (Initial)
 

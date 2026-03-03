@@ -922,20 +922,24 @@
         </h3>
         <div class="command-list">
           <div class="command-item">
-            <code>hyperclast page new [--project &lt;id&gt;] [--title &lt;string&gt;]</code>
-            <p>Create a new page from stdin or file. Title defaults to timestamp if not specified.</p>
+            <code>hyperclast page new [--project &lt;id&gt;] [--title &lt;string&gt;] [--file &lt;path&gt;] [--filetype &lt;type&gt;] [--meta] [--source &lt;string&gt;]</code>
+            <p>Create a new page from stdin or file. Title defaults to timestamp. CSV/TSV and HTTP logs are auto-detected (use <code>--filetype</code> to override). Pass <code>--meta</code> to append capture metadata.</p>
           </div>
           <div class="command-item">
-            <code>hyperclast page append &lt;id&gt;</code>
+            <code>hyperclast page append &lt;id&gt; [--file &lt;path&gt;] [--meta] [--source &lt;string&gt;]</code>
             <p>Append content to the end of an existing page.</p>
           </div>
           <div class="command-item">
-            <code>hyperclast page prepend &lt;id&gt;</code>
+            <code>hyperclast page prepend &lt;id&gt; [--file &lt;path&gt;] [--meta] [--source &lt;string&gt;]</code>
             <p>Prepend content to the beginning of an existing page.</p>
           </div>
           <div class="command-item">
-            <code>hyperclast page overwrite &lt;id&gt;</code>
+            <code>hyperclast page overwrite &lt;id&gt; [--file &lt;path&gt;] [--meta] [--source &lt;string&gt;]</code>
             <p>Replace all content of an existing page.</p>
+          </div>
+          <div class="command-item">
+            <code>hyperclast page delete &lt;id&gt; [--force]</code>
+            <p>Delete a page permanently. Prompts for confirmation unless <code>--force</code> is used.</p>
           </div>
           <div class="command-item">
             <code>hyperclast page list [--project &lt;id&gt;]</code>
@@ -949,79 +953,150 @@
       </div>
     </section>
 
-    <!-- Global Flags Section -->
-    <section class="cli-section">
-      <h2>Global Flags</h2>
-      <p>These flags work with all commands:</p>
-      <table class="flags-table">
-        <thead>
-          <tr>
-            <th>Flag</th>
-            <th>Default</th>
-            <th>Description</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>--config &lt;path&gt;</code></td>
-            <td><code>~/.config/hyperclast/config.yaml</code></td>
-            <td>Custom config file location</td>
-          </tr>
-          <tr>
-            <td><code>--api-url &lt;url&gt;</code></td>
-            <td><code>https://hyperclast.com/api</code></td>
-            <td>API URL (for self-hosted instances)</td>
-          </tr>
-          <tr>
-            <td><code>--output &lt;format&gt;</code></td>
-            <td><code>text</code></td>
-            <td>Output format: <code>text</code> or <code>json</code></td>
-          </tr>
-          <tr>
-            <td><code>--quiet</code></td>
-            <td>false</td>
-            <td>Suppress info messages, only output data</td>
-          </tr>
-          <tr>
-            <td><code>--verbose</code></td>
-            <td>false</td>
-            <td>Show debug output</td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
+    <div class="command-group">
+      <h3>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        Smart Format Detection
+      </h3>
+      <div class="command-list">
+        <div class="command-item">
+          <code>CSV / TSV</code>
+          <p>Files with consistent comma or tab delimiters are auto-detected and displayed as sortable, filterable tables.</p>
+        </div>
+        <div class="command-item">
+          <code>HTTP Access Logs</code>
+          <p>Apache/Nginx combined log format is auto-detected and displayed with IP highlighting and filtering.</p>
+        </div>
+        <div class="command-item">
+          <code>--filetype &lt;type&gt;</code>
+          <p>Override auto-detection. Supported types: <code>txt</code>, <code>md</code>, <code>csv</code>, <code>log</code>.</p>
+        </div>
+      </div>
+    </div>
 
-    <!-- Configuration Section -->
-    <section class="cli-section">
-      <h2>Configuration</h2>
-      <p>
-        The CLI stores configuration in <code>~/.config/hyperclast/config.yaml</code>.
-        You can also set <code>HYPERCLAST_CONFIG</code> environment variable to use a different path.
-      </p>
-      <div class="config-example">
-        <pre><code class="language-yaml">api_url: https://hyperclast.com/api
+    <div class="command-group">
+      <h3>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="4 17 10 11 4 5"></polyline>
+          <line x1="12" y1="19" x2="20" y2="19"></line>
+        </svg>
+        Utility
+      </h3>
+      <div class="command-list">
+        <div class="command-item">
+          <code>hyperclast version [--verbose]</code>
+          <p>Print version information. Pass <code>--verbose</code> for build time, git commit, Go version, and OS/arch.</p>
+        </div>
+        <div class="command-item">
+          <code>hyperclast completion [bash|zsh|fish|powershell]</code>
+          <p>Generate shell completion scripts. See <code>hyperclast completion --help</code> for setup instructions.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Global Flags Section -->
+  <section class="cli-section">
+    <h2>Global Flags</h2>
+    <p>These flags work with all commands:</p>
+    <table class="flags-table">
+      <thead>
+        <tr>
+          <th>Flag</th>
+          <th>Default</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>--config &lt;path&gt;</code></td>
+          <td><code>~/.config/hyperclast/config.yaml</code></td>
+          <td>Custom config file location</td>
+        </tr>
+        <tr>
+          <td><code>--api-url &lt;url&gt;</code></td>
+          <td><code>https://hyperclast.com/api</code></td>
+          <td>API URL (for self-hosted instances)</td>
+        </tr>
+        <tr>
+          <td><code>--output &lt;format&gt;</code></td>
+          <td><code>text</code></td>
+          <td>Output format: <code>text</code> or <code>json</code></td>
+        </tr>
+        <tr>
+          <td><code>--quiet</code></td>
+          <td>false</td>
+          <td>Suppress info messages, only output data</td>
+        </tr>
+        <tr>
+          <td><code>--verbose</code></td>
+          <td>false</td>
+          <td>Show debug output</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Configuration Section -->
+  <section class="cli-section">
+    <h2>Configuration</h2>
+    <p>
+      The CLI stores configuration in <code>~/.config/hyperclast/config.yaml</code>.
+      You can also set <code>HYPERCLAST_CONFIG</code> environment variable to use a different path.
+    </p>
+    <div class="config-example">
+      <pre><code class="language-yaml">api_url: https://hyperclast.com/api
 token: your-api-token-here
 defaults:
   org_id: org_abc123
   project_id: proj_xyz789</code></pre>
-      </div>
-    </section>
+    </div>
+    <h3>Environment Variables</h3>
+    <table class="flags-table">
+      <thead>
+        <tr>
+          <th>Variable</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>HYPERCLAST_TOKEN</code></td>
+          <td>API token. Overrides the token in config file. Recommended for CI/CD.</td>
+        </tr>
+        <tr>
+          <td><code>HYPERCLAST_CONFIG</code></td>
+          <td>Path to config file. Overrides the default <code>~/.config/hyperclast/config.yaml</code>.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
 
-    <!-- Examples Section -->
-    <section class="cli-section">
-      <h2>Examples</h2>
+  <!-- Examples Section -->
+  <section class="cli-section">
+    <h2>Examples</h2>
 
-      <div class="command-group">
-        <h3>CI/CD Integration</h3>
-        <pre><code class="language-bash"># Save build logs from your CI pipeline
+    <div class="command-group">
+      <h3>CI/CD Integration</h3>
+      <pre><code class="language-bash"># Authenticate via environment variable (no config file needed)
+export HYPERCLAST_TOKEN="your-api-token"
+
+# Save build logs from your CI pipeline
 npm run build 2>&1 | hyperclast page new \
   --project proj_builds \
-  --title "Build #${CI_BUILD_NUMBER}"</code></pre>
-      </div>
+  --title "Build #${CI_BUILD_NUMBER}"
 
-      <div class="command-group">
-        <h3>Capture Any Command Output</h3>
-        <pre><code class="language-bash"># Git history
+# Capture page ID for downstream steps
+PAGE_ID=$(echo "content" | hyperclast page new --title "Log" --quiet)
+echo "Created page: $PAGE_ID"</code></pre>
+    </div>
+
+    <div class="command-group">
+      <h3>Capture Any Command Output</h3>
+      <pre><code class="language-bash"># Git history
 git log --oneline -20 | hyperclast page new --title "Recent Commits"
 
 # Docker status
@@ -1029,17 +1104,17 @@ docker ps -a | hyperclast page new --title "Container Status"
 
 # Server health
 (uptime; free -h; df -h) | hyperclast page new --title "Server Status"</code></pre>
-      </div>
+    </div>
 
-      <div class="command-group">
-        <h3>With Metadata</h3>
-        <pre><code class="language-bash"># Append source info and timestamp to content
+    <div class="command-group">
+      <h3>With Metadata</h3>
+      <pre><code class="language-bash"># Append source info and timestamp to content
 make build 2>&1 | hyperclast page new \
   --title "Build Log" \
   --meta \
   --source "make build"</code></pre>
-      </div>
-    </section>
+    </div>
+  </section>
   </article>
 {% endblock %}
 

@@ -120,6 +120,11 @@ func runPageNew(cmd *cobra.Command, args []string) error {
 		return json.NewEncoder(os.Stdout).Encode(page)
 	}
 
+	if quiet {
+		fmt.Println(page.ExternalID)
+		return nil
+	}
+
 	printSuccess("Created page \"%s\" (%s)", page.Title, page.ExternalID)
 	printInfo("  %s/pages/%s/", cfg.APIURL[:len(cfg.APIURL)-4], page.ExternalID)
 
@@ -190,6 +195,11 @@ func runPageUpdate(pageID string, mode string) error {
 
 	if outputFmt == "json" {
 		return json.NewEncoder(os.Stdout).Encode(page)
+	}
+
+	if quiet {
+		fmt.Println(page.ExternalID)
+		return nil
 	}
 
 	var verb string
@@ -443,6 +453,66 @@ var pageGetCmd = &cobra.Command{
 	},
 }
 
+var pageDeleteForce bool
+
+var pageDeleteCmd = &cobra.Command{
+	Use:   "delete <page-id>",
+	Short: "Delete a page",
+	Long: `Delete a page permanently. Prompts for confirmation unless --force is used.
+
+Examples:
+  hyperclast page delete page_xyz789
+  hyperclast page delete page_xyz789 --force`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if !cfg.IsAuthenticated() {
+			return fmt.Errorf("not authenticated. Run 'hyperclast auth login' first")
+		}
+
+		pageID := args[0]
+
+		client := api.NewClient(cfg.APIURL, cfg.Token)
+
+		page, err := client.GetPage(pageID)
+		if err != nil {
+			return fmt.Errorf("failed to get page: %w", err)
+		}
+
+		if !pageDeleteForce {
+			stat, _ := os.Stdin.Stat()
+			if (stat.Mode() & os.ModeCharDevice) == 0 {
+				return fmt.Errorf("--force is required in non-interactive mode (stdin is not a terminal)")
+			}
+			fmt.Fprintf(os.Stderr, "Delete page \"%s\" (%s)? [y/N] ", page.Title, page.ExternalID)
+			var confirm string
+			fmt.Scanln(&confirm)
+			if confirm != "y" && confirm != "Y" {
+				printInfo("Cancelled")
+				return nil
+			}
+		}
+
+		if err := client.DeletePage(pageID); err != nil {
+			return fmt.Errorf("failed to delete page: %w", err)
+		}
+
+		if outputFmt == "json" {
+			return json.NewEncoder(os.Stdout).Encode(map[string]any{
+				"deleted":     true,
+				"external_id": page.ExternalID,
+				"title":       page.Title,
+			})
+		}
+
+		if quiet {
+			return nil
+		}
+
+		printSuccess("Deleted page \"%s\" (%s)", page.Title, page.ExternalID)
+		return nil
+	},
+}
+
 func generateDefaultTitle() string {
 	return time.Now().Format("2006-01-02 3h04pm")
 }
@@ -607,6 +677,7 @@ func init() {
 	pageCmd.AddCommand(pageOverwriteCmd)
 	pageCmd.AddCommand(pageListCmd)
 	pageCmd.AddCommand(pageGetCmd)
+	pageCmd.AddCommand(pageDeleteCmd)
 
 	pageNewCmd.Flags().StringVar(&pageProjectID, "project", "", "project ID")
 	pageNewCmd.Flags().StringVar(&pageTitle, "title", "", "page title (defaults to timestamp)")
@@ -628,4 +699,6 @@ func init() {
 	pageOverwriteCmd.Flags().StringVar(&pageSource, "source", "", "source description for metadata")
 
 	pageListCmd.Flags().StringVar(&pageListProjectID, "project", "", "filter by project ID")
+
+	pageDeleteCmd.Flags().BoolVar(&pageDeleteForce, "force", false, "skip confirmation prompt")
 }
