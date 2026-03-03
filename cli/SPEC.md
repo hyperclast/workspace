@@ -110,6 +110,38 @@ $ hyperclast org use org_abc123
 
 ## Projects
 
+### `hyperclast project new <name>`
+
+Creates a new project in an organization.
+
+```
+$ hyperclast project new "Build Logs"
+✓ Created project "Build Logs" (proj_xyz789)
+
+$ hyperclast project new "Build Logs" --org org_abc123
+✓ Created project "Build Logs" (proj_xyz789)
+
+$ hyperclast project new "Build Logs" --description "CI/CD pipeline output"
+✓ Created project "Build Logs" (proj_xyz789)
+
+$ hyperclast project new "Build Logs" --use
+✓ Created project "Build Logs" (proj_xyz789)
+  Set as default project
+```
+
+**Flags:**
+
+- `--org <id>` - Organization ID (uses default org if not specified)
+- `--description <string>` - Project description
+- `--use` - Set as default project after creation
+
+**Behavior:**
+
+- Requires authentication
+- Uses default org if `--org` not specified
+- Errors if no org specified and no default set, with helpful guidance
+- When `--use` is passed, saves the new project ID as the default
+
 ### `hyperclast project list`
 
 Lists projects. Optionally filtered by org.
@@ -423,6 +455,7 @@ Authorization: Bearer <token>
 | ------------------------------- | ------ | --------------------- |
 | `auth login/status`             | GET    | `/api/users/me/`      |
 | `org list`                      | GET    | `/api/orgs/`          |
+| `project new`                   | POST   | `/api/projects/`      |
 | `project list`                  | GET    | `/api/projects/`      |
 | `project get`                   | GET    | `/api/projects/{id}/` |
 | `page list`                     | GET    | `/api/pages/`         |
@@ -463,9 +496,6 @@ Authorization: Bearer <token>
 hyperclast page delete <id>
 hyperclast page delete <id> --force
 
-# Create project
-hyperclast project new "Project Name" --org org_abc
-
 # Watch mode - re-run on file changes
 hyperclast watch ./logs/ --project proj_abc
 
@@ -500,7 +530,7 @@ hyperclast interactive
 
 - `auth login` (with URL hint), `auth logout`, `auth status`
 - `org list`, `org current`, `org use`
-- `project list`, `project current`, `project use`
+- `project new`, `project list`, `project current`, `project use`
 - `page new`, `page append`, `page prepend`, `page overwrite`
 - `page list`, `page get`
 - Config file support

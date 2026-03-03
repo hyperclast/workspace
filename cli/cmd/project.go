@@ -4,13 +4,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/hyperclast/workspace/cli/internal/api"
 	"github.com/spf13/cobra"
 )
 
-var projectOrgID string
+var (
+	projectOrgID     string
+	projectNewOrgID  string
+	projectNewDesc   string
+	projectNewSetUse bool
+)
 
 var projectCmd = &cobra.Command{
 	Use:   "project",
@@ -56,6 +62,77 @@ var projectListCmd = &cobra.Command{
 			fmt.Fprintf(w, "%s\t%s%s\t%s\n", project.ExternalID, project.Name, defaultMark, project.Org.Name)
 		}
 		w.Flush()
+
+		return nil
+	},
+}
+
+var projectNewCmd = &cobra.Command{
+	Use:   "new <name>",
+	Short: "Create a new project",
+	Long: `Create a new project in an organization.
+
+Examples:
+  # Create in default org
+  hyperclast project new "Build Logs"
+
+  # Create in a specific org
+  hyperclast project new "Build Logs" --org org_abc123
+
+  # Create with description
+  hyperclast project new "Build Logs" --description "CI/CD pipeline output"
+
+  # Create and set as default project
+  hyperclast project new "Build Logs" --use`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if !cfg.IsAuthenticated() {
+			return fmt.Errorf("not authenticated. Run 'hyperclast auth login' first")
+		}
+
+		name := args[0]
+
+		if strings.TrimSpace(name) == "" {
+			return fmt.Errorf("project name cannot be empty")
+		}
+		if len(name) > 255 {
+			return fmt.Errorf("project name too long (max 255 characters)")
+		}
+
+		orgID := projectNewOrgID
+		if orgID == "" {
+			orgID = cfg.GetDefaultOrg()
+		}
+
+		if orgID == "" {
+			printError("No organization specified.")
+			printInfo("  Use --org <id> or set a default: hyperclast org use <id>")
+			printInfo("  Run 'hyperclast org list' to see available organizations.")
+			cmd.SilenceErrors = true
+			return fmt.Errorf("no organization specified")
+		}
+
+		client := api.NewClient(cfg.APIURL, cfg.Token)
+		project, err := client.CreateProject(orgID, name, projectNewDesc)
+		if err != nil {
+			return fmt.Errorf("failed to create project: %w", err)
+		}
+
+		if projectNewSetUse {
+			cfg.SetDefaultProject(project.ExternalID)
+			if err := cfg.Save(); err != nil {
+				return fmt.Errorf("failed to save config: %w", err)
+			}
+		}
+
+		if outputFmt == "json" {
+			return json.NewEncoder(os.Stdout).Encode(project)
+		}
+
+		printSuccess("Created project \"%s\" (%s)", project.Name, project.ExternalID)
+		if projectNewSetUse {
+			printInfo("  Set as default project")
+		}
 
 		return nil
 	},
@@ -128,9 +205,14 @@ var projectUseCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(projectCmd)
+	projectCmd.AddCommand(projectNewCmd)
 	projectCmd.AddCommand(projectListCmd)
 	projectCmd.AddCommand(projectCurrentCmd)
 	projectCmd.AddCommand(projectUseCmd)
+
+	projectNewCmd.Flags().StringVar(&projectNewOrgID, "org", "", "organization ID (uses default if not specified)")
+	projectNewCmd.Flags().StringVar(&projectNewDesc, "description", "", "project description")
+	projectNewCmd.Flags().BoolVar(&projectNewSetUse, "use", false, "set as default project after creation")
 
 	projectListCmd.Flags().StringVar(&projectOrgID, "org", "", "filter by organization ID")
 }

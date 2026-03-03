@@ -244,6 +244,26 @@ func (c *Client) GetProject(projectID string) (*Project, error) {
 	return &project, nil
 }
 
+type CreateProjectRequest struct {
+	OrgID       string `json:"org_id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
+
+func (c *Client) CreateProject(orgID, name, description string) (*Project, error) {
+	req := CreateProjectRequest{
+		OrgID:       orgID,
+		Name:        name,
+		Description: description,
+	}
+
+	var project Project
+	if err := c.Post("/projects/", req, &project); err != nil {
+		return nil, err
+	}
+	return &project, nil
+}
+
 func (c *Client) ListPages(projectID string) ([]Page, error) {
 	if projectID != "" {
 		project, err := c.GetProject(projectID)

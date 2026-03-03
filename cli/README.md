@@ -81,6 +81,10 @@ hyperclast org use <id>   # Set default organization
 ### Projects
 
 ```bash
+hyperclast project new <name>          # Create a new project in default org
+hyperclast project new <name> --org <id>                # Create in a specific org
+hyperclast project new <name> --description "desc"      # Create with description
+hyperclast project new <name> --use                     # Create and set as default project
 hyperclast project list [--org <id>]   # List projects (uses default org if not specified)
 hyperclast project current             # Show default project
 hyperclast project use <id>            # Set default project
