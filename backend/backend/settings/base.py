@@ -340,7 +340,15 @@ ASGI_APPLICATION = "backend.asgi.application"
 
 CRDT_SNAPSHOT_INTERVAL_SECONDS = 15  # Reduced from 60 for faster persistence
 CRDT_SNAPSHOT_AFTER_EDIT_COUNT = 50  # Reduced from 100 for faster persistence
-CRDT_UPDATE_RETENTION_HOURS = 24  # Keep raw CRDT updates for 24 hours
+CRDT_UPDATE_RETENTION_HOURS = config("WS_CRDT_UPDATE_RETENTION_HOURS", default=168, cast=int)  # 7 days
+
+# CRDT Archive settings (archive-then-purge pipeline)
+CRDT_ARCHIVE_ENABLED = config("WS_CRDT_ARCHIVE_ENABLED", cast=bool, default=False)
+CRDT_ARCHIVE_STORAGE_PROVIDER = config("WS_CRDT_ARCHIVE_STORAGE_PROVIDER", default="r2")
+CRDT_ARCHIVE_BUCKET = config("WS_CRDT_ARCHIVE_BUCKET", default=None)  # falls back to WS_FILEHUB_R2_BUCKET
+CRDT_ARCHIVE_BATCH_SIZE = config("WS_CRDT_ARCHIVE_BATCH_SIZE", default=100, cast=int)  # max rooms/run
+CRDT_ARCHIVE_CUTOFF_DAYS = config("WS_CRDT_ARCHIVE_CUTOFF_DAYS", default=7, cast=int)
+CRDT_ARCHIVE_MAX_RETRIES = config("WS_CRDT_ARCHIVE_MAX_RETRIES", default=3, cast=int)
 
 # Rewind
 REWIND_ENABLED = config("WS_REWIND_ENABLED", cast=bool, default=True)

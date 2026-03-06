@@ -335,6 +335,11 @@ class Page(TimeStampedModel):
         YUpdate.objects.filter(room_id=room_id).delete()
         YSnapshot.objects.filter(room_id=room_id).delete()
 
+        # Clean up archive ledger (R2 objects left for lifecycle policy / purge command)
+        from collab.models import CrdtArchiveBatch
+
+        CrdtArchiveBatch.objects.filter(room_id=room_id).delete()
+
         # Clean up rewind history
         from pages.models.rewind import Rewind, RewindEditorSession
 
@@ -342,4 +347,4 @@ class Page(TimeStampedModel):
         RewindEditorSession.objects.filter(page=self).delete()
 
         self.is_deleted = True
-        self.save(update_fields=["is_deleted"])
+        self.save(update_fields=["is_deleted", "modified"])

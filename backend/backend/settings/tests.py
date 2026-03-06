@@ -74,6 +74,10 @@ WS_FILEHUB_REPLICATION_ENABLED = False
 WS_FILEHUB_R2_WEBHOOK_SECRET = "test-webhook-secret-for-unit-tests"
 WS_FILEHUB_R2_WEBHOOK_ENABLED = False  # Disabled by default, enable per-test
 
+# CRDT Archive settings for tests
+CRDT_ARCHIVE_ENABLED = True
+CRDT_ARCHIVE_STORAGE_PROVIDER = "local"
+
 # Import rate limits - increased for tests to prevent test pollution
 WS_IMPORTS_RATE_LIMIT_REQUESTS = 1000
 WS_IMPORTS_RATE_LIMIT_WINDOW_SECONDS = 60

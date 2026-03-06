@@ -10,7 +10,7 @@ Access is granted if EITHER condition is true.
 
 from django.test import TestCase
 
-from collab.models import YSnapshot, YUpdate
+from collab.models import CrdtArchiveBatch, YSnapshot, YUpdate
 from pages.models import Page
 from pages.tests.factories import PageFactory, ProjectFactory
 from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory
@@ -544,3 +544,77 @@ class TestMarkAsDeleted(TestCase):
 
         page = Page.objects.get(id=page_id)
         self.assertTrue(page.is_deleted)
+
+    def test_mark_as_deleted_cleans_up_archive_ledger(self):
+        """Test that mark_as_deleted() deletes CrdtArchiveBatch ledger rows for the page."""
+        room_id = f"page_{self.page.external_id}"
+
+        # Create archive batches for this page's room
+        CrdtArchiveBatch.objects.create(
+            room_id=room_id,
+            from_update_id=1,
+            to_update_id=50,
+            row_count=50,
+            status="deleted",
+            provider="local",
+            bucket="test",
+            object_key=f"crdt-archives/{room_id}/1-50.jsonl.gz",
+            checksum_sha256="a" * 64,
+            cutoff_timestamp="2026-01-01T00:00:00Z",
+        )
+        CrdtArchiveBatch.objects.create(
+            room_id=room_id,
+            from_update_id=51,
+            to_update_id=100,
+            row_count=50,
+            status="deleted",
+            provider="local",
+            bucket="test",
+            object_key=f"crdt-archives/{room_id}/51-100.jsonl.gz",
+            checksum_sha256="b" * 64,
+            cutoff_timestamp="2026-01-01T00:00:00Z",
+        )
+
+        self.assertEqual(CrdtArchiveBatch.objects.filter(room_id=room_id).count(), 2)
+
+        self.page.mark_as_deleted()
+
+        # Archive ledger rows should be deleted
+        self.assertEqual(CrdtArchiveBatch.objects.filter(room_id=room_id).count(), 0)
+
+    def test_mark_as_deleted_archive_cleanup_does_not_affect_other_rooms(self):
+        """Test that mark_as_deleted() only deletes archive batches for the specific page."""
+        page2 = PageFactory(creator=self.user)
+
+        room_id1 = f"page_{self.page.external_id}"
+        room_id2 = f"page_{page2.external_id}"
+
+        CrdtArchiveBatch.objects.create(
+            room_id=room_id1,
+            from_update_id=1,
+            to_update_id=10,
+            row_count=10,
+            status="deleted",
+            provider="local",
+            bucket="test",
+            object_key=f"crdt-archives/{room_id1}/1-10.jsonl.gz",
+            checksum_sha256="a" * 64,
+            cutoff_timestamp="2026-01-01T00:00:00Z",
+        )
+        CrdtArchiveBatch.objects.create(
+            room_id=room_id2,
+            from_update_id=1,
+            to_update_id=10,
+            row_count=10,
+            status="deleted",
+            provider="local",
+            bucket="test",
+            object_key=f"crdt-archives/{room_id2}/1-10.jsonl.gz",
+            checksum_sha256="b" * 64,
+            cutoff_timestamp="2026-01-01T00:00:00Z",
+        )
+
+        self.page.mark_as_deleted()
+
+        self.assertEqual(CrdtArchiveBatch.objects.filter(room_id=room_id1).count(), 0)
+        self.assertEqual(CrdtArchiveBatch.objects.filter(room_id=room_id2).count(), 1)

@@ -585,3 +585,33 @@ class TestMixedScenarios(PurgeOldCrdtUpdatesTestBase):
         self.assertEqual(self._update_count("room-b"), 1)  # no snapshot
         self.assertEqual(self._update_count("room-c"), 1)  # too recent
         self.assertEqual(self._update_count("room-d"), 1)  # above watermark
+
+
+# ---------------------------------------------------------------------------
+# Deprecation warning when archiving enabled
+# ---------------------------------------------------------------------------
+
+
+class TestArchiveEnabledWarning(PurgeOldCrdtUpdatesTestBase):
+    """Warns when CRDT_ARCHIVE_ENABLED=True."""
+
+    @override_settings(CRDT_ARCHIVE_ENABLED=True)
+    def test_emits_warning_when_archiving_enabled(self):
+        """When CRDT_ARCHIVE_ENABLED=True, the command should warn on stderr."""
+        out = StringIO()
+        err = StringIO()
+        call_command("purge_old_crdt_updates", "--dry-run", stdout=out, stderr=err)
+
+        err_output = err.getvalue()
+        self.assertIn("archiving is enabled", err_output)
+        self.assertIn("archive_crdt_updates", err_output)
+
+    @override_settings(CRDT_ARCHIVE_ENABLED=False)
+    def test_no_warning_when_archiving_disabled(self):
+        """When CRDT_ARCHIVE_ENABLED=False, no warning should be emitted."""
+        out = StringIO()
+        err = StringIO()
+        call_command("purge_old_crdt_updates", "--dry-run", stdout=out, stderr=err)
+
+        err_output = err.getvalue()
+        self.assertNotIn("archiving is enabled", err_output)

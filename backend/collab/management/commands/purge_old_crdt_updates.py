@@ -50,8 +50,16 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
-        retention_hours = options["retention_hours"] or getattr(settings, "CRDT_UPDATE_RETENTION_HOURS", 24)
+        retention_hours = options["retention_hours"] or getattr(settings, "CRDT_UPDATE_RETENTION_HOURS", 168)
         batch_size = options["batch_size"]
+
+        if getattr(settings, "CRDT_ARCHIVE_ENABLED", False):
+            self.stderr.write(
+                self.style.WARNING(
+                    "CRDT archiving is enabled. Consider using 'archive_crdt_updates' instead, "
+                    "which archives updates to object storage before deleting."
+                )
+            )
 
         cutoff = timezone.now() - timedelta(hours=retention_hours)
 
