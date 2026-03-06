@@ -340,6 +340,15 @@ ASGI_APPLICATION = "backend.asgi.application"
 
 CRDT_SNAPSHOT_INTERVAL_SECONDS = 15  # Reduced from 60 for faster persistence
 CRDT_SNAPSHOT_AFTER_EDIT_COUNT = 50  # Reduced from 100 for faster persistence
+CRDT_UPDATE_RETENTION_HOURS = 24  # Keep raw CRDT updates for 24 hours
+
+# Rewind
+REWIND_ENABLED = config("WS_REWIND_ENABLED", cast=bool, default=True)
+REWIND_MIN_INTERVAL_SECONDS = 60
+REWIND_SIGNIFICANT_CHANGE_BYTES = 500
+REWIND_MAX_PER_PAGE = 50000
+REWIND_COMPACTION_ENABLED = True
+REWIND_COMPACTION_HOURLY_AFTER_HOURS = 24
 
 # WebSocket rate limiting (prevents DoS from rapid reconnection loops)
 WS_RATE_LIMIT_CONNECTIONS = 30  # Max connections per window

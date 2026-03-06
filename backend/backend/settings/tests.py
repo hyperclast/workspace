@@ -37,6 +37,18 @@ HEADLESS_ONLY = True
 ASK_FEATURE_ENABLED = False
 FILEHUB_FEATURE_ENABLED = True  # Enable for existing filehub tests
 
+# Enable all private features for tests by discovering available feature directories
+_private_dir = BASE_DIR / "private"
+if _private_dir.exists():
+    _discovered_features = sorted(d.name for d in _private_dir.iterdir() if d.is_dir() and (d / "__init__.py").exists())
+    if _discovered_features:
+        # Update PRIVATE_FEATURES so that private/urls.py and api.py see them
+        PRIVATE_FEATURES = _discovered_features
+        # Rebuild PRIVATE_APPS from the updated features list
+        PRIVATE_APPS = [f"private.{name}" for name in PRIVATE_FEATURES]
+        # Add to INSTALLED_APPS, avoiding duplicates
+        INSTALLED_APPS += [app for app in PRIVATE_APPS if app not in INSTALLED_APPS]
+
 # Performance test thresholds (in nanoseconds)
 # These can be overridden via environment variables for different hardware
 WS_PERF_REQUEST_ID_GEN_NS = config("WS_PERF_REQUEST_ID_GEN_NS", default=1000, cast=int)

@@ -137,7 +137,7 @@ class PostgresYStore(BaseYStore):
             )
             return None if not row or row["max_id"] is None else int(row["max_id"])
 
-    async def upsert_snapshot(self, snapshot: bytes, last_update_id: int) -> None:
+    async def upsert_snapshot(self, snapshot: bytes, last_update_id: int, is_session_end: bool = False) -> None:
         """Write or update the snapshot row for this room."""
         assert self.pool is not None, "PostgresYStore.initialize_pool() not called"
         async with self.pool.acquire() as conn:
@@ -156,7 +156,7 @@ class PostgresYStore(BaseYStore):
                 int(last_update_id),
             )
 
-        sync_snapshot_with_page.enqueue(self.room_id, schedule=timezone.timedelta(seconds=0.5))
+        sync_snapshot_with_page.enqueue(self.room_id, is_session_end, schedule=timezone.timedelta(seconds=0.5))
 
     async def get_snapshot(self) -> Optional[Tuple[bytes, int]]:
         """Return (snapshot_bytes, last_update_id) or None."""

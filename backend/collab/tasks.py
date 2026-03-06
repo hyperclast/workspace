@@ -35,7 +35,7 @@ def broadcast_links_updated(room_id: str, page_id: str):
 
 
 @task(settings.JOB_INTERNAL_QUEUE)
-def sync_snapshot_with_page(room_id: str):
+def sync_snapshot_with_page(room_id: str, is_session_end: bool = False):
     try:
         snapshot = YSnapshot.objects.get(room_id=room_id)
         page_id = room_id.split("_")[-1]
@@ -45,6 +45,15 @@ def sync_snapshot_with_page(room_id: str):
         log_info("Synced snapshot for %s", room_id)
 
         content = snapshot.content or ""
+
+        # Create rewind snapshot if enabled
+        if settings.REWIND_ENABLED:
+            from pages.services.rewind import maybe_create_rewind
+
+            content_hash = page.details.get("content_hash", "")
+            if content_hash:
+                maybe_create_rewind(page, content, content_hash, is_session_end=is_session_end)
+
         _, links_changed = PageLink.objects.sync_links_for_page(page, content)
 
         if links_changed:

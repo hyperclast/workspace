@@ -311,3 +311,55 @@ class ProjectInvitationValidationResponse(Schema):
     email: str
     redirect_to: str  # project URL to redirect to after auth
     project_name: str
+
+
+# ========================================
+# Rewind Schemas
+# ========================================
+
+
+class RewindListQuery(Schema):
+    """Query parameters for listing rewinds."""
+
+    label: Optional[str] = None
+
+
+class RewindSummaryOut(Schema):
+    """Rewind summary for list endpoint (no content)."""
+
+    external_id: str
+    rewind_number: int
+    title: str
+    content_size_bytes: int
+    editors: List[str]
+    label: str
+    is_compacted: bool
+    compacted_from_count: int
+    created: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class RewindOut(Schema):
+    """Rewind detail with full content."""
+
+    external_id: str
+    rewind_number: int
+    title: str
+    content: str
+    content_size_bytes: int
+    editors: List[str]
+    label: str
+    is_compacted: bool
+    compacted_from_count: int
+    created: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class RewindUpdateIn(Schema):
+    """Request body for updating a rewind label."""
+
+    label: str = Field(..., max_length=255)

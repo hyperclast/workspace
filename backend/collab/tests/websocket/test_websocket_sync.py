@@ -156,14 +156,13 @@ class TestWebSocketSync(TransactionTestCase):
         # Wait for any pending async tasks to complete (snapshot write + cleanup)
         await asyncio.sleep(2.0)
 
-        # After disconnect, a snapshot should be created and old updates cleaned up
-        # So we check for snapshot existence instead of y_updates
+        # After disconnect, a snapshot should be created
         snapshot_exists = await sync_to_async(YSnapshot.objects.filter(room_id=room_name).exists)()
         self.assertTrue(snapshot_exists, "Snapshot should be created on disconnect")
 
-        # Updates should be cleaned up (deleted) since they're now in the snapshot
+        # Updates are preserved for Tier 1 retention (purged by purge_old_crdt_updates command)
         update_count = await sync_to_async(YUpdate.objects.filter(room_id=room_name).count)()
-        self.assertEqual(update_count, 0, "Old updates should be cleaned up after snapshot")
+        self.assertGreater(update_count, 0, "Updates should be preserved after snapshot")
 
     async def test_page_built_from_all_previous_edits(self):
         """
@@ -599,8 +598,8 @@ class TestWebSocketSync(TransactionTestCase):
 
         await comm.disconnect()
 
-    async def test_updates_cleaned_up_after_snapshot(self):
-        """Test that old y_updates are deleted after snapshot creation."""
+    async def test_updates_preserved_after_snapshot(self):
+        """Test that y_updates are preserved after snapshot creation (Tier 1 retention)."""
         user, org, project = await create_user_with_org_and_project()
         page = await create_page_with_access(user, org, project)
         room_name = f"page_{page.external_id}"
@@ -620,7 +619,7 @@ class TestWebSocketSync(TransactionTestCase):
         initial_count = await sync_to_async(YUpdate.objects.filter(room_id=room_name).count)()
         self.assertEqual(initial_count, 50, "Should have 50 updates")
 
-        # Connect and disconnect to trigger snapshot + cleanup
+        # Connect and disconnect to trigger snapshot
         comm = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
         comm.scope["user"] = user
 
@@ -628,16 +627,16 @@ class TestWebSocketSync(TransactionTestCase):
         await asyncio.sleep(0.5)
         await comm.disconnect()
 
-        # Wait for snapshot write and cleanup
+        # Wait for snapshot write
         await asyncio.sleep(1.0)
 
         # Snapshot should exist
         snapshot_exists = await sync_to_async(YSnapshot.objects.filter(room_id=room_name).exists)()
         self.assertTrue(snapshot_exists, "Snapshot should be created")
 
-        # All updates should be cleaned up
+        # Updates are preserved for Tier 1 retention (purged by purge_old_crdt_updates command)
         final_count = await sync_to_async(YUpdate.objects.filter(room_id=room_name).count)()
-        self.assertEqual(final_count, 0, "All old updates should be deleted after snapshot")
+        self.assertEqual(final_count, 50, "Updates should be preserved after snapshot")
 
     async def test_incremental_updates_preserved_after_snapshot(self):
         """Test that updates created AFTER a snapshot are preserved until next snapshot."""
@@ -697,9 +696,9 @@ class TestWebSocketSync(TransactionTestCase):
         self.assertEqual(final_count, 25, "All 25 updates should remain (no new snapshot created due to optimization)")
 
     @override_settings(CRDT_SNAPSHOT_INTERVAL_SECONDS=2)
-    async def test_periodic_snapshot_creates_snapshot_and_cleanup(self):
+    async def test_periodic_snapshot_creates_snapshot(self):
         """
-        Test that periodic snapshots are created and trigger cleanup during an active session.
+        Test that periodic snapshots are created during an active session.
 
         PAGE: This test verifies the periodic snapshot mechanism by checking that a snapshot
         is created when the client disconnects. The periodic snapshot timer is difficult to
@@ -710,7 +709,7 @@ class TestWebSocketSync(TransactionTestCase):
         1. The consumer correctly loads existing updates on connect
         2. When disconnect occurs, a snapshot is created (which happens either from periodic
            snapshot OR from disconnect snapshot logic)
-        3. Old updates are cleaned up after snapshot creation
+        3. Updates are preserved (Tier 1 retention — purged by purge_old_crdt_updates command)
         """
         user, org, project = await create_user_with_org_and_project()
         page = await create_page_with_access(user, org, project)
@@ -738,19 +737,19 @@ class TestWebSocketSync(TransactionTestCase):
         await comm.connect()
         await asyncio.sleep(0.5)  # Wait for hydration
 
-        # Disconnect - this will trigger snapshot creation and cleanup
+        # Disconnect - this will trigger snapshot creation
         await comm.disconnect()
 
-        # Wait for snapshot write and cleanup
+        # Wait for snapshot write
         await asyncio.sleep(1.0)
 
         # Snapshot should have been created (either by periodic timer or disconnect)
         snapshot_exists = await sync_to_async(YSnapshot.objects.filter(room_id=room_name).exists)()
         self.assertTrue(snapshot_exists, "Snapshot should be created")
 
-        # Old updates should be cleaned up after snapshot
+        # Updates are preserved for Tier 1 retention
         updates_after = await sync_to_async(YUpdate.objects.filter(room_id=room_name).count)()
-        self.assertEqual(updates_after, 0, "Updates should be cleaned up after snapshot")
+        self.assertEqual(updates_after, 10, "Updates should be preserved after snapshot")
 
     async def test_no_snapshot_on_disconnect_when_no_changes(self):
         """Test that no snapshot is created on disconnect when there are no changes since last snapshot."""
@@ -868,12 +867,12 @@ class TestWebSocketSync(TransactionTestCase):
             "Snapshot should be created on disconnect (verifies edit counter doesn't block snapshots)",
         )
 
-        # Verify updates were cleaned up
+        # Updates are preserved for Tier 1 retention (purged by purge_old_crdt_updates command)
         final_count = await sync_to_async(YUpdate.objects.filter(room_id=room_name).count)()
         self.assertEqual(
             final_count,
-            0,
-            f"Updates should be cleaned up after snapshot. Found {final_count}, expected 0",
+            10,
+            f"Updates should be preserved after snapshot. Found {final_count}, expected 10",
         )
 
         # Verify the counter logic is in place by checking the setting exists

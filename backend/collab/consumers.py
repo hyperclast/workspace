@@ -9,6 +9,7 @@ from typing import Optional, Tuple
 from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.core.cache import cache
+from django.utils import timezone
 from pycrdt import Doc, YMessageType, YSyncMessageType
 from pycrdt.websocket.django_channels_consumer import YjsConsumer as BaseYjsConsumer
 
@@ -174,6 +175,13 @@ class PageYjsConsumer(BaseYjsConsumer):
         # Prepare persistence *before* parent sets up the ydoc
         await self._ensure_ystore()
 
+        # Track editor session for rewind
+        if self.user_id and self.can_write:
+            try:
+                await self._create_editor_session(page_uuid)
+            except Exception as e:
+                log_error(f"Error creating editor session for page {page_uuid}: {e}", exc_info=True)
+
         # Hand off to parent: computes room_name, builds ydoc via make_ydoc(), joins group, accepts socket
         try:
             await super().connect()
@@ -327,7 +335,7 @@ class PageYjsConsumer(BaseYjsConsumer):
         except Exception as e:
             log_error("Error in periodic snapshot worker: %s", e, exc_info=True)
 
-    async def _take_snapshot(self) -> bool:
+    async def _take_snapshot(self, is_session_end=False) -> bool:
         """
         Take a snapshot and sync with page.
         Returns True if snapshot was saved, False if skipped (empty doc).
@@ -349,24 +357,53 @@ class PageYjsConsumer(BaseYjsConsumer):
                 return False
 
             max_id = await self.ystore.get_max_update_id() or 0
-            await self.ystore.upsert_snapshot(snapshot_bytes, max_id)
-
-            # Cleanup old updates
-            deleted = await self.ystore.delete_updates_before_snapshot()
+            await self.ystore.upsert_snapshot(snapshot_bytes, max_id, is_session_end=is_session_end)
 
             # Reset the update counter after successful snapshot
             self.updates_since_snapshot = 0
 
             log_info(
-                "Snapshot created for %s: max_id=%s, cleaned_up=%s updates",
+                "Snapshot created for %s: max_id=%s",
                 self.room_name,
                 max_id,
-                deleted,
             )
             return True
         except Exception as e:
             log_error("Error taking snapshot: %s", e, exc_info=True)
             return False
+
+    async def _create_editor_session(self, page_uuid):
+        """Create a RewindEditorSession row for rewind attribution."""
+        from pages.models import Page
+        from pages.models.rewind import RewindEditorSession
+
+        @sync_to_async
+        def _create():
+            try:
+                page = Page.objects.get(external_id=page_uuid, is_deleted=False)
+                session = RewindEditorSession.objects.create(
+                    page=page,
+                    user_id=self.user_id,
+                )
+                return session.id
+            except Page.DoesNotExist:
+                return None
+
+        self._editor_session_id = await _create()
+
+    async def _close_editor_session(self):
+        """Set disconnected_at on the editor session."""
+        from pages.models.rewind import RewindEditorSession
+
+        session_id = getattr(self, "_editor_session_id", None)
+        if not session_id:
+            return
+
+        @sync_to_async
+        def _close():
+            RewindEditorSession.objects.filter(id=session_id).update(disconnected_at=timezone.now())
+
+        await _close()
 
     async def receive(self, text_data=None, bytes_data=None):
         """
@@ -445,6 +482,13 @@ class PageYjsConsumer(BaseYjsConsumer):
                     pass
                 log_debug("Periodic snapshot task cancelled for %s", self.room_name)
 
+            # Close editor session for rewind
+            if self.user_id and self.can_write:
+                try:
+                    await self._close_editor_session()
+                except Exception as e:
+                    log_error("Error closing editor session: %s", e, exc_info=True)
+
             # Take final snapshot ONLY if there are unsaved changes OR no snapshot exists yet
             if getattr(self, "ydoc", None) is not None and getattr(self, "ystore", None):
                 # Only snapshot if we have unsaved changes OR no snapshot exists
@@ -462,7 +506,7 @@ class PageYjsConsumer(BaseYjsConsumer):
                         should_snapshot = True
 
                 if should_snapshot:
-                    saved = await self._take_snapshot()
+                    saved = await self._take_snapshot(is_session_end=True)
                     if saved:
                         log_info("Final snapshot taken on disconnect for %s", self.room_name)
                 else:
@@ -528,6 +572,16 @@ class PageYjsConsumer(BaseYjsConsumer):
             await self.send(
                 text_data='{"type":"write_permission_revoked","message":"Your access has been changed to view-only"}'
             )
+
+    async def rewind_restored(self, event):
+        """
+        Handle rewind_restored message from the channel layer.
+        Notify the client that the page was restored and close the connection
+        so they reconnect with the restored content.
+        """
+        log_info(f"Rewind restored for {getattr(self, 'room_name', 'unknown')}, closing WS")
+        await self.send(text_data='{"type":"rewind_restored","message":"Page has been restored to a previous rewind"}')
+        await self.close(code=4002)
 
     async def links_updated(self, event):
         """

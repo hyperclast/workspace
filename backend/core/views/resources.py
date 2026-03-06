@@ -63,7 +63,7 @@ def dev_index(request):
 
 def get_allowed_api_docs():
     """Return list of allowed API docs based on feature flags."""
-    docs = ["overview", "ask", "imports", "mentions", "orgs", "projects", "pages", "users"]
+    docs = ["overview", "ask", "imports", "mentions", "orgs", "projects", "pages", "rewind", "users"]
     if getattr(settings, "FILEHUB_FEATURE_ENABLED", False):
         docs.append("files")
     return docs
@@ -98,6 +98,7 @@ def api_docs(request, doc_name="overview"):
         "orgs": "Organizations API reference. Create and manage organizations and team members.",
         "projects": "Projects API reference. Manage projects and their settings.",
         "pages": "Pages API reference. Create, read, update, and delete pages programmatically.",
+        "rewind": "Rewind API reference. List, view, restore, and label page rewind history.",
         "users": "Users API reference. User profile and settings management.",
     }
 

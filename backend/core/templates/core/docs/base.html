@@ -162,6 +162,11 @@
                 </a>
               </li>
               <li>
+                <a href="{% url 'core:api_docs' 'rewind' %}" {% if doc_name == 'rewind' %}class="active"{% endif %}>
+                  Rewind
+                </a>
+              </li>
+              <li>
                 <a href="{% url 'core:api_docs' 'mentions' %}" {% if doc_name == 'mentions' %}class="active"{% endif %}>
                   Mentions
                 </a>

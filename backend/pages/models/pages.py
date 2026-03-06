@@ -170,6 +170,7 @@ class Page(TimeStampedModel):
     )
     is_deleted = models.BooleanField(db_index=True, default=False)
     version = models.TextField(blank=True, default="")
+    current_rewind_number = models.PositiveIntegerField(default=0)
     access_code = models.CharField(
         max_length=43,  # secrets.token_urlsafe(32) produces 43 chars
         unique=True,
@@ -333,5 +334,12 @@ class Page(TimeStampedModel):
         room_id = f"page_{self.external_id}"
         YUpdate.objects.filter(room_id=room_id).delete()
         YSnapshot.objects.filter(room_id=room_id).delete()
+
+        # Clean up rewind history
+        from pages.models.rewind import Rewind, RewindEditorSession
+
+        Rewind.objects.filter(page=self).delete()
+        RewindEditorSession.objects.filter(page=self).delete()
+
         self.is_deleted = True
         self.save(update_fields=["is_deleted"])

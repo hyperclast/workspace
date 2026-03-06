@@ -5,6 +5,7 @@ from .links import PageLink
 from .mentions import PageMention
 from .pages import Page
 from .projects import Project
+from .rewind import Rewind, RewindEditorSession
 
 __all__ = [
     "Page",
@@ -19,4 +20,6 @@ __all__ = [
     "ProjectEditorAddEvent",
     "ProjectEditorRemoveEvent",
     "ProjectInvitation",
+    "Rewind",
+    "RewindEditorSession",
 ]
