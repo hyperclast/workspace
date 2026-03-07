@@ -9,7 +9,6 @@ User = get_user_model()
 
 
 class Rewind(TimeStampedModel):
-    id = models.BigAutoField(primary_key=True)
     external_id = UniqueIDTextField()
     page = models.ForeignKey(
         "pages.Page",
@@ -25,6 +24,9 @@ class Rewind(TimeStampedModel):
     rewind_number = models.PositiveIntegerField()
     editors = models.JSONField(default=list)
     label = models.CharField(max_length=255, blank=True, default="")
+
+    lines_added = models.PositiveIntegerField(default=0)
+    lines_deleted = models.PositiveIntegerField(default=0)
 
     is_compacted = models.BooleanField(default=False)
     compacted_from_count = models.PositiveIntegerField(default=0)

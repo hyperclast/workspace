@@ -552,3 +552,38 @@ export async function fetchFileReferences(fileId) {
   }
   return response.json();
 }
+
+// Rewind API
+
+/**
+ * Fetch rewind history for a page.
+ * @param {string} pageExternalId - External ID of the page
+ * @param {number} [limit=50] - Number of entries to fetch
+ * @param {number} [offset=0] - Offset for pagination
+ * @returns {Promise<{items: Array, count: number}>}
+ */
+export async function fetchRewindList(pageExternalId, limit = 50, offset = 0) {
+  const response = await csrfFetch(
+    `${API_BASE}/pages/${pageExternalId}/rewind/?limit=${limit}&offset=${offset}`
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to fetch rewind list: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Fetch full rewind detail including content.
+ * @param {string} pageExternalId - External ID of the page
+ * @param {string} rewindExternalId - External ID of the rewind entry
+ * @returns {Promise<Object>} RewindOut with content field
+ */
+export async function fetchRewindDetail(pageExternalId, rewindExternalId) {
+  const response = await csrfFetch(
+    `${API_BASE}/pages/${pageExternalId}/rewind/${rewindExternalId}/`
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to fetch rewind detail: ${response.statusText}`);
+  }
+  return response.json();
+}

@@ -11,6 +11,25 @@ from pages.models import Page, PageLink, PageMention
 from .models import YSnapshot
 
 
+def broadcast_rewind_created(room_id: str, page_id: str, rewind_data: dict):
+    """Broadcast rewind_created event to all WebSocket clients."""
+    try:
+        channel_layer = get_channel_layer()
+        if channel_layer is None:
+            return
+        async_to_sync(channel_layer.group_send)(
+            room_id,
+            {
+                "type": "rewind_created",
+                "page_id": page_id,
+                "rewind": rewind_data,
+            },
+        )
+        log_info("Broadcast rewind_created for %s", room_id)
+    except Exception as e:
+        log_error("Error broadcasting rewind_created for %s: %s", room_id, e)
+
+
 def broadcast_links_updated(room_id: str, page_id: str):
     """
     Broadcast links_updated event to all WebSocket clients connected to a page.
@@ -52,7 +71,25 @@ def sync_snapshot_with_page(room_id: str, is_session_end: bool = False):
 
             content_hash = page.details.get("content_hash", "")
             if content_hash:
-                maybe_create_rewind(page, content, content_hash, is_session_end=is_session_end)
+                rewind = maybe_create_rewind(page, content, content_hash, is_session_end=is_session_end)
+                if rewind:
+                    broadcast_rewind_created(
+                        room_id,
+                        page_id,
+                        {
+                            "external_id": str(rewind.external_id),
+                            "rewind_number": rewind.rewind_number,
+                            "title": rewind.title,
+                            "content_size_bytes": rewind.content_size_bytes,
+                            "editors": rewind.editors,
+                            "label": rewind.label,
+                            "lines_added": rewind.lines_added,
+                            "lines_deleted": rewind.lines_deleted,
+                            "is_compacted": rewind.is_compacted,
+                            "compacted_from_count": rewind.compacted_from_count,
+                            "created": rewind.created.isoformat(),
+                        },
+                    )
 
         _, links_changed = PageLink.objects.sync_links_for_page(page, content)
 

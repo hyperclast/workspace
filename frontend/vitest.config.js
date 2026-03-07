@@ -10,7 +10,7 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
   resolve: {
-    conditions: ["browser"],
+    conditions: ["browser", "import"],
   },
   test: {
     environment: "happy-dom",

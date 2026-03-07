@@ -333,6 +333,8 @@ class RewindSummaryOut(Schema):
     content_size_bytes: int
     editors: List[str]
     label: str
+    lines_added: int
+    lines_deleted: int
     is_compacted: bool
     compacted_from_count: int
     created: datetime
@@ -351,6 +353,8 @@ class RewindOut(Schema):
     content_size_bytes: int
     editors: List[str]
     label: str
+    lines_added: int
+    lines_deleted: int
     is_compacted: bool
     compacted_from_count: int
     created: datetime

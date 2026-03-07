@@ -43,6 +43,15 @@ class RewindAPITestBase(BaseAuthenticatedViewTestCase):
 # ============================================================
 
 
+class TestRewindModelBasics(RewindAPITestBase):
+    def test_created_rewind_has_valid_id(self):
+        """Rewind instances should have an auto-assigned positive integer id."""
+        rewind = self._create_rewind("Hello")
+        self.assertIsNotNone(rewind.id)
+        self.assertIsInstance(rewind.id, int)
+        self.assertGreater(rewind.id, 0)
+
+
 class TestListRewinds(RewindAPITestBase):
     def test_list_rewinds_empty(self):
         response = self.send_api_request(url=f"/api/pages/{self.page.external_id}/rewind/")
@@ -81,6 +90,8 @@ class TestListRewinds(RewindAPITestBase):
             "content_size_bytes",
             "editors",
             "label",
+            "lines_added",
+            "lines_deleted",
             "is_compacted",
             "compacted_from_count",
             "created",
@@ -293,6 +304,8 @@ class TestGetRewind(RewindAPITestBase):
             "content_size_bytes",
             "editors",
             "label",
+            "lines_added",
+            "lines_deleted",
             "is_compacted",
             "compacted_from_count",
             "created",
@@ -804,3 +817,280 @@ class TestRewindAPIIntegration(RewindAPITestBase):
         resp = self.send_api_request(url=f"/api/pages/{self.page.external_id}/rewind/")
         self.assertEqual(resp.json()["count"], 1)
         self.assertEqual(resp.json()["items"][0]["title"], self.page.title)
+
+
+# ============================================================
+# LINE DIFF STATS
+# ============================================================
+
+
+class TestLineDiffInListEndpoint(RewindAPITestBase):
+    """Test that list endpoint returns lines_added/lines_deleted."""
+
+    def test_first_rewind_shows_all_lines_added(self):
+        self._create_rewind("line1\nline2\nline3")
+
+        response = self.send_api_request(url=f"/api/pages/{self.page.external_id}/rewind/")
+        item = response.json()["items"][0]
+
+        self.assertEqual(item["lines_added"], 3)
+        self.assertEqual(item["lines_deleted"], 0)
+
+    def test_first_rewind_empty_content_zero_diff(self):
+        self._create_rewind("")
+
+        response = self.send_api_request(url=f"/api/pages/{self.page.external_id}/rewind/")
+        item = response.json()["items"][0]
+
+        self.assertEqual(item["lines_added"], 0)
+        self.assertEqual(item["lines_deleted"], 0)
+
+    @override_settings(REWIND_MIN_INTERVAL_SECONDS=0)
+    def test_second_rewind_shows_additions(self):
+        self._create_rewind("line1")
+        self._create_rewind_backdated("line1\nline2\nline3")
+
+        response = self.send_api_request(url=f"/api/pages/{self.page.external_id}/rewind/")
+        # Items are ordered desc by rewind_number; first item is v2
+        v2_item = response.json()["items"][0]
+
+        self.assertEqual(v2_item["lines_added"], 2)
+        self.assertEqual(v2_item["lines_deleted"], 0)
+
+    @override_settings(REWIND_MIN_INTERVAL_SECONDS=0)
+    def test_second_rewind_shows_deletions(self):
+        self._create_rewind("line1\nline2\nline3")
+        self._create_rewind_backdated("line1")
+
+        response = self.send_api_request(url=f"/api/pages/{self.page.external_id}/rewind/")
+        v2_item = response.json()["items"][0]
+
+        self.assertEqual(v2_item["lines_added"], 0)
+        self.assertEqual(v2_item["lines_deleted"], 2)
+
+    @override_settings(REWIND_MIN_INTERVAL_SECONDS=0)
+    def test_replacement_shows_both_added_and_deleted(self):
+        self._create_rewind("old_line")
+        self._create_rewind_backdated("new_line")
+
+        response = self.send_api_request(url=f"/api/pages/{self.page.external_id}/rewind/")
+        v2_item = response.json()["items"][0]
+
+        self.assertEqual(v2_item["lines_added"], 1)
+        self.assertEqual(v2_item["lines_deleted"], 1)
+
+
+class TestLineDiffInGetEndpoint(RewindAPITestBase):
+    """Test that get detail endpoint returns lines_added/lines_deleted."""
+
+    def test_get_rewind_includes_diff_stats(self):
+        rewind = self._create_rewind("line1\nline2")
+
+        response = self.send_api_request(url=f"/api/pages/{self.page.external_id}/rewind/{rewind.external_id}/")
+        data = response.json()
+
+        self.assertEqual(data["lines_added"], 2)
+        self.assertEqual(data["lines_deleted"], 0)
+
+    @override_settings(REWIND_MIN_INTERVAL_SECONDS=0)
+    def test_get_second_rewind_diff_stats(self):
+        self._create_rewind("a\nb")
+        v2 = self._create_rewind_backdated("a\nb\nc\nd")
+
+        response = self.send_api_request(url=f"/api/pages/{self.page.external_id}/rewind/{v2.external_id}/")
+        data = response.json()
+
+        self.assertEqual(data["lines_added"], 2)
+        self.assertEqual(data["lines_deleted"], 0)
+
+
+class TestLineDiffInRestoreEndpoint(RewindAPITestBase):
+    """Test that restore creates a rewind with correct diff stats."""
+
+    def test_restore_rewind_has_diff_stats(self):
+        """Restoring from 'Changed' to 'Original' should compute diff between them."""
+        original = self._create_rewind("Original\nline2")
+        self._create_rewind_backdated("Changed\nline2\nline3")
+
+        # Sync page details to match latest rewind (mirrors sync_snapshot_with_page)
+        self.page.details["content"] = "Changed\nline2\nline3"
+        self.page.save(update_fields=["details"])
+
+        response = self.send_api_request(
+            url=f"/api/pages/{self.page.external_id}/rewind/{original.external_id}/restore/",
+            method="post",
+        )
+        data = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertIn("lines_added", data)
+        self.assertIn("lines_deleted", data)
+        # Restoring "Original\nline2" from "Changed\nline2\nline3"
+        # "Changed" → "Original" (1 replace), "line3" removed (1 delete)
+        self.assertEqual(data["lines_added"], 1)
+        self.assertEqual(data["lines_deleted"], 2)
+
+    def test_restore_to_same_content_shows_zero_diff(self):
+        """If current content matches the restore target, diff should be 0/0."""
+        # Create rewind with content A
+        original = self._create_rewind("Same content")
+        # Page details already have "Same content" as current
+        self.page.details["content"] = "Same content"
+        self.page.save(update_fields=["details"])
+
+        response = self.send_api_request(
+            url=f"/api/pages/{self.page.external_id}/rewind/{original.external_id}/restore/",
+            method="post",
+        )
+        data = response.json()
+
+        self.assertEqual(data["lines_added"], 0)
+        self.assertEqual(data["lines_deleted"], 0)
+
+    def test_restore_from_empty_to_content(self):
+        """Restoring content when current page is empty."""
+        original = self._create_rewind("line1\nline2\nline3")
+        self._create_rewind_backdated("")
+
+        # Ensure page details reflect empty content
+        self.page.refresh_from_db()
+        self.page.details["content"] = ""
+        self.page.save(update_fields=["details"])
+
+        response = self.send_api_request(
+            url=f"/api/pages/{self.page.external_id}/rewind/{original.external_id}/restore/",
+            method="post",
+        )
+        data = response.json()
+
+        self.assertEqual(data["lines_added"], 3)
+        self.assertEqual(data["lines_deleted"], 0)
+
+    def test_restore_from_content_to_empty(self):
+        """Restoring to an empty rewind when page has content."""
+        empty_rewind = self._create_rewind("")
+        self._create_rewind_backdated("line1\nline2\nline3")
+
+        # Ensure page has current content
+        self.page.refresh_from_db()
+        self.page.details["content"] = "line1\nline2\nline3"
+        self.page.save(update_fields=["details"])
+
+        response = self.send_api_request(
+            url=f"/api/pages/{self.page.external_id}/rewind/{empty_rewind.external_id}/restore/",
+            method="post",
+        )
+        data = response.json()
+
+        self.assertEqual(data["lines_added"], 0)
+        self.assertEqual(data["lines_deleted"], 3)
+
+
+class TestRestoreUpdatesPageDetails(RewindAPITestBase):
+    """Verify restore side-effects: page details, rewind number, CRDT cleanup, permissions."""
+
+    def test_restore_updates_page_content_and_hash(self):
+        """After restore, page.details should reflect the restored content."""
+        original = self._create_rewind("original content")
+        self._create_rewind_backdated("changed content")
+
+        self.page.details["content"] = "changed content"
+        self.page.save(update_fields=["details"])
+
+        self.send_api_request(
+            url=f"/api/pages/{self.page.external_id}/rewind/{original.external_id}/restore/",
+            method="post",
+        )
+
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.details["content"], "original content")
+        self.assertEqual(self.page.details["content_hash"], hashify("original content"))
+
+    def test_restore_increments_current_rewind_number(self):
+        """Restore creates a new rewind, so current_rewind_number should increase by 1."""
+        original = self._create_rewind("v1 content")
+        self._create_rewind_backdated("v2 content")
+
+        self.page.details["content"] = "v2 content"
+        self.page.save(update_fields=["details"])
+
+        self.page.refresh_from_db()
+        rewind_number_before = self.page.current_rewind_number
+
+        self.send_api_request(
+            url=f"/api/pages/{self.page.external_id}/rewind/{original.external_id}/restore/",
+            method="post",
+        )
+
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.current_rewind_number, rewind_number_before + 1)
+
+    @patch("pages.api.rewind._disconnect_ws_clients")
+    def test_restore_clears_crdt_state(self, mock_disconnect):
+        """Restore should delete all YUpdate and YSnapshot records for the page's room."""
+        original = self._create_rewind("v1 content")
+        self._create_rewind_backdated("v2 content")
+
+        self.page.details["content"] = "v2 content"
+        self.page.save(update_fields=["details"])
+
+        room_id = f"page_{self.page.external_id}"
+        YUpdate.objects.create(room_id=room_id, yupdate=b"\x00")
+        YSnapshot.objects.create(room_id=room_id, snapshot=b"\x00", last_update_id=1)
+
+        self.assertEqual(YUpdate.objects.filter(room_id=room_id).count(), 1)
+        self.assertEqual(YSnapshot.objects.filter(room_id=room_id).count(), 1)
+
+        self.send_api_request(
+            url=f"/api/pages/{self.page.external_id}/rewind/{original.external_id}/restore/",
+            method="post",
+        )
+
+        self.assertEqual(YUpdate.objects.filter(room_id=room_id).count(), 0)
+        self.assertEqual(YSnapshot.objects.filter(room_id=room_id).count(), 0)
+
+    def test_viewer_cannot_restore(self):
+        """A user with viewer role on the page should not be able to restore."""
+        viewer = UserFactory()
+        PageEditorFactory(user=viewer, page=self.page, role=PageEditorRole.VIEWER.value)
+
+        original = self._create_rewind("content")
+
+        self.login(viewer)
+        response = self.send_api_request(
+            url=f"/api/pages/{self.page.external_id}/rewind/{original.external_id}/restore/",
+            method="post",
+        )
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+
+class TestLineDiffFullLifecycle(RewindAPITestBase):
+    """Integration test: create multiple rewinds and verify diff stats across list."""
+
+    @override_settings(REWIND_MIN_INTERVAL_SECONDS=0)
+    def test_three_rewinds_each_with_correct_diff(self):
+        """Create 3 rewinds and verify each has correct diff relative to its predecessor."""
+        # v1: 2 lines from nothing
+        self._create_rewind("a\nb")
+        # v2: add 1 line
+        self._create_rewind_backdated("a\nb\nc")
+        # v3: replace 'c' with 'x', add 'd'
+        self._create_rewind_backdated("a\nb\nx\nd")
+
+        response = self.send_api_request(url=f"/api/pages/{self.page.external_id}/rewind/")
+        items = response.json()["items"]  # ordered desc: v3, v2, v1
+
+        # v3: compared to v2 ("a\nb\nc" → "a\nb\nx\nd") → +2 -1
+        self.assertEqual(items[0]["rewind_number"], 3)
+        self.assertEqual(items[0]["lines_added"], 2)
+        self.assertEqual(items[0]["lines_deleted"], 1)
+
+        # v2: compared to v1 ("a\nb" → "a\nb\nc") → +1 -0
+        self.assertEqual(items[1]["rewind_number"], 2)
+        self.assertEqual(items[1]["lines_added"], 1)
+        self.assertEqual(items[1]["lines_deleted"], 0)
+
+        # v1: first rewind ("" → "a\nb") → +2 -0
+        self.assertEqual(items[2]["rewind_number"], 1)
+        self.assertEqual(items[2]["lines_added"], 2)
+        self.assertEqual(items[2]["lines_deleted"], 0)

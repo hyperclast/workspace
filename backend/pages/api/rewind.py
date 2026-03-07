@@ -16,6 +16,7 @@ from core.helpers import hashify
 from pages.models import Page
 from pages.models.rewind import Rewind
 from pages.permissions import user_can_access_page, user_can_edit_in_page
+from pages.services.rewind import _compute_line_diff
 from pages.schemas import (
     RewindListQuery,
     RewindOut,
@@ -96,6 +97,10 @@ def restore_rewind(request: HttpRequest, external_id: str, rewind_external_id: s
         # from racing on current_rewind_number.
         page = Page.objects.select_for_update().get(id=page.id)
 
+        # Compute line diff between current page content and restored content
+        current_content = page.details.get("content", "")
+        lines_added, lines_deleted = _compute_line_diff(current_content, content)
+
         # Update page details
         page.title = rewind.title
         page.details["content"] = content
@@ -114,6 +119,8 @@ def restore_rewind(request: HttpRequest, external_id: str, rewind_external_id: s
             rewind_number=page.current_rewind_number,
             editors=[str(request.user.external_id)],
             label=f"Restored from v{rewind.rewind_number}",
+            lines_added=lines_added,
+            lines_deleted=lines_deleted,
         )
 
         # Reset CRDT state

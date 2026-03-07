@@ -18,6 +18,7 @@ def get_feature_flags():
         "devSidebar": getattr(settings, "DEV_SIDEBAR_ENABLED", False),
         "privateFeatures": list(getattr(settings, "PRIVATE_FEATURES", [])),
         "privateConfig": getattr(settings, "PRIVATE_CONFIG", {}),
+        "rewind": getattr(settings, "REWIND_ENABLED", False),
         "brandName": get_brand_name(),
     }
 

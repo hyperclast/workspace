@@ -100,6 +100,8 @@ import ThemeToggle from "./lib/components/ThemeToggle.svelte";
 import PdfViewer from "./pdf/PdfViewer.svelte";
 import { addRecentPage } from "./lib/recentPages.js";
 import { commandPalette } from "./lib/modal.js";
+import { setupRewind, exitRewindMode } from "./rewind/index.js";
+import RewindViewer from "./rewind/RewindViewer.svelte";
 
 /**
  * Check if focus is currently in an input element where ? should be typed.
@@ -262,6 +264,7 @@ function renderAppHTML() {
           </div>
           <div id="editor"></div>
         </div>
+        <div id="rewind-viewer" style="display: none;"></div>
       </div>
 
       <!-- Sidebar container - mounted by Svelte -->
@@ -1009,6 +1012,11 @@ window.isCollabSynced = () => {
  * Cleanup page state without navigating (used when switching pages).
  */
 function cleanupCurrentPage() {
+  // Exit rewind mode if active when switching pages
+  if (window._rewindActive && window._rewindActive()) {
+    exitRewindMode();
+  }
+
   if (cleanupUnloadHandler) {
     cleanupUnloadHandler();
     cleanupUnloadHandler = null;
@@ -2240,6 +2248,12 @@ async function startApp() {
   // Mount PDF viewer (global modal, triggers from link clicks)
   mount(PdfViewer, { target: document.body });
 
+  // Mount rewind viewer (hidden by default, shown when entering rewind mode)
+  const rewindViewerRoot = document.getElementById("rewind-viewer");
+  if (rewindViewerRoot) {
+    mount(RewindViewer, { target: rewindViewerRoot });
+  }
+
   // Setup file drag-drop upload (once, with dynamic permission checks)
   const featureFlags = getFeatureFlags();
   const showFileUpload = featureFlags.filehub !== false;
@@ -2380,6 +2394,11 @@ async function startApp() {
 
   // Setup right sidebar (AI chat, links)
   setupSidebar();
+
+  // Setup rewind feature (timeline tab + viewer)
+  if (getFeatureFlags().rewind) {
+    setupRewind();
+  }
 
   // Setup left sidenav (pages list)
   setNavigateCallback(async (externalId) => {

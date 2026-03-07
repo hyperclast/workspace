@@ -49,6 +49,7 @@
     "@codemirror/view": "^6.37.2",
     "blueimp-md5": "^2.19.0",
     "codemirror": "^6.0.1",
+    "diff": "^8.0.3",
     "lucide-static": "^0.518.0",
     "pdfjs-dist": "^4.8.69",
     "y-codemirror.next": "^0.3.5",

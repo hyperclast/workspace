@@ -12,6 +12,7 @@
   import AskTab from "./sidebar/AskTab.svelte";
   import LinksTab from "./sidebar/LinksTab.svelte";
   import DevTab from "./sidebar/DevTab.svelte";
+  import RewindTab from "../../rewind/RewindTab.svelte";
 
   const state = getState();
   const featureFlags = getFeatureFlags();
@@ -147,8 +148,19 @@
     </div>
   {/if}
 
+  <!-- Rewind Tab (conditionally rendered) -->
+  {#if featureFlags.rewind}
+    <div
+      class="sidebar-tab-content"
+      class:hidden={activeTab !== "rewind"}
+      data-tab-content="rewind"
+    >
+      <RewindTab />
+    </div>
+  {/if}
+
   <!-- Private tabs will be dynamically added -->
-  {#each tabs.filter(t => t.id !== "ask" && t.id !== "links" && t.id !== "dev") as tab (tab.id)}
+  {#each tabs.filter(t => t.id !== "ask" && t.id !== "links" && t.id !== "dev" && t.id !== "rewind") as tab (tab.id)}
     <div
       class="sidebar-tab-content"
       class:hidden={activeTab !== tab.id}

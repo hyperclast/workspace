@@ -15,6 +15,9 @@ function getInitialTabs() {
     tabs.push({ id: "dev", label: "Dev" });
   }
   tabs.push({ id: "links", label: "Ref" });
+  if (flags.rewind) {
+    tabs.push({ id: "rewind", label: "Rewind" });
+  }
   return tabs;
 }
 

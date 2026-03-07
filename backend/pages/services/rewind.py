@@ -1,3 +1,4 @@
+import difflib
 import logging
 
 from django.conf import settings
@@ -10,6 +11,23 @@ from pages.models.rewind import Rewind, RewindEditorSession
 
 
 logger = logging.getLogger(__name__)
+
+
+def _compute_line_diff(old_content, new_content):
+    """Count added and deleted lines between two content strings."""
+    old_lines = old_content.splitlines()
+    new_lines = new_content.splitlines()
+    added = 0
+    deleted = 0
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, old_lines, new_lines).get_opcodes():
+        if op == "replace":
+            deleted += i2 - i1
+            added += j2 - j1
+        elif op == "insert":
+            added += j2 - j1
+        elif op == "delete":
+            deleted += i2 - i1
+    return added, deleted
 
 
 def maybe_create_rewind(page, content, content_hash, is_session_end=False):
@@ -26,7 +44,7 @@ def maybe_create_rewind(page, content, content_hash, is_session_end=False):
     latest = (
         Rewind.objects.filter(page=page)
         .order_by("-rewind_number")
-        .values("content_hash", "created", "content_size_bytes")
+        .values("content_hash", "created", "content_size_bytes", "content")
         .first()
     )
 
@@ -63,6 +81,13 @@ def maybe_create_rewind(page, content, content_hash, is_session_end=False):
     # Collect editors from recent sessions
     editors = _collect_editors(page, latest)
 
+    # Compute line diff against previous rewind
+    if latest:
+        lines_added, lines_deleted = _compute_line_diff(latest["content"], content)
+    else:
+        lines_added = len(content.splitlines())
+        lines_deleted = 0
+
     # Create rewind
     with transaction.atomic():
         # Atomic increment — PostgreSQL's UPDATE SET col = col + 1 takes an
@@ -79,6 +104,8 @@ def maybe_create_rewind(page, content, content_hash, is_session_end=False):
             content_size_bytes=content_size,
             rewind_number=new_rewind_number,
             editors=editors,
+            lines_added=lines_added,
+            lines_deleted=lines_deleted,
         )
 
     # Sync the caller's in-memory page object

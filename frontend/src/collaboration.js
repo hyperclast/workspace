@@ -267,6 +267,12 @@ export function createCollaborationObjects(pageExternalId, displayName = "Anonym
                 detail: { pageId: message.page_id },
               })
             );
+          } else if (message.type === "rewind_created") {
+            window.dispatchEvent(
+              new CustomEvent("rewindCreated", {
+                detail: { pageId: message.page_id, rewind: message.rewind },
+              })
+            );
           }
         } catch (e) {
           // Not a JSON message, ignore

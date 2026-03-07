@@ -5,7 +5,7 @@ from django.utils import timezone
 
 from core.helpers import hashify
 from pages.models.rewind import Rewind, RewindEditorSession
-from pages.services.rewind import _collect_editors, maybe_create_rewind
+from pages.services.rewind import _collect_editors, _compute_line_diff, maybe_create_rewind
 from pages.tests.factories import PageFactory
 from users.tests.factories import UserFactory
 
@@ -826,3 +826,274 @@ class TestMaybeCreateRewindLargeContent(TestCase):
         rewind = maybe_create_rewind(self.page, "", hashify(""))
 
         self.assertIsNotNone(rewind)
+
+
+# ============================================================
+# LINE DIFF COMPUTATION - _compute_line_diff()
+# ============================================================
+
+
+class TestComputeLineDiff(TestCase):
+    """Tests for the _compute_line_diff helper function."""
+
+    def test_identical_content_returns_zero(self):
+        added, deleted = _compute_line_diff("hello\nworld", "hello\nworld")
+        self.assertEqual(added, 0)
+        self.assertEqual(deleted, 0)
+
+    def test_both_empty_returns_zero(self):
+        added, deleted = _compute_line_diff("", "")
+        self.assertEqual(added, 0)
+        self.assertEqual(deleted, 0)
+
+    def test_empty_to_content_counts_all_added(self):
+        added, deleted = _compute_line_diff("", "line1\nline2\nline3")
+        self.assertEqual(added, 3)
+        self.assertEqual(deleted, 0)
+
+    def test_content_to_empty_counts_all_deleted(self):
+        added, deleted = _compute_line_diff("line1\nline2\nline3", "")
+        self.assertEqual(added, 0)
+        self.assertEqual(deleted, 3)
+
+    def test_single_line_added(self):
+        added, deleted = _compute_line_diff("line1\nline2", "line1\nline2\nline3")
+        self.assertEqual(added, 1)
+        self.assertEqual(deleted, 0)
+
+    def test_single_line_deleted(self):
+        added, deleted = _compute_line_diff("line1\nline2\nline3", "line1\nline3")
+        self.assertEqual(added, 0)
+        self.assertEqual(deleted, 1)
+
+    def test_single_line_replaced(self):
+        """Replacing one line counts as 1 added + 1 deleted."""
+        added, deleted = _compute_line_diff("line1\nold\nline3", "line1\nnew\nline3")
+        self.assertEqual(added, 1)
+        self.assertEqual(deleted, 1)
+
+    def test_multiple_replacements(self):
+        old = "a\nb\nc\nd"
+        new = "a\nX\nY\nd"
+        added, deleted = _compute_line_diff(old, new)
+        self.assertEqual(added, 2)
+        self.assertEqual(deleted, 2)
+
+    def test_mixed_add_delete_replace(self):
+        """Combination: add lines, delete lines, replace lines."""
+        old = "keep\ndelete_me\nreplace_me\nkeep2"
+        new = "keep\nnew_replaced\nkeep2\nadded"
+        added, deleted = _compute_line_diff(old, new)
+        # 'delete_me' deleted, 'replace_me' replaced with 'new_replaced', 'added' appended
+        self.assertGreater(added, 0)
+        self.assertGreater(deleted, 0)
+
+    def test_only_whitespace_lines_differ(self):
+        old = "line1\n\nline3"
+        new = "line1\n \nline3"
+        added, deleted = _compute_line_diff(old, new)
+        # The blank line changed to space line — 1 replaced
+        self.assertEqual(added, 1)
+        self.assertEqual(deleted, 1)
+
+    def test_large_addition_block(self):
+        """Pasting a large block should count all pasted lines as added."""
+        old = "header"
+        new = "header\n" + "\n".join(f"line{i}" for i in range(100))
+        added, deleted = _compute_line_diff(old, new)
+        self.assertEqual(added, 100)
+        self.assertEqual(deleted, 0)
+
+    def test_large_deletion_block(self):
+        old = "header\n" + "\n".join(f"line{i}" for i in range(100))
+        new = "header"
+        added, deleted = _compute_line_diff(old, new)
+        self.assertEqual(added, 0)
+        self.assertEqual(deleted, 100)
+
+    def test_reorder_lines(self):
+        """Reordering all lines counts as changes."""
+        old = "a\nb\nc"
+        new = "c\nb\na"
+        added, deleted = _compute_line_diff(old, new)
+        # At minimum some lines changed
+        self.assertGreater(added + deleted, 0)
+
+    def test_single_line_content(self):
+        """Single line to different single line."""
+        added, deleted = _compute_line_diff("old", "new")
+        self.assertEqual(added, 1)
+        self.assertEqual(deleted, 1)
+
+    def test_empty_to_single_line(self):
+        added, deleted = _compute_line_diff("", "hello")
+        self.assertEqual(added, 1)
+        self.assertEqual(deleted, 0)
+
+    def test_single_line_to_empty(self):
+        added, deleted = _compute_line_diff("hello", "")
+        self.assertEqual(added, 0)
+        self.assertEqual(deleted, 1)
+
+    def test_unicode_content(self):
+        old = "Hello 世界\nfoo"
+        new = "Hello 世界\nbar\nbaz"
+        added, deleted = _compute_line_diff(old, new)
+        self.assertEqual(added, 2)
+        self.assertEqual(deleted, 1)
+
+    def test_trailing_newline_difference(self):
+        """Trailing newline creates an extra empty line in splitlines()? No — splitlines() ignores trailing."""
+        old = "line1\nline2"
+        new = "line1\nline2\n"
+        added, deleted = _compute_line_diff(old, new)
+        # splitlines() treats both identically
+        self.assertEqual(added, 0)
+        self.assertEqual(deleted, 0)
+
+
+# ============================================================
+# LINE DIFF IN maybe_create_rewind() - INTEGRATION
+# ============================================================
+
+
+class TestMaybeCreateRewindLineDiff(TestCase):
+    """Tests that maybe_create_rewind computes and stores line diff stats."""
+
+    def setUp(self):
+        self.page = PageFactory()
+
+    def test_first_rewind_all_lines_added(self):
+        """First rewind: all lines are additions, zero deletions."""
+        content = "line1\nline2\nline3"
+        rewind = maybe_create_rewind(self.page, content, hashify(content))
+
+        self.assertEqual(rewind.lines_added, 3)
+        self.assertEqual(rewind.lines_deleted, 0)
+
+    def test_first_rewind_empty_content_zero_diff(self):
+        """First rewind with empty content: zero lines added."""
+        rewind = maybe_create_rewind(self.page, "", hashify(""))
+
+        self.assertEqual(rewind.lines_added, 0)
+        self.assertEqual(rewind.lines_deleted, 0)
+
+    def test_first_rewind_single_line(self):
+        rewind = maybe_create_rewind(self.page, "hello", hashify("hello"))
+
+        self.assertEqual(rewind.lines_added, 1)
+        self.assertEqual(rewind.lines_deleted, 0)
+
+    @override_settings(REWIND_MIN_INTERVAL_SECONDS=0)
+    def test_second_rewind_with_additions(self):
+        """Adding lines to existing content."""
+        v1_content = "line1\nline2"
+        maybe_create_rewind(self.page, v1_content, hashify(v1_content))
+        self.page.refresh_from_db()
+
+        v2_content = "line1\nline2\nline3\nline4"
+        v2 = maybe_create_rewind(self.page, v2_content, hashify(v2_content))
+
+        self.assertEqual(v2.lines_added, 2)
+        self.assertEqual(v2.lines_deleted, 0)
+
+    @override_settings(REWIND_MIN_INTERVAL_SECONDS=0)
+    def test_second_rewind_with_deletions(self):
+        """Removing lines from existing content."""
+        v1_content = "line1\nline2\nline3"
+        maybe_create_rewind(self.page, v1_content, hashify(v1_content))
+        self.page.refresh_from_db()
+
+        v2_content = "line1"
+        v2 = maybe_create_rewind(self.page, v2_content, hashify(v2_content))
+
+        self.assertEqual(v2.lines_added, 0)
+        self.assertEqual(v2.lines_deleted, 2)
+
+    @override_settings(REWIND_MIN_INTERVAL_SECONDS=0)
+    def test_second_rewind_with_replacement(self):
+        """Replacing a line shows both added and deleted."""
+        v1_content = "line1\nold_line\nline3"
+        maybe_create_rewind(self.page, v1_content, hashify(v1_content))
+        self.page.refresh_from_db()
+
+        v2_content = "line1\nnew_line\nline3"
+        v2 = maybe_create_rewind(self.page, v2_content, hashify(v2_content))
+
+        self.assertEqual(v2.lines_added, 1)
+        self.assertEqual(v2.lines_deleted, 1)
+
+    @override_settings(REWIND_MIN_INTERVAL_SECONDS=0)
+    def test_diff_is_against_previous_rewind_content(self):
+        """The diff should compare against the previous rewind's content, not the page content."""
+        v1 = maybe_create_rewind(self.page, "a", hashify("a"))
+        self.page.refresh_from_db()
+
+        v2 = maybe_create_rewind(self.page, "a\nb", hashify("a\nb"))
+        self.page.refresh_from_db()
+
+        v3 = maybe_create_rewind(self.page, "a\nb\nc", hashify("a\nb\nc"))
+
+        # v3 should compare against v2, not v1
+        self.assertEqual(v3.lines_added, 1)
+        self.assertEqual(v3.lines_deleted, 0)
+
+    @override_settings(REWIND_MIN_INTERVAL_SECONDS=0)
+    def test_large_paste_counts_all_pasted_lines(self):
+        """Pasting 200 lines into an empty doc."""
+        maybe_create_rewind(self.page, "", hashify(""))
+        self.page.refresh_from_db()
+
+        content = "\n".join(f"line{i}" for i in range(200))
+        v2 = maybe_create_rewind(self.page, content, hashify(content))
+
+        self.assertEqual(v2.lines_added, 200)
+        self.assertEqual(v2.lines_deleted, 0)
+
+    @override_settings(REWIND_MIN_INTERVAL_SECONDS=0)
+    def test_complete_rewrite(self):
+        """Replacing all content with completely different content."""
+        v1_content = "old1\nold2\nold3"
+        maybe_create_rewind(self.page, v1_content, hashify(v1_content))
+        self.page.refresh_from_db()
+
+        v2_content = "new1\nnew2"
+        v2 = maybe_create_rewind(self.page, v2_content, hashify(v2_content))
+
+        self.assertEqual(v2.lines_added, 2)
+        self.assertEqual(v2.lines_deleted, 3)
+
+    @override_settings(REWIND_MIN_INTERVAL_SECONDS=0)
+    def test_diff_persisted_in_database(self):
+        """Verify the diff stats survive a database round-trip."""
+        content = "line1\nline2"
+        rewind = maybe_create_rewind(self.page, content, hashify(content))
+
+        rewind_from_db = Rewind.objects.get(id=rewind.id)
+        self.assertEqual(rewind_from_db.lines_added, 2)
+        self.assertEqual(rewind_from_db.lines_deleted, 0)
+
+    @override_settings(REWIND_MIN_INTERVAL_SECONDS=0)
+    def test_skipped_rewind_returns_none_no_diff_stored(self):
+        """When rewind is skipped (dedup), no new record is created."""
+        content = "hello"
+        maybe_create_rewind(self.page, content, hashify(content))
+        self.page.refresh_from_db()
+
+        # Same content, should be skipped
+        result = maybe_create_rewind(self.page, content, hashify(content))
+        self.assertIsNone(result)
+        self.assertEqual(Rewind.objects.filter(page=self.page).count(), 1)
+
+    def test_diff_fields_default_to_zero_in_model(self):
+        """Direct model creation defaults to 0."""
+        rewind = Rewind.objects.create(
+            page=self.page,
+            content="test",
+            content_hash=hashify("test"),
+            title="test",
+            content_size_bytes=4,
+            rewind_number=1,
+        )
+        self.assertEqual(rewind.lines_added, 0)
+        self.assertEqual(rewind.lines_deleted, 0)
