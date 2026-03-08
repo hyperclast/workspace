@@ -3,14 +3,14 @@
 set -euo pipefail
 
 # Parse arguments
-USE_MINIO=false
+USE_MINIO=true
 USE_SOCRATIC=false
 PORT=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --minio)
-            USE_MINIO=true
+        --no-minio)
+            USE_MINIO=false
             shift
             ;;
         --socratic)
@@ -51,6 +51,8 @@ fi
 
 if [[ "$USE_MINIO" == "true" ]]; then
     echo "MinIO: enabled (S3 API on 9000, console on 9001)"
+else
+    echo "MinIO: disabled (use default to enable)"
 fi
 
 echo "Starting docker-compose..."

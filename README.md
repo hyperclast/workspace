@@ -34,7 +34,7 @@ EOF
 Run:
 
 ```sh
-./run-stack.sh 9800           # Start stack (webapp at localhost:9800)
+./run-stack.sh 9800           # Start stack with MinIO (webapp at localhost:9800)
 ./restart-stack.sh backend    # Restart Django after code changes
 ./restart-stack.sh ls         # List running stacks
 ```
@@ -69,13 +69,7 @@ WS_FILEHUB_R2_BUCKET=hyperclast-ws-uploads
 
 See [Cloudflare R2 Setup Guide](docs/cloudflare/r2-setup.md) for detailed instructions.
 
-For local development, you can use MinIO as an R2 emulator:
-
-```sh
-./run-stack.sh --minio 9800
-```
-
-This starts all services plus MinIO with file uploads automatically enabled (S3 API on port 9000, console on port 9001). See [MinIO Local Setup](docs/cloudflare/minio-local-setup.md) for details.
+MinIO is included by default in the Docker stack, so file uploads work out of the box (S3 API on port 9000, console on port 9001). To disable MinIO, use `./run-stack.sh --no-minio 9800`. See [MinIO Local Setup](docs/cloudflare/minio-local-setup.md) for details.
 
 ### Data Import (Notion)
 

@@ -65,6 +65,6 @@ def archive_import_file(archive, file_content: bytes):
     archive.object_key = object_key
     archive.size_bytes = len(file_content)
     archive.etag = result.get("etag")
-    archive.save(update_fields=["provider", "bucket", "object_key", "size_bytes", "etag"])
+    archive.save(update_fields=["provider", "bucket", "object_key", "size_bytes", "etag", "modified"])
 
     return archive

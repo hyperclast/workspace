@@ -4,6 +4,7 @@ Subclasses pycrdt-websocket's YjsConsumer.
 """
 
 import asyncio
+import json
 from typing import Optional, Tuple
 
 from asgiref.sync import sync_to_async
@@ -590,12 +591,10 @@ class PageYjsConsumer(BaseYjsConsumer):
         """
         page_id = event.get("page_id", "")
         log_debug(f"Sending links_updated to client for page {page_id}")
-        await self.send(text_data=f'{{"type":"links_updated","page_id":"{page_id}"}}')
+        await self.send(text_data=json.dumps({"type": "links_updated", "page_id": page_id}))
 
     async def rewind_created(self, event):
         """Forward rewind_created to the WebSocket client."""
-        import json
-
         await self.send(
             text_data=json.dumps(
                 {

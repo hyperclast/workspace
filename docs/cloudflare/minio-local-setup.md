@@ -7,10 +7,10 @@ MinIO provides an S3-compatible storage service that emulates Cloudflare R2 for 
 The easiest way to use MinIO is with the full Docker stack:
 
 ```bash
-./run-stack.sh --minio 9800
+./run-stack.sh 9800
 ```
 
-This starts all services (web, db, redis, rq) plus MinIO, with R2 configuration automatically injected. No additional `.env` configuration needed. The file upload feature (`WS_FILEHUB_FEATURE_ENABLED`) is automatically enabled.
+MinIO is included by default. This starts all services (web, db, redis, rq) plus MinIO, with R2 configuration automatically injected. No additional `.env` configuration needed. The file upload feature (`WS_FILEHUB_FEATURE_ENABLED`) is automatically enabled. To disable MinIO, use `./run-stack.sh --no-minio 9800`.
 
 - Web app: http://localhost:9800
 - MinIO S3 API: http://localhost:9000
@@ -52,7 +52,7 @@ MinIO uses sensible defaults but can be customized via environment variables (wi
 | `WS_MINIO_CONSOLE_PORT`  | `9001`               | Web console port        |
 | `WS_FILEHUB_R2_BUCKET`   | `ws-filehub-uploads` | Bucket for file uploads |
 
-These are read from `.env-docker` when using `run-stack.sh --minio`, or can be set in the environment.
+These are read from `.env-docker` when using `run-stack.sh` (MinIO is included by default), or can be set in the environment.
 
 ## Web Console
 
@@ -89,7 +89,7 @@ The setup creates two services:
 1. **ws-minio**: The MinIO server (S3 API on port 9000, console on port 9001)
 2. **ws-minio-init**: One-shot container that creates the bucket on startup
 
-When used with `run-stack.sh --minio`, the compose file also injects R2 configuration into ws-web and ws-rq services.
+When used with `run-stack.sh` (MinIO is included by default), the compose file also injects R2 configuration into ws-web and ws-rq services.
 
 ## Troubleshooting
 

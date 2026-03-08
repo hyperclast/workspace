@@ -208,7 +208,7 @@ def handle_object_delete(payload: R2EventPayload) -> tuple[int, WebhookResponse]
 
     if blob:
         blob.status = BlobStatus.FAILED
-        blob.save(update_fields=["status"])
+        blob.save(update_fields=["status", "modified"])
         logger.info(f"Marked blob as failed due to R2 delete: {blob.object_key}")
 
     # Check if any verified blobs remain

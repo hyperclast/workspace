@@ -135,7 +135,7 @@ def update_settings(request: HttpRequest, payload: UpdateSettingsSchema):
             update_fields[field] = value
 
         if update_fields:
-            profile.save(update_fields=list(update_fields.keys()))
+            profile.save(update_fields=list(update_fields.keys()) + ["modified"])
             result["details"] = (
                 {
                     "updated_fields": update_fields,

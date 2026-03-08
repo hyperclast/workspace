@@ -63,7 +63,7 @@ def process_notion_import(import_job_id: int):
 
         # Update status to processing
         job.status = ImportJobStatus.PROCESSING
-        job.save(update_fields=["status"])
+        job.save(update_fields=["status", "modified"])
 
         logger.info(f"Processing import job {job.external_id} for user {job.user_id}")
 
@@ -79,7 +79,7 @@ def process_notion_import(import_job_id: int):
         if not job.metadata:
             job.metadata = {}
         job.metadata["archive_inspection"] = inspection_result.to_dict()
-        job.save(update_fields=["metadata"])
+        job.save(update_fields=["metadata", "modified"])
 
         logger.info(
             f"Archive inspection passed for job {job.external_id}: "
@@ -100,7 +100,7 @@ def process_notion_import(import_job_id: int):
         # Update total pages count
         flat_pages = flatten_page_tree(parsed_pages)
         job.total_pages = len(flat_pages)
-        job.save(update_fields=["total_pages"])
+        job.save(update_fields=["total_pages", "modified"])
 
         logger.info(f"Found {job.total_pages} pages to import for job {job.external_id}")
 
@@ -116,7 +116,7 @@ def process_notion_import(import_job_id: int):
         job.pages_imported_count = result["stats"]["created"]
         job.pages_skipped_count = result["stats"]["skipped"]
         job.pages_failed_count = result["stats"]["failed"]
-        job.save(update_fields=["pages_imported_count", "pages_skipped_count", "pages_failed_count"])
+        job.save(update_fields=["pages_imported_count", "pages_skipped_count", "pages_failed_count", "modified"])
 
         # Fail if no content was imported or skipped (empty archive or unsupported formats only)
         if job.pages_imported_count == 0 and job.pages_skipped_count == 0:
@@ -139,7 +139,7 @@ def process_notion_import(import_job_id: int):
 
         # Mark as completed
         job.status = ImportJobStatus.COMPLETED
-        job.save(update_fields=["status"])
+        job.save(update_fields=["status", "modified"])
 
         logger.info(
             f"Import job {job.external_id} completed: "
@@ -171,7 +171,7 @@ def process_notion_import(import_job_id: int):
             # Update job status to failed
             job.status = ImportJobStatus.FAILED
             job.error_message = str(e)[:1000]
-            job.save(update_fields=["status", "error_message"])
+            job.save(update_fields=["status", "error_message", "modified"])
         except Exception:
             pass
 
@@ -185,7 +185,7 @@ def process_notion_import(import_job_id: int):
             job = ImportJob.objects.get(id=import_job_id)
             job.status = ImportJobStatus.FAILED
             job.error_message = str(e)[:1000]  # Truncate long error messages
-            job.save(update_fields=["status", "error_message"])
+            job.save(update_fields=["status", "error_message", "modified"])
         except Exception:
             pass
 

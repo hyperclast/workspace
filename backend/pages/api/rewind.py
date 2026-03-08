@@ -3,7 +3,9 @@ from typing import List
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.conf import settings
 from django.db import transaction
+from django.db.models import F
 from django.http import Http404, HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Query, Router
@@ -36,6 +38,9 @@ rewind_router = Router(auth=[token_auth, session_auth])
 @paginate
 def list_rewinds(request: HttpRequest, external_id: str, query: RewindListQuery = Query(...)):
     """List rewinds for a page (paginated, no content)."""
+    if not settings.REWIND_ENABLED:
+        raise Http404
+
     page = get_object_or_404(Page, external_id=external_id, is_deleted=False)
 
     if not user_can_access_page(request.user, page):
@@ -55,6 +60,9 @@ def list_rewinds(request: HttpRequest, external_id: str, query: RewindListQuery 
 )
 def get_rewind(request: HttpRequest, external_id: str, rewind_external_id: str):
     """Get a rewind with full content."""
+    if not settings.REWIND_ENABLED:
+        raise Http404
+
     page = get_object_or_404(Page, external_id=external_id, is_deleted=False)
 
     if not user_can_access_page(request.user, page):
@@ -78,6 +86,9 @@ def restore_rewind(request: HttpRequest, external_id: str, rewind_external_id: s
     Creates a new rewind recording the restore, resets CRDT state,
     and disconnects active WebSocket clients.
     """
+    if not settings.REWIND_ENABLED:
+        raise Http404
+
     page = get_object_or_404(Page, external_id=external_id, is_deleted=False)
 
     if not user_can_edit_in_page(request.user, page):
@@ -105,10 +116,11 @@ def restore_rewind(request: HttpRequest, external_id: str, rewind_external_id: s
         page.title = rewind.title
         page.details["content"] = content
         page.details["content_hash"] = content_hash
+        page.save(update_fields=["title", "details", "modified"])
 
-        # Create a new rewind recording the restore
-        page.current_rewind_number += 1
-        page.save(update_fields=["title", "details", "current_rewind_number", "modified"])
+        # Atomic increment — matches the pattern in services/rewind.py
+        Page.objects.filter(id=page.id).update(current_rewind_number=F("current_rewind_number") + 1)
+        new_rewind_number = Page.objects.values_list("current_rewind_number", flat=True).get(id=page.id)
 
         restore_rewind_obj = Rewind.objects.create(
             page=page,
@@ -116,7 +128,7 @@ def restore_rewind(request: HttpRequest, external_id: str, rewind_external_id: s
             content_hash=content_hash,
             title=rewind.title,
             content_size_bytes=len(content.encode("utf-8")),
-            rewind_number=page.current_rewind_number,
+            rewind_number=new_rewind_number,
             editors=[str(request.user.external_id)],
             label=f"Restored from v{rewind.rewind_number}",
             lines_added=lines_added,
@@ -152,6 +164,9 @@ def update_rewind_label(
     payload: RewindUpdateIn,
 ):
     """Update a rewind's label."""
+    if not settings.REWIND_ENABLED:
+        raise Http404
+
     page = get_object_or_404(Page, external_id=external_id, is_deleted=False)
 
     if not user_can_edit_in_page(request.user, page):
@@ -164,7 +179,7 @@ def update_rewind_label(
     )
 
     rewind.label = payload.label
-    rewind.save(update_fields=["label"])
+    rewind.save(update_fields=["label", "modified"])
 
     log_info(
         "Updated label for rewind %d of page %s: '%s'",

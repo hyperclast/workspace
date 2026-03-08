@@ -192,7 +192,7 @@ def finalize_upload(
     except Exception:
         # Mark as failed on any error
         blob.status = BlobStatus.FAILED
-        blob.save(update_fields=["status"])
+        blob.save(update_fields=["status", "modified"])
         file_upload.status = FileUploadStatus.FAILED
         file_upload.save(update_fields=["status", "modified"])
         raise

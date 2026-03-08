@@ -146,14 +146,14 @@ class Command(BaseCommand):
 
                     # Clear the temp_file_path
                     archive.temp_file_path = None
-                    archive.save(update_fields=["temp_file_path"])
+                    archive.save(update_fields=["temp_file_path", "modified"])
                     stats["archives_cleared"] += 1
 
                     # Mark PENDING jobs as FAILED
                     if job.status == ImportJobStatus.PENDING:
                         job.status = ImportJobStatus.FAILED
                         job.error_message = "Import timed out - job was not processed"
-                        job.save(update_fields=["status", "error_message"])
+                        job.save(update_fields=["status", "error_message", "modified"])
                         stats["pending_jobs_failed"] += 1
                         logger.info(f"Marked stale PENDING job as FAILED: {job.external_id}")
 
@@ -161,7 +161,7 @@ class Command(BaseCommand):
                     elif job.status == ImportJobStatus.PROCESSING and include_processing:
                         job.status = ImportJobStatus.FAILED
                         job.error_message = "Import timed out - processing was interrupted"
-                        job.save(update_fields=["status", "error_message"])
+                        job.save(update_fields=["status", "error_message", "modified"])
                         stats["processing_jobs_failed"] += 1
                         logger.info(f"Marked stuck PROCESSING job as FAILED: {job.external_id}")
 

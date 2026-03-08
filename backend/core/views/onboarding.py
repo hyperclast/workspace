@@ -199,7 +199,7 @@ def welcome(request):
                         updated = True
                 if updated:
                     page.details["content"] = content
-                    page.save(update_fields=["details"])
+                    page.save(update_fields=["details", "modified"])
 
             first_page = created_pages[0][0] if created_pages else None
 

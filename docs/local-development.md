@@ -69,13 +69,9 @@ WS_ASK_FEATURE_ENABLED=false
 
 File upload functionality is disabled by default. To enable it:
 
-1. **Using MinIO (recommended for local dev):**
+1. **Using the Docker stack (recommended):**
 
-   ```sh
-   ./run-stack.sh --minio 9800
-   ```
-
-   This automatically enables the feature via `docker-compose.minio.yaml`.
+   MinIO is included by default in `./run-stack.sh`, so file uploads work out of the box via `docker-compose.minio.yaml`.
 
 2. **Manual configuration:**
    Add to your `.env`:

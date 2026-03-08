@@ -6,8 +6,8 @@
 # Usage (standalone):
 #   docker compose -f docker-compose.minio.yaml --env-file .env-minio up -d
 #
-# Usage (with full stack via run-stack.sh):
-#   ./run-stack.sh --minio 9800
+# Usage (with full stack via run-stack.sh — included by default):
+#   ./run-stack.sh 9800
 #
 # See docs/cloudflare/minio-local-setup.md for full setup instructions.
 

@@ -765,6 +765,54 @@ class TestUpdateRewindLabelAccessControl(RewindAPITestBase):
 
 
 # ============================================================
+# FEATURE FLAG
+# ============================================================
+
+
+@override_settings(REWIND_ENABLED=False)
+class TestRewindFeatureFlagDisabled(RewindAPITestBase):
+    """When REWIND_ENABLED=False, all rewind endpoints should return 404."""
+
+    def test_list_rewinds_returns_404(self):
+        response = self.send_api_request(url=f"/api/pages/{self.page.external_id}/rewind/")
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+    def test_get_rewind_returns_404(self):
+        # Create rewind while feature is "enabled" by bypassing the API
+        rewind = self._create_rewind("Content")
+
+        response = self.send_api_request(url=f"/api/pages/{self.page.external_id}/rewind/{rewind.external_id}/")
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+    def test_restore_rewind_returns_404(self):
+        rewind = self._create_rewind("Content")
+
+        response = self.send_api_request(
+            url=f"/api/pages/{self.page.external_id}/rewind/{rewind.external_id}/restore/",
+            method="post",
+        )
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+    def test_update_rewind_label_returns_404(self):
+        rewind = self._create_rewind("Content")
+
+        response = self.send_api_request(
+            url=f"/api/pages/{self.page.external_id}/rewind/{rewind.external_id}/",
+            method="patch",
+            data={"label": "My label"},
+        )
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+    def test_disabled_response_identical_to_nonexistent_page(self):
+        """Feature-disabled 404 should be indistinguishable from nonexistent page 404."""
+        disabled_resp = self.send_api_request(url=f"/api/pages/{self.page.external_id}/rewind/")
+        nonexistent_resp = self.send_api_request(url="/api/pages/nonexistent123/rewind/")
+
+        self.assertEqual(disabled_resp.status_code, nonexistent_resp.status_code)
+        self.assertEqual(disabled_resp.status_code, HTTPStatus.NOT_FOUND)
+
+
+# ============================================================
 # CROSS-ENDPOINT TESTS
 # ============================================================
 

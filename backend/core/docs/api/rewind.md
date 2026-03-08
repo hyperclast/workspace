@@ -163,6 +163,7 @@ Set or change a rewind's label. Labels help you mark important rewinds for easy 
 
 ## Notes
 
+- **Feature flag:** All rewind endpoints require `WS_REWIND_ENABLED=true` (the default). When disabled, all endpoints return 404.
 - Rewinds are auto-created by the collaboration system—you don't need to create them manually
 - The `editors` list contains user external IDs of users who were editing when the rewind was saved
 - `is_compacted` and `compacted_from_count` are system fields from automatic storage optimization; older rewinds may be compacted into hourly snapshots
