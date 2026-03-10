@@ -66,10 +66,14 @@ func TestHyperclastConfigEnvVarOverriddenByFlag(t *testing.T) {
 	dir := t.TempDir()
 
 	envPath := filepath.Join(dir, "env-config.yaml")
-	os.WriteFile(envPath, []byte("token: env-token\n"), 0600)
+	if err := os.WriteFile(envPath, []byte("token: env-token\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
 
 	flagPath := filepath.Join(dir, "flag-config.yaml")
-	os.WriteFile(flagPath, []byte("token: flag-token\n"), 0600)
+	if err := os.WriteFile(flagPath, []byte("token: flag-token\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
 
 	t.Setenv("HYPERCLAST_CONFIG", envPath)
 
@@ -97,7 +101,9 @@ func TestHyperclastTokenEnvVar(t *testing.T) {
 func TestHyperclastTokenEnvVarOverridesFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
-	os.WriteFile(path, []byte("token: file-token\n"), 0600)
+	if err := os.WriteFile(path, []byte("token: file-token\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
 
 	t.Setenv("HYPERCLAST_TOKEN", "env-override-token")
 
@@ -113,7 +119,9 @@ func TestHyperclastTokenEnvVarOverridesFile(t *testing.T) {
 func TestHyperclastTokenEnvVarEmptyDoesNotOverride(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
-	os.WriteFile(path, []byte("token: file-token\n"), 0600)
+	if err := os.WriteFile(path, []byte("token: file-token\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
 
 	t.Setenv("HYPERCLAST_TOKEN", "")
 

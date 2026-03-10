@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/hyperclast/workspace/cli/internal/config"
 	"github.com/spf13/cobra"
@@ -59,24 +60,40 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "show debug output")
 }
 
-func printSuccess(format string, a ...interface{}) {
+func printSuccess(format string, a ...any) {
 	if !quiet {
 		fmt.Printf("✓ "+format+"\n", a...)
 	}
 }
 
-func printInfo(format string, a ...interface{}) {
+func printInfo(format string, a ...any) {
 	if !quiet {
 		fmt.Printf(format+"\n", a...)
 	}
 }
 
-func printError(format string, a ...interface{}) {
+func printError(format string, a ...any) {
 	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", a...)
 }
 
-func printDebug(format string, a ...interface{}) {
+func printDebug(format string, a ...any) {
 	if verbose {
 		fmt.Printf("[DEBUG] "+format+"\n", a...)
 	}
+}
+
+func requireAuth() error {
+	if !cfg.IsAuthenticated() {
+		return fmt.Errorf("not authenticated. Run 'hyperclast auth login' first")
+	}
+	return nil
+}
+
+// baseURL returns the web app URL by stripping the API path suffix
+// (e.g. "/api/v1" or "/api") from the configured API URL.
+func baseURL() string {
+	u := strings.TrimSuffix(cfg.APIURL, "/")
+	u = strings.TrimSuffix(u, "/v1")
+	u = strings.TrimSuffix(u, "/api")
+	return u
 }

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -73,8 +72,8 @@ Examples:
 }
 
 func runPageNew(cmd *cobra.Command, args []string) error {
-	if !cfg.IsAuthenticated() {
-		return fmt.Errorf("not authenticated. Run 'hyperclast auth login' first")
+	if err := requireAuth(); err != nil {
+		return err
 	}
 
 	projectID := pageProjectID
@@ -86,6 +85,7 @@ func runPageNew(cmd *cobra.Command, args []string) error {
 		printError("No project specified.")
 		printInfo("  Use --project <id> or set a default: hyperclast project use <id>")
 		printInfo("  Run 'hyperclast project list' to see available projects.")
+		cmd.SilenceErrors = true
 		return fmt.Errorf("no project specified")
 	}
 
@@ -126,7 +126,7 @@ func runPageNew(cmd *cobra.Command, args []string) error {
 	}
 
 	printSuccess("Created page \"%s\" (%s)", page.Title, page.ExternalID)
-	printInfo("  %s/pages/%s/", cfg.APIURL[:len(cfg.APIURL)-4], page.ExternalID)
+	printInfo("  %s/pages/%s/", baseURL(), page.ExternalID)
 
 	return nil
 }
@@ -172,8 +172,8 @@ Examples:
 }
 
 func runPageUpdate(pageID string, mode string) error {
-	if !cfg.IsAuthenticated() {
-		return fmt.Errorf("not authenticated. Run 'hyperclast auth login' first")
+	if err := requireAuth(); err != nil {
+		return err
 	}
 
 	content, err := readContent()
@@ -248,7 +248,7 @@ func readContent() (string, error) {
 
 func cleanupStdinTemp() {
 	if stdinTempPath != "" {
-		os.Remove(stdinTempPath)
+		_ = os.Remove(stdinTempPath)
 		stdinTempPath = ""
 	}
 }
@@ -261,20 +261,17 @@ func handleContentError(err error) error {
 }
 
 func bufferStdinToTemp() (string, error) {
-	tempDir := os.TempDir()
-	filename := fmt.Sprintf("hyperclast-stdin-%d.txt", time.Now().Unix())
-	tempPath := filepath.Join(tempDir, filename)
-
-	tempFile, err := os.Create(tempPath)
+	tempFile, err := os.CreateTemp("", "hyperclast-stdin-*.txt")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp file: %w", err)
 	}
-	defer tempFile.Close()
+	tempPath := tempFile.Name()
 
-	_, err = io.Copy(tempFile, os.Stdin)
-	if err != nil {
-		os.Remove(tempPath)
-		return "", fmt.Errorf("failed to buffer stdin: %w", err)
+	_, copyErr := io.Copy(tempFile, os.Stdin)
+	_ = tempFile.Close()
+	if copyErr != nil {
+		_ = os.Remove(tempPath)
+		return "", fmt.Errorf("failed to buffer stdin: %w", copyErr)
 	}
 
 	return tempPath, nil
@@ -406,7 +403,7 @@ var pageListCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tTITLE\tUPDATED")
+		_, _ = fmt.Fprintln(w, "ID\tTITLE\tUPDATED")
 		for _, page := range pages {
 			updated := page.Updated
 			if updated == "" {
@@ -415,9 +412,9 @@ var pageListCmd = &cobra.Command{
 			if t, err := time.Parse(time.RFC3339, updated); err == nil {
 				updated = t.Format("Jan 2, 2006 3:04 PM")
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\n", page.ExternalID, page.Title, updated)
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\n", page.ExternalID, page.Title, updated)
 		}
-		w.Flush()
+		_ = w.Flush()
 
 		return nil
 	},
@@ -485,7 +482,7 @@ Examples:
 			}
 			fmt.Fprintf(os.Stderr, "Delete page \"%s\" (%s)? [y/N] ", page.Title, page.ExternalID)
 			var confirm string
-			fmt.Scanln(&confirm)
+			_, _ = fmt.Scanln(&confirm)
 			if confirm != "y" && confirm != "Y" {
 				printInfo("Cancelled")
 				return nil
@@ -514,7 +511,7 @@ Examples:
 }
 
 func generateDefaultTitle() string {
-	return time.Now().Format("2006-01-02 3h04pm")
+	return time.Now().Format("Jan 2, 2006 at 3:04 PM")
 }
 
 // detectFiletype examines the first 10 lines of content to detect CSV or log format.
@@ -567,16 +564,19 @@ func detectFiletype(content string, defaultType string) string {
 
 	// Check if lines consistently have delimiters (CSV detection)
 	csvLines := 0
+	csvNonEmpty := 0
 	for _, line := range lines {
 		if line == "" {
 			continue
 		}
+		csvNonEmpty++
 		commas := 0
 		tabs := 0
 		for _, c := range line {
-			if c == ',' {
+			switch c {
+			case ',':
 				commas++
-			} else if c == '\t' {
+			case '\t':
 				tabs++
 			}
 		}
@@ -586,7 +586,7 @@ func detectFiletype(content string, defaultType string) string {
 	}
 
 	// Consider CSV if majority of non-empty lines look like CSV
-	if csvLines >= 1 && csvLines >= len(lines)/2 {
+	if csvLines >= 1 && csvLines >= csvNonEmpty/2 {
 		return "csv"
 	}
 
@@ -661,7 +661,10 @@ func looksLikeLogLine(line string) bool {
 
 // containsHTTPVersion checks if the line contains "HTTP/1" or "HTTP/2"
 func containsHTTPVersion(line string) bool {
-	for i := 0; i < len(line)-6; i++ {
+	if len(line) < 6 {
+		return false
+	}
+	for i := 0; i <= len(line)-6; i++ {
 		if line[i:i+6] == "HTTP/1" || line[i:i+6] == "HTTP/2" {
 			return true
 		}

@@ -95,21 +95,21 @@ hyperclast project use <id>            # Set default project
 ```bash
 # Create a new page from stdin
 hyperclast page new --project <id> --title "Title"
-hyperclast page new -p <id> -t "Title"
+hyperclast page new --project <id> --title "Title"
 
 # Pipe command output
-cat build.log | hyperclast page new -p proj_abc -t "Build Output"
-./run-tests.sh 2>&1 | hyperclast page new -p proj_abc -t "Test Results"
+cat build.log | hyperclast page new --project proj_abc --title "Build Output"
+./run-tests.sh 2>&1 | hyperclast page new --project proj_abc --title "Test Results"
 
 # With default project configured
-make build 2>&1 | hyperclast page new -t "Build Log"
+make build 2>&1 | hyperclast page new --title "Build Log"
 
 # Title defaults to timestamp if not provided
-echo "Quick note" | hyperclast page new -p proj_abc
+echo "Quick note" | hyperclast page new --project proj_abc
 # Creates page titled "Dec 30, 2025 at 2:45 PM"
 
 # From file instead of stdin
-hyperclast page new -p proj_abc -t "Config" --file ./config.txt
+hyperclast page new --project proj_abc --title "Config" --file ./config.txt
 
 # List pages
 hyperclast page list [--project <id>]
@@ -156,22 +156,22 @@ npm run build 2>&1 | hyperclast page new \
 
 ```bash
 # Create a daily note
-echo "## $(date +%Y-%m-%d)\n\n- Task 1\n- Task 2" | hyperclast page new -t "Daily Note"
+echo "## $(date +%Y-%m-%d)\n\n- Task 1\n- Task 2" | hyperclast page new --title "Daily Note"
 ```
 
 ### Backup Scripts
 
 ```bash
 # Save server status to a page
-(uptime; free -h; df -h) | hyperclast page new -t "Server Status $(date +%H:%M)"
+(uptime; free -h; df -h) | hyperclast page new --title "Server Status $(date +%H:%M)"
 ```
 
 ### Capture Command Output
 
 ```bash
 # Save any command output
-git log --oneline -20 | hyperclast page new -t "Recent Commits"
-docker ps -a | hyperclast page new -t "Container Status"
+git log --oneline -20 | hyperclast page new --title "Recent Commits"
+docker ps -a | hyperclast page new --title "Container Status"
 ```
 
 ## Content Validation

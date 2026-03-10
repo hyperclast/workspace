@@ -20,8 +20,8 @@ var orgListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List organizations you belong to",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if !cfg.IsAuthenticated() {
-			return fmt.Errorf("not authenticated. Run 'hyperclast auth login' first")
+		if err := requireAuth(); err != nil {
+			return err
 		}
 
 		client := api.NewClient(cfg.APIURL, cfg.Token)
@@ -40,15 +40,15 @@ var orgListCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tNAME\tDOMAIN")
+		_, _ = fmt.Fprintln(w, "ID\tNAME\tDOMAIN")
 		for _, org := range orgs {
 			defaultMark := ""
 			if org.ExternalID == cfg.GetDefaultOrg() {
 				defaultMark = " (default)"
 			}
-			fmt.Fprintf(w, "%s\t%s%s\t%s\n", org.ExternalID, org.Name, defaultMark, org.Domain)
+			_, _ = fmt.Fprintf(w, "%s\t%s%s\t%s\n", org.ExternalID, org.Name, defaultMark, org.Domain)
 		}
-		w.Flush()
+		_ = w.Flush()
 
 		return nil
 	},

@@ -1,7 +1,17 @@
 package cmd
 
 import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/hyperclast/workspace/cli/internal/api"
+	"github.com/hyperclast/workspace/cli/internal/config"
 )
 
 // TestDetectFiletype tests the CSV auto-detection logic
@@ -422,6 +432,10 @@ func TestContainsHTTPVersion(t *testing.T) {
 		{`"GET /page" 200`, false},
 		{"plain text", false},
 		{"", false},
+		{"short", false},  // shorter than 6 chars
+		{"HTTP/1", true},  // exactly 6 chars
+		{"XHTTP/", false}, // 6 chars but not matching
+		{"abcde", false},  // 5 chars (less than 6)
 	}
 
 	for _, tt := range tests {
@@ -429,5 +443,541 @@ func TestContainsHTTPVersion(t *testing.T) {
 		if result != tt.expected {
 			t.Errorf("containsHTTPVersion(%q) = %v, want %v", tt.line, result, tt.expected)
 		}
+	}
+}
+
+// --- Content validation tests (T3) ---
+
+func TestValidateTextContent(t *testing.T) {
+	tests := []struct {
+		name    string
+		data    []byte
+		wantErr string
+	}{
+		{
+			name:    "valid UTF-8 ASCII",
+			data:    []byte("Hello, world!"),
+			wantErr: "",
+		},
+		{
+			name:    "valid UTF-8 multibyte",
+			data:    []byte("こんにちは世界 🌍"),
+			wantErr: "",
+		},
+		{
+			name:    "empty content",
+			data:    []byte{},
+			wantErr: "",
+		},
+		{
+			name:    "null bytes detected",
+			data:    []byte("hello\x00world"),
+			wantErr: "binary data detected",
+		},
+		{
+			name:    "null byte at start",
+			data:    []byte("\x00hello"),
+			wantErr: "binary data detected",
+		},
+		{
+			name:    "invalid UTF-8 sequence",
+			data:    []byte{0xff, 0xfe, 0x65},
+			wantErr: "invalid text encoding",
+		},
+		{
+			name:    "BOM-prefixed UTF-8 is valid",
+			data:    []byte("\xef\xbb\xbfHello BOM"),
+			wantErr: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateTextContent(tt.data)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+			} else {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("error = %q, want to contain %q", err, tt.wantErr)
+				}
+			}
+		})
+	}
+}
+
+// --- File reading and validation tests (T4) ---
+
+func TestReadAndValidateFile(t *testing.T) {
+	t.Run("valid file", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "valid.txt")
+		if err := os.WriteFile(path, []byte("Hello, valid content"), 0600); err != nil {
+			t.Fatal(err)
+		}
+
+		content, err := readAndValidateFile(path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if content != "Hello, valid content" {
+			t.Errorf("content = %q, want %q", content, "Hello, valid content")
+		}
+	})
+
+	t.Run("file too large", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "large.txt")
+		// Create file that exceeds maxContentSize (10 MB)
+		data := make([]byte, maxContentSize+1)
+		for i := range data {
+			data[i] = 'a'
+		}
+		if err := os.WriteFile(path, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+
+		_, err := readAndValidateFile(path)
+		if err == nil {
+			t.Fatal("expected error for file exceeding max size")
+		}
+		if !strings.Contains(err.Error(), "content too large") {
+			t.Errorf("error = %q, want to contain 'content too large'", err)
+		}
+	})
+
+	t.Run("empty file", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "empty.txt")
+		if err := os.WriteFile(path, []byte(""), 0600); err != nil {
+			t.Fatal(err)
+		}
+
+		_, err := readAndValidateFile(path)
+		if err == nil {
+			t.Fatal("expected error for empty file")
+		}
+		if !strings.Contains(err.Error(), "no content provided") {
+			t.Errorf("error = %q, want to contain 'no content provided'", err)
+		}
+	})
+
+	t.Run("missing file", func(t *testing.T) {
+		_, err := readAndValidateFile("/tmp/nonexistent-hyperclast-test-file.txt")
+		if err == nil {
+			t.Fatal("expected error for missing file")
+		}
+	})
+
+	t.Run("file with null bytes", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "binary.bin")
+		if err := os.WriteFile(path, []byte("hello\x00world"), 0600); err != nil {
+			t.Fatal(err)
+		}
+
+		_, err := readAndValidateFile(path)
+		if err == nil {
+			t.Fatal("expected error for binary data")
+		}
+		if !strings.Contains(err.Error(), "binary data detected") {
+			t.Errorf("error = %q, want to contain 'binary data detected'", err)
+		}
+	})
+
+	t.Run("file exactly at max size", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "exact.txt")
+		data := make([]byte, maxContentSize)
+		for i := range data {
+			data[i] = 'x'
+		}
+		if err := os.WriteFile(path, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+
+		content, err := readAndValidateFile(path)
+		if err != nil {
+			t.Fatalf("unexpected error for file at exact max size: %v", err)
+		}
+		if len(content) != maxContentSize {
+			t.Errorf("content length = %d, want %d", len(content), maxContentSize)
+		}
+	})
+}
+
+// --- Metadata tests (T5) ---
+
+func TestAppendMetadata(t *testing.T) {
+	t.Run("without source", func(t *testing.T) {
+		pageSource = ""
+		result := appendMetadata("some content")
+		if !strings.HasPrefix(result, "some content") {
+			t.Errorf("should start with original content")
+		}
+		if !strings.Contains(result, "Captured by Hyperclast CLI") {
+			t.Error("should contain CLI attribution")
+		}
+		if !strings.Contains(result, "Time:") {
+			t.Error("should contain timestamp")
+		}
+		if strings.Contains(result, "Source:") {
+			t.Error("should not contain Source when pageSource is empty")
+		}
+		if !strings.Contains(result, "---") {
+			t.Error("should contain metadata delimiters")
+		}
+	})
+
+	t.Run("with source", func(t *testing.T) {
+		pageSource = "make build"
+		defer func() { pageSource = "" }()
+
+		result := appendMetadata("build output")
+		if !strings.Contains(result, "Source: make build") {
+			t.Error("should contain Source when pageSource is set")
+		}
+	})
+
+	t.Run("includes hostname when available", func(t *testing.T) {
+		pageSource = ""
+		result := appendMetadata("test")
+		hostname, err := os.Hostname()
+		if err == nil && hostname != "" {
+			if !strings.Contains(result, "Host: "+hostname) {
+				t.Errorf("should contain Host: %s", hostname)
+			}
+		}
+	})
+
+	t.Run("includes directory", func(t *testing.T) {
+		pageSource = ""
+		result := appendMetadata("test")
+		cwd, err := os.Getwd()
+		if err == nil && cwd != "" {
+			if !strings.Contains(result, "Directory: "+cwd) {
+				t.Errorf("should contain Directory: %s", cwd)
+			}
+		}
+	})
+}
+
+// --- generateDefaultTitle tests (T7) ---
+
+func TestGenerateDefaultTitle(t *testing.T) {
+	title := generateDefaultTitle()
+	if title == "" {
+		t.Fatal("title should not be empty")
+	}
+	// The format is "Jan 2, 2006 at 3:04 PM" so it should contain " at " and either AM or PM
+	if !strings.Contains(title, " at ") {
+		t.Errorf("title %q should contain ' at '", title)
+	}
+	if !strings.Contains(title, "AM") && !strings.Contains(title, "PM") {
+		t.Errorf("title %q should contain AM or PM", title)
+	}
+	// Should contain a comma (e.g. "Jan 2, 2026")
+	if !strings.Contains(title, ",") {
+		t.Errorf("title %q should contain comma in date", title)
+	}
+}
+
+// --- resetPageFlags helper for page command tests ---
+
+func resetPageFlags() {
+	pageProjectID = ""
+	pageTitle = ""
+	pageFile = ""
+	pageFiletype = "txt"
+	pageMeta = false
+	pageSource = ""
+	pageDeleteForce = false
+	pageListProjectID = ""
+	outputFmt = "text"
+	quiet = false
+	stdinTempPath = ""
+}
+
+// --- page delete tests (T9) ---
+
+func TestPageDelete_NotAuthenticated(t *testing.T) {
+	resetPageFlags()
+	cfg = &config.Config{Token: ""}
+
+	err := pageDeleteCmd.RunE(pageDeleteCmd, []string{"page_xyz"})
+	if err == nil {
+		t.Fatal("expected error for unauthenticated user")
+	}
+	if !strings.Contains(err.Error(), "not authenticated") {
+		t.Errorf("unexpected error: %s", err)
+	}
+}
+
+func TestPageDelete_Force(t *testing.T) {
+	resetPageFlags()
+
+	var deletedPath string
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		if r.Method == "GET" {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(api.Page{
+				ExternalID: "page_xyz",
+				Title:      "Test Page",
+			})
+			return
+		}
+		if r.Method == "DELETE" {
+			deletedPath = r.URL.Path
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+	}))
+	defer server.Close()
+
+	cfg = &config.Config{
+		APIURL: server.URL,
+		Token:  "test-token",
+	}
+	pageDeleteForce = true
+
+	err := pageDeleteCmd.RunE(pageDeleteCmd, []string{"page_xyz"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if deletedPath != "/pages/page_xyz/" {
+		t.Errorf("deleted path = %q, want /pages/page_xyz/", deletedPath)
+	}
+	if requestCount != 2 {
+		t.Errorf("expected 2 requests (GET + DELETE), got %d", requestCount)
+	}
+}
+
+func TestPageDelete_JSONOutput(t *testing.T) {
+	resetPageFlags()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(api.Page{
+				ExternalID: "page_xyz",
+				Title:      "Test Page",
+			})
+			return
+		}
+		if r.Method == "DELETE" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+	}))
+	defer server.Close()
+
+	cfg = &config.Config{
+		APIURL: server.URL,
+		Token:  "test-token",
+	}
+	pageDeleteForce = true
+	outputFmt = "json"
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := pageDeleteCmd.RunE(pageDeleteCmd, []string{"page_xyz"})
+
+	_ = w.Close()
+	os.Stdout = oldStdout
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output, _ := io.ReadAll(r)
+	var result map[string]any
+	if err := json.Unmarshal(output, &result); err != nil {
+		t.Fatalf("output is not valid JSON: %v\nraw: %s", err, string(output))
+	}
+	if result["deleted"] != true {
+		t.Errorf("deleted = %v, want true", result["deleted"])
+	}
+	if result["external_id"] != "page_xyz" {
+		t.Errorf("external_id = %v, want page_xyz", result["external_id"])
+	}
+}
+
+func TestPageDelete_PageNotFound(t *testing.T) {
+	resetPageFlags()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"detail": "not found"}`))
+	}))
+	defer server.Close()
+
+	cfg = &config.Config{
+		APIURL: server.URL,
+		Token:  "test-token",
+	}
+	pageDeleteForce = true
+
+	err := pageDeleteCmd.RunE(pageDeleteCmd, []string{"page_nonexistent"})
+	if err == nil {
+		t.Fatal("expected error for not found page")
+	}
+	if !strings.Contains(err.Error(), "failed to get page") {
+		t.Errorf("error = %q, expected to contain 'failed to get page'", err)
+	}
+}
+
+func TestPageDelete_QuietMode(t *testing.T) {
+	resetPageFlags()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(api.Page{
+				ExternalID: "page_xyz",
+				Title:      "Test Page",
+			})
+			return
+		}
+		if r.Method == "DELETE" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+	}))
+	defer server.Close()
+
+	cfg = &config.Config{
+		APIURL: server.URL,
+		Token:  "test-token",
+	}
+	pageDeleteForce = true
+	quiet = true
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := pageDeleteCmd.RunE(pageDeleteCmd, []string{"page_xyz"})
+
+	_ = w.Close()
+	os.Stdout = oldStdout
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output, _ := io.ReadAll(r)
+	// Quiet mode for delete should produce no output (just returns nil)
+	if len(strings.TrimSpace(string(output))) != 0 {
+		t.Errorf("expected no output in quiet mode, got %q", string(output))
+	}
+}
+
+// --- page get tests ---
+
+func TestPageGet_NotAuthenticated(t *testing.T) {
+	resetPageFlags()
+	cfg = &config.Config{Token: ""}
+
+	err := pageGetCmd.RunE(pageGetCmd, []string{"page_xyz"})
+	if err == nil {
+		t.Fatal("expected error for unauthenticated user")
+	}
+	if !strings.Contains(err.Error(), "not authenticated") {
+		t.Errorf("unexpected error: %s", err)
+	}
+}
+
+func TestPageGet_OutputsContent(t *testing.T) {
+	resetPageFlags()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(api.Page{
+			ExternalID: "page_xyz",
+			Title:      "My Page",
+			Details: &api.PageDetails{
+				Content: "Hello page content",
+			},
+		})
+	}))
+	defer server.Close()
+
+	cfg = &config.Config{
+		APIURL: server.URL,
+		Token:  "test-token",
+	}
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := pageGetCmd.RunE(pageGetCmd, []string{"page_xyz"})
+
+	_ = w.Close()
+	os.Stdout = oldStdout
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output, _ := io.ReadAll(r)
+	if string(output) != "Hello page content" {
+		t.Errorf("output = %q, want %q", string(output), "Hello page content")
+	}
+}
+
+func TestPageGet_JSONOutput(t *testing.T) {
+	resetPageFlags()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(api.Page{
+			ExternalID: "page_xyz",
+			Title:      "My Page",
+			Details: &api.PageDetails{
+				Content: "content",
+			},
+		})
+	}))
+	defer server.Close()
+
+	cfg = &config.Config{
+		APIURL: server.URL,
+		Token:  "test-token",
+	}
+	outputFmt = "json"
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := pageGetCmd.RunE(pageGetCmd, []string{"page_xyz"})
+
+	_ = w.Close()
+	os.Stdout = oldStdout
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output, _ := io.ReadAll(r)
+	var page api.Page
+	if err := json.Unmarshal(output, &page); err != nil {
+		t.Fatalf("output is not valid JSON: %v\nraw: %s", err, string(output))
+	}
+	if page.ExternalID != "page_xyz" {
+		t.Errorf("external_id = %q, want page_xyz", page.ExternalID)
 	}
 }

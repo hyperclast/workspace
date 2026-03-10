@@ -2,6 +2,7 @@
 
 [![Backend Tests](https://github.com/hyperclast/workspace/actions/workflows/backend-tests.yml/badge.svg)](https://github.com/hyperclast/workspace/actions/workflows/backend-tests.yml)
 [![Frontend Tests](https://github.com/hyperclast/workspace/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/hyperclast/workspace/actions/workflows/frontend-tests.yml)
+[![CLI Tests](https://github.com/hyperclast/workspace/actions/workflows/cli-tests.yml/badge.svg)](https://github.com/hyperclast/workspace/actions/workflows/cli-tests.yml)
 
 Collaborative workspace with real-time editing, bidirectional links, and AI-powered search.
 

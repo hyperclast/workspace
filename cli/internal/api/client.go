@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"runtime"
 	"time"
 )
@@ -39,7 +40,7 @@ func NewClient(baseURL, token string) *Client {
 	}
 }
 
-func (c *Client) doRequest(method, path string, body interface{}) (*http.Response, error) {
+func (c *Client) doRequest(method, path string, body any) (*http.Response, error) {
 	var reqBody io.Reader
 	if body != nil {
 		jsonBody, err := json.Marshal(body)
@@ -62,44 +63,22 @@ func (c *Client) doRequest(method, path string, body interface{}) (*http.Respons
 	return c.httpClient.Do(req)
 }
 
-func (c *Client) Get(path string, result interface{}) error {
-	resp, err := c.doRequest(http.MethodGet, path, nil)
+// maxErrorBodySize limits how much of an error response body we read into memory.
+const maxErrorBodySize = 1 << 20 // 1 MB
+
+func (c *Client) do(method, path string, body any, result any) error {
+	resp, err := c.doRequest(method, path, body)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		return fmt.Errorf("authentication failed: invalid or expired token")
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
-	}
-
-	if result != nil {
-		if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
-			return fmt.Errorf("failed to decode response: %w", err)
-		}
-	}
-
-	return nil
-}
-
-func (c *Client) Post(path string, body interface{}, result interface{}) error {
-	resp, err := c.doRequest(http.MethodPost, path, body)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusUnauthorized {
-		return fmt.Errorf("authentication failed: invalid or expired token")
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodySize))
 		return fmt.Errorf("API error (%d): %s", resp.StatusCode, string(respBody))
 	}
 
@@ -112,48 +91,20 @@ func (c *Client) Post(path string, body interface{}, result interface{}) error {
 	return nil
 }
 
-func (c *Client) Put(path string, body interface{}, result interface{}) error {
-	resp, err := c.doRequest(http.MethodPut, path, body)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+func (c *Client) Get(path string, result any) error {
+	return c.do(http.MethodGet, path, nil, result)
+}
 
-	if resp.StatusCode == http.StatusUnauthorized {
-		return fmt.Errorf("authentication failed: invalid or expired token")
-	}
+func (c *Client) Post(path string, body any, result any) error {
+	return c.do(http.MethodPost, path, body, result)
+}
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API error (%d): %s", resp.StatusCode, string(respBody))
-	}
-
-	if result != nil {
-		if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
-			return fmt.Errorf("failed to decode response: %w", err)
-		}
-	}
-
-	return nil
+func (c *Client) Put(path string, body any, result any) error {
+	return c.do(http.MethodPut, path, body, result)
 }
 
 func (c *Client) Delete(path string) error {
-	resp, err := c.doRequest(http.MethodDelete, path, nil)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusUnauthorized {
-		return fmt.Errorf("authentication failed: invalid or expired token")
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return c.do(http.MethodDelete, path, nil, nil)
 }
 
 func (c *Client) DeletePage(pageID string) error {
@@ -173,13 +124,6 @@ type Org struct {
 	IsPro      bool   `json:"is_pro"`
 }
 
-type OrgInfo struct {
-	ExternalID string `json:"external_id"`
-	Name       string `json:"name"`
-	Domain     string `json:"domain"`
-	IsPro      bool   `json:"is_pro"`
-}
-
 type Creator struct {
 	ExternalID string `json:"external_id"`
 	Email      string `json:"email"`
@@ -193,7 +137,7 @@ type Project struct {
 	Modified    string  `json:"modified"`
 	Created     string  `json:"created"`
 	Creator     Creator `json:"creator"`
-	Org         OrgInfo `json:"org"`
+	Org         Org     `json:"org"`
 	Pages       []Page  `json:"pages,omitempty"`
 }
 
@@ -217,12 +161,6 @@ type CreatePageRequest struct {
 	ProjectID string       `json:"project_id"`
 	Title     string       `json:"title"`
 	Details   *PageDetails `json:"details,omitempty"`
-}
-
-type UpdatePageRequest struct {
-	Title   string       `json:"title"`
-	Details *PageDetails `json:"details,omitempty"`
-	Mode    string       `json:"mode,omitempty"`
 }
 
 type UpdatePageContentRequest struct {
@@ -250,7 +188,7 @@ func (c *Client) ListOrgs() ([]Org, error) {
 func (c *Client) ListProjects(orgID string) ([]Project, error) {
 	path := "/projects/"
 	if orgID != "" {
-		path = fmt.Sprintf("/projects/?org_id=%s", orgID)
+		path = "/projects/?" + url.Values{"org_id": {orgID}}.Encode()
 	}
 	var projects []Project
 	if err := c.Get(path, &projects); err != nil {

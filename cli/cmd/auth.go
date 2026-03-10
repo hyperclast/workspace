@@ -23,7 +23,7 @@ var authLoginCmd = &cobra.Command{
 	Short: "Authenticate with your API token",
 	Long:  `Authenticate with Hyperclast using your API token.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		settingsURL := strings.TrimSuffix(cfg.APIURL, "/api") + "/settings/#developer"
+		settingsURL := baseURL() + "/settings/#developer"
 
 		fmt.Println()
 		fmt.Println("To authenticate, you need an API token from Hyperclast.")
@@ -93,10 +93,9 @@ var authStatusCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !cfg.IsAuthenticated() {
 			if outputFmt == "json" {
-				json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+				return json.NewEncoder(os.Stdout).Encode(map[string]any{
 					"authenticated": false,
 				})
-				return nil
 			}
 			printInfo("Not authenticated. Run 'hyperclast auth login' to authenticate.")
 			return nil
@@ -106,22 +105,20 @@ var authStatusCmd = &cobra.Command{
 		user, err := client.GetCurrentUser()
 		if err != nil {
 			if outputFmt == "json" {
-				json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+				return json.NewEncoder(os.Stdout).Encode(map[string]any{
 					"authenticated": false,
 					"error":         err.Error(),
 				})
-				return nil
 			}
 			return fmt.Errorf("failed to verify token: %w", err)
 		}
 
 		if outputFmt == "json" {
-			json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+			return json.NewEncoder(os.Stdout).Encode(map[string]any{
 				"authenticated": true,
 				"email":         user.Email,
 				"external_id":   user.ExternalID,
 			})
-			return nil
 		}
 
 		printSuccess("Authenticated as %s", user.Email)

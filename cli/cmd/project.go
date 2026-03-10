@@ -28,8 +28,8 @@ var projectListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List projects",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if !cfg.IsAuthenticated() {
-			return fmt.Errorf("not authenticated. Run 'hyperclast auth login' first")
+		if err := requireAuth(); err != nil {
+			return err
 		}
 
 		orgID := projectOrgID
@@ -53,15 +53,15 @@ var projectListCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tNAME\tORG")
+		_, _ = fmt.Fprintln(w, "ID\tNAME\tORG")
 		for _, project := range projects {
 			defaultMark := ""
 			if project.ExternalID == cfg.GetDefaultProject() {
 				defaultMark = " (default)"
 			}
-			fmt.Fprintf(w, "%s\t%s%s\t%s\n", project.ExternalID, project.Name, defaultMark, project.Org.Name)
+			_, _ = fmt.Fprintf(w, "%s\t%s%s\t%s\n", project.ExternalID, project.Name, defaultMark, project.Org.Name)
 		}
-		w.Flush()
+		_ = w.Flush()
 
 		return nil
 	},
@@ -86,8 +86,8 @@ Examples:
   hyperclast project new "Build Logs" --use`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if !cfg.IsAuthenticated() {
-			return fmt.Errorf("not authenticated. Run 'hyperclast auth login' first")
+		if err := requireAuth(); err != nil {
+			return err
 		}
 
 		name := args[0]

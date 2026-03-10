@@ -95,7 +95,7 @@ func TestProjectNew_NameExactly255Chars(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(sampleProjectJSON()))
+		_, _ = w.Write([]byte(sampleProjectJSON()))
 	}))
 	defer server.Close()
 
@@ -141,10 +141,10 @@ func TestProjectNew_ExplicitOrgOverridesDefault(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		var req api.CreateProjectRequest
-		json.Unmarshal(body, &req)
+		_ = json.Unmarshal(body, &req)
 		receivedOrgID = req.OrgID
 		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(sampleProjectJSON()))
+		_, _ = w.Write([]byte(sampleProjectJSON()))
 	}))
 	defer server.Close()
 
@@ -173,10 +173,10 @@ func TestProjectNew_FallsBackToDefaultOrg(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		var req api.CreateProjectRequest
-		json.Unmarshal(body, &req)
+		_ = json.Unmarshal(body, &req)
 		receivedOrgID = req.OrgID
 		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(sampleProjectJSON()))
+		_, _ = w.Write([]byte(sampleProjectJSON()))
 	}))
 	defer server.Close()
 
@@ -204,10 +204,10 @@ func TestProjectNew_SendsDescriptionWhenProvided(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		var req api.CreateProjectRequest
-		json.Unmarshal(body, &req)
+		_ = json.Unmarshal(body, &req)
 		receivedDesc = req.Description
 		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(sampleProjectJSON()))
+		_, _ = w.Write([]byte(sampleProjectJSON()))
 	}))
 	defer server.Close()
 
@@ -230,12 +230,12 @@ func TestProjectNew_SendsDescriptionWhenProvided(t *testing.T) {
 func TestProjectNew_OmitsDescriptionWhenEmpty(t *testing.T) {
 	resetProjectFlags()
 
-	var rawBody map[string]interface{}
+	var rawBody map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
-		json.Unmarshal(body, &rawBody)
+		_ = json.Unmarshal(body, &rawBody)
 		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(sampleProjectJSON()))
+		_, _ = w.Write([]byte(sampleProjectJSON()))
 	}))
 	defer server.Close()
 
@@ -260,7 +260,7 @@ func TestProjectNew_UseFlagSavesDefaultProject(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(sampleProjectJSON()))
+		_, _ = w.Write([]byte(sampleProjectJSON()))
 	}))
 	defer server.Close()
 
@@ -308,7 +308,7 @@ func TestProjectNew_WithoutUseFlagDoesNotSetDefault(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(sampleProjectJSON()))
+		_, _ = w.Write([]byte(sampleProjectJSON()))
 	}))
 	defer server.Close()
 
@@ -333,7 +333,7 @@ func TestProjectNew_JSONOutput(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(sampleProjectJSON()))
+		_, _ = w.Write([]byte(sampleProjectJSON()))
 	}))
 	defer server.Close()
 
@@ -351,7 +351,7 @@ func TestProjectNew_JSONOutput(t *testing.T) {
 
 	err := projectNewCmd.RunE(projectNewCmd, []string{"Build Logs"})
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	if err != nil {
@@ -377,7 +377,7 @@ func TestProjectNew_APIErrorPropagation(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte(`{"detail": "You do not have permission to create projects in this organization"}`))
+		_, _ = w.Write([]byte(`{"detail": "You do not have permission to create projects in this organization"}`))
 	}))
 	defer server.Close()
 
@@ -406,7 +406,7 @@ func TestProjectNew_SendsCorrectHTTPMethod(t *testing.T) {
 		receivedMethod = r.Method
 		receivedPath = r.URL.Path
 		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(sampleProjectJSON()))
+		_, _ = w.Write([]byte(sampleProjectJSON()))
 	}))
 	defer server.Close()
 
@@ -435,7 +435,7 @@ func TestProjectNew_SendsAuthHeader(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedAuth = r.Header.Get("Authorization")
 		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(sampleProjectJSON()))
+		_, _ = w.Write([]byte(sampleProjectJSON()))
 	}))
 	defer server.Close()
 
