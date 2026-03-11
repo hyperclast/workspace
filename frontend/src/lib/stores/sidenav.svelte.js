@@ -5,6 +5,7 @@
 const STORAGE_KEY_EXPANDED = "expanded-project-ids";
 const STORAGE_KEY_CURRENT_PROJECT_OLD = "current-project-id"; // For migration
 const STORAGE_KEY_FILES_EXPANDED = "expanded-files-project-ids";
+const STORAGE_KEY_FOLDERS_PREFIX = "folders:"; // Per-project folder expand state
 
 // Load expanded projects from localStorage (with migration from old format)
 function loadExpandedProjects() {
@@ -40,11 +41,35 @@ function loadExpandedFilesSections() {
   }
 }
 
+// Load expanded folders for a project from localStorage
+function loadExpandedFolders(projectId) {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_FOLDERS_PREFIX + projectId);
+    if (stored) {
+      return new Set(JSON.parse(stored));
+    }
+    return new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+// Save expanded folders for a project to localStorage
+function saveExpandedFolders(projectId) {
+  const folderSet = expandedFolderIds[projectId];
+  if (folderSet && folderSet.size > 0) {
+    localStorage.setItem(STORAGE_KEY_FOLDERS_PREFIX + projectId, JSON.stringify([...folderSet]));
+  } else {
+    localStorage.removeItem(STORAGE_KEY_FOLDERS_PREFIX + projectId);
+  }
+}
+
 // Reactive state
 let projects = $state([]);
 let activePageId = $state(null);
 let expandedProjectIds = $state(loadExpandedProjects());
 let expandedFilesSections = $state(loadExpandedFilesSections());
+let expandedFolderIds = $state({}); // Map of projectId -> Set of expanded folder external_ids
 let showFilesSection = $state(false);
 let projectFiles = $state({}); // Map of projectId -> files array
 
@@ -90,12 +115,29 @@ export function setProjects(newProjects, newActivePageId = null) {
     );
     if (activeProject) {
       expandProject(activeProject.external_id);
+
+      // Auto-expand folder chain containing the active page
+      const activePage = activeProject.pages?.find((p) => p.external_id === newActivePageId);
+      if (activePage?.folder_id && activeProject.folders?.length > 0) {
+        const folderById = new Map(activeProject.folders.map((f) => [f.external_id, f]));
+        let folderId = activePage.folder_id;
+        while (folderId) {
+          expandFolder(activeProject.external_id, folderId);
+          const folder = folderById.get(folderId);
+          folderId = folder?.parent_id || null;
+        }
+      }
     }
   }
 
   // If no projects are expanded and we have projects, expand the first one
   if (expandedProjectIds.size === 0 && projects.length > 0) {
     expandProject(projects[0].external_id);
+  }
+
+  // Load folder expand state for each project
+  for (const project of newProjects) {
+    ensureFolderStateLoaded(project.external_id);
   }
 }
 
@@ -157,12 +199,12 @@ export function navigateToPage(pageId, projectId) {
   }
 }
 
-export function createNewPage(projectId) {
+export function createNewPage(projectId, folderId = null) {
   if (projectId) {
     expandProject(projectId);
   }
   if (onNewPage) {
-    onNewPage(projectId);
+    onNewPage(projectId, folderId);
   }
 }
 
@@ -264,6 +306,46 @@ export function removeFileFromProject(projectId, fileExternalId) {
     ...projectFiles,
     [projectId]: files.filter((f) => f.external_id !== fileExternalId),
   };
+}
+
+// Folder expand/collapse management
+export function toggleFolderExpanded(projectId, folderId) {
+  const folderSet = expandedFolderIds[projectId] || loadExpandedFolders(projectId);
+  if (folderSet.has(folderId)) {
+    folderSet.delete(folderId);
+  } else {
+    folderSet.add(folderId);
+  }
+  expandedFolderIds = { ...expandedFolderIds, [projectId]: new Set(folderSet) };
+  saveExpandedFolders(projectId);
+}
+
+export function expandFolder(projectId, folderId) {
+  const folderSet = expandedFolderIds[projectId] || loadExpandedFolders(projectId);
+  if (!folderSet.has(folderId)) {
+    folderSet.add(folderId);
+    expandedFolderIds = { ...expandedFolderIds, [projectId]: new Set(folderSet) };
+    saveExpandedFolders(projectId);
+  }
+}
+
+export function isFolderExpanded(projectId, folderId) {
+  const folderSet = expandedFolderIds[projectId];
+  return folderSet ? folderSet.has(folderId) : false;
+}
+
+export function getExpandedFolderIds(projectId) {
+  return expandedFolderIds[projectId] || new Set();
+}
+
+// Ensure folder expand state is loaded for a project when projects are set
+function ensureFolderStateLoaded(projectId) {
+  if (!expandedFolderIds[projectId]) {
+    const loaded = loadExpandedFolders(projectId);
+    if (loaded.size > 0) {
+      expandedFolderIds = { ...expandedFolderIds, [projectId]: loaded };
+    }
+  }
 }
 
 // Export reactive getters

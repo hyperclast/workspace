@@ -36,10 +36,10 @@ Within project-level access, roles control what actions are allowed:
 
 **Query Parameters:**
 
-| Param     | Description                    |
-| --------- | ------------------------------ |
-| `org_id`  | Filter by organization         |
-| `details` | Set to `full` to include pages |
+| Param     | Description                                        |
+| --------- | -------------------------------------------------- |
+| `org_id`  | Filter by organization                             |
+| `details` | Set to `full` to include pages, folders, and files |
 
 **Response (200):**
 
@@ -72,7 +72,19 @@ Within project-level access, roles control what actions are allowed:
 | `access_source`          | `full` (project-level access) or `page_only` (page access only) |
 | `files`                  | Array of files (only with `?details=full` and full access)      |
 
-With `?details=full`, `pages` contains an array of page objects and `files` contains available files for the project. Users with `page_only` access only see pages they have explicit access to, and `files` will be `null`.
+With `?details=full`, `pages` contains an array of page objects (each with a `folder_id` field), `folders` contains the project's folder hierarchy, and `files` contains available files for the project. Users with `page_only` access only see pages they have explicit access to, and `files` will be `null`.
+
+**Folders object schema:**
+
+```json
+{
+  "external_id": "fld_abc",
+  "parent_id": null,
+  "name": "Design"
+}
+```
+
+Each folder has a `parent_id` pointing to its parent folder's `external_id`, or `null` for top-level folders.
 
 **Files object schema:**
 
@@ -94,7 +106,7 @@ With `?details=full`, `pages` contains an array of page objects and `files` cont
 | **Endpoint** | `GET /api/v1/projects/{external_id}/` |
 | **Auth**     | Bearer token                          |
 
-**Query:** `?details=full` to include pages and files.
+**Query:** `?details=full` to include pages, folders, and files.
 
 **Response (200):**
 
@@ -120,7 +132,7 @@ With `?details=full`, `pages` contains an array of page objects and `files` cont
 }
 ```
 
-With `?details=full`, includes `pages` and `files` arrays (files only for users with full project access).
+With `?details=full`, includes `pages` (with `folder_id`), `folders`, and `files` arrays (files only for users with full project access).
 
 ---
 

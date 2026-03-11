@@ -11,7 +11,8 @@
   import HelpModal from './HelpModal.svelte';
   import ImportModal from './ImportModal.svelte';
   import CodePasteModal from './CodePasteModal.svelte';
-  import { getConfirmState, getPromptState, getShareProjectState, getCreateProjectState, getNewPageState, getChangePageTypeState, getCommandPaletteState, getReadonlyLinkState, getSharePageState, getHelpState, getImportState, getCodePasteState } from '../stores/modal.svelte.js';
+  import MovePageModal from './MovePageModal.svelte';
+  import { getConfirmState, getPromptState, getShareProjectState, getCreateProjectState, getNewPageState, getChangePageTypeState, getCommandPaletteState, getReadonlyLinkState, getSharePageState, getHelpState, getImportState, getCodePasteState, getMovePageState } from '../stores/modal.svelte.js';
 
   const confirmState = getConfirmState();
   const promptState = getPromptState();
@@ -25,6 +26,7 @@
   const helpState = getHelpState();
   const importState = getImportState();
   const codePasteState = getCodePasteState();
+  const movePageState = getMovePageState();
 </script>
 
 <ConfirmModal
@@ -119,4 +121,14 @@
   suggestedLang={codePasteState.suggestedLang}
   onconfirm={codePasteState.onconfirm}
   oncancel={codePasteState.oncancel}
+/>
+
+<MovePageModal
+  bind:open={movePageState.open}
+  projectId={movePageState.projectId}
+  pageId={movePageState.pageId}
+  pageTitle={movePageState.pageTitle}
+  currentFolderId={movePageState.currentFolderId}
+  folders={movePageState.folders}
+  onmoved={movePageState.onmoved}
 />

@@ -107,22 +107,29 @@ export const DEMO_PROJECTS = [
       external_id: "demo-org",
       name: "Demo",
     },
+    folders: [
+      { external_id: "demo-folder-getting-started", parent_id: null, name: "Getting Started" },
+      { external_id: "demo-folder-examples", parent_id: null, name: "Examples" },
+    ],
     pages: [
       {
         external_id: "demo-welcome",
         title: "Welcome to Hyperclast",
+        folder_id: "demo-folder-getting-started",
         created: new Date().toISOString(),
         modified: new Date().toISOString(),
       },
       {
         external_id: "demo-links",
         title: "Internal Links",
+        folder_id: "demo-folder-getting-started",
         created: new Date().toISOString(),
         modified: new Date().toISOString(),
       },
       {
         external_id: "demo-sections",
         title: "Sections & Tasks",
+        folder_id: "demo-folder-examples",
         created: new Date().toISOString(),
         modified: new Date().toISOString(),
       },
@@ -130,6 +137,7 @@ export const DEMO_PROJECTS = [
         external_id: "demo-csv",
         title: "Sample Data",
         filetype: "csv",
+        folder_id: "demo-folder-examples",
         created: new Date().toISOString(),
         modified: new Date().toISOString(),
       },

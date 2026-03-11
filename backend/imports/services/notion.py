@@ -824,18 +824,120 @@ def flatten_page_tree(pages: list[ParsedPage]) -> list[ParsedPage]:
     return result
 
 
+def _sanitize_folder_name(name: str) -> str:
+    """
+    Sanitize a folder name for use during import.
+
+    Strips forbidden characters (/, \\, control chars) and truncates to
+    MAX_FOLDER_NAME_LENGTH. Unlike validate_folder_name() which raises on
+    invalid input, this silently cleans the name since import data comes
+    from external sources.
+    """
+    from pages.services.folders import (
+        CONTROL_CHARS_PATTERN,
+        FORBIDDEN_CHARS_PATTERN,
+        MAX_FOLDER_NAME_LENGTH,
+    )
+
+    if not name:
+        return "Untitled"
+
+    name = name.strip()
+    name = FORBIDDEN_CHARS_PATTERN.sub("", name)
+    name = CONTROL_CHARS_PATTERN.sub("", name)
+    name = name.strip()
+
+    if not name:
+        return "Untitled"
+
+    if len(name) > MAX_FOLDER_NAME_LENGTH:
+        name = name[:MAX_FOLDER_NAME_LENGTH]
+
+    return name
+
+
+def _create_folders_from_tree(parsed_pages: list[ParsedPage], project, max_depth: int = 10) -> dict:
+    """
+    Create Folder rows from the parsed page tree's directory structure.
+
+    Walks the tree and creates folders for each level that has children.
+    Respects max depth by flattening deeper directories into the deepest
+    allowed level. Enforces MAX_FOLDERS_PER_PROJECT by flattening once
+    the limit is reached. Sanitizes folder names to strip forbidden characters.
+
+    Args:
+        parsed_pages: Nested list of ParsedPage objects.
+        project: Project instance.
+        max_depth: Maximum folder nesting depth.
+
+    Returns:
+        dict mapping id(parsed_page) -> Folder instance
+    """
+    from pages.models import Folder
+    from pages.services.folders import MAX_FOLDERS_PER_PROJECT
+
+    # Map: parsed_page id -> Folder instance
+    page_folder_map = {}
+
+    # Count existing folders to enforce limit
+    existing_count = Folder.objects.filter(project=project).count()
+    folders_created = 0
+    limit_warned = False
+
+    def process_level(pages, parent_folder, depth):
+        nonlocal folders_created, limit_warned
+
+        for page in pages:
+            if page.children:
+                # This page has children, so it acts as a "directory"
+                # Check both depth limit and folder count limit
+                if depth <= max_depth and (existing_count + folders_created) < MAX_FOLDERS_PER_PROJECT:
+                    sanitized_name = _sanitize_folder_name(page.title)
+                    folder, created = Folder.objects.get_or_create(
+                        project=project,
+                        parent=parent_folder,
+                        name=sanitized_name,
+                        defaults={},
+                    )
+                    if created:
+                        folders_created += 1
+                elif not limit_warned and (existing_count + folders_created) >= MAX_FOLDERS_PER_PROJECT:
+                    logger.warning(
+                        f"Folder limit ({MAX_FOLDERS_PER_PROJECT}) reached for project "
+                        f"{project.external_id} during import. Remaining directories "
+                        f"will be flattened."
+                    )
+                    limit_warned = True
+                    # Flatten into the deepest allowed folder
+                    folder = parent_folder
+                else:
+                    # Depth exceeded or limit reached — flatten
+                    folder = parent_folder
+
+                # Children go into this folder
+                for child in page.children:
+                    page_folder_map[id(child)] = folder
+
+                # Recurse for nested children
+                process_level(page.children, folder, depth + 1)
+
+    process_level(parsed_pages, None, 1)
+    return page_folder_map
+
+
 def create_import_pages(parsed_pages: list[ParsedPage], project, user, import_job=None):
     """
     Orchestrate the creation of pages from parsed Notion export.
 
     This function handles:
-    1. Flattening the page tree
-    2. Checking for duplicate source_hash values already in the project
-    3. Creating new pages in batch (skipping duplicates)
-    4. Building source_hash → hyperclast_id mapping (includes existing pages)
-    5. Second pass: updating each page's content with remapped links
-    6. Syncing PageLink records for all pages
-    7. Creating ImportedPage records to track the import
+    1. Creating folders from the directory structure
+    2. Flattening the page tree
+    3. Checking for duplicate source_hash values already in the project
+    4. Creating new pages in batch (skipping duplicates)
+    5. Building source_hash → hyperclast_id mapping (includes existing pages)
+    6. Second pass: updating each page's content with remapped links
+    7. Syncing PageLink records for all pages
+    8. Creating ImportedPage records to track the import
 
     Args:
         parsed_pages: List of ParsedPage objects (possibly nested)
@@ -854,6 +956,9 @@ def create_import_pages(parsed_pages: list[ParsedPage], project, user, import_jo
     from imports.models import ImportedPage
     from pages.models import Page
     from pages.models.links import PageLink
+
+    # Step 0: Create folders from the directory structure
+    page_folder_map = _create_folders_from_tree(parsed_pages, project)
 
     # Step 1: Flatten the page tree
     flat_pages = flatten_page_tree(parsed_pages)
@@ -909,15 +1014,20 @@ def create_import_pages(parsed_pages: list[ParsedPage], project, user, import_jo
             skipped_count += 1
             continue
 
-        pages_data.append(
-            {
-                "title": parsed_page.title or "Untitled",
-                "content": parsed_page.content,
-                "source_hash": parsed_page.source_hash,
-                "original_path": parsed_page.original_path,
-                "filetype": parsed_page.filetype,
-            }
-        )
+        page_data = {
+            "title": parsed_page.title or "Untitled",
+            "content": parsed_page.content,
+            "source_hash": parsed_page.source_hash,
+            "original_path": parsed_page.original_path,
+            "filetype": parsed_page.filetype,
+        }
+
+        # Assign folder from the tree structure
+        folder = page_folder_map.get(id(parsed_page))
+        if folder:
+            page_data["folder"] = folder
+
+        pages_data.append(page_data)
         pages_to_create.append(parsed_page)
 
     # Step 4: Create new pages in a single transaction

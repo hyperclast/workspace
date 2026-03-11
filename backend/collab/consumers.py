@@ -183,6 +183,18 @@ class PageYjsConsumer(BaseYjsConsumer):
             except Exception as e:
                 log_error(f"Error creating editor session for page {page_uuid}: {e}", exc_info=True)
 
+        # Join project-level group for folder sync
+        try:
+            from pages.models import Page
+
+            page_obj = await sync_to_async(
+                lambda: Page.objects.select_related("project").get(external_id=page_uuid, is_deleted=False)
+            )()
+            self.project_group = f"project_{page_obj.project.external_id}"
+            await self.channel_layer.group_add(self.project_group, self.channel_name)
+        except Exception as e:
+            log_warning(f"Could not join project group for page {page_uuid}: {e}")
+
         # Hand off to parent: computes room_name, builds ydoc via make_ydoc(), joins group, accepts socket
         try:
             await super().connect()
@@ -519,6 +531,13 @@ class PageYjsConsumer(BaseYjsConsumer):
         except Exception as e:
             log_error("Error during disconnect cleanup: %s", e, exc_info=True)
 
+        # Leave project group
+        if hasattr(self, "project_group"):
+            try:
+                await self.channel_layer.group_discard(self.project_group, self.channel_name)
+            except Exception as e:
+                log_warning("Error leaving project group: %s", e)
+
         # Only call parent disconnect if we had a ydoc (i.e., fully connected)
         if getattr(self, "ydoc", None) is not None:
             try:
@@ -604,3 +623,10 @@ class PageYjsConsumer(BaseYjsConsumer):
                 }
             )
         )
+
+    async def folders_updated(self, event):
+        """
+        Handle folders_updated broadcast from the project channel layer.
+        Notify the client to refetch the folder tree.
+        """
+        await self.send(text_data='{"type":"folders_updated"}')

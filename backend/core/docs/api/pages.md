@@ -97,11 +97,12 @@ Search pages by title for typeahead functionality.
 | **Endpoint** | `POST /api/v1/pages/` |
 | **Auth**     | Bearer token          |
 
-| Field        | Type   | Required? | Description               |
-| ------------ | ------ | --------- | ------------------------- |
-| `project_id` | string | Yes       | Project to create page in |
-| `title`      | string | No        | Page title                |
-| `details`    | object | No        | Content and metadata      |
+| Field        | Type   | Required? | Description                                         |
+| ------------ | ------ | --------- | --------------------------------------------------- |
+| `project_id` | string | Yes       | Project to create page in                           |
+| `title`      | string | No        | Page title                                          |
+| `details`    | object | No        | Content and metadata                                |
+| `folder_id`  | string | No        | Folder ID to create page in (`null` = project root) |
 
 **Response (201):**
 
@@ -151,11 +152,12 @@ Search pages by title for typeahead functionality.
 | **Endpoint** | `PUT /api/v1/pages/{external_id}/` |
 | **Auth**     | Bearer token (owner only)          |
 
-| Field     | Type   | Required? | Description                                              |
-| --------- | ------ | --------- | -------------------------------------------------------- |
-| `title`   | string | No        | Page title                                               |
-| `details` | object | No        | Content and metadata                                     |
-| `mode`    | string | No        | How content is applied: `append`, `prepend`, `overwrite` |
+| Field       | Type   | Required? | Description                                              |
+| ----------- | ------ | --------- | -------------------------------------------------------- |
+| `title`     | string | No        | Page title                                               |
+| `details`   | object | No        | Content and metadata                                     |
+| `folder_id` | string | No        | Folder ID to move page to (`null` = project root)        |
+| `mode`      | string | No        | How content is applied: `append`, `prepend`, `overwrite` |
 
 **Content Modes:**
 

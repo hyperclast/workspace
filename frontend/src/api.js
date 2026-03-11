@@ -71,10 +71,13 @@ export async function fetchOrgs() {
  * @param {string} [copyFrom] - Optional external ID of a page to copy content from
  * @returns {Promise<Object>} The created page object
  */
-export async function createPage(projectId, title, copyFrom = null) {
+export async function createPage(projectId, title, copyFrom = null, folderId = null) {
   const body = { project_id: projectId, title };
   if (copyFrom) {
     body.copy_from = copyFrom;
+  }
+  if (folderId) {
+    body.folder_id = folderId;
   }
   const response = await csrfFetch(`${API_BASE}/pages/`, {
     method: "POST",
@@ -94,8 +97,8 @@ export async function createPage(projectId, title, copyFrom = null) {
  * @param {string} externalId - External ID of the page
  * @returns {Promise<Object>} The page object
  */
-export async function fetchPage(externalId) {
-  const response = await csrfFetch(`${API_BASE}/pages/${externalId}/`);
+export async function fetchPage(externalId, options = {}) {
+  const response = await csrfFetch(`${API_BASE}/pages/${externalId}/`, options);
   if (!response.ok) {
     throw new Error(`Failed to fetch page: ${response.statusText}`);
   }
@@ -549,6 +552,84 @@ export async function fetchFileReferences(fileId) {
   const response = await csrfFetch(`${API_BASE}/files/${fileId}/references/`);
   if (!response.ok) {
     throw new Error(`Failed to fetch file references: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+// Folders API
+
+/**
+ * Create a folder in a project.
+ * @param {string} projectId - External ID of the project
+ * @param {string} name - Folder name
+ * @param {string|null} parentId - External ID of parent folder, or null for root
+ * @returns {Promise<Object>} The created folder object
+ */
+export async function createFolder(projectId, name, parentId = null) {
+  const response = await csrfFetch(`${API_BASE}/projects/${projectId}/folders/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, parent_id: parentId }),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || `Failed to create folder: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Update (rename/move) a folder.
+ * @param {string} projectId - External ID of the project
+ * @param {string} folderId - External ID of the folder
+ * @param {Object} data - { name?, parent_id? }
+ * @returns {Promise<Object>} The updated folder object
+ */
+export async function updateFolder(projectId, folderId, data) {
+  const response = await csrfFetch(`${API_BASE}/projects/${projectId}/folders/${folderId}/`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || `Failed to update folder: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Delete an empty folder.
+ * @param {string} projectId - External ID of the project
+ * @param {string} folderId - External ID of the folder
+ * @returns {Promise<void>}
+ */
+export async function deleteFolder(projectId, folderId) {
+  const response = await csrfFetch(`${API_BASE}/projects/${projectId}/folders/${folderId}/`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || `Failed to delete folder: ${response.statusText}`);
+  }
+}
+
+/**
+ * Move multiple pages to a folder (or project root).
+ * @param {string} projectId - External ID of the project
+ * @param {string[]} pageIds - External IDs of pages to move
+ * @param {string|null} folderId - Target folder external ID, or null for root
+ * @returns {Promise<{moved: number}>}
+ */
+export async function bulkMovePages(projectId, pageIds, folderId = null) {
+  const response = await csrfFetch(`${API_BASE}/projects/${projectId}/folders/move-pages/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ page_ids: pageIds, folder_id: folderId }),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || `Failed to move pages: ${response.statusText}`);
   }
   return response.json();
 }

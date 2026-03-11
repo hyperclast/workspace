@@ -12,6 +12,7 @@ import {
   openSharePage as _openSharePage,
   openHelp as _openHelp,
   openImport as _openImport,
+  openMovePage as _openMovePage,
 } from "./stores/modal.svelte.js";
 
 let mounted = false;
@@ -172,4 +173,19 @@ export function helpModal() {
 export function importModal(options = {}) {
   initModals();
   _openImport(options);
+}
+
+/**
+ * Show a move page modal for picking a target folder
+ * @param {Object} options
+ * @param {string} options.projectId - Project external ID
+ * @param {string} options.pageId - Page external ID
+ * @param {string} options.pageTitle - Page title
+ * @param {string|null} options.currentFolderId - Current folder external ID (null = project root)
+ * @param {Array} options.folders - Flat array of folder objects from project.folders
+ * @param {Function} options.onmoved - Callback after page is moved
+ */
+export function movePageModal(options = {}) {
+  initModals();
+  _openMovePage(options);
 }

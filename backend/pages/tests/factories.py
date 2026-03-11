@@ -4,6 +4,7 @@ from django.utils import timezone
 
 from pages.constants import PageEditorRole
 from pages.models import (
+    Folder,
     Page,
     PageEditor,
     PageEditorAddEvent,
@@ -16,6 +17,15 @@ from pages.models import (
     ProjectInvitation,
 )
 from users.tests.factories import OrgFactory, UserFactory
+
+
+class FolderFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Folder
+
+    project = factory.SubFactory("pages.tests.factories.ProjectFactory")
+    name = factory.Faker("word")
+    parent = None
 
 
 class ProjectFactory(factory.django.DjangoModelFactory):

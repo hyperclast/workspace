@@ -47,6 +47,7 @@ import { mentionCompletionSource } from "./mentionAutocomplete.js";
 import { findSectionFold } from "./findSectionFold.js";
 import { languageDisplayNames } from "./codeSyntax/languageLoader.js";
 import { largeFileModeExtension } from "./largeFileMode.js";
+import { LARGE_FILE_BYTES } from "./config/performance.js";
 import { sectionFoldHover } from "./sectionFoldHover.js";
 import { pasteCodeDetection } from "./pasteCodeDetection.js";
 import { foldChangeListener, setCurrentPageIdForFolds } from "./foldChangeListener.js";
@@ -92,6 +93,7 @@ import {
 } from "./lib/sidenav.js";
 import { updatePageAccessCode } from "./lib/stores/sidenav.svelte.js";
 import { initSidenavBroadcast, broadcastSidenavChanged } from "./lib/sidenavBroadcast.js";
+import { buildTree, getFolderBreadcrumbs } from "./lib/utils/buildTree.js";
 import { setupToolbar, resetToolbar } from "./toolbar.js";
 import { getPageIdFromPath } from "./router.js";
 import { initTheme } from "./theme.js";
@@ -197,6 +199,7 @@ function renderAppHTML() {
                 </span>
                 <span class="breadcrumb-sep">/</span>
                 <span id="breadcrumb-project" class="breadcrumb-item"></span>
+                <span id="breadcrumb-folders" class="breadcrumb-folders"></span>
                 <span class="breadcrumb-sep">/</span>
                 <span id="breadcrumb-page" class="breadcrumb-item breadcrumb-page"></span><button id="breadcrumb-filetype" class="breadcrumb-filetype" title="Change page type"></button>
               </nav>
@@ -338,14 +341,16 @@ async function fetchProjects() {
  * Fetch a specific page by external_id.
  * Uses demo data when in demo mode.
  */
-async function fetchPage(external_id) {
+async function fetchPage(external_id, options = {}) {
   try {
     if (isDemoMode()) {
       return await fetchDemoPage(external_id);
     }
-    const page = await fetchPageApi(external_id);
+    const page = await fetchPageApi(external_id, options);
     return page;
   } catch (error) {
+    // Let AbortError propagate so callers can handle navigation cancellation
+    if (error.name === "AbortError") throw error;
     console.error("Error fetching page:", error);
     return { error: error.message || "Could not load page at this time" };
   }
@@ -357,9 +362,9 @@ async function fetchPage(external_id) {
  * @param {string} title - Title of the page
  * @param {string} [copyFrom] - Optional external ID of page to copy content from
  */
-async function createPage(projectId, title, copyFrom = null) {
+async function createPage(projectId, title, copyFrom = null, folderId = null) {
   try {
-    const page = await createPageApi(projectId, title || "Untitled", copyFrom);
+    const page = await createPageApi(projectId, title || "Untitled", copyFrom, folderId);
     return { success: true, page };
   } catch (error) {
     console.error("Error creating page:", error);
@@ -450,6 +455,7 @@ function updateBreadcrumb(projectId) {
   const breadcrumbRow = document.getElementById("breadcrumb-row");
   const orgNameEl = document.getElementById("breadcrumb-org-name");
   const projectEl = document.getElementById("breadcrumb-project");
+  const foldersEl = document.getElementById("breadcrumb-folders");
   const pageEl = document.getElementById("breadcrumb-page");
 
   if (!breadcrumbRow || !orgNameEl || !projectEl) return;
@@ -468,7 +474,34 @@ function updateBreadcrumb(projectId) {
     pageEl.textContent = currentPage.title || "Untitled";
   }
 
+  // Build folder breadcrumb path
+  if (foldersEl) {
+    foldersEl.innerHTML = "";
+    if (currentPage && project.folders?.length > 0) {
+      const folderId = findPageFolderId(currentPage.external_id, project);
+      if (folderId) {
+        const { folderMap } = buildTree(project.folders, []);
+        const crumbs = getFolderBreadcrumbs(folderId, folderMap);
+        for (const crumb of crumbs) {
+          const sep = document.createElement("span");
+          sep.className = "breadcrumb-sep";
+          sep.textContent = ">";
+          foldersEl.appendChild(sep);
+          const span = document.createElement("span");
+          span.className = "breadcrumb-item";
+          span.textContent = crumb.name;
+          foldersEl.appendChild(span);
+        }
+      }
+    }
+  }
+
   breadcrumbRow.style.display = "flex";
+}
+
+function findPageFolderId(pageExternalId, project) {
+  const page = project.pages?.find((p) => p.external_id === pageExternalId);
+  return page?.folder_id || null;
 }
 
 /**
@@ -606,7 +639,7 @@ function setupTitleEditing() {
  *
  * @param {Object} page - The page object from API (with external_id, title, details, etc.)
  */
-async function loadPage(page) {
+async function loadPage(page, signal = null) {
   const pageId = page.external_id;
   const contentLength = page.details?.content?.length || 0;
 
@@ -759,9 +792,33 @@ async function loadPage(page) {
   const toolbarWrapper = document.getElementById("toolbar-wrapper");
   if (toolbarWrapper) toolbarWrapper.style.display = "block";
 
+  // Yield to the event loop before the heavy editor initialization.
+  // For large documents (7MB+), initializeEditor can block the main thread
+  // for several seconds.  This yield gives the browser a chance to process
+  // any pending click events so the user can navigate away before the block.
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  if (currentPage?.external_id !== pageId || signal?.aborted) {
+    pageLoadSpan.end({ status: "aborted", reason: "page_changed_before_editor_init" });
+    return;
+  }
+
   pageLoadSpan.addEvent("editor_init_start");
   initializeEditor(content, [], filetype);
   pageLoadSpan.addEvent("editor_init_complete", { editorContentLength: content.length });
+
+  // After the (potentially long) blocking init, yield to let any queued click
+  // events fire.  A queued click calls openPage() which aborts our signal.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  if (signal?.aborted) {
+    console.log(`[Nav] superseded during editor init: ${pageId}`);
+    pageLoadSpan.end({ status: "aborted", reason: "superseded_during_editor_init" });
+    // Destroy the editor we just created — the new openPage will create its own.
+    if (window.editorView) {
+      window.editorView.destroy();
+      window.editorView = null;
+    }
+    return;
+  }
 
   // End page load span - user can now see content
   pageLoadSpan.end({
@@ -786,8 +843,22 @@ async function loadPage(page) {
   // STEP 2: Setup collaboration in background and upgrade editor when ready
   // This is tracked separately from page_load since it's async
   // Skip in demo mode - local editing only
+  //
+  // Deferred via rAF so the browser can paint the REST content AND process
+  // any pending click events before the heavy Yjs sync starts.  If the user
+  // clicks a different page between now and the rAF callback, the page guard
+  // prevents the sync from starting at all.
   if (!isDemoMode()) {
-    setupCollaborationAsync(page, content, filetype);
+    const deferredPageId = page.external_id;
+    requestAnimationFrame(() => {
+      if (currentPage?.external_id === deferredPageId && !signal?.aborted) {
+        setupCollaborationAsync(page, content, filetype, signal);
+      } else {
+        console.log(
+          `[Nav] skipped collab setup: page changed from ${deferredPageId} to ${currentPage?.external_id}`
+        );
+      }
+    });
   }
 }
 
@@ -795,7 +866,7 @@ async function loadPage(page) {
  * Setup collaboration asynchronously and upgrade the editor when sync completes.
  * This runs after the page is already visible with REST content.
  */
-async function setupCollaborationAsync(page, restContent, filetype) {
+async function setupCollaborationAsync(page, restContent, filetype, signal = null) {
   const pageId = page.external_id;
 
   // Start collaboration span - tracks entire async collab setup
@@ -852,8 +923,12 @@ async function setupCollaborationAsync(page, restContent, filetype) {
       serverHasContent: syncResult.ytextHasContent,
     });
 
+    // Y.applyUpdate() during sync may have blocked the main thread for seconds
+    // on large documents.  Yield so queued click events can fire and abort us.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
     // Guard: Check if user navigated away while we were waiting
-    if (currentPage?.external_id !== pageId) {
+    if (signal?.aborted || currentPage?.external_id !== pageId) {
       collabSpan.end({
         status: "aborted",
         reason: "page_changed_during_sync",
@@ -893,6 +968,14 @@ async function setupCollaborationAsync(page, restContent, filetype) {
       upgradeEditorToCollaborative(collabObjects, filetype);
       upgradeSpan.end({ status: "success" });
       collabSpan.addEvent("editor_upgrade_complete");
+
+      // Yield after the blocking upgrade so queued clicks can abort us.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (signal?.aborted || currentPage?.external_id !== pageId) {
+        console.log(`[Nav] superseded during collab upgrade: ${pageId}`);
+        collabSpan.end({ status: "aborted", reason: "superseded_during_collab_upgrade" });
+        return;
+      }
 
       updateCollabStatus("connected");
 
@@ -1138,12 +1221,33 @@ function formatDate(dateString) {
 
 const failedPageIds = new Set();
 
+// AbortController for in-flight page navigation — ensures only the most recent click wins
+let pageNavigationController = null;
+
 /**
  * Open an existing page by external_id.
  * @param {string} external_id - The page's external_id
  * @param {boolean} skipPushState - If true, don't push to history (used for popstate handling)
  */
 async function openPage(external_id, skipPushState = false) {
+  console.log(`[Nav] openPage: ${external_id}, currentPage=${currentPage?.external_id ?? "null"}`);
+  // Abort any in-flight page navigation so only the most recent click wins
+  if (pageNavigationController) {
+    console.log(`[Nav] aborting previous controller`);
+    pageNavigationController.abort();
+  }
+  pageNavigationController = new AbortController();
+  const { signal } = pageNavigationController;
+
+  // Immediately disconnect any running collaboration to stop Yjs sync.
+  // Large documents can block the main thread during Y.applyUpdate();
+  // disconnecting the WebSocket stops further updates from arriving.
+  if (collabObjects) {
+    destroyCollaboration(collabObjects);
+    collabObjects = null;
+    window.undoManager = null;
+  }
+
   const navSpan = metrics.startSpan("page_navigation", {
     pageId: external_id,
     source: skipPushState ? "browser_history" : "programmatic",
@@ -1154,19 +1258,36 @@ async function openPage(external_id, skipPushState = false) {
     return;
   }
 
-  // Show loading state immediately so user knows something is happening
+  // Show loading state and update sidenav highlight immediately
   showEditorLoading();
+  if (cachedProjects.length > 0) {
+    renderSidenav(cachedProjects, external_id);
+  }
 
   if (cachedProjects.length === 0) {
     navSpan.addEvent("fetch_projects_start");
     cachedProjects = await fetchProjects();
+    if (signal.aborted) {
+      navSpan.end({ status: "aborted" });
+      return;
+    }
     navSpan.addEvent("fetch_projects_complete", { projectCount: cachedProjects.length });
+    renderSidenav(cachedProjects, external_id);
   }
-  renderSidenav(cachedProjects, external_id);
 
   navSpan.addEvent("fetch_page_start");
   const fetchSpan = metrics.startSpan("rest_fetch", { pageId: external_id, endpoint: "page" });
-  const page = await fetchPage(external_id);
+  let page;
+  try {
+    page = await fetchPage(external_id, { signal });
+  } catch (err) {
+    if (err.name === "AbortError") {
+      fetchSpan.end({ status: "aborted" });
+      navSpan.end({ status: "aborted" });
+      return;
+    }
+    throw err;
+  }
   fetchSpan.end({
     status: page?.error ? "error" : "success",
     contentLength: page?.details?.content?.length || 0,
@@ -1176,6 +1297,14 @@ async function openPage(external_id, skipPushState = false) {
     contentLength: page?.details?.content?.length || 0,
   });
 
+  // Check if navigation was superseded after fetch completed
+  if (signal.aborted) {
+    console.log(`[Nav] stale after fetch: ${external_id}`);
+    navSpan.end({ status: "aborted" });
+    return;
+  }
+
+  console.log(`[Nav] fetch complete: ${external_id}, loading page...`);
   if (!page || page.error) {
     failedPageIds.add(external_id);
     navSpan.end({ status: "error", reason: page?.error || "not_found" });
@@ -1186,9 +1315,10 @@ async function openPage(external_id, skipPushState = false) {
   }
 
   navSpan.addEvent("load_page_start");
-  await loadPage(page);
+  await loadPage(page, signal);
   hideEditorLoading();
   navSpan.addEvent("load_page_complete");
+  console.log(`[Nav] loadPage complete: ${external_id}, currentPage=${currentPage?.external_id}`);
 
   // Only push state if this is a programmatic navigation, not browser back/forward
   if (!skipPushState) {
@@ -1411,18 +1541,32 @@ function initializeEditor(pageContent = "", additionalExtensions = [], filetype 
     },
   ]);
 
-  // Build the base extensions
-  // For txt files: use monospace font and skip markdown-specific extensions
+  // Build the base extensions.
+  //
+  // For large docs (> 1MB), skip the markdown() parser entirely.
+  // The Lezer markdown parser does an O(n) full-document parse during
+  // EditorState.create — this is unavoidable (the parser's create()
+  // method scans every line before a viewport exists).  In Firefox,
+  // this blocks the main thread for 10+ seconds on 7MB documents.
+  // Deferring via Compartment doesn't help: the O(n) parse still
+  // runs synchronously during view.dispatch().
+  //
+  // Viewport-only decorations (links, emails, mentions, images) still
+  // work.  What's lost: syntax highlighting, code blocks, list/blockquote
+  // keymaps, and section folding.
+  const contentLen = pageContent?.length || 0;
   const isTxt = filetype === "txt";
+  const isLargeDoc = contentLen > LARGE_FILE_BYTES;
+  const skipMarkdown = isTxt || isLargeDoc;
 
   const baseExtensions = [
     largeFileModeExtension,
     simpleTheme,
     ...(isTxt ? [monospaceTheme] : []),
     EditorView.lineWrapping,
-    ...(isTxt ? [] : [markdown(), markdownTableExtension]),
+    ...(skipMarkdown ? [] : [markdown(), markdownTableExtension]),
     titleNavigationKeymap,
-    ...(isTxt
+    ...(skipMarkdown
       ? []
       : [
           codeFenceField,
@@ -1445,14 +1589,18 @@ function initializeEditor(pageContent = "", additionalExtensions = [], filetype 
       maxRenderedOptions: 10,
       icons: true,
     }),
-    foldGutter(),
-    codeFolding({
-      preparePlaceholder: prepareFoldPlaceholder,
-      placeholderDOM: createFoldPlaceholder,
-    }),
-    foldService.of(findSectionFold),
-    sectionFoldHover,
-    foldChangeListener,
+    ...(isLargeDoc
+      ? []
+      : [
+          foldGutter(),
+          codeFolding({
+            preparePlaceholder: prepareFoldPlaceholder,
+            placeholderDOM: createFoldPlaceholder,
+          }),
+          foldService.of(findSectionFold),
+          sectionFoldHover,
+          foldChangeListener,
+        ]),
     keymap.of(defaultKeymap),
     keymap.of([indentWithTab]),
     clickToEndPlugin,
@@ -1464,13 +1612,22 @@ function initializeEditor(pageContent = "", additionalExtensions = [], filetype 
   const allExtensions = [...baseExtensions, ...additionalExtensions];
 
   // User is authenticated, initialize editor
+  const isLarge = contentLen > 500_000;
+  if (isLarge) console.time("[Perf] EditorState.create");
+  const state = EditorState.create({
+    doc: pageContent || "",
+    extensions: allExtensions,
+  });
+  if (isLarge) {
+    console.timeEnd("[Perf] EditorState.create");
+    console.log(`[Perf] doc.lines=${state.doc.lines}, doc.length=${state.doc.length}`);
+    console.time("[Perf] new EditorView");
+  }
   const view = new EditorView({
     parent: document.getElementById("editor"),
-    state: EditorState.create({
-      doc: pageContent || "", // Use empty string if no content provided
-      extensions: allExtensions,
-    }),
+    state,
   });
+  if (isLarge) console.timeEnd("[Perf] new EditorView");
 
   window.tableUtils = { generateTable, insertTable, formatTable, findTables };
 
@@ -1491,10 +1648,21 @@ function initializeEditor(pageContent = "", additionalExtensions = [], filetype 
   // Expose view for debugging
   window.editorView = view;
 
-  // Position cursor at end of document and focus editor
-  view.dispatch({
-    selection: { anchor: view.state.doc.length },
-  });
+  // Position cursor at end of document and focus editor.
+  // For large documents (>500 KB), skip scroll-to-end because it forces
+  // CodeMirror to compute line heights for 100K+ lines, which can block
+  // the main thread for 5-10 seconds.  Keep cursor at top instead.
+  if (isLargeDoc) {
+    console.log(
+      `[Nav] Large document (${(pageContent.length / 1024 / 1024).toFixed(
+        1
+      )} MB) — cursor stays at top`
+    );
+  } else {
+    view.dispatch({
+      selection: { anchor: view.state.doc.length },
+    });
+  }
   view.focus();
 
   return view;
@@ -1503,7 +1671,7 @@ function initializeEditor(pageContent = "", additionalExtensions = [], filetype 
 /**
  * Open create new page dialog using Svelte new page modal.
  */
-function openCreatePageDialog(projectId) {
+function openCreatePageDialog(projectId, folderId = null) {
   if (!projectId) {
     showToast("No project selected. Please create a project first.", "error");
     return;
@@ -1516,7 +1684,7 @@ function openCreatePageDialog(projectId) {
     projectId,
     pages,
     oncreated: async ({ title, copyFrom }) => {
-      const result = await createPage(projectId, title, copyFrom);
+      const result = await createPage(projectId, title, copyFrom, folderId);
 
       if (result.success) {
         if (currentPage) {
@@ -2297,16 +2465,16 @@ async function startApp() {
     setupTitleEditing();
     setupSidebar();
 
-    setNavigateCallback(async (externalId) => {
+    setNavigateCallback((externalId) => {
       if (externalId !== currentPage?.external_id) {
         if (currentPage) {
           closePageWithoutNavigate();
         }
-        await openPage(externalId);
+        openPage(externalId);
       }
     });
 
-    setupSidenav(async (projectId) => {
+    setupSidenav(async (projectId, folderId) => {
       currentProjectId = projectId;
       showDemoPrompt("create pages");
     });
@@ -2401,18 +2569,23 @@ async function startApp() {
   }
 
   // Setup left sidenav (pages list)
-  setNavigateCallback(async (externalId) => {
+  setNavigateCallback((externalId) => {
+    console.log(
+      `[Nav] callback: externalId=${externalId}, currentPage=${currentPage?.external_id ?? "null"}`
+    );
     if (externalId !== currentPage?.external_id) {
       if (currentPage) {
         closePageWithoutNavigate();
       }
-      await openPage(externalId);
+      openPage(externalId);
+    } else {
+      console.log(`[Nav] skipped: same page`);
     }
   });
 
-  setupSidenav(async (projectId) => {
+  setupSidenav(async (projectId, folderId) => {
     currentProjectId = projectId;
-    openCreatePageDialog(projectId);
+    openCreatePageDialog(projectId, folderId);
   });
 
   setProjectDeletedHandler(() => {
@@ -2548,6 +2721,15 @@ async function startApp() {
     // Another tab created/deleted a page or project - refresh sidenav
     cachedProjects = await fetchProjects();
     renderSidenav(cachedProjects, currentPage?.external_id);
+  });
+
+  // Listen for folder tree changes from WebSocket
+  window.addEventListener("foldersUpdated", async () => {
+    cachedProjects = await fetchProjects();
+    renderSidenav(cachedProjects, currentPage?.external_id);
+    if (currentProjectId) {
+      updateBreadcrumb(currentProjectId);
+    }
   });
 
   // Show upgrade pill if user has any free (non-Pro) orgs

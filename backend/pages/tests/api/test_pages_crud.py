@@ -7,9 +7,17 @@ from collab.models import YSnapshot, YUpdate
 from core.tests.common import BaseAuthenticatedViewTestCase
 from pages.models import Page
 from pages.constants import PageEditorRole, ProjectEditorRole
-from pages.tests.factories import PageEditorFactory, PageFactory, ProjectEditorFactory, ProjectFactory
+from pages.tests.factories import (
+    FolderFactory,
+    PageEditorFactory,
+    PageFactory,
+    ProjectEditorFactory,
+    ProjectFactory,
+)
 from users.constants import OrgMemberRole
 from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory
+
+_UNSET = object()
 
 
 class TestPagesCreateAPI(BaseAuthenticatedViewTestCase):
@@ -112,17 +120,57 @@ class TestPagesCreateAPI(BaseAuthenticatedViewTestCase):
 
         self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
 
+    def test_create_page_with_folder_id(self):
+        """Test creating a page in a folder succeeds."""
+        folder = FolderFactory(project=self.project, parent=None, name="Design")
+        response = self.send_api_request(
+            url="/api/pages/",
+            method="post",
+            data={
+                "title": "Page in Folder",
+                "project_id": str(self.project.external_id),
+                "folder_id": str(folder.external_id),
+            },
+        )
+        self.assertEqual(response.status_code, HTTPStatus.CREATED)
+        payload = response.json()
+        self.assertEqual(payload["title"], "Page in Folder")
+
+        page = Page.objects.get(external_id=payload["external_id"])
+        self.assertEqual(page.folder, folder)
+
+    def test_create_page_with_invalid_folder_id_returns_404(self):
+        """Test creating a page with non-existent folder_id returns 404."""
+        response = self.send_api_request(
+            url="/api/pages/",
+            method="post",
+            data={
+                "title": "Page",
+                "project_id": str(self.project.external_id),
+                "folder_id": "fld_nonexistent",
+            },
+        )
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
 
 class TestPagesUpdateAPI(BaseAuthenticatedViewTestCase):
     """Test PUT /api/pages/{external_id}/ endpoint."""
 
-    def send_update_page_request(self, external_id, title, details=None, mode=None):
+    def setUp(self):
+        super().setUp()
+        self.org = OrgFactory()
+        OrgMemberFactory(org=self.org, user=self.user, role=OrgMemberRole.MEMBER.value)
+        self.project = ProjectFactory(org=self.org, creator=self.user)
+
+    def send_update_page_request(self, external_id, title, details=None, mode=None, folder_id=_UNSET):
         url = f"/api/pages/{external_id}/"
         data = {"title": title}
         if details is not None:
             data["details"] = details
         if mode is not None:
             data["mode"] = mode
+        if folder_id is not _UNSET:
+            data["folder_id"] = folder_id
         return self.send_api_request(url=url, method="put", data=data)
 
     @override_settings(ASK_FEATURE_ENABLED=False)
@@ -168,6 +216,60 @@ class TestPagesUpdateAPI(BaseAuthenticatedViewTestCase):
 
         # Verify embedding task was NOT enqueued
         mock_update_embedding.enqueue.assert_not_called()
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    def test_update_page_move_to_folder(self):
+        """Test moving a page to a folder via folder_id."""
+        folder = FolderFactory(project=self.project, parent=None, name="Design")
+        page = PageFactory(project=self.project, creator=self.user, title="Page", folder=None)
+
+        response = self.send_update_page_request(page.external_id, "Page", folder_id=str(folder.external_id))
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        page.refresh_from_db()
+        self.assertEqual(page.folder, folder)
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    def test_update_page_move_to_root(self):
+        """Test moving a page from folder to project root via folder_id null."""
+        folder = FolderFactory(project=self.project, parent=None, name="Design")
+        page = PageFactory(project=self.project, creator=self.user, title="Page", folder=folder)
+
+        response = self.send_update_page_request(page.external_id, "Page", folder_id=None)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        page.refresh_from_db()
+        self.assertIsNone(page.folder_id)
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    def test_update_page_move_to_folder_nonexistent_returns_404(self):
+        """Test moving a page to a non-existent folder returns 404."""
+        page = PageFactory(project=self.project, creator=self.user, title="Page", folder=None)
+
+        response = self.send_api_request(
+            url=f"/api/pages/{page.external_id}/",
+            method="put",
+            data={"title": "Page", "folder_id": "fld_nonexistent"},
+        )
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    def test_update_page_title_only_does_not_clear_folder(self):
+        """
+        BUG-2: update_page always includes folder_id in update_fields,
+        even when only the title is being changed. This test verifies that
+        updating just the title preserves the folder assignment.
+        """
+        folder = FolderFactory(project=self.project, parent=None, name="Design")
+        page = PageFactory(project=self.project, creator=self.user, title="Old", folder=folder)
+
+        # Update only the title — no folder_id in the request
+        response = self.send_update_page_request(page.external_id, "New Title")
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        page.refresh_from_db()
+        # Folder should be preserved since we didn't send folder_id
+        self.assertEqual(page.folder, folder)
 
     @override_settings(ASK_FEATURE_ENABLED=False)
     def test_update_page_with_title_at_max_length(self):

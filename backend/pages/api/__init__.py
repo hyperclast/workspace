@@ -1,3 +1,4 @@
+from .folders import folders_router
 from .links import links_router
 from .mentions import mentions_router
 from .pages import pages_router

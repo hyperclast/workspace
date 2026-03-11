@@ -141,8 +141,33 @@ describe("API Service", () => {
 
       const result = await fetchPage("page1");
 
-      expect(csrfFetch).toHaveBeenCalledWith("/api/v1/pages/page1/");
+      expect(csrfFetch).toHaveBeenCalledWith("/api/v1/pages/page1/", {});
       expect(result).toEqual(mockPage);
+    });
+
+    it("passes options through to csrfFetch", async () => {
+      const controller = new AbortController();
+      csrfFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ external_id: "page1" }),
+      });
+
+      await fetchPage("page1", { signal: controller.signal });
+
+      expect(csrfFetch).toHaveBeenCalledWith("/api/v1/pages/page1/", {
+        signal: controller.signal,
+      });
+    });
+
+    it("throws AbortError when signal is aborted", async () => {
+      const controller = new AbortController();
+      csrfFetch.mockImplementation(() => {
+        throw new DOMException("The operation was aborted.", "AbortError");
+      });
+
+      await expect(fetchPage("page1", { signal: controller.signal })).rejects.toThrow(
+        "The operation was aborted."
+      );
     });
 
     it("throws error when page not found (404)", async () => {

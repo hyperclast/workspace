@@ -4,7 +4,11 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
-from collab.utils import notify_page_access_revoked, notify_write_permission_revoked
+from collab.utils import (
+    notify_page_access_revoked,
+    notify_project_folders_updated,
+    notify_write_permission_revoked,
+)
 
 
 class TestNotifyPageAccessRevoked(TestCase):
@@ -79,3 +83,53 @@ class TestNotifyWritePermissionRevoked(TestCase):
 
         # Should not raise any errors
         notify_write_permission_revoked("page-xyz", 123)
+
+
+class TestNotifyProjectFoldersUpdated(TestCase):
+    """Tests for notify_project_folders_updated function."""
+
+    @patch("collab.utils.get_channel_layer")
+    @patch("collab.utils.async_to_sync")
+    def test_sends_folders_updated_message(self, mock_async_to_sync, mock_get_channel_layer):
+        """Test that folders_updated message is sent to the correct project group."""
+        mock_channel_layer = MagicMock()
+        mock_get_channel_layer.return_value = mock_channel_layer
+
+        mock_sync_fn = MagicMock()
+        mock_async_to_sync.return_value = mock_sync_fn
+
+        notify_project_folders_updated("proj_abc123")
+
+        mock_async_to_sync.assert_called_once_with(mock_channel_layer.group_send)
+        mock_sync_fn.assert_called_once_with(
+            "project_proj_abc123",
+            {"type": "folders_updated"},
+        )
+
+    @patch("collab.utils.get_channel_layer")
+    def test_does_nothing_without_channel_layer(self, mock_get_channel_layer):
+        """Test that nothing happens when channel layer is not available."""
+        mock_get_channel_layer.return_value = None
+
+        # Should not raise any errors
+        notify_project_folders_updated("proj_abc123")
+
+    @patch("collab.utils.log_warning")
+    @patch("collab.utils.get_channel_layer")
+    @patch("collab.utils.async_to_sync")
+    def test_logs_warning_on_exception(self, mock_async_to_sync, mock_get_channel_layer, mock_log_warning):
+        """Test that exceptions are logged instead of silently swallowed."""
+        mock_channel_layer = MagicMock()
+        mock_get_channel_layer.return_value = mock_channel_layer
+
+        mock_sync_fn = MagicMock(side_effect=ConnectionError("Redis unavailable"))
+        mock_async_to_sync.return_value = mock_sync_fn
+
+        # Should not raise
+        notify_project_folders_updated("proj_abc123")
+
+        # Should log a warning with the project ID and exception
+        mock_log_warning.assert_called_once()
+        args = mock_log_warning.call_args[0]
+        self.assertIn("proj_abc123", args[1])
+        self.assertIsInstance(args[2], ConnectionError)

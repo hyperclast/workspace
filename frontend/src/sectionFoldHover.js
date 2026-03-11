@@ -1,6 +1,6 @@
 import { ViewPlugin } from "@codemirror/view";
 import { getSections, findRootSectionAtPos, collectAllLinesInTree } from "./getSections.js";
-import { SECTION_SCAN_LIMIT_LINES } from "./config/performance.js";
+import { SECTION_SCAN_LIMIT_LINES, LARGE_FILE_BYTES } from "./config/performance.js";
 
 export const sectionFoldHover = ViewPlugin.fromClass(
   class {
@@ -25,7 +25,10 @@ export const sectionFoldHover = ViewPlugin.fromClass(
     }
 
     updateSections() {
-      if (this.view.state.doc.lines > SECTION_SCAN_LIMIT_LINES) {
+      if (
+        this.view.state.doc.lines > SECTION_SCAN_LIMIT_LINES ||
+        this.view.state.doc.length > LARGE_FILE_BYTES
+      ) {
         this.tree = [];
         return;
       }

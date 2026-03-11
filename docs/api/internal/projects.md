@@ -53,7 +53,7 @@ None
 ### Query Params
 
 - `org_id` (String, optional): Filter projects by organization external ID. If not provided, returns projects from all organizations the user is a member of.
-- `details` (String, optional): If set to `"full"`, includes the list of pages for each project. Otherwise, the `pages` field is `null`.
+- `details` (String, optional): If set to `"full"`, includes the list of pages, folders, and files for each project. Otherwise, the `pages`, `folders`, and `files` fields are `null`.
 
 ### Data Params
 
@@ -120,6 +120,7 @@ See [Overview](./overview.md)
       {
         "external_id": "page123",
         "title": "Page 1",
+        "folder_id": "fld_abc",
         "updated": "2025-01-14T09:00:00Z",
         "modified": "2025-01-14T09:00:00Z",
         "created": "2025-01-12T08:00:00Z"
@@ -127,9 +128,17 @@ See [Overview](./overview.md)
       {
         "external_id": "page456",
         "title": "Page 2",
+        "folder_id": null,
         "updated": "2025-01-13T14:30:00Z",
         "modified": "2025-01-13T14:30:00Z",
         "created": "2025-01-11T10:00:00Z"
+      }
+    ],
+    "folders": [
+      {
+        "external_id": "fld_abc",
+        "parent_id": null,
+        "name": "Design"
       }
     ],
     "files": [
@@ -151,6 +160,8 @@ See [Overview](./overview.md)
 - Deleted projects (soft-deleted) are automatically excluded
 - When `details=full`, pages are ordered by `updated` timestamp (most recent first)
 - Deleted pages are excluded from the `pages` array
+- When `details=full`, the `folders` array contains the project's folder hierarchy (each folder has `external_id`, `parent_id`, and `name`)
+- Pages include a `folder_id` field indicating which folder they belong to (`null` for project root)
 - When `details=full`, the `files` array contains available files for the project (only for users with full project access)
 - The `files` array is `null` for users with page-only access (Tier 3)
 - The `access_source` field indicates `"full"` for project-level access or `"page_only"` for page-level access only
@@ -194,7 +205,7 @@ Retrieve a single project by its external ID.
 
 ### Query Params
 
-- `details` (String, optional): If set to `"full"`, includes the list of pages for the project. Otherwise, the `pages` field is `null`.
+- `details` (String, optional): If set to `"full"`, includes the list of pages, folders, and files for the project. Otherwise, the `pages`, `folders`, and `files` fields are `null`.
 
 ### Data Params
 
@@ -257,9 +268,17 @@ See [Overview](./overview.md)
     {
       "external_id": "page123",
       "title": "Page 1",
+      "folder_id": "fld_abc",
       "updated": "2025-01-14T09:00:00Z",
       "modified": "2025-01-14T09:00:00Z",
       "created": "2025-01-12T08:00:00Z"
+    }
+  ],
+  "folders": [
+    {
+      "external_id": "fld_abc",
+      "parent_id": null,
+      "name": "Design"
     }
   ],
   "files": [
@@ -276,6 +295,7 @@ See [Overview](./overview.md)
 
 **Notes:**
 
+- The `folders` array is only populated when `details=full`; it contains the flat folder hierarchy for client-side tree building
 - The `files` array is only populated when `details=full` and user has project-level access
 - Users with page-only access will see `files: null`
 - Only files with status `AVAILABLE` are included

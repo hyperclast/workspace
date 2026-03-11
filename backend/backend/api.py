@@ -7,7 +7,7 @@ from ask.api import router as ask_router
 from core.api import router as utils_router
 from filehub.api import files_router, webhooks_router
 from imports.api import imports_router
-from pages.api import links_router, mentions_router, pages_router, projects_router, rewind_router
+from pages.api import folders_router, links_router, mentions_router, pages_router, projects_router, rewind_router
 from users.api import ai_router, orgs_router, users_router
 
 
@@ -22,6 +22,7 @@ api.add_router("/users/", users_router)
 api.add_router("/orgs/", orgs_router)
 api.add_router("/ai/", ai_router)
 api.add_router("", projects_router)  # For /orgs/{id}/projects and /projects/{id}
+api.add_router("", folders_router)  # For /projects/{id}/folders/*
 api.add_router("/pages/", pages_router)
 api.add_router("/pages/", rewind_router)
 api.add_router("/pages/", links_router)

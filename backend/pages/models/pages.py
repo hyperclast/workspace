@@ -23,7 +23,7 @@ class PageManager(models.Manager):
         return page
 
     @transaction.atomic
-    def create_batch(self, pages_data, project, creator):
+    def create_batch(self, pages_data, project, creator, folder=None):
         """
         Create multiple pages in a single transaction.
 
@@ -33,8 +33,10 @@ class PageManager(models.Manager):
                 - content: Page content (markdown)
                 - notion_hash: Original Notion hash for link remapping (optional)
                 - original_path: Original path in Notion export (optional)
+                - folder: Optional Folder instance to place page in
             project: Project instance to create pages in
             creator: User instance who will own the pages
+            folder: Default folder for all pages (can be overridden per page_data)
 
         Returns:
             List of created Page instances with notion_hash attribute attached
@@ -56,11 +58,15 @@ class PageManager(models.Manager):
             if page_data.get("original_path"):
                 details["import_path"] = page_data["original_path"]
 
+            # Per-page folder overrides default
+            page_folder = page_data.get("folder", folder)
+
             page = self.create(
                 project=project,
                 creator=creator,
                 title=page_data.get("title", "Untitled"),
                 details=details,
+                folder=page_folder,
             )
 
             # Attach source_hash to the page object for link remapping
@@ -143,6 +149,13 @@ class Page(TimeStampedModel):
         related_name="pages",
         null=True,
         default=None,
+    )
+    folder = models.ForeignKey(
+        "pages.Folder",
+        null=True,
+        blank=True,
+        related_name="pages",
+        on_delete=models.SET_NULL,
     )
     creator = models.ForeignKey(
         User,

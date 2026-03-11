@@ -2,7 +2,7 @@
   import { API_BASE_URL } from "../../config.js";
   import { csrfFetch } from "../../csrf.js";
   import { formatFileSize } from "../utils/formatFileSize.js";
-  import { confirm, prompt, shareProject, changePageType, sharePage, importModal } from "../modal.js";
+  import { confirm, prompt, shareProject, changePageType, sharePage, importModal, movePageModal } from "../modal.js";
   import { showToast } from "../toast.js";
   import { broadcastSidenavChanged } from "../sidenavBroadcast.js";
   import { validateProjectName } from "../validation.js";
@@ -25,10 +25,18 @@
     getAllProjectFiles,
     removeFileFromProject,
     addFileToProject,
+    toggleFolderExpanded,
+    isFolderExpanded,
   } from "../stores/sidenav.svelte.js";
   import { deleteFile, restoreFile, fetchFileReferences } from "../../api.js";
+  import {
+    createFolder as createFolderApi,
+    updateFolder as updateFolderApi,
+    deleteFolder as deleteFolderApi,
+  } from "../../api.js";
   import { openLightbox } from "../../decorateImagePreviews.js";
   import { openPdfViewer } from "../stores/pdfViewer.svelte.js";
+  import { buildTree } from "../utils/buildTree.js";
 
   // File extensions for preview detection
   const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico"];
@@ -52,6 +60,7 @@
   const globeIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>`;
   const folderIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
   const fileIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>`;
+  const paperclipIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>`;
   const smallChevronIcon = `<svg class="files-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
   const importIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
   const openNewTabIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>`;
@@ -59,10 +68,17 @@
   const insertIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>`;
   const imageIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>`;
 
+  const moveIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><polyline points="9 14 12 17 15 14"></polyline><line x1="12" y1="11" x2="12" y2="17"></line></svg>`;
+
+  const folderOpenIcon = `<svg class="folder-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="2" y1="13" x2="22" y2="13"></line></svg>`;
+  const folderClosedIcon = `<svg class="folder-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
+  const newFolderIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>`;
+
   // Local state
   let openMenuId = $state(null);
   let openPageMenuId = $state(null);
   let openFileMenuId = $state(null);
+  let openFolderMenuId = $state(null);
 
   // Derived state using getters
   let projects = $derived(getProjects());
@@ -77,6 +93,7 @@
   const pageMenuIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>`;
 
   function handlePageClick(pageId, projectId) {
+    console.log(`[Nav] CLICK: pageId=${pageId}, ts=${Date.now()}`);
     closeMobileSidebar();
     navigateToPage(pageId, projectId);
   }
@@ -120,6 +137,7 @@
     openMenuId = null;
     openPageMenuId = null;
     openFileMenuId = null;
+    openFolderMenuId = null;
   }
 
   async function handleShare(e, project) {
@@ -343,6 +361,123 @@
     const overlay = document.getElementById("sidebar-overlay");
     sidebar?.classList.remove("open");
     overlay?.classList.remove("visible");
+  }
+
+  // Folder handlers
+  function handleFolderClick(projectId, folderId) {
+    toggleFolderExpanded(projectId, folderId);
+  }
+
+  function handleFolderMenuBtnClick(e, folderId) {
+    e.stopPropagation();
+    openFolderMenuId = openFolderMenuId === folderId ? null : folderId;
+    openMenuId = null;
+    openPageMenuId = null;
+    openFileMenuId = null;
+  }
+
+  async function handleCreateFolder(e, projectId, parentId = null) {
+    e.stopPropagation();
+    closeAllMenus();
+    if (isDemoMode()) {
+      showToast("Not available in demo", "error");
+      return;
+    }
+
+    const name = await prompt({
+      title: "New Folder",
+      label: "Folder name",
+      value: "",
+      confirmText: "Create",
+    });
+
+    if (!name) return;
+
+    try {
+      await createFolderApi(projectId, name, parentId);
+      showToast("Folder created");
+      broadcastSidenavChanged();
+    } catch (error) {
+      const msg = error.message || "Failed to create folder";
+      showToast(msg, "error");
+    }
+  }
+
+  async function handleRenameFolder(e, projectId, folderId, folderName) {
+    e.stopPropagation();
+    closeAllMenus();
+    if (isDemoMode()) {
+      showToast("Not available in demo", "error");
+      return;
+    }
+
+    const newName = await prompt({
+      title: "Rename Folder",
+      label: "Folder name",
+      value: folderName,
+      confirmText: "Save",
+    });
+
+    if (!newName || newName === folderName) return;
+
+    try {
+      await updateFolderApi(projectId, folderId, { name: newName });
+      showToast("Folder renamed");
+      broadcastSidenavChanged();
+    } catch (error) {
+      const msg = error.message || "Failed to rename folder";
+      showToast(msg, "error");
+    }
+  }
+
+  async function handleDeleteFolder(e, projectId, folderId, folderName) {
+    e.stopPropagation();
+    closeAllMenus();
+    if (isDemoMode()) {
+      showToast("Not available in demo", "error");
+      return;
+    }
+
+    const confirmed = await confirm({
+      title: "Delete Folder",
+      message: `Delete "${folderName}"?`,
+      description: "The folder must be empty (no pages or subfolders).",
+      confirmText: "Delete",
+      danger: true,
+    });
+
+    if (!confirmed) return;
+
+    try {
+      await deleteFolderApi(projectId, folderId);
+      showToast("Folder deleted");
+      broadcastSidenavChanged();
+    } catch (error) {
+      const msg = error.message || "Failed to delete folder";
+      showToast(msg, "error");
+    }
+  }
+
+  function handleNewPageInFolder(e, projectId, folderId) {
+    e.stopPropagation();
+    closeAllMenus();
+    if (isDemoMode()) {
+      showToast("Not available in demo", "error");
+      return;
+    }
+    createNewPage(projectId, folderId);
+  }
+
+  function handleMovePage(e, projectId, pageId, pageTitle, currentFolderId, folders) {
+    e.stopPropagation();
+    closeAllMenus();
+    movePageModal({
+      projectId,
+      pageId,
+      pageTitle,
+      currentFolderId,
+      folders,
+    });
   }
 
   function handleFilesSectionClick(e, projectId) {
@@ -582,7 +717,7 @@
 
   // Close menus when clicking outside
   function handleGlobalClick(e) {
-    if (!e.target.closest(".project-menu") && !e.target.closest(".page-menu") && !e.target.closest(".file-menu")) {
+    if (!e.target.closest(".project-menu") && !e.target.closest(".page-menu") && !e.target.closest(".file-menu") && !e.target.closest(".folder-menu")) {
       closeAllMenus();
     }
   }
@@ -596,6 +731,7 @@
   {:else}
     {#each projects as project (project.external_id)}
       {@const isExpanded = expandedProjectIds.has(project.external_id)}
+      {@const tree = buildTree(project.folders || [], project.pages || [])}
       <div
         class="sidebar-project"
         class:expanded={isExpanded}
@@ -632,6 +768,13 @@
               >
                 {@html newPageIcon}
                 New Page
+              </button>
+              <button
+                class="project-menu-item"
+                onclick={(e) => handleCreateFolder(e, project.external_id)}
+              >
+                {@html newFolderIcon}
+                New Folder
               </button>
               <button
                 class="project-menu-item"
@@ -672,13 +815,82 @@
           </div>
         </div>
         <div class="sidebar-project-pages" id={"project-panel-" + project.external_id}>
-          {#each project.pages || [] as page (page.external_id)}
+          {#snippet folderItem(folder, depth)}
+            {@const expanded = isFolderExpanded(project.external_id, folder.external_id)}
+            <div class="sidebar-folder" style="--folder-depth: {depth}">
+              <div
+                class="sidebar-folder-header"
+                class:expanded
+                role="button"
+                tabindex="0"
+                onclick={() => handleFolderClick(project.external_id, folder.external_id)}
+                onkeydown={(e) => handleKeydown(e, () => handleFolderClick(project.external_id, folder.external_id))}
+                onkeyup={(e) => handleKeyup(e, () => handleFolderClick(project.external_id, folder.external_id))}
+              >
+                {@html expanded ? folderOpenIcon : folderClosedIcon}
+                <span class="folder-name">{folder.name}</span>
+                <div class="folder-menu">
+                  <button
+                    class="folder-menu-btn"
+                    title="Folder options"
+                    onclick={(e) => handleFolderMenuBtnClick(e, folder.external_id)}
+                  >
+                    {@html pageMenuIcon}
+                  </button>
+                  <div class="folder-menu-dropdown" class:open={openFolderMenuId === folder.external_id}>
+                    <div class="menu-title">FOLDER</div>
+                    <button
+                      class="folder-menu-item"
+                      onclick={(e) => handleNewPageInFolder(e, project.external_id, folder.external_id)}
+                    >
+                      {@html newPageIcon}
+                      New Page
+                    </button>
+                    <button
+                      class="folder-menu-item"
+                      onclick={(e) => handleCreateFolder(e, project.external_id, folder.external_id)}
+                    >
+                      {@html newFolderIcon}
+                      New Subfolder
+                    </button>
+                    <button
+                      class="folder-menu-item"
+                      onclick={(e) => handleRenameFolder(e, project.external_id, folder.external_id, folder.name)}
+                    >
+                      {@html renameIcon}
+                      Rename
+                    </button>
+                    <button
+                      class="folder-menu-item folder-menu-delete"
+                      onclick={(e) => handleDeleteFolder(e, project.external_id, folder.external_id, folder.name)}
+                    >
+                      {@html deleteIcon}
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+              {#if expanded}
+                <div class="sidebar-folder-children">
+                  {#each folder.subfolders as sub (sub.external_id)}
+                    {@render folderItem(sub, depth + 1)}
+                  {/each}
+                  {#each folder.pages as page (page.external_id)}
+                    {@render pageItem(page, depth + 1)}
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/snippet}
+
+          {#snippet pageItem(page, depth)}
             <div
               class="sidebar-item"
               class:active={page.external_id === activePageId}
               aria-current={page.external_id === activePageId ? "page" : undefined}
               role="button"
               tabindex="0"
+              style="--folder-depth: {depth}"
               onclick={() => handlePageClick(page.external_id, project.external_id)}
               onkeydown={(e) => handleKeydown(e, () => handlePageClick(page.external_id, project.external_id))}
               onkeyup={(e) => handleKeyup(e, () => handlePageClick(page.external_id, project.external_id))}
@@ -754,6 +966,13 @@
                     Insert link
                   </button>
                   <button
+                    class="page-menu-item"
+                    onclick={(e) => handleMovePage(e, project.external_id, page.external_id, page.title, page.folder_id || null, project.folders || [])}
+                  >
+                    {@html moveIcon}
+                    Move to&hellip;
+                  </button>
+                  <button
                     class="page-menu-item page-menu-delete"
                     onclick={(e) => handlePageDelete(e, page.external_id, page.title)}
                   >
@@ -763,6 +982,13 @@
                 </div>
               </div>
             </div>
+          {/snippet}
+
+          {#each tree.rootFolders as folder (folder.external_id)}
+            {@render folderItem(folder, 0)}
+          {/each}
+          {#each tree.rootPages as page (page.external_id)}
+            {@render pageItem(page, 0)}
           {/each}
           {#if showFilesSection}
             {@const filesExpanded = expandedFilesSections.has(project.external_id)}
@@ -779,7 +1005,7 @@
               onkeyup={(e) => handleKeyup(e, () => handleFilesSectionClick(e, project.external_id))}
             >
               {@html smallChevronIcon}
-              {@html folderIcon}
+              {@html paperclipIcon}
               <span class="files-label">Files</span>
               {#if files.length > 0}
                 <span class="files-count">{files.length}</span>

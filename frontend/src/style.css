@@ -1093,6 +1093,150 @@ nav {
   background: rgba(235, 87, 87, 0.15);
 }
 
+/* Sidebar Folders */
+.sidebar-folder {
+  /* Indent based on depth using CSS custom property */
+}
+
+.sidebar-folder-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.375rem 0.75rem;
+  padding-left: calc(0.75rem + var(--folder-depth, 0) * 12px);
+  margin: 1px 0;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  user-select: none;
+  position: relative;
+}
+
+.sidebar-folder-header:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.04));
+}
+
+.sidebar-folder-header:focus-visible {
+  outline: 2px solid var(--focus-ring, #4f8fff);
+  outline-offset: -2px;
+}
+
+:root.dark .sidebar-folder-header:hover,
+[data-theme="dark"] .sidebar-folder-header:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sidebar-folder-header .folder-chevron {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.sidebar-folder-header .folder-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.sidebar-folder-header .folder-menu {
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.sidebar-folder-header:hover .folder-menu {
+  opacity: 1;
+}
+
+.sidebar-folder-header .folder-menu-btn {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-folder-header .folder-menu-btn:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.06));
+  color: var(--text-primary);
+}
+
+.folder-menu-dropdown {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-light, #e5e5e5);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  min-width: 160px;
+  z-index: 100;
+  padding: 4px 0;
+}
+
+.folder-menu-dropdown.open {
+  display: block;
+}
+
+:root.dark .folder-menu-dropdown,
+[data-theme="dark"] .folder-menu-dropdown {
+  background: var(--bg-elevated, #2a2a2a);
+  border-color: var(--border-light, #404040);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.folder-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.folder-menu-item:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.04));
+}
+
+:root.dark .folder-menu-item:hover,
+[data-theme="dark"] .folder-menu-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.folder-menu-item.folder-menu-delete {
+  color: #eb5757;
+}
+
+.folder-menu-item.folder-menu-delete:hover {
+  background: rgba(235, 87, 87, 0.08);
+}
+
+:root.dark .folder-menu-item.folder-menu-delete:hover,
+[data-theme="dark"] .folder-menu-item.folder-menu-delete:hover {
+  background: rgba(235, 87, 87, 0.15);
+}
+
+.sidebar-folder-children {
+  /* Children are indented via --folder-depth on each child */
+}
+
+/* Apply folder depth indentation to pages inside folders */
+.sidebar-project-pages .sidebar-item[style*="--folder-depth"] {
+  padding-left: calc(0.75rem + var(--folder-depth, 0) * 12px);
+}
+
 /* Sidebar Files Section */
 .sidebar-files-header {
   display: flex;
@@ -2314,6 +2458,10 @@ body.sidebar-resizing .chat-sidebar {
   margin: 0 0.125rem;
   user-select: none;
   flex-shrink: 0;
+}
+
+.breadcrumb-folders {
+  display: contents;
 }
 
 [data-theme="dark"] .breadcrumb {

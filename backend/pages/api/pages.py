@@ -21,7 +21,7 @@ from core.rate_limit import (
 )
 from core.utils import get_content_type_for_filetype, prepare_page_content_for_export, sanitize_filename
 from pages.constants import PageEditorRole
-from pages.models import Page, PageEditor, PageInvitation, Project, ProjectEditor, ProjectInvitation
+from pages.models import Folder, Page, PageEditor, PageInvitation, Project, ProjectEditor, ProjectInvitation
 from pages.permissions import (
     get_user_page_access_label,
     is_org_member_email,
@@ -86,7 +86,7 @@ def autocomplete_pages(request: HttpRequest, q: str = ""):
     return PagesAutocompleteOut(pages=list(pages))
 
 
-@pages_router.post("/", response={201: PageOut, 403: dict, 413: dict})
+@pages_router.post("/", response={201: PageOut, 403: dict, 404: dict, 413: dict})
 def create_page(request: HttpRequest, payload: PageIn):
     """Create a new page for the current user.
 
@@ -121,11 +121,20 @@ def create_page(request: HttpRequest, payload: PageIn):
     if not validate_content_size(content):
         return 413, {"message": f"Content too large (max {MAX_CONTENT_SIZE // (1024 * 1024)} MB)"}
 
+    # Resolve folder if provided
+    folder = None
+    if payload.folder_id:
+        try:
+            folder = Folder.objects.get(external_id=payload.folder_id, project=project)
+        except Folder.DoesNotExist:
+            return 404, {"message": "Folder not found"}
+
     page = Page.objects.create_with_owner(
         user=request.user,
         project=project,
         title=payload.title,
         details=default_details,
+        folder=folder,
     )
     return 201, page
 
@@ -159,6 +168,20 @@ def update_page(
 
     page.title = payload.title
 
+    # Handle folder_id if provided in request body
+    raw_body = request.body
+    folder_changed = False
+    if b'"folder_id"' in raw_body:
+        folder_changed = True
+        if payload.folder_id is None:
+            page.folder = None
+        else:
+            try:
+                folder = Folder.objects.get(external_id=payload.folder_id, project=page.project)
+                page.folder = folder
+            except Folder.DoesNotExist:
+                return 404, {"message": "Folder not found"}
+
     if payload.details is not None:
         mode = payload.mode or "append"
 
@@ -188,7 +211,10 @@ def update_page(
                 return 413, {"message": f"Content too large (max {MAX_CONTENT_SIZE // (1024 * 1024)} MB)"}
             page.details = merged_details
 
-    page.save(update_fields=["title", "details", "modified"])
+    update_fields = ["title", "details", "modified"]
+    if folder_changed:
+        update_fields.append("folder_id")
+    page.save(update_fields=update_fields)
 
     if settings.ASK_FEATURE_ENABLED:
         update_page_embedding.enqueue(page_id=page.external_id)

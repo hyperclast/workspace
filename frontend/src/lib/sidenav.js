@@ -24,6 +24,10 @@ import {
   setProjectFiles,
   getProjectFiles,
   addFileToProject,
+  toggleFolderExpanded,
+  expandFolder,
+  isFolderExpanded,
+  getExpandedFolderIds,
 } from "./stores/sidenav.svelte.js";
 
 let mounted = false;
@@ -45,6 +49,19 @@ function initSidenav() {
   container.innerHTML = "";
   mount(Sidenav, { target: container });
   mounted = true;
+
+  // DEBUG: Raw DOM click listener to detect if clicks reach the sidenav at all
+  container.addEventListener(
+    "click",
+    (e) => {
+      const item = e.target.closest(".sidebar-item");
+      if (item) {
+        const title = item.querySelector(".page-title")?.textContent;
+        console.log(`[Nav] DOM click on sidebar-item: "${title}", ts=${Date.now()}`);
+      }
+    },
+    true
+  ); // use capture phase to fire before Svelte's delegation
 }
 
 /**
@@ -153,6 +170,26 @@ export { getProjectFiles };
  * Add a file to a project's file list.
  */
 export { addFileToProject };
+
+/**
+ * Toggle a folder's expand/collapse state.
+ */
+export { toggleFolderExpanded };
+
+/**
+ * Expand a specific folder.
+ */
+export { expandFolder };
+
+/**
+ * Check if a folder is expanded.
+ */
+export { isFolderExpanded };
+
+/**
+ * Get all expanded folder IDs for a project.
+ */
+export { getExpandedFolderIds };
 
 const LEFT_COLLAPSED_KEY = "ws-left-sidebar-collapsed";
 

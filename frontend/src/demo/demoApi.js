@@ -125,6 +125,34 @@ export async function autocompletePages(query) {
 }
 
 /**
+ * Create folder - not available in demo mode
+ */
+export async function createFolder(_projectId, _name, _parentId) {
+  throw new DemoModeError("create folders");
+}
+
+/**
+ * Update folder - not available in demo mode
+ */
+export async function updateFolder(_projectId, _folderId, _data) {
+  throw new DemoModeError("rename folders");
+}
+
+/**
+ * Delete folder - not available in demo mode
+ */
+export async function deleteFolder(_projectId, _folderId) {
+  throw new DemoModeError("delete folders");
+}
+
+/**
+ * Bulk move pages - not available in demo mode
+ */
+export async function bulkMovePages(_projectId, _pageIds, _folderId) {
+  throw new DemoModeError("move pages");
+}
+
+/**
  * Internal link regex for extracting page links from content
  */
 const INTERNAL_LINK_REGEX = /\[([^\]]+)\]\(\/pages\/([a-zA-Z0-9-]+)\/?[^)]*\)/g;

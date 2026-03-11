@@ -1,6 +1,6 @@
 import { EditorState, Prec, StateField, Compartment } from "@codemirror/state";
 import { Decoration, ViewPlugin, WidgetType, keymap, EditorView } from "@codemirror/view";
-import { CODE_FENCE_SCAN_LIMIT_LINES } from "./config/performance.js";
+import { CODE_FENCE_SCAN_LIMIT_LINES, LARGE_FILE_BYTES } from "./config/performance.js";
 import { getShortcut, isShortcutDisabled, onShortcutChange } from "./lib/keyboardShortcuts.js";
 
 const BOLD_REGEX = /\*\*(.+?)\*\*/g;
@@ -53,16 +53,20 @@ function computeCodeFences(doc) {
  * For large documents, returns empty array (falls back to viewport-only scan).
  * This trades accuracy at viewport edges for O(1) performance.
  */
+function shouldSkipFullDocScan(doc) {
+  return doc.lines > CODE_FENCE_SCAN_LIMIT_LINES || doc.length > LARGE_FILE_BYTES;
+}
+
 export const codeFenceField = StateField.define({
   create(state) {
-    if (state.doc.lines > CODE_FENCE_SCAN_LIMIT_LINES) {
+    if (shouldSkipFullDocScan(state.doc)) {
       return [];
     }
     return computeCodeFences(state.doc);
   },
   update(fences, tr) {
     if (!tr.docChanged) return fences;
-    if (tr.state.doc.lines > CODE_FENCE_SCAN_LIMIT_LINES) {
+    if (shouldSkipFullDocScan(tr.state.doc)) {
       return [];
     }
     return computeCodeFences(tr.state.doc);

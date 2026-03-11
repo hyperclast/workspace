@@ -26,6 +26,7 @@ from pages.constants import ProjectEditorRole
 from filehub.constants import FileUploadStatus
 from filehub.models import FileUpload
 from pages.models import (
+    Folder,
     Page,
     Project,
     ProjectEditor,
@@ -139,6 +140,7 @@ def serialize_project(project, include_pages=False, user=None):
             "is_pro": is_pro,
         },
         "pages": None,
+        "folders": None,
         "files": None,
         "access_source": access_source,
     }
@@ -156,11 +158,18 @@ def serialize_project(project, include_pages=False, user=None):
             )
             pages_to_include = [p for p in all_pages if p.id in accessible_page_ids]
 
+        # Build folder external_id lookup for pages
+        folder_ext_id_map = {}
+        if has_full_access:
+            for folder in project.folders.all():
+                folder_ext_id_map[folder.id] = str(folder.external_id)
+
         result["pages"] = [
             {
                 "external_id": str(page.external_id),
                 "title": page.title,
                 "filetype": page.details.get("filetype", "md") if page.details else "md",
+                "folder_id": folder_ext_id_map.get(page.folder_id) if page.folder_id else None,
                 "updated": page.updated,
                 "modified": page.modified,
                 "created": page.created,
@@ -168,6 +177,17 @@ def serialize_project(project, include_pages=False, user=None):
             }
             for page in pages_to_include
         ]
+
+        # Include folders only if user has project-level access
+        if has_full_access:
+            result["folders"] = [
+                {
+                    "external_id": str(folder.external_id),
+                    "parent_id": folder_ext_id_map.get(folder.parent_id) if folder.parent_id else None,
+                    "name": folder.name,
+                }
+                for folder in project.folders.all()
+            ]
 
         # Include files only if user has project-level access (not page-only)
         # Files are prefetched in list_projects/get_project when details=full
@@ -216,13 +236,14 @@ def list_projects(
     if query.org_id:
         queryset = queryset.filter(org__external_id=query.org_id)
 
-    # Prefetch pages and files if details=full
+    # Prefetch pages, folders, and files if details=full
     if query.details == "full":
         queryset = queryset.prefetch_related(
             Prefetch(
                 "pages",
                 queryset=Page.objects.filter(is_deleted=False).order_by("-updated"),
             ),
+            "folders",
             Prefetch(
                 "file_uploads",
                 queryset=FileUpload.objects.filter(status=FileUploadStatus.AVAILABLE).order_by("-created"),
@@ -242,13 +263,14 @@ def get_project(request: HttpRequest, external_id: str, query: ProjectListQuery 
     """
     queryset = Project.objects.get_user_accessible_projects(request.user).select_related(*_get_project_select_related())
 
-    # Prefetch pages and files if details=full
+    # Prefetch pages, folders, and files if details=full
     if query.details == "full":
         queryset = queryset.prefetch_related(
             Prefetch(
                 "pages",
                 queryset=Page.objects.filter(is_deleted=False).order_by("-updated"),
             ),
+            "folders",
             Prefetch(
                 "file_uploads",
                 queryset=FileUpload.objects.filter(status=FileUploadStatus.AVAILABLE).order_by("-created"),

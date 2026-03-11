@@ -16,15 +16,15 @@
         document.documentElement.classList.add(effective);
       })();
     </script>
-    <title>{{ brand_name }} Collaborative Workspace</title>
-    <meta name="description" content="Your team is growing. Keep your knowledge from becoming chaos. Hyperclast is the workspace that scales with you—fast, organized, open source." />
+    <title>{{ brand_name }} : Smart Documents for Teams</title>
+    <meta name="description" content="Smart documents for teams that want to grow without chaos. Hyperclast is the workspace that scales with you: Fast, organized, open source." />
     <link rel="canonical" href="https://hyperclast.com/" />
 
     {# Open Graph tags #}
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="{{ brand_name }}" />
-    <meta property="og:title" content="{{ brand_name }} - Team Knowledge That Scales" />
-    <meta property="og:description" content="Real-time collaboration for teams who write. Unlike other tools, Hyperclast doesn't slow down as your knowledge base grows. Open source." />
+    <meta property="og:title" content="{{ brand_name }} : Smart Documents for Teams" />
+    <meta property="og:description" content="Smart documents for teams that want to grow without chaos. Real-time collaboration that doesn't slow down as your knowledge base grows. Open source." />
     <meta property="og:url" content="https://hyperclast.com/" />
     <meta property="og:image" content="https://hyperclast.com{% static 'core/img/og-image.png' %}" />
     <meta property="og:image:width" content="1200" />
@@ -32,8 +32,8 @@
 
     {# Twitter Card tags #}
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="{{ brand_name }} - Team Knowledge That Scales" />
-    <meta name="twitter:description" content="Real-time collaboration for teams who write. Unlike other tools, Hyperclast doesn't slow down as your knowledge base grows. Open source." />
+    <meta name="twitter:title" content="{{ brand_name }} : Smart Documents for Teams" />
+    <meta name="twitter:description" content="Smart documents for teams that want to grow without chaos. Real-time collaboration that doesn't slow down as your knowledge base grows. Open source." />
     <meta name="twitter:image" content="https://hyperclast.com{% static 'core/img/og-image.png' %}" />
 
     {# JSON-LD Organization Schema #}
@@ -158,6 +158,7 @@
         border-radius: 6px;
         text-decoration: none;
         font-weight: 600;
+        border: 1px solid white;
         transition: transform 0.2s, box-shadow 0.2s;
         display: inline-block;
       }
@@ -290,7 +291,20 @@
 
       .landing-hero-content {
         text-align: center;
-        max-width: 700px;
+        max-width: 800px;
+      }
+
+      .landing-hero-eyebrow {
+        display: inline-block;
+        font-size: 1rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        opacity: 0.85;
+        margin-bottom: 1rem;
+        background: rgba(255, 255, 255, 0.15);
+        padding: 0.35rem 1rem;
+        border-radius: 100px;
       }
 
       .landing-hero-content h1 {
@@ -324,6 +338,7 @@
         display: flex;
         gap: 1rem;
         justify-content: center;
+        align-items: center;
         flex-wrap: wrap;
       }
 
@@ -337,8 +352,15 @@
         max-width: 1000px;
         margin: 0 auto;
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        grid-template-columns: repeat(3, 1fr);
         gap: 3rem;
+      }
+
+      @media (max-width: 900px) {
+        .landing-features-grid {
+          grid-template-columns: 1fr;
+          max-width: 500px;
+        }
       }
 
       .landing-feature {
@@ -651,14 +673,19 @@
           display: none;
         }
 
-        .landing-btn-primary {
+        .landing-nav .landing-btn-primary {
           padding: 0.5rem 0.75rem;
           font-size: 0.875rem;
+        }
+
+        .landing-hero-eyebrow {
+          font-size: 0.85rem;
         }
 
         .landing-hero-content h1 {
           font-size: 2.5rem;
         }
+
 
         .landing-hero-subtitle {
           font-size: 1.1rem;
@@ -846,13 +873,14 @@
 
       <main class="landing-hero">
         <div class="landing-hero-content">
-          <h1>Grow Without the Chaos</h1>
+          <span class="landing-hero-eyebrow">Smart Documents for Teams</span>
+          <h1>Scale the Team, Not the Chaos</h1>
           <p class="landing-hero-subtitle">
-            Spend less time organizing. More time collaborating.<br />
-            Fast, <a href="/dev/" class="landing-subtle-link">open source</a>, and scales with you.
+            Most workspaces get worse as they grow. This one gets better.<br />
+            Fast, self-organizing, and <a href="/dev/" class="landing-subtle-link">open source</a>.
           </p>
           <div class="landing-cta">
-            <a href="/signup/" class="landing-btn-primary landing-btn-large">Start Free Today</a>
+            <a href="/signup/" class="landing-btn-primary landing-btn-large">Start Free Now</a>
             <a href="/demo/" class="landing-btn-secondary landing-btn-large">See It in Action</a>
           </div>
         </div>
@@ -860,7 +888,7 @@
 
       <section class="landing-roadmap">
         <div class="landing-roadmap-container">
-          <h2>The Team Workspace</h2>
+          <h2>Team Workspace</h2>
           <p class="landing-roadmap-subtitle">Real-time knowledge base that doesn't slow down at scale.</p>
           <div class="landing-screenshot">
             <a href="/demo/" class="landing-screenshot-link">

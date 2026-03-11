@@ -1,5 +1,5 @@
 import { getSections } from "./getSections.js";
-import { SECTION_SCAN_LIMIT_LINES } from "./config/performance.js";
+import { SECTION_SCAN_LIMIT_LINES, LARGE_FILE_BYTES } from "./config/performance.js";
 
 /**
  * WeakMap cache for section data, keyed by document object.
@@ -11,7 +11,7 @@ import { SECTION_SCAN_LIMIT_LINES } from "./config/performance.js";
 const sectionCache = new WeakMap();
 
 function getCachedSections(doc) {
-  if (doc.lines > SECTION_SCAN_LIMIT_LINES) {
+  if (doc.lines > SECTION_SCAN_LIMIT_LINES || doc.length > LARGE_FILE_BYTES) {
     return [];
   }
 

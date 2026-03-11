@@ -5,10 +5,10 @@ from filehub.constants import FileUploadStatus
 from filehub.tests.factories import FileUploadFactory
 from pages.constants import ProjectEditorRole
 from pages.models import Project, ProjectEditor
-from pages.tests.factories import PageFactory, ProjectFactory
+from pages.tests.factories import FolderFactory, PageFactory, ProjectFactory
 from users.constants import OrgMemberRole
 from users.models import OrgMember
-from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory
+from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory, TEST_USER_PASSWORD
 
 
 class TestProjectsAPI(BaseAuthenticatedViewTestCase):
@@ -159,6 +159,69 @@ class TestProjectsAPI(BaseAuthenticatedViewTestCase):
         self.assertIn("document.pdf", filenames)
         self.assertIn("image.png", filenames)
         self.assertNotIn("pending.txt", filenames)
+
+    def test_list_projects_with_folders(self):
+        """When details=full, projects should include folders list."""
+        project = ProjectFactory(org=self.org)
+        root_folder = FolderFactory(project=project, parent=None, name="Design")
+        nested_folder = FolderFactory(project=project, parent=root_folder, name="Wireframes")
+
+        response = self.send_api_request(url="/api/projects/?details=full", method="get")
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        project_data = payload[0]
+        self.assertIsNotNone(project_data["folders"])
+        self.assertEqual(len(project_data["folders"]), 2)
+
+        folder_ext_ids = {f["external_id"] for f in project_data["folders"]}
+        self.assertIn(str(root_folder.external_id), folder_ext_ids)
+        self.assertIn(str(nested_folder.external_id), folder_ext_ids)
+
+        root_data = next(f for f in project_data["folders"] if f["name"] == "Design")
+        self.assertIsNone(root_data["parent_id"])
+        nested_data = next(f for f in project_data["folders"] if f["name"] == "Wireframes")
+        self.assertEqual(nested_data["parent_id"], str(root_folder.external_id))
+
+    def test_list_projects_pages_include_folder_id(self):
+        """When details=full, pages should include folder_id."""
+        project = ProjectFactory(org=self.org)
+        folder = FolderFactory(project=project, parent=None, name="Design")
+        page_in_folder = PageFactory(project=project, creator=self.user, title="In Folder", folder=folder)
+        page_at_root = PageFactory(project=project, creator=self.user, title="At Root", folder=None)
+
+        response = self.send_api_request(url="/api/projects/?details=full", method="get")
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        project_data = payload[0]
+        page_in_folder_data = next(
+            p for p in project_data["pages"] if p["external_id"] == str(page_in_folder.external_id)
+        )
+        page_at_root_data = next(p for p in project_data["pages"] if p["external_id"] == str(page_at_root.external_id))
+        self.assertEqual(page_in_folder_data["folder_id"], str(folder.external_id))
+        self.assertIsNone(page_at_root_data["folder_id"])
+
+    def test_list_projects_page_only_access_excludes_folders(self):
+        """When user has only page-level access, folders should be None."""
+        project = ProjectFactory(org=self.org, org_members_can_access=False)
+        project.editors.clear()
+        page = PageFactory(project=project, creator=self.user, title="Shared Page")
+        page.editors.add(self.user)
+        FolderFactory(project=project, parent=None, name="Design")
+
+        page_only_user = UserFactory()
+        page.editors.add(page_only_user)
+        self.client.logout()
+        self.client.login(email=page_only_user.email, password=TEST_USER_PASSWORD)
+
+        response = self.send_api_request(url="/api/projects/?details=full", method="get")
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        project_data = next(p for p in payload if p["external_id"] == str(project.external_id))
+        self.assertIsNone(project_data["folders"])
+        self.assertEqual(project_data["access_source"], "page_only")
 
     def test_list_projects_without_pages_detail(self):
         """Without details=full, pages should be None."""

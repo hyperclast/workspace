@@ -273,6 +273,8 @@ export function createCollaborationObjects(pageExternalId, displayName = "Anonym
                 detail: { pageId: message.page_id, rewind: message.rewind },
               })
             );
+          } else if (message.type === "folders_updated") {
+            window.dispatchEvent(new CustomEvent("foldersUpdated"));
           }
         } catch (e) {
           // Not a JSON message, ignore

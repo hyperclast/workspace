@@ -271,6 +271,34 @@ export function closeImport() {
   importState.open = false;
 }
 
+let movePageState = $state({
+  open: false,
+  projectId: "",
+  pageId: "",
+  pageTitle: "",
+  currentFolderId: null,
+  folders: [],
+  onmoved: () => {},
+});
+
+export function getMovePageState() {
+  return movePageState;
+}
+
+export function openMovePage(options = {}) {
+  movePageState.projectId = options.projectId || "";
+  movePageState.pageId = options.pageId || "";
+  movePageState.pageTitle = options.pageTitle || "";
+  movePageState.currentFolderId = options.currentFolderId ?? null;
+  movePageState.folders = options.folders || [];
+  movePageState.onmoved = options.onmoved || (() => {});
+  movePageState.open = true;
+}
+
+export function closeMovePage() {
+  movePageState.open = false;
+}
+
 let codePasteState = $state({
   open: false,
   suggestedLang: "",

@@ -23,6 +23,7 @@ class PageIn(Schema):
     title: str = Field(..., min_length=1, max_length=100)
     details: Optional[Dict[str, Any]] = None
     copy_from: Optional[str] = None
+    folder_id: Optional[str] = None
 
 
 class PageUpdateIn(Schema):
@@ -30,6 +31,7 @@ class PageUpdateIn(Schema):
 
     title: str = Field(..., min_length=1, max_length=100)
     details: Optional[Dict[str, Any]] = None
+    folder_id: Optional[str] = Field(None, description="Folder external_id, or null to move to project root")
     mode: Optional[str] = Field(
         None,
         description="Content update mode: 'append' (default), 'prepend', or 'overwrite'",
@@ -223,6 +225,7 @@ class ProjectPageOut(Schema):
     external_id: str
     title: str
     filetype: str = "md"
+    folder_id: Optional[str] = None
     updated: datetime
     modified: datetime
     created: datetime
@@ -243,6 +246,17 @@ class ProjectFileOut(Schema):
         from_attributes = True
 
 
+class ProjectFolderOut(Schema):
+    """Folder summary for project response."""
+
+    external_id: str
+    parent_id: Optional[str] = None
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
 class ProjectOut(Schema):
     """Project response."""
 
@@ -256,6 +270,7 @@ class ProjectOut(Schema):
     creator: ProjectCreatorOut
     org: ProjectOrgOut
     pages: Optional[List[ProjectPageOut]] = None
+    folders: Optional[List[ProjectFolderOut]] = None
     files: Optional[List[ProjectFileOut]] = None
     access_source: str = "full"  # "full" for project-level access, "page_only" for page-level only
 
@@ -367,3 +382,56 @@ class RewindUpdateIn(Schema):
     """Request body for updating a rewind label."""
 
     label: str = Field(..., max_length=255)
+
+
+# ========================================
+# Folder Schemas
+# ========================================
+
+
+class FolderIn(Schema):
+    """Request body for creating a folder."""
+
+    name: str
+    parent_id: Optional[str] = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        from pages.services.folders import validate_folder_name
+
+        return validate_folder_name(v)
+
+
+class FolderUpdateIn(Schema):
+    """Request body for updating (rename/move) a folder."""
+
+    name: Optional[str] = None
+    parent_id: Optional[str] = Field(None, description="New parent folder external_id, or null for root")
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        from pages.services.folders import validate_folder_name
+
+        return validate_folder_name(v)
+
+
+class FolderOut(Schema):
+    """Folder response."""
+
+    external_id: str
+    parent_id: Optional[str] = None
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
+class BulkMovePagesIn(Schema):
+    """Request body for bulk moving pages to a folder."""
+
+    page_ids: List[str]
+    folder_id: Optional[str] = None

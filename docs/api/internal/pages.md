@@ -182,6 +182,7 @@ None
 - `project_id` (String, required): The external ID of the project where the page will be created. User must have access to the project.
 - `title` (String, required): The page title. Must be 1-100 characters long.
 - `details` (Object, optional): JSON object with arbitrary data. Defaults to `{"content": ""}` if not provided.
+- `folder_id` (String, optional): The external ID of a folder within the project. If provided, the page is created inside that folder. If omitted or `null`, the page is created at the project root.
 
 ### Authorization
 
@@ -321,6 +322,7 @@ None
 
 - `title` (String, required): The page title. Must be 1-100 characters long.
 - `details` (Object, optional): JSON object with arbitrary data. How it's applied depends on the `mode` parameter.
+- `folder_id` (String, optional): The external ID of a folder within the page's project. Set to a folder ID to move the page into that folder, or `null` to move it to the project root.
 - `mode` (String, optional): Controls how `details.content` is applied. One of:
   - `"append"` (default): Appends new content to the end of existing content
   - `"prepend"`: Prepends new content before existing content

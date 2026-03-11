@@ -2,6 +2,8 @@
 Tests for the create_import_pages() orchestration function.
 """
 
+from unittest.mock import patch
+
 from django.test import TestCase
 
 from imports.models import ImportJob, ImportedPage
@@ -808,3 +810,306 @@ class TestCreateImportPagesBulkOperations(TestCase):
 
         # Verify link was remapped
         self.assertIn(f"/pages/{page_b.external_id}/", page_a.details["content"])
+
+
+class TestCreateImportPagesFolderCreation(TestCase):
+    """Tests for folder creation during import via _create_folders_from_tree()."""
+
+    def setUp(self):
+        self.org = OrgFactory()
+        self.user = UserFactory()
+        OrgMemberFactory(org=self.org, user=self.user)
+        self.project = ProjectFactory(org=self.org, creator=self.user)
+
+    def test_creates_folders_from_nested_tree(self):
+        """Pages with children create folders, and child pages are assigned to them."""
+        from pages.models import Folder
+
+        child = ParsedPage(
+            title="Child Page",
+            content="Child content",
+            original_path="parent/child.md",
+            source_hash="child_hash_1234567",
+        )
+        parent = ParsedPage(
+            title="Parent Folder",
+            content="Parent content",
+            original_path="parent.md",
+            source_hash="parent_hash_123456",
+            children=[child],
+        )
+
+        result = create_import_pages([parent], self.project, self.user)
+
+        self.assertEqual(result["stats"]["created"], 2)
+
+        # A folder should have been created for the parent
+        folders = Folder.objects.filter(project=self.project)
+        self.assertEqual(folders.count(), 1)
+        folder = folders.first()
+        self.assertEqual(folder.name, "Parent Folder")
+        self.assertIsNone(folder.parent)
+
+        # The child page should be assigned to the folder
+        child_page = next(p for p in result["pages"] if p.title == "Child Page")
+        child_page.refresh_from_db()
+        self.assertEqual(child_page.folder, folder)
+
+    def test_creates_nested_folders_from_deep_tree(self):
+        """Multi-level nesting creates corresponding folder hierarchy."""
+        from pages.models import Folder
+
+        grandchild = ParsedPage(
+            title="Grandchild",
+            content="GC content",
+            original_path="a/b/gc.md",
+            source_hash="gc_hash_12345678",
+        )
+        child = ParsedPage(
+            title="Child Folder",
+            content="Child content",
+            original_path="a/b.md",
+            source_hash="child_hash_1234567",
+            children=[grandchild],
+        )
+        parent = ParsedPage(
+            title="Parent Folder",
+            content="Parent content",
+            original_path="a.md",
+            source_hash="parent_hash_123456",
+            children=[child],
+        )
+
+        result = create_import_pages([parent], self.project, self.user)
+
+        self.assertEqual(result["stats"]["created"], 3)
+
+        folders = Folder.objects.filter(project=self.project).order_by("name")
+        self.assertEqual(folders.count(), 2)
+
+        child_folder = folders.get(name="Child Folder")
+        parent_folder = folders.get(name="Parent Folder")
+        self.assertEqual(child_folder.parent, parent_folder)
+
+    @patch("pages.services.folders.MAX_FOLDERS_PER_PROJECT", 5)
+    def test_folder_count_limit_enforced(self):
+        """Importing more directories than the limit flattens excess into root."""
+        from pages.models import Folder
+
+        # Create a tree with 10 "directory" pages (each with one child)
+        parsed_pages = []
+        for i in range(10):
+            child = ParsedPage(
+                title=f"Child {i}",
+                content=f"Content {i}",
+                original_path=f"dir{i}/child{i}.md",
+                source_hash=f"child_hash_{i:012x}",
+            )
+            directory = ParsedPage(
+                title=f"Directory {i}",
+                content=f"Dir content {i}",
+                original_path=f"dir{i}.md",
+                source_hash=f"dir_hash_{i:014x}",
+                children=[child],
+            )
+            parsed_pages.append(directory)
+
+        result = create_import_pages(parsed_pages, self.project, self.user)
+
+        # All pages still created (20 = 10 dirs + 10 children)
+        self.assertEqual(result["stats"]["created"], 20)
+
+        # Only 5 folders created — limit enforced
+        folder_count = Folder.objects.filter(project=self.project).count()
+        self.assertEqual(folder_count, 5)
+
+    def test_folder_name_sanitized_on_import(self):
+        """Folder names with forbidden characters are sanitized during import."""
+        from pages.models import Folder
+
+        child = ParsedPage(
+            title="Normal Child",
+            content="Content",
+            original_path="weird/child.md",
+            source_hash="child_hash_1234567",
+        )
+        # Name with a tab character — would be rejected by API, sanitized by import
+        weird_name = "Folder\tName"
+        directory = ParsedPage(
+            title=weird_name,
+            content="Dir content",
+            original_path="weird.md",
+            source_hash="dir_hash_12345678",
+            children=[child],
+        )
+
+        result = create_import_pages([directory], self.project, self.user)
+
+        self.assertEqual(result["stats"]["created"], 2)
+
+        # The folder was created with the sanitized name (tab stripped)
+        folder = Folder.objects.get(project=self.project)
+        self.assertEqual(folder.name, "FolderName")
+
+    def test_folder_name_with_slashes_sanitized(self):
+        """Folder names with path separators have them stripped."""
+        from pages.models import Folder
+
+        child = ParsedPage(
+            title="Child",
+            content="Content",
+            original_path="dir/child.md",
+            source_hash="child_hash_1234567",
+        )
+        directory = ParsedPage(
+            title="My/Folder\\Name",
+            content="Dir content",
+            original_path="dir.md",
+            source_hash="dir_hash_12345678",
+            children=[child],
+        )
+
+        result = create_import_pages([directory], self.project, self.user)
+        self.assertEqual(result["stats"]["created"], 2)
+
+        folder = Folder.objects.get(project=self.project)
+        self.assertEqual(folder.name, "MyFolderName")
+
+    def test_folder_name_all_forbidden_becomes_untitled(self):
+        """A name consisting entirely of forbidden characters becomes 'Untitled'."""
+        from pages.models import Folder
+
+        child = ParsedPage(
+            title="Child",
+            content="Content",
+            original_path="dir/child.md",
+            source_hash="child_hash_1234567",
+        )
+        directory = ParsedPage(
+            title="/\\",
+            content="Dir content",
+            original_path="dir.md",
+            source_hash="dir_hash_12345678",
+            children=[child],
+        )
+
+        result = create_import_pages([directory], self.project, self.user)
+        self.assertEqual(result["stats"]["created"], 2)
+
+        folder = Folder.objects.get(project=self.project)
+        self.assertEqual(folder.name, "Untitled")
+
+    def test_flattens_beyond_max_depth(self):
+        """Folders beyond max_depth are flattened into the deepest allowed folder."""
+        from pages.models import Folder
+
+        # Build a chain deeper than max_depth (10)
+        # We'll use max_depth=3 for a manageable test
+        leaf = ParsedPage(
+            title="Leaf",
+            content="Leaf content",
+            original_path="a/b/c/d/leaf.md",
+            source_hash="leaf_hash_12345678",
+        )
+        level3_dir = ParsedPage(
+            title="Level3",
+            content="L3",
+            original_path="a/b/c/d.md",
+            source_hash="l3_hash_123456789",
+            children=[leaf],
+        )
+        level2_dir = ParsedPage(
+            title="Level2",
+            content="L2",
+            original_path="a/b/c.md",
+            source_hash="l2_hash_123456789",
+            children=[level3_dir],
+        )
+        level1_dir = ParsedPage(
+            title="Level1",
+            content="L1",
+            original_path="a/b.md",
+            source_hash="l1_hash_123456789",
+            children=[level2_dir],
+        )
+        root_dir = ParsedPage(
+            title="Root",
+            content="Root",
+            original_path="a.md",
+            source_hash="root_hash_12345678",
+            children=[level1_dir],
+        )
+
+        # Import with max_depth=3 via _create_folders_from_tree directly
+        from imports.services.notion import _create_folders_from_tree
+
+        page_folder_map = _create_folders_from_tree([root_dir], self.project, max_depth=3)
+
+        # Only 3 folders should be created (Root, Level1, Level2)
+        # Level3 exceeds max_depth=3 and should be flattened
+        folders = Folder.objects.filter(project=self.project)
+        self.assertEqual(folders.count(), 3)
+        folder_names = set(folders.values_list("name", flat=True))
+        self.assertEqual(folder_names, {"Root", "Level1", "Level2"})
+
+    def test_parent_page_without_children_gets_no_folder(self):
+        """A leaf page (no children) does not create a folder."""
+        from pages.models import Folder
+
+        leaf = ParsedPage(
+            title="Leaf Page",
+            content="Just a page",
+            original_path="leaf.md",
+            source_hash="leaf_hash_12345678",
+        )
+
+        result = create_import_pages([leaf], self.project, self.user)
+
+        self.assertEqual(result["stats"]["created"], 1)
+        self.assertEqual(Folder.objects.filter(project=self.project).count(), 0)
+
+        # The page should not be in any folder
+        page = result["pages"][0]
+        page.refresh_from_db()
+        self.assertIsNone(page.folder)
+
+    def test_duplicate_import_reuses_existing_folders(self):
+        """Re-importing the same tree reuses folders via get_or_create."""
+        from pages.models import Folder
+
+        child = ParsedPage(
+            title="Child",
+            content="Content",
+            original_path="dir/child.md",
+            source_hash="child_hash_1234567",
+        )
+        directory = ParsedPage(
+            title="MyFolder",
+            content="Dir content",
+            original_path="dir.md",
+            source_hash="dir_hash_12345678",
+            children=[child],
+        )
+
+        # First import
+        create_import_pages([directory], self.project, self.user)
+        self.assertEqual(Folder.objects.filter(project=self.project).count(), 1)
+
+        # Second import — different child, same folder structure
+        child2 = ParsedPage(
+            title="Child2",
+            content="Content2",
+            original_path="dir/child2.md",
+            source_hash="child2_hash_123456",
+        )
+        directory2 = ParsedPage(
+            title="MyFolder",
+            content="Dir content",
+            original_path="dir.md",
+            source_hash="dir2_hash_1234567",
+            children=[child2],
+        )
+        create_import_pages([directory2], self.project, self.user)
+
+        # Still only 1 folder — get_or_create reused it
+        self.assertEqual(Folder.objects.filter(project=self.project).count(), 1)
