@@ -1,3 +1,4 @@
+import { EditorState } from "@codemirror/state";
 import { Decoration, ViewPlugin, WidgetType, EditorView } from "@codemirror/view";
 import { showToast } from "./lib/toast.js";
 import { highlightTree } from "@lezer/highlight";
@@ -281,11 +282,17 @@ async function handleCopyClick(btn) {
 }
 
 function showLanguageDropdown(button, fenceLine, currentLang) {
-  // Remove any existing dropdown
+  const cmContent = button.closest(".cm-content");
+  if (cmContent) {
+    const editorView = EditorView.findFromDOM(cmContent);
+    if (editorView?.state.facet(EditorState.readOnly)) return;
+  }
+
   document.querySelector(".lang-dropdown-menu")?.remove();
 
   const menu = document.createElement("div");
   menu.className = "lang-dropdown-menu";
+  menu._cmContent = cmContent ?? null;
 
   for (const { code, name } of languageOptions) {
     const item = document.createElement("button");
@@ -320,6 +327,8 @@ function showLanguageDropdown(button, fenceLine, currentLang) {
 }
 
 function changeCodeBlockLanguage(view, fenceLine, newLang) {
+  if (view.state.facet(EditorState.readOnly)) return;
+
   const line = view.state.doc.line(fenceLine);
   const newText = "```" + newLang;
 
@@ -393,16 +402,15 @@ function setupGlobalLangSelectorHandler() {
         const newLang = dropdownItem.dataset.langCode;
         const fenceLine = parseInt(dropdownItem.dataset.fenceLine, 10);
 
-        // Find editor view from the DOM
-        const cmContent = document.querySelector(".cm-content");
+        const menu = dropdownItem.closest(".lang-dropdown-menu");
+        const cmContent = menu?._cmContent ?? document.querySelector(".cm-content");
         if (cmContent) {
           const editorView = EditorView.findFromDOM(cmContent);
-          if (editorView) {
+          if (editorView && !editorView.state.facet(EditorState.readOnly)) {
             changeCodeBlockLanguage(editorView, fenceLine, newLang);
           }
         }
 
-        // Close dropdown
         document.querySelector(".lang-dropdown-menu")?.remove();
       }
     },

@@ -105,20 +105,24 @@ class BulletWidget extends WidgetType {
 }
 
 class CheckboxWidget extends WidgetType {
-  constructor(checked, pos) {
+  constructor(checked, pos, readOnly) {
     super();
     this.checked = checked;
     this.pos = pos;
+    this.readOnly = readOnly;
   }
 
   eq(other) {
-    return other.checked === this.checked && other.pos === this.pos;
+    return (
+      other.checked === this.checked && other.pos === this.pos && other.readOnly === this.readOnly
+    );
   }
 
   toDOM() {
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.checked = this.checked;
+    checkbox.disabled = this.readOnly;
     checkbox.className = "format-checkbox";
     checkbox.dataset.pos = this.pos;
     return checkbox;
@@ -303,10 +307,9 @@ export const decorateFormatting = ViewPlugin.fromClass(
                 builder.push(Decoration.replace({}).range(line.from, line.from + indent));
               }
               builder.push(
-                Decoration.replace({ widget: new CheckboxWidget(checked, checkboxStart) }).range(
-                  checkboxStart,
-                  checkboxEnd
-                )
+                Decoration.replace({
+                  widget: new CheckboxWidget(checked, checkboxStart, isReadOnly),
+                }).range(checkboxStart, checkboxEnd)
               );
             } else {
               builder.push(
@@ -807,6 +810,8 @@ function handleCheckboxToggle(target) {
 
   const editorView = EditorView.findFromDOM(cmContent);
   if (!editorView) return;
+
+  if (editorView.state.facet(EditorState.readOnly)) return;
 
   const line = editorView.state.doc.lineAt(pos);
   const match = line.text.match(CHECKBOX_REGEX);

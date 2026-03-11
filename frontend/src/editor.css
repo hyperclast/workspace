@@ -481,6 +481,15 @@
   transform: scale(1.1);
 }
 
+.format-checkbox:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.format-checkbox:disabled:hover {
+  transform: none;
+}
+
 .format-checkbox-checked {
   text-decoration: line-through;
   color: var(--text-muted, #888);

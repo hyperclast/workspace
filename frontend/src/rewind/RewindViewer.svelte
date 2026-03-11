@@ -338,7 +338,7 @@
     <!-- Header -->
     <div class="rewind-viewer-header">
       <div class="rewind-viewer-header-info">
-        <span class="rewind-viewer-title">{state.selectedEntry.title || "Untitled"}</span>
+        <span class="rewind-viewer-title">v{state.selectedEntry.rewind_number}</span>
         {#if diffResult && !diffResult.tooLarge && diffResult.chunks.length > 0}
           <span class="rewind-header-sep">&middot;</span>
           <span class="rewind-stat-added">+{diffResult.stats.added}</span>
@@ -554,12 +554,12 @@
     align-items: center;
     gap: 0.25rem;
     padding: 0.25rem 0.75rem;
-    border: 1px solid var(--border-light, rgba(0, 0, 0, 0.1));
+    border: 1px solid #cf222e;
     background: none;
     border-radius: 6px;
     font-size: 0.75rem;
     font-weight: 500;
-    color: var(--text-secondary, #666);
+    color: #cf222e;
     cursor: pointer;
     transition: background 0.15s, color 0.15s;
   }
@@ -569,8 +569,8 @@
   }
 
   .rewind-exit-btn:hover {
-    background: var(--bg-hover, rgba(0, 0, 0, 0.03));
-    color: var(--text-primary, #333);
+    background: rgba(207, 34, 46, 0.08);
+    color: #b62324;
   }
 
   /* Loading */
@@ -756,6 +756,16 @@
   :global(.dark) .rewind-label-pill {
     background: rgba(56, 139, 253, 0.15);
     color: #58a6ff;
+  }
+
+  :global(.dark) .rewind-exit-btn {
+    border-color: #f85149;
+    color: #f85149;
+  }
+
+  :global(.dark) .rewind-exit-btn:hover {
+    background: rgba(248, 81, 73, 0.15);
+    color: #ff7b72;
   }
 
   :global(.dark .rewind-cm-line-added) {
