@@ -354,7 +354,7 @@ def send_test_update_email(update_id: int, test_email: str, fetch_spam_score: bo
                 email_log.spam_score = spam_info.get("score")
                 email_log.metadata = email_log.metadata or {}
                 email_log.metadata["spam_rules"] = spam_info.get("rules")
-                email_log.save(update_fields=["spam_score", "metadata"])
+                email_log.save(update_fields=["spam_score", "metadata", "modified"])
 
         return result
     except Exception as e:

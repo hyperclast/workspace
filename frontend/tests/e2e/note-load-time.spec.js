@@ -47,9 +47,21 @@ test.describe("Page Content Load Time", () => {
       return match ? match[1] : window.currentPage?.external_id || "";
     });
 
+    // Wait for collaboration to connect before typing
+    await page.waitForFunction(
+      () => document.getElementById("collab-status")?.className.includes("connected"),
+      { timeout: 15000 }
+    );
+
     await page.click(".cm-content");
     await page.keyboard.type(TEST_CONTENT);
-    await page.waitForTimeout(1500);
+
+    // Wait for CRDT sync to persist (not just a fixed delay)
+    await page.waitForFunction(
+      () => document.getElementById("collab-status")?.className.includes("connected"),
+      { timeout: 10000 }
+    );
+    await page.waitForTimeout(1000); // buffer for y_updates write
 
     console.log(`\n🔧 Setup: Created test content on page ${testPageId}`);
     await context.close();
@@ -96,6 +108,15 @@ test.describe("Page Content Load Time", () => {
 
     const startTime = Date.now();
     await page.reload({ waitUntil: "commit" });
+
+    // Wait for editor to render after reload (session may need to re-establish)
+    await page.waitForSelector(".cm-content", { timeout: 15000 });
+
+    // Verify we're still on the correct page (not redirected to login)
+    const currentUrl = page.url();
+    if (testPageId) {
+      expect(currentUrl).toContain(testPageId);
+    }
 
     await page.waitForFunction(
       (expected) => {

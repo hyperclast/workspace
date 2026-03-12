@@ -101,10 +101,10 @@ def bulk_move_pages(request: HttpRequest, project_external_id: str, payload: Bul
         return 400, {"detail": f"Pages not found: {missing_ids}", "code": "pages_not_found"}
 
     # Move pages
-    pages.update(folder=target_folder)
+    moved_count = pages.update(folder=target_folder)
 
     log_info(
-        f"User {request.user.email} moved {len(payload.page_ids)} pages to "
+        f"User {request.user.email} moved {moved_count} pages to "
         f"{'folder ' + str(target_folder.external_id) if target_folder else 'project root'} "
         f"in project {project.external_id}"
     )
@@ -112,7 +112,7 @@ def bulk_move_pages(request: HttpRequest, project_external_id: str, payload: Bul
     # Notify connected clients
     notify_project_folders_updated(str(project.external_id))
 
-    return {"moved": len(payload.page_ids)}
+    return {"moved": moved_count}
 
 
 # ========================================

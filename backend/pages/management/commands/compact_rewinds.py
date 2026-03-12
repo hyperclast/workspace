@@ -147,7 +147,7 @@ class Command(BaseCommand):
                     keeper.editors = list(all_editors)
                     keeper.is_compacted = True
                     keeper.compacted_from_count = len(bucket)
-                    keeper.save(update_fields=["editors", "is_compacted", "compacted_from_count"])
+                    keeper.save(update_fields=["editors", "is_compacted", "compacted_from_count", "modified"])
 
                     # Delete the rest
                     ids_to_remove = [v.id for v in to_remove]

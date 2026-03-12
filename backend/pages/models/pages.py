@@ -339,7 +339,7 @@ class Page(TimeStampedModel):
         self.updated = snapshot.timestamp
         self.details["content"] = content
         self.details["content_hash"] = hashify(content)
-        self.save(update_fields=["updated", "details"])
+        self.save(update_fields=["updated", "details", "modified"])
 
     @transaction.atomic
     def mark_as_deleted(self):

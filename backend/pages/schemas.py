@@ -433,5 +433,5 @@ class FolderOut(Schema):
 class BulkMovePagesIn(Schema):
     """Request body for bulk moving pages to a folder."""
 
-    page_ids: List[str]
+    page_ids: List[str] = Field(..., min_length=1)
     folder_id: Optional[str] = None

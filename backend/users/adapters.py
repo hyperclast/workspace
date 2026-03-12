@@ -16,7 +16,7 @@ def _save_demo_visits_from_cookie(request, user):
     demo_first_visit = request.COOKIES.get("demo_first_visit")
     if demo_first_visit:
         user.profile.demo_visits = [demo_first_visit]
-        user.profile.save(update_fields=["demo_visits"])
+        user.profile.save(update_fields=["demo_visits", "modified"])
 
 
 class CustomAccountAdapter(DefaultAccountAdapter):
@@ -272,7 +272,7 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
 
         if picture_url:
             user.profile.picture = picture_url
-            user.profile.save(update_fields=["picture"])
+            user.profile.save(update_fields=["picture", "modified"])
 
         # Save demo visit timestamp if present
         _save_demo_visits_from_cookie(request, user)

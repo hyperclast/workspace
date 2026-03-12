@@ -204,7 +204,7 @@ def process_notion_import(import_job_id: int):
         try:
             if job and hasattr(job, "archive") and job.archive:
                 job.archive.temp_file_path = None
-                job.archive.save(update_fields=["temp_file_path"])
+                job.archive.save(update_fields=["temp_file_path", "modified"])
         except Exception:
             pass
 

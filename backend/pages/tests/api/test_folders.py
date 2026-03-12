@@ -572,6 +572,11 @@ class TestBulkMovePagesAPI(BaseAuthenticatedViewTestCase):
         response = self.send_move_request([str(p.external_id) for p in pages])
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
+    def test_move_empty_page_ids_returns_422(self):
+        """Sending an empty page_ids list is rejected by schema validation."""
+        response = self.send_move_request([])
+        self.assertEqual(response.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+
 
 class TestConcurrentFolderCreation(BaseAuthenticatedViewTestCase):
     """Tests for concurrent folder creation and unique constraint handling."""
