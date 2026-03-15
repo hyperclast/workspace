@@ -3,6 +3,7 @@
 ## Table of Contents
 
 - [Overview](#overview)
+- [App client (mobile)](#app-client-mobile)
 - [Get session status](#get-session-status)
 - [Login](#login)
 - [Signup](#signup)
@@ -17,6 +18,44 @@ The following docs include the allauth-headless API endpoints used by the SPA fo
 The URLs, request/response payloads, and flows are unchanged from the allauth-headless defaults.
 
 Ref: https://docs.allauth.org/en/dev/headless/openapi-specification/#section/App-Usage/Access-Tokens
+
+### App client (mobile)
+
+For mobile apps, use the **app** client so allauth returns tokens in JSON instead of cookies. App endpoints live under `/api/app/v1/` (browser uses `/api/browser/v1/`):
+
+- **URLs:** `/api/app/v1/auth/login`, `/api/app/v1/auth/signup`, etc.
+- **Header:** `X-Client-Type: app` on login/signup requests
+- **Response:** `meta.session_token` in the JSON body (no `Set-Cookie`)
+- **No CSRF** required for app client
+
+Requires `HEADLESS_CLIENTS` to include `"app"` in backend settings.
+
+### Device registration (mobile)
+
+After allauth login/signup, the mobile app registers the device to obtain a per-device bearer token:
+
+1. Call `POST /api/v1/users/me/devices/` with:
+   - Header: `X-Session-Token: <session_token>` (from allauth response)
+   - Header: `X-Hyperclast-Client: client=mobile; version=...; os=...; arch=...`
+   - Body: `{ "client_id": "<device-uuid>", "name": "iPhone 15", "os": "ios", "app_version": "1.0.0", "details": {...} }`
+2. Response: `{ "access_token": "...", "client_id": "..." }` (status 201)
+3. Store `access_token` in secure storage
+4. All subsequent API calls use `Authorization: Bearer <access_token>`
+
+Each device gets its own token in the `AccessToken` table, tied to a `Device` row. Tokens are independently revocable. Re-login on the same device rotates the token and reactivates if previously revoked.
+
+CLI/web continue to use `Profile.access_token` via `GET /me/token/`.
+
+### Device endpoints
+
+| Endpoint                                | Method | Purpose                                    |
+| --------------------------------------- | ------ | ------------------------------------------ |
+| `/api/v1/users/me/devices/`             | POST   | Register device, get bearer token          |
+| `/api/v1/users/me/devices/`             | GET    | List active devices with `is_current` flag |
+| `/api/v1/users/me/devices/{client_id}/` | DELETE | Revoke device (deactivate token)           |
+| `/api/v1/users/me/devices/{client_id}/` | PATCH  | Update device metadata                     |
+
+All device endpoints accept `token_auth`, `x_session_token_auth`, or `session_auth`.
 
 ## Get session status
 

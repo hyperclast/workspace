@@ -8,7 +8,7 @@ from ninja import Router
 from ninja.responses import Response
 
 from backend.utils import log_error
-from core.authentication import session_auth, token_auth
+from core.authentication import session_auth, token_auth, x_session_token_auth
 from filehub.constants import FileUploadStatus
 from filehub.models import FileUpload
 from users.schemas import (
@@ -90,21 +90,29 @@ def update_current_user(request: HttpRequest, payload: UpdateUserSchema):
     }
 
 
-@users_router.get("/me/token/", response=AccessTokenResponse, auth=[token_auth, session_auth])
+@users_router.get(
+    "/me/token/",
+    response=AccessTokenResponse,
+    auth=[token_auth, x_session_token_auth, session_auth],
+)
 def get_access_token(request: HttpRequest):
     """
     Get the user's API access token.
-    Requires session authentication (not token auth).
+    Accepts session cookie, X-Session-Token (allauth app client), or Bearer token.
     """
     return {"access_token": request.user.profile.access_token}
 
 
-@users_router.post("/me/token/regenerate/", response=AccessTokenResponse, auth=[token_auth, session_auth])
+@users_router.post(
+    "/me/token/regenerate/",
+    response=AccessTokenResponse,
+    auth=[token_auth, x_session_token_auth, session_auth],
+)
 def regenerate_access_token(request: HttpRequest):
     """
     Regenerate a new API access token.
     Invalidates the old token immediately.
-    Requires session authentication (not token auth).
+    Accepts session cookie, X-Session-Token (allauth app client), or Bearer token.
     """
     request.user.profile.access_token = token_urlsafe()
     request.user.profile.save(update_fields=["access_token", "modified"])

@@ -8,7 +8,7 @@ from core.api import router as utils_router
 from filehub.api import files_router, webhooks_router
 from imports.api import imports_router
 from pages.api import folders_router, links_router, mentions_router, pages_router, projects_router, rewind_router
-from users.api import ai_router, orgs_router, users_router
+from users.api import ai_router, devices_router, orgs_router, users_router
 
 
 if settings.RUNTIME_ENV == "dev":
@@ -19,6 +19,7 @@ else:
 
 
 api.add_router("/users/", users_router)
+api.add_router("/users/me/devices", devices_router)
 api.add_router("/orgs/", orgs_router)
 api.add_router("/ai/", ai_router)
 api.add_router("", projects_router)  # For /orgs/{id}/projects and /projects/{id}

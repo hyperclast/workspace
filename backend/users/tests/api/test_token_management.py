@@ -1,6 +1,9 @@
 from http import HTTPStatus
 
-from core.tests.common import BaseAuthenticatedViewTestCase
+from django.test import override_settings
+
+from core.tests.common import BaseAuthenticatedViewTestCase, BaseViewTestCase
+from users.tests.factories import TEST_USER_PASSWORD, UserFactory
 
 
 class TestGetAccessTokenAPI(BaseAuthenticatedViewTestCase):
@@ -93,3 +96,70 @@ class TestRegenerateAccessTokenAPI(BaseAuthenticatedViewTestCase):
         # Basic check that it's URL-safe characters
         allowed_chars = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
         self.assertTrue(all(c in allowed_chars for c in new_token))
+
+
+@override_settings(ACCOUNT_EMAIL_VERIFICATION="none")
+class TestXSessionTokenAuth(BaseViewTestCase):
+    """Test that X-Session-Token from allauth app client can access /me/token/ and /me/token/regenerate/.
+
+    This validates the mobile auth bridge: allauth app login → session_token → Bearer token.
+    """
+
+    def _get_session_token(self, user):
+        """Log in via allauth app client and return the session_token."""
+        response = self.send_api_request(
+            url="/api/app/v1/auth/login",
+            method="post",
+            data={"email": user.email, "password": TEST_USER_PASSWORD},
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        return response.json()["meta"]["session_token"]
+
+    def test_get_token_via_x_session_token(self):
+        """X-Session-Token from app login can retrieve the user's bearer token."""
+        user = UserFactory()
+        session_token = self._get_session_token(user)
+
+        # Use the session token to call /me/token/ (no session cookie, no bearer token)
+        self.client.logout()
+        response = self.client.get(
+            "/api/users/me/token/",
+            content_type="application/json",
+            HTTP_X_SESSION_TOKEN=session_token,
+        )
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertIn("access_token", payload)
+        self.assertEqual(payload["access_token"], user.profile.access_token)
+
+    def test_regenerate_token_via_x_session_token(self):
+        """X-Session-Token from app login can regenerate the user's bearer token."""
+        user = UserFactory()
+        old_token = user.profile.access_token
+        session_token = self._get_session_token(user)
+
+        self.client.logout()
+        response = self.client.post(
+            "/api/users/me/token/regenerate/",
+            content_type="application/json",
+            HTTP_X_SESSION_TOKEN=session_token,
+        )
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertIn("access_token", payload)
+        self.assertNotEqual(payload["access_token"], old_token)
+
+        user.profile.refresh_from_db()
+        self.assertEqual(user.profile.access_token, payload["access_token"])
+
+    def test_invalid_session_token_returns_401(self):
+        """An invalid X-Session-Token is rejected."""
+        response = self.client.get(
+            "/api/users/me/token/",
+            content_type="application/json",
+            HTTP_X_SESSION_TOKEN="invalid-session-token",
+        )
+
+        self.assertIn(response.status_code, [HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN])

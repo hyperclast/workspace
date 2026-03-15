@@ -118,6 +118,10 @@ CORS_ALLOW_HEADERS = [
     "x-requested-with",
     "x-password-reset-key",  # Custom header for password reset
     "x-hyperclast-client",  # Client identification header for telemetry
+    "x-client-type",  # allauth app client header
+    "x-session-token",  # allauth session token for token exchange
+    "x-device-id",  # Device client_id for device-specific operations
+    "x-device-name",  # Device display name for logging/display
 ]
 
 TEMPLATES = [
@@ -239,7 +243,7 @@ SOCIALACCOUNT_PROVIDERS = {
 # headless allauth
 HEADLESS_ADAPTER = "users.adapters.CustomHeadlessAdapter"
 HEADLESS_ONLY = True
-HEADLESS_CLIENTS = ["browser"]
+HEADLESS_CLIENTS = ["browser", "app"]
 HEADLESS_FRONTEND_URLS = {
     "account_reset_password_from_key": f"{FRONTEND_URL}/reset-password?key={{key}}",
     "account_confirm_email": "/accounts/confirm-email/{key}/",
@@ -361,6 +365,10 @@ REWIND_COMPACTION_HOURLY_AFTER_HOURS = 24
 # WebSocket rate limiting (prevents DoS from rapid reconnection loops)
 WS_RATE_LIMIT_CONNECTIONS = 30  # Max connections per window
 WS_RATE_LIMIT_WINDOW_SECONDS = 60  # Window duration in seconds
+
+# Last-active throttle intervals
+PROFILE_LAST_ACTIVE_THROTTLE_SECONDS = 3600  # 1 hour
+DEVICE_LAST_ACTIVE_THROTTLE_SECONDS = 300  # 5 minutes
 
 # Page invitation
 PAGE_INVITATION_TOKEN_BYTES = 32

@@ -5,7 +5,7 @@ from django.shortcuts import reverse
 from django.utils.html import format_html
 
 from .forms import ProfileAdminForm
-from .models import Org, OrgMember, PersonalEmailDomain, Profile, StripeLog
+from .models import AccessToken, Device, Org, OrgMember, PersonalEmailDomain, Profile, StripeLog
 
 admin.site.site_header = "Hyperclast Admin"
 admin.site.site_title = "Hyperclast"
@@ -75,6 +75,40 @@ class ProfileAdmin(admin.ModelAdmin):
     list_filter = ["receive_product_updates"]
     search_fields = ["user__email"]
     readonly_fields = ["created", "modified", "access_token"]
+
+
+class DeviceInline(admin.TabularInline):
+    model = Device
+    extra = 0
+    fields = ["client_id", "name", "os", "app_version", "last_active", "created"]
+    readonly_fields = ["client_id", "name", "os", "app_version", "last_active", "created"]
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(AccessToken)
+class AccessTokenAdmin(admin.ModelAdmin):
+    list_display = ["user", "label", "managed_by", "is_active", "created"]
+    list_filter = ["managed_by", "is_active"]
+    search_fields = ["user__email", "label", "external_id"]
+    readonly_fields = ["external_id", "value", "created", "modified"]
+    autocomplete_fields = ["user"]
+    list_select_related = ["user"]
+    inlines = [DeviceInline]
+
+
+@admin.register(Device)
+class DeviceAdmin(admin.ModelAdmin):
+    list_display = ["name", "user", "client_type", "os", "app_version", "last_active", "created"]
+    list_filter = ["client_type", "os"]
+    search_fields = ["name", "user__email", "client_id", "external_id"]
+    readonly_fields = ["external_id", "client_id", "created", "modified", "details"]
+    autocomplete_fields = ["user", "access_token"]
+    list_select_related = ["user"]
 
 
 @admin.register(StripeLog)

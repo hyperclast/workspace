@@ -1,0 +1,10 @@
+export const modelName = "TestPhone 15";
+export const manufacturer = "TestCorp";
+export const isDevice = true;
+export const brand = "TestBrand";
+export const deviceName = null;
+export const osVersion = "17.5";
+export const osBuildId = null;
+export const totalMemory = null;
+export const osName = "iOS";
+export const platformApiLevel = null;

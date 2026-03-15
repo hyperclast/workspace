@@ -638,3 +638,99 @@ class TestEmailVerificationFullFlow(BaseViewTestCase):
 
         retrieved_after = EmailConfirmationHMAC.from_key(key)
         self.assertIsNone(retrieved_after)
+
+
+@override_settings(ACCOUNT_EMAIL_VERIFICATION="none")
+class TestAppClientLogin(BaseViewTestCase):
+    """Test POST /api/app/v1/auth/login endpoint (app client, not browser).
+
+    The app client returns tokens in JSON bodies instead of cookies.
+    The mobile app uses this to obtain a session_token, which is then
+    exchanged for a bearer token via POST /me/devices/ or GET /me/token/.
+    """
+
+    def send_app_login_request(self, email, password):
+        url = "/api/app/v1/auth/login"
+        data = {"email": email, "password": password}
+        return self.send_api_request(url=url, method="post", data=data)
+
+    def test_app_login_returns_session_token(self):
+        """App client login returns meta.session_token (not cookies)."""
+        user = UserFactory()
+
+        response = self.send_app_login_request(user.email, TEST_USER_PASSWORD)
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertIn("meta", payload)
+        self.assertIn("session_token", payload["meta"])
+        self.assertTrue(len(payload["meta"]["session_token"]) > 0)
+
+    def test_app_login_returns_user_data(self):
+        """App client login returns authenticated user data."""
+        user = UserFactory()
+
+        response = self.send_app_login_request(user.email, TEST_USER_PASSWORD)
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(payload["meta"]["is_authenticated"], True)
+        self.assertIn("data", payload)
+        self.assertIn("user", payload["data"])
+        self.assertEqual(payload["data"]["user"]["email"], user.email)
+
+    def test_app_login_invalid_credentials(self):
+        """App client login fails with invalid credentials."""
+        user = UserFactory()
+
+        response = self.send_app_login_request(user.email, "wrongpassword")
+
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        self.assertIn("errors", response.json())
+
+    def test_app_login_nonexistent_user(self):
+        """App client login fails for non-existent user."""
+        response = self.send_app_login_request("nonexistent@example.com", "password")
+
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        self.assertIn("errors", response.json())
+
+
+@override_settings(ACCOUNT_EMAIL_VERIFICATION="none")
+class TestAppClientSignup(BaseViewTestCase):
+    """Test POST /api/app/v1/auth/signup endpoint (app client)."""
+
+    def send_app_signup_request(self, email, password):
+        url = "/api/app/v1/auth/signup"
+        data = {"email": email, "password": password}
+        return self.send_api_request(url=url, method="post", data=data)
+
+    def test_app_signup_returns_session_token(self):
+        """App client signup returns meta.session_token."""
+        response = self.send_app_signup_request("newmobile@example.com", "testpass1234")
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertIn("meta", payload)
+        self.assertIn("session_token", payload["meta"])
+        self.assertTrue(len(payload["meta"]["session_token"]) > 0)
+
+    def test_app_signup_returns_authenticated_user(self):
+        """App client signup returns authenticated user data."""
+        email = "mobilesignup@example.com"
+
+        response = self.send_app_signup_request(email, "testpass1234")
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(payload["meta"]["is_authenticated"], True)
+        self.assertEqual(payload["data"]["user"]["email"], email)
+
+    def test_app_signup_duplicate_email(self):
+        """App client signup fails with already registered email."""
+        user = UserFactory()
+
+        response = self.send_app_signup_request(user.email, "testpass1234")
+
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        self.assertIn("errors", response.json())

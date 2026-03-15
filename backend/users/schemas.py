@@ -264,6 +264,47 @@ class StorageSummaryOut(Schema):
     file_count: int
 
 
+class DeviceRegistrationSchema(Schema):
+    """Request body for registering a device."""
+
+    client_id: str
+    name: Optional[str] = None
+    os: Optional[str] = None
+    app_version: Optional[str] = None
+    details: Optional[dict] = None
+
+
+class DeviceRegistrationResponse(Schema):
+    """Response after registering a device."""
+
+    access_token: str
+    client_id: str
+
+
+class DeviceListItem(Schema):
+    """Single device in the device list."""
+
+    client_id: str
+    client_type: str
+    name: str
+    os: str
+    app_version: str
+    last_active: datetime
+    created: datetime
+    is_current: bool
+    details: dict
+
+
+class DeviceUpdateSchema(Schema):
+    """Request body for updating device metadata."""
+
+    name: Optional[str] = None
+    os: Optional[str] = None
+    app_version: Optional[str] = None
+    push_token: Optional[str] = None
+    details: Optional[dict] = None
+
+
 class AIProviderSummaryOut(Schema):
     """Read-only summary of an AI provider config for non-admin org members.
 
