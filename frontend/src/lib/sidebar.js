@@ -116,11 +116,14 @@ function createResizeHandler(
   minWidth,
   maxWidth,
   defaultWidth,
-  getDelta
+  getDelta,
+  skipInitialWidth = false
 ) {
-  const savedWidth = localStorage.getItem(storageKey);
-  if (savedWidth) {
-    sidebar.style.width = `${savedWidth}px`;
+  if (!skipInitialWidth) {
+    const savedWidth = localStorage.getItem(storageKey);
+    if (savedWidth) {
+      sidebar.style.width = `${savedWidth}px`;
+    }
   }
 
   let startX = 0;
@@ -171,6 +174,9 @@ function setupLeftSidebarResize() {
   handle.className = "sidebar-resize-handle sidebar-resize-handle-right";
   sidebar.appendChild(handle);
 
+  // Don't restore saved width if sidebar is collapsed — inline width overrides .collapsed { width: 0 }
+  const skipInitialWidth = sidebar.classList.contains("collapsed");
+
   createResizeHandler(
     sidebar,
     handle,
@@ -178,7 +184,8 @@ function setupLeftSidebarResize() {
     LEFT_MIN_WIDTH,
     LEFT_MAX_WIDTH,
     LEFT_DEFAULT_WIDTH,
-    (clientX, startX) => clientX - startX
+    (clientX, startX) => clientX - startX,
+    skipInitialWidth
   );
 }
 
@@ -193,6 +200,9 @@ function setupRightSidebarResize() {
   handle.className = "sidebar-resize-handle sidebar-resize-handle-left";
   sidebar.appendChild(handle);
 
+  // Don't restore saved width if sidebar is collapsed — inline width overrides .collapsed { width: 0 }
+  const skipInitialWidth = sidebar.classList.contains("collapsed");
+
   createResizeHandler(
     sidebar,
     handle,
@@ -200,6 +210,7 @@ function setupRightSidebarResize() {
     RIGHT_MIN_WIDTH,
     RIGHT_MAX_WIDTH,
     RIGHT_DEFAULT_WIDTH,
-    (clientX, startX) => startX - clientX
+    (clientX, startX) => startX - clientX,
+    skipInitialWidth
   );
 }

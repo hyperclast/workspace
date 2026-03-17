@@ -3,10 +3,7 @@
   import {
     getState,
     setActiveTab,
-    collapseSidebar,
-    expandSidebar,
     closeSidebar,
-    openSidebar,
   } from "../stores/sidebar.svelte.js";
   import { getFeatureFlags, SIDEBAR_OVERLAY_BREAKPOINT } from "../../config.js";
   import AskTab from "./sidebar/AskTab.svelte";
@@ -23,35 +20,12 @@
   let activeTab = $derived(state.activeTab);
   let tabs = $derived(state.tabs);
 
-  // Check if in overlay mode (sidebars overlay content instead of pushing it)
-  const isMobile = () => window.innerWidth <= SIDEBAR_OVERLAY_BREAKPOINT;
-
-  function handleClose() {
-    if (isMobile()) {
-      closeSidebar();
-    } else {
-      collapseSidebar();
-    }
-  }
-
-  function handleExpand() {
-    if (isMobile()) {
-      openSidebar();
-    } else {
-      expandSidebar();
-    }
-  }
-
   onMount(() => {
     // Manually attach click handlers since Svelte's onclick doesn't work with mount().
     // Use getElementById instead of bind:this since $state refs cause errors with mount().
-    const expandBtn = document.getElementById("chat-expand-btn");
-    const closeBtn = document.getElementById("chat-close-btn");
     const overlay = document.getElementById("chat-overlay");
     const tabsContainer = document.querySelector(".sidebar-tabs");
 
-    expandBtn?.addEventListener("click", handleExpand);
-    closeBtn?.addEventListener("click", handleClose);
     overlay?.addEventListener("click", () => closeSidebar());
 
     // Tab clicks via delegation on the tabs container
@@ -66,15 +40,13 @@
     // Handle window resize
     const handleResize = () => {
       // Close mobile sidebar when switching to desktop
-      if (!isMobile() && isOpen) {
+      if (window.innerWidth > SIDEBAR_OVERLAY_BREAKPOINT && isOpen) {
         closeSidebar();
       }
     };
     window.addEventListener("resize", handleResize);
 
     return () => {
-      expandBtn?.removeEventListener("click", handleExpand);
-      closeBtn?.removeEventListener("click", handleClose);
       overlay?.removeEventListener("click", () => closeSidebar());
       tabsContainer?.removeEventListener("click", handleTabContainerClick);
       window.removeEventListener("resize", handleResize);
@@ -112,11 +84,6 @@
         </button>
       {/each}
     </div>
-    <button id="chat-close-btn" class="chat-close-btn" title="Collapse sidebar">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="9 18 15 12 9 6"></polyline>
-      </svg>
-    </button>
   </div>
 
   <!-- Ask Tab -->
@@ -171,14 +138,3 @@
     </div>
   {/each}
 </aside>
-
-<!-- Expand button (outside sidebar) — visibility controlled by CSS sibling selectors -->
-<button
-  id="chat-expand-btn"
-  class="chat-expand-btn"
-  title="Open sidebar"
->
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <polyline points="15 18 9 12 15 6"></polyline>
-  </svg>
-</button>

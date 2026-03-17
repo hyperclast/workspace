@@ -207,14 +207,24 @@ function setupToggle() {
 
   const isOverlayMode = () => window.innerWidth <= SIDEBAR_OVERLAY_BREAKPOINT;
 
+  function updateToggleActive() {
+    if (isOverlayMode()) {
+      toggle.classList.toggle("active", sidebar.classList.contains("open"));
+    } else {
+      toggle.classList.toggle("active", !sidebar.classList.contains("collapsed"));
+    }
+  }
+
   function openOverlay() {
     sidebar.classList.add("open");
     overlay?.classList.add("visible");
+    updateToggleActive();
   }
 
   function closeOverlay() {
     sidebar.classList.remove("open");
     overlay?.classList.remove("visible");
+    updateToggleActive();
   }
 
   function collapseInline() {
@@ -222,6 +232,7 @@ function setupToggle() {
     // Clear inline width set by resize handler — otherwise it overrides .collapsed { width: 0 }
     sidebar.style.width = "";
     localStorage.setItem(LEFT_COLLAPSED_KEY, "true");
+    updateToggleActive();
   }
 
   function expandInline() {
@@ -232,6 +243,7 @@ function setupToggle() {
       sidebar.style.width = `${savedWidth}px`;
     }
     localStorage.setItem(LEFT_COLLAPSED_KEY, "false");
+    updateToggleActive();
   }
 
   // Toggle click handler
@@ -281,4 +293,7 @@ function setupToggle() {
       sidebar.style.width = "";
     }
   }
+
+  // Set initial active state
+  updateToggleActive();
 }

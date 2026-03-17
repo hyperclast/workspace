@@ -27,7 +27,13 @@ import {
   setupUnloadHandler,
 } from "./collaboration.js";
 import { updateCollabStatus, setupIndicatorPopover } from "./collabStatus.js";
-import { API_BASE_URL, getBrandName, getUserInfo, getFeatureFlags } from "./config.js";
+import {
+  API_BASE_URL,
+  getBrandName,
+  getUserInfo,
+  getFeatureFlags,
+  SIDEBAR_OVERLAY_BREAKPOINT,
+} from "./config.js";
 import { csrfFetch } from "./csrf.js";
 import { decorateCodeBlocks } from "./decorateCodeBlocks.js";
 import { decorateEmails } from "./decorateEmails.js";
@@ -79,6 +85,8 @@ import {
   setupSidebar,
   openSidebar,
   closeSidebar,
+  expandSidebar,
+  collapseSidebar,
   setActiveTab,
 } from "./lib/sidebar.js";
 import {
@@ -185,13 +193,6 @@ function renderAppHTML() {
       <div id="note-page" class="note-page">
         <div id="note-header">
           <div class="note-header-container">
-            <button id="sidebar-toggle" class="sidebar-toggle" title="Open pages list">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="3" y1="12" x2="21" y2="12"></line>
-                <line x1="3" y1="6" x2="21" y2="6"></line>
-                <line x1="3" y1="18" x2="21" y2="18"></line>
-              </svg>
-            </button>
             <div class="breadcrumb-row" id="breadcrumb-row" style="display: none;">
               <nav id="breadcrumb" class="breadcrumb">
                 <span id="breadcrumb-org" class="breadcrumb-item">
@@ -251,6 +252,22 @@ function renderAppHTML() {
                       Delete page
                     </button>
                   </div>
+                </div>
+                <div class="panel-toggles">
+                  <button id="sidebar-toggle" class="sidebar-toggle" title="Toggle project list">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect class="panel-fill" x="3" y="3" width="6" height="18" rx="2" ry="2" stroke="none" />
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <line x1="9" y1="3" x2="9" y2="21" />
+                    </svg>
+                  </button>
+                  <button id="sidebar-panel-toggle" class="sidebar-panel-toggle" title="Toggle sidebar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect class="panel-fill" x="15" y="3" width="6" height="18" rx="2" ry="2" stroke="none" />
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <line x1="15" y1="3" x2="15" y2="21" />
+                    </svg>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1937,6 +1954,64 @@ function setupFileDragDrop(editorContainer, getProjectId, getCanUpload, showFile
 /**
  * Setup note actions dropdown (delete, etc.)
  */
+/**
+ * Setup right sidebar panel toggle button in breadcrumb actions.
+ */
+function setupSidebarPanelToggle() {
+  const toggle = document.getElementById("sidebar-panel-toggle");
+  if (!toggle) return;
+
+  const isMobile = () => window.innerWidth <= SIDEBAR_OVERLAY_BREAKPOINT;
+  const COLLAPSED_KEY = "ws-sidebar-collapsed";
+
+  function updateActiveState() {
+    const sidebar = document.getElementById("chat-sidebar");
+    if (!sidebar) return;
+    if (isMobile()) {
+      toggle.classList.toggle("active", sidebar.classList.contains("open"));
+    } else {
+      toggle.classList.toggle("active", !sidebar.classList.contains("collapsed"));
+    }
+  }
+
+  toggle.addEventListener("click", () => {
+    const sidebar = document.getElementById("chat-sidebar");
+    if (!sidebar) return;
+    if (isMobile()) {
+      if (sidebar.classList.contains("open")) {
+        closeSidebar();
+      } else {
+        openSidebar();
+      }
+    } else {
+      if (sidebar.classList.contains("collapsed")) {
+        expandSidebar();
+        // Restore saved resize width
+        const savedWidth = localStorage.getItem("ws-right-sidebar-width");
+        if (savedWidth) {
+          sidebar.style.width = `${savedWidth}px`;
+        }
+      } else {
+        collapseSidebar();
+        // Clear inline width so .collapsed { width: 0 } takes effect
+        sidebar.style.width = "";
+      }
+    }
+    // Update after state change (sidebar store updates DOM synchronously via Svelte)
+    requestAnimationFrame(updateActiveState);
+  });
+
+  // Watch for class changes on the sidebar to keep toggle in sync
+  const sidebar = document.getElementById("chat-sidebar");
+  if (sidebar) {
+    const observer = new MutationObserver(updateActiveState);
+    observer.observe(sidebar, { attributes: true, attributeFilter: ["class"] });
+  }
+
+  // Set initial state
+  updateActiveState();
+}
+
 function setupNoteActions() {
   const actionsBtn = document.getElementById("actions-btn");
   const actionsDropdown = document.getElementById("actions-dropdown");
@@ -2464,6 +2539,7 @@ async function startApp() {
     setupJumpButton();
     setupTitleEditing();
     setupSidebar();
+    setupSidebarPanelToggle();
 
     setNavigateCallback((externalId) => {
       if (externalId !== currentPage?.external_id) {
@@ -2562,6 +2638,7 @@ async function startApp() {
 
   // Setup right sidebar (AI chat, links)
   setupSidebar();
+  setupSidebarPanelToggle();
 
   // Setup rewind feature (timeline tab + viewer)
   if (getFeatureFlags().rewind) {

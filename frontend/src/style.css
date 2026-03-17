@@ -1556,6 +1556,18 @@ body.sidebar-resizing .chat-sidebar {
   color: var(--text-primary);
 }
 
+.sidebar-toggle.active {
+  color: var(--text-primary);
+}
+
+.sidebar-toggle .panel-fill {
+  fill: none;
+}
+
+.sidebar-toggle.active .panel-fill {
+  fill: currentColor;
+}
+
 .sidebar-toggle svg {
   width: 20px;
   height: 20px;
@@ -1593,7 +1605,7 @@ body.sidebar-resizing .chat-sidebar {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: width 0.2s ease;
+  transition: width 0.2s ease, min-width 0.2s ease;
   min-height: 0;
   max-height: 100%;
 }
@@ -1601,12 +1613,12 @@ body.sidebar-resizing .chat-sidebar {
 .chat-sidebar.collapsed {
   width: 0;
   min-width: 0;
-  max-width: 0;
-  flex: 0 0 0;
-  border-left: none;
   overflow: hidden;
-  padding: 0;
-  visibility: hidden;
+  border-left: none;
+}
+
+.chat-sidebar.collapsed .sidebar-resize-handle {
+  display: none;
 }
 
 .chat-sidebar-header {
@@ -1664,29 +1676,6 @@ body.sidebar-resizing .chat-sidebar {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-}
-
-.chat-close-btn {
-  background: transparent;
-  border: none;
-  padding: 0.25rem;
-  cursor: pointer;
-  color: var(--text-secondary);
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s;
-}
-
-.chat-close-btn:hover {
-  background: rgba(55, 53, 47, 0.08);
-  color: var(--text-primary);
-}
-
-.chat-close-btn svg {
-  width: 18px;
-  height: 18px;
 }
 
 .chat-messages {
@@ -2155,40 +2144,46 @@ body.sidebar-resizing .chat-sidebar {
   text-overflow: ellipsis;
 }
 
-/* Floating expand button — shown when sidebar is not visible.
-   Default: hidden. Shown via sibling selectors on .chat-sidebar state. */
-.chat-expand-btn {
-  position: absolute;
-  right: 0;
-  top: 1rem;
-  width: 32px;
-  height: 32px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  border-right: none;
-  border-radius: 6px 0 0 6px;
-  cursor: pointer;
-  color: var(--text-secondary);
-  display: none;
+/* Right sidebar panel toggle in breadcrumb actions */
+.sidebar-panel-toggle {
+  display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s;
-  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.08);
+  padding: 0.25rem;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s;
 }
 
-/* Desktop: show when sidebar is collapsed */
-.chat-sidebar.collapsed ~ .chat-expand-btn {
-  display: flex;
-}
-
-.chat-expand-btn:hover {
-  background: var(--bg-secondary);
+.sidebar-panel-toggle:hover {
+  background: rgba(55, 53, 47, 0.08);
   color: var(--text-primary);
 }
 
-.chat-expand-btn svg {
-  width: 16px;
-  height: 16px;
+.sidebar-panel-toggle.active {
+  color: var(--text-primary);
+}
+
+.sidebar-panel-toggle .panel-fill {
+  fill: none;
+}
+
+.sidebar-panel-toggle.active .panel-fill {
+  fill: currentColor;
+}
+
+.panel-toggles {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+}
+
+.sidebar-panel-toggle svg {
+  width: 20px;
+  height: 20px;
 }
 
 /* Mobile chat overlay - only shown on small screens */
@@ -2228,21 +2223,6 @@ body.sidebar-resizing .chat-sidebar {
     transform: translateX(0);
   }
 
-  /* Show expand chevron on mobile (sidebar is off-screen by default) */
-  .chat-expand-btn {
-    display: flex;
-    position: fixed;
-    right: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 999;
-  }
-
-  /* Hide when sidebar overlay is open */
-  .chat-sidebar.open ~ .chat-expand-btn {
-    display: none;
-  }
-
   .chat-overlay.visible {
     display: block;
   }
@@ -2265,9 +2245,7 @@ body.sidebar-resizing .chat-sidebar {
   .chat-sidebar.collapsed {
     width: 100%;
     max-width: 360px;
-    flex: none;
     border-left: 1px solid var(--border-light);
-    visibility: visible;
     overflow: visible;
   }
 
