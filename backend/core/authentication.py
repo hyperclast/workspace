@@ -1,14 +1,13 @@
 from allauth.headless.contrib.ninja.security import XSessionTokenAuth
-from django.contrib.auth import get_user_model
 from ninja.security import SessionAuth, HttpBearer
+
+from users.models import AccessToken
 
 
 class TokenAuth(HttpBearer):
     """Look up user with given access token."""
 
     def authenticate(self, request, token: str):
-        from users.models import AccessToken
-
         token_obj = (
             AccessToken.objects.select_related("user", "user__profile").filter(value=token, is_active=True).first()
         )
@@ -17,12 +16,6 @@ class TokenAuth(HttpBearer):
             request._access_token = token_obj
             return token_obj.user
 
-        # Fallback: check Profile.access_token for CLI/web during transition
-        User = get_user_model()
-        user = User.objects.select_related("profile").filter(profile__access_token=token).first()
-        if user:
-            request.user = user
-            return user
         return None
 
 

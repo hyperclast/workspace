@@ -13,6 +13,16 @@ chown "$TARGET_UID:$TARGET_GID" /app/shared/imports 2>/dev/null || true
 exec gosu "$TARGET_UID:$TARGET_GID" bash -c '
 set -e
 
+# Auto-generate missing migrations (if any)
+if ! python manage.py makemigrations --check --dry-run 2>/dev/null; then
+    echo ""
+    echo "WARNING: Missing migrations detected. Auto-generating..."
+    python manage.py makemigrations
+    echo ""
+    echo "NOTE: Migrations were auto-generated. Please review them and add to version control."
+    echo ""
+fi
+
 # Run Django migrations
 python manage.py migrate
 

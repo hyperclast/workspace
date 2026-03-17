@@ -1,5 +1,3 @@
-from secrets import token_urlsafe
-
 from allauth.account.models import EmailAddress
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Sum
@@ -11,6 +9,7 @@ from backend.utils import log_error
 from core.authentication import session_auth, token_auth, x_session_token_auth
 from filehub.constants import FileUploadStatus
 from filehub.models import FileUpload
+from users.models import AccessToken
 from users.schemas import (
     AccessTokenResponse,
     CurrentUserSchema,
@@ -110,18 +109,23 @@ def get_access_token(request: HttpRequest):
 )
 def regenerate_access_token(request: HttpRequest):
     """
-    Regenerate a new API access token.
+    Regenerate the user's default API access token.
+
+    Replaces the current active, user-managed, default access token value
+    if one exists. Creates a new default token if there isn't an active,
+    user-managed, default token yet (improbable after migration, but
+    handled gracefully as a defensive measure).
+
     Invalidates the old token immediately.
     Accepts session cookie, X-Session-Token (allauth app client), or Bearer token.
     """
-    request.user.profile.access_token = token_urlsafe()
-    request.user.profile.save(update_fields=["access_token", "modified"])
-    return {"access_token": request.user.profile.access_token}
+    token_obj = AccessToken.objects.regenerate_default_token(request.user)
+    return {"access_token": token_obj.value}
 
 
 # Explicit whitelist of profile fields that can be updated via the settings endpoint.
-# This prevents accidentally exposing sensitive fields like access_token if the schema
-# is extended without proper review.
+# This prevents accidentally exposing sensitive fields if the schema is extended
+# without proper review.
 ALLOWED_SETTINGS_FIELDS = {"tz", "keyboard_shortcuts"}
 
 

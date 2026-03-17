@@ -138,17 +138,17 @@ class TestLastActiveMiddlewareDevice(TestCase):
         device.refresh_from_db()
         self.assertEqual(device.last_active, old_time)
 
-    def test_does_not_update_device_for_profile_token(self):
-        """Profile.access_token fallback should not touch Device.last_active."""
+    def test_does_not_update_device_for_default_token(self):
+        """Default user-managed token should not touch Device.last_active."""
         device = self._create_device()
         old_time = timezone.now() - timedelta(minutes=10)
         device.last_active = old_time
         device.save(update_fields=["last_active", "modified"])
 
-        profile_token = self.user.profile.access_token
+        default_token = AccessToken.objects.get_default_token_value(self.user.id)
         self.client.get(
             TEST_URL,
-            HTTP_AUTHORIZATION=f"Bearer {profile_token}",
+            HTTP_AUTHORIZATION=f"Bearer {default_token}",
         )
 
         device.refresh_from_db()

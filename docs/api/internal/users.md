@@ -5,6 +5,10 @@
 - [Get current user](#get-current-user)
 - [Get access token](#get-access-token)
 - [Regenerate access token](#regenerate-access-token)
+- [List access tokens](#list-access-tokens)
+- [Create access token](#create-access-token)
+- [Retrieve access token](#retrieve-access-token)
+- [Update access token](#update-access-token)
 - [Get storage summary](#get-storage-summary)
 - [Create Stripe checkout session](#create-stripe-checkout-session)
 - [Update user settings](#update-user-settings)
@@ -77,7 +81,7 @@ See [Overview](./overview.md)
 
 ## Get access token
 
-Retrieve the user's API access token. Useful for displaying the token in the UI (e.g., Settings page).
+Retrieve the user's default API access token. Useful for displaying the token in the UI (e.g., Settings page). Returns the value of the user's default `AccessToken`.
 
 ### URL
 
@@ -101,7 +105,7 @@ None
 
 ### Authorization
 
-Requires session-based authentication.
+Requires authentication (bearer token, X-Session-Token, or session).
 
 ### Request Headers
 
@@ -140,7 +144,7 @@ See [Overview](./overview.md)
 
 ## Regenerate access token
 
-Generate a new API access token, immediately invalidating the old one. Useful for token rotation or when a token has been compromised.
+Generate a new default API access token, immediately invalidating the old one. Useful for token rotation or when a token has been compromised. Operates on the user's default `AccessToken` row.
 
 ### URL
 
@@ -164,7 +168,7 @@ None
 
 ### Authorization
 
-Requires session-based authentication.
+Requires authentication (bearer token, X-Session-Token, or session).
 
 ### Request Headers
 
@@ -216,6 +220,247 @@ if (response.ok) {
   // Update UI to show new token
 }
 ```
+
+---
+
+## List access tokens
+
+List all user-managed access tokens for the current user, ordered by creation date (newest first).
+
+### URL
+
+`/api/v1/users/me/tokens/`
+
+### HTTP Method
+
+`GET`
+
+### Path Params
+
+None
+
+### Query Params
+
+None
+
+### Data Params
+
+None
+
+### Authorization
+
+Requires authentication (bearer token or session).
+
+### Request Headers
+
+See [Overview](./overview.md)
+
+### Response
+
+- Status Code: 200
+- Schema:
+
+```json
+[
+  {
+    "external_id": "abc123",
+    "value": "NhqPaZgfmRLxcBvYS...",
+    "label": "Default",
+    "is_default": true,
+    "is_active": true,
+    "created": "2025-01-15T10:30:00Z"
+  }
+]
+```
+
+**Notes:**
+
+- Only returns user-managed tokens (not system-managed device tokens)
+- Returns full token values (not masked)
+
+**Error Responses:**
+
+- Status Code: 401 - Not authenticated
+
+---
+
+## Create access token
+
+Create a new user-managed access token with a custom label.
+
+### URL
+
+`/api/v1/users/me/tokens/`
+
+### HTTP Method
+
+`POST`
+
+### Path Params
+
+None
+
+### Query Params
+
+None
+
+### Data Params
+
+- `label` (String, required): A label for the token. 1-255 characters.
+
+### Authorization
+
+Requires authentication (bearer token or session).
+
+### Request Headers
+
+See [Overview](./overview.md)
+
+### Response
+
+- Status Code: 201
+- Schema:
+
+```json
+{
+  "external_id": "def456",
+  "value": "dGhpcyBpcyBhIG5ldyB0b2tlbg...",
+  "label": "CI Pipeline",
+  "is_default": false,
+  "is_active": true,
+  "created": "2025-01-15T10:30:00Z"
+}
+```
+
+**Notes:**
+
+- New tokens are always created with `is_default: false` and `is_active: true`
+- The token value is auto-generated and returned in the response
+
+**Error Responses:**
+
+- Status Code: 401 - Not authenticated
+- Status Code: 422 - Validation error (missing or invalid label)
+
+---
+
+## Retrieve access token
+
+Get a specific user-managed access token by its external ID.
+
+### URL
+
+`/api/v1/users/me/tokens/{external_id}/`
+
+### HTTP Method
+
+`GET`
+
+### Path Params
+
+- `external_id` (String, required): The external ID of the token
+
+### Query Params
+
+None
+
+### Data Params
+
+None
+
+### Authorization
+
+Requires authentication (bearer token or session).
+
+### Request Headers
+
+See [Overview](./overview.md)
+
+### Response
+
+- Status Code: 200
+- Schema:
+
+```json
+{
+  "external_id": "abc123",
+  "value": "NhqPaZgfmRLxcBvYS...",
+  "label": "Default",
+  "is_default": true,
+  "is_active": true,
+  "created": "2025-01-15T10:30:00Z"
+}
+```
+
+**Error Responses:**
+
+- Status Code: 401 - Not authenticated
+- Status Code: 404 - Token not found (wrong ID, belongs to another user, or is a system-managed token)
+
+---
+
+## Update access token
+
+Update a user-managed access token's label or active status.
+
+### URL
+
+`/api/v1/users/me/tokens/{external_id}/`
+
+### HTTP Method
+
+`PATCH`
+
+### Path Params
+
+- `external_id` (String, required): The external ID of the token
+
+### Query Params
+
+None
+
+### Data Params
+
+Only include the fields you want to update:
+
+- `label` (String, optional): New label. 1-255 characters.
+- `is_active` (Boolean, optional): Set to `false` to deactivate, `true` to reactivate.
+
+### Authorization
+
+Requires authentication (bearer token or session).
+
+### Request Headers
+
+See [Overview](./overview.md)
+
+### Response
+
+- Status Code: 200
+- Schema:
+
+```json
+{
+  "external_id": "def456",
+  "value": "dGhpcyBpcyBhIG5ldyB0b2tlbg...",
+  "label": "Renamed Token",
+  "is_default": false,
+  "is_active": false,
+  "created": "2025-01-15T10:30:00Z"
+}
+```
+
+**Notes:**
+
+- Cannot deactivate the default token (returns 400)
+- Cannot set `is_default` via this endpoint
+
+**Error Responses:**
+
+- Status Code: 400 - Cannot deactivate the default token
+- Status Code: 401 - Not authenticated
+- Status Code: 404 - Token not found
+- Status Code: 422 - Validation error
 
 ---
 

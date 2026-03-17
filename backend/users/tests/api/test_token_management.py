@@ -3,6 +3,8 @@ from http import HTTPStatus
 from django.test import override_settings
 
 from core.tests.common import BaseAuthenticatedViewTestCase, BaseViewTestCase
+from users.constants import AccessTokenManagedBy
+from users.models import AccessToken
 from users.tests.factories import TEST_USER_PASSWORD, UserFactory
 
 
@@ -14,9 +16,9 @@ class TestGetAccessTokenAPI(BaseAuthenticatedViewTestCase):
         return self.send_api_request(url=url, method="get")
 
     def test_get_access_token_returns_token(self):
-        """Test that the endpoint returns the user's access token."""
+        """Test that the endpoint returns the user's default access token."""
         user = self.user
-        expected_token = user.profile.access_token
+        expected_token = AccessToken.objects.get_default_token_value(user.id)
 
         response = self.send_get_access_token_request()
         payload = response.json()
@@ -43,9 +45,9 @@ class TestRegenerateAccessTokenAPI(BaseAuthenticatedViewTestCase):
         return self.send_api_request(url=url, method="post")
 
     def test_regenerate_token_creates_new_token(self):
-        """Test that regenerating creates a new token."""
+        """Test that regenerating creates a new token value on the default AccessToken."""
         user = self.user
-        old_token = user.profile.access_token
+        old_token = AccessToken.objects.get_default_token_value(user.id)
 
         response = self.send_regenerate_token_request()
         payload = response.json()
@@ -56,22 +58,20 @@ class TestRegenerateAccessTokenAPI(BaseAuthenticatedViewTestCase):
         new_token = payload["access_token"]
         self.assertNotEqual(new_token, old_token)
 
-        # Verify token was saved to database
-        user.profile.refresh_from_db()
-        self.assertEqual(user.profile.access_token, new_token)
+        # Verify the default AccessToken row was updated in the database
+        self.assertEqual(AccessToken.objects.get_default_token_value(user.id), new_token)
 
     def test_regenerate_token_invalidates_old_token(self):
         """Test that old token is no longer valid after regeneration."""
         user = self.user
-        old_token = user.profile.access_token
+        old_token = AccessToken.objects.get_default_token_value(user.id)
 
         # Regenerate token
         response = self.send_regenerate_token_request()
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
-        # Verify old token is no longer in database
-        user.profile.refresh_from_db()
-        self.assertNotEqual(user.profile.access_token, old_token)
+        # Verify old token value is no longer the default
+        self.assertNotEqual(AccessToken.objects.get_default_token_value(user.id), old_token)
 
     def test_regenerate_token_requires_session_auth(self):
         """Test that regeneration requires session authentication."""
@@ -96,6 +96,27 @@ class TestRegenerateAccessTokenAPI(BaseAuthenticatedViewTestCase):
         # Basic check that it's URL-safe characters
         allowed_chars = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
         self.assertTrue(all(c in allowed_chars for c in new_token))
+
+    def test_regenerate_creates_token_when_none_exists(self):
+        """Test that regenerating creates a default token when none exists."""
+        user = self.user
+        # Remove the signal-created default token
+        AccessToken.objects.filter(user=user, is_default=True).delete()
+        self.assertIsNone(AccessToken.objects.get_default_token_value(user.id))
+
+        response = self.send_regenerate_token_request()
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertIn("access_token", payload)
+
+        # A new default token should now exist
+        token_obj = AccessToken.objects.get_default_token(user.id)
+        self.assertIsNotNone(token_obj)
+        self.assertTrue(token_obj.is_default)
+        self.assertTrue(token_obj.is_active)
+        self.assertEqual(token_obj.managed_by, AccessTokenManagedBy.USER)
+        self.assertEqual(token_obj.value, payload["access_token"])
 
 
 @override_settings(ACCOUNT_EMAIL_VERIFICATION="none")
@@ -131,12 +152,12 @@ class TestXSessionTokenAuth(BaseViewTestCase):
 
         self.assertEqual(response.status_code, HTTPStatus.OK)
         self.assertIn("access_token", payload)
-        self.assertEqual(payload["access_token"], user.profile.access_token)
+        self.assertEqual(payload["access_token"], AccessToken.objects.get_default_token_value(user.id))
 
     def test_regenerate_token_via_x_session_token(self):
         """X-Session-Token from app login can regenerate the user's bearer token."""
         user = UserFactory()
-        old_token = user.profile.access_token
+        old_token = AccessToken.objects.get_default_token_value(user.id)
         session_token = self._get_session_token(user)
 
         self.client.logout()
@@ -151,8 +172,7 @@ class TestXSessionTokenAuth(BaseViewTestCase):
         self.assertIn("access_token", payload)
         self.assertNotEqual(payload["access_token"], old_token)
 
-        user.profile.refresh_from_db()
-        self.assertEqual(user.profile.access_token, payload["access_token"])
+        self.assertEqual(AccessToken.objects.get_default_token_value(user.id), payload["access_token"])
 
     def test_invalid_session_token_returns_401(self):
         """An invalid X-Session-Token is rejected."""

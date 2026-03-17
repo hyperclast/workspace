@@ -264,6 +264,33 @@ class StorageSummaryOut(Schema):
     file_count: int
 
 
+class AccessTokenOut(Schema):
+    """User-managed access token response."""
+
+    external_id: str
+    value: str
+    label: str
+    is_default: bool
+    is_active: bool
+    created: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AccessTokenCreateIn(Schema):
+    """Request body for creating a user-managed access token."""
+
+    label: str = Field(..., min_length=1, max_length=255)
+
+
+class AccessTokenUpdateIn(Schema):
+    """Request body for updating a user-managed access token."""
+
+    label: Optional[str] = Field(None, min_length=1, max_length=255)
+    is_active: Optional[bool] = None
+
+
 class DeviceRegistrationSchema(Schema):
     """Request body for registering a device."""
 

@@ -1,6 +1,7 @@
 from http import HTTPStatus
 
 from core.tests.common import BaseAuthenticatedViewTestCase, BaseViewTestCase
+from users.models import AccessToken
 
 
 class TestGetCurrentUserAPI(BaseAuthenticatedViewTestCase):
@@ -18,7 +19,7 @@ class TestGetCurrentUserAPI(BaseAuthenticatedViewTestCase):
         self.assertEqual(payload["external_id"], user.external_id)
         self.assertEqual(payload["email"], user.email)
         self.assertEqual(payload["is_authenticated"], True)
-        self.assertEqual(payload["access_token"], user.profile.access_token)
+        self.assertEqual(payload["access_token"], AccessToken.objects.get_default_token_value(user.id))
 
     def test_get_current_user_returns_external_id_not_pk(self):
         """Verify that external_id is returned instead of the internal database ID."""
@@ -68,7 +69,7 @@ class TestGetCurrentUserAPIWithTokenAuth(BaseViewTestCase):
         from users.tests.factories import UserFactory
 
         user = UserFactory()
-        token = user.profile.access_token
+        token = AccessToken.objects.get_default_token_value(user.id)
 
         response = self.client.get(
             "/api/users/me/",

@@ -136,7 +136,7 @@ class TestRegisterDevice(TestCase):
     def test_token_auth_works_for_registration(self):
         """Device registration should also work with bearer token auth."""
         self.client.logout()
-        token = self.user.profile.access_token
+        token = AccessToken.objects.get_default_token_value(self.user.id)
 
         response = self.client.post(
             BASE_URL,

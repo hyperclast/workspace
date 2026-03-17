@@ -74,7 +74,7 @@ class ProfileAdmin(admin.ModelAdmin):
     list_display = ["user", "receive_product_updates", "last_active", "tz", "created"]
     list_filter = ["receive_product_updates"]
     search_fields = ["user__email"]
-    readonly_fields = ["created", "modified", "access_token"]
+    readonly_fields = ["created", "modified"]
 
 
 class DeviceInline(admin.TabularInline):

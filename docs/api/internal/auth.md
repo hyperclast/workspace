@@ -44,7 +44,7 @@ After allauth login/signup, the mobile app registers the device to obtain a per-
 
 Each device gets its own token in the `AccessToken` table, tied to a `Device` row. Tokens are independently revocable. Re-login on the same device rotates the token and reactivates if previously revoked.
 
-CLI/web continue to use `Profile.access_token` via `GET /me/token/`.
+CLI/web use the default user-managed `AccessToken` via `GET /me/token/`.
 
 ### Device endpoints
 
