@@ -1129,7 +1129,11 @@ nav {
 
 .sidebar-folder-header .folder-chevron {
   flex-shrink: 0;
-  opacity: 0.6;
+  transition: transform 0.15s;
+}
+
+.sidebar-folder-header.expanded .folder-chevron {
+  transform: rotate(90deg);
 }
 
 .sidebar-folder-header .folder-name {

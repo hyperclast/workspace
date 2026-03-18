@@ -90,7 +90,9 @@ async function apiFetch(path, options = {}) {
     if (!res.ok) {
       const body = await res.json().catch(() => null);
       const message = body?.message || body?.error || `HTTP ${res.status}`;
-      throw new Error(message);
+      const err = new Error(message);
+      err.status = res.status;
+      throw err;
     }
     if (res.status === 204) return null;
     return res.json();
@@ -116,10 +118,32 @@ function hasPendingEmailVerification(data) {
   return data?.data?.flows?.some((f) => f.id === "verify_email" && f.is_pending);
 }
 
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  let didTimeout = false;
+  const timeoutId = setTimeout(() => {
+    didTimeout = true;
+    controller.abort();
+  }, DEFAULT_TIMEOUT_MS);
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError" && didTimeout) {
+      const err = new Error("Request timed out", { cause: e });
+      err.code = "ETIMEDOUT";
+      throw err;
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function registerDeviceAndGetToken(sessionToken) {
   const clientId = await Storage.getOrCreateClientId();
 
-  const res = await fetch(`${API_URL}/users/me/devices/`, {
+  const res = await fetchWithTimeout(`${API_URL}/users/me/devices/`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -144,7 +168,7 @@ async function registerDeviceAndGetToken(sessionToken) {
 }
 
 async function authenticate(url, email, password, fallbackError) {
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -182,11 +206,7 @@ async function signupRequest(email, password) {
 
 async function logoutRequest() {
   const clientId = await Storage.getOrCreateClientId();
-  try {
-    await apiFetch(`/users/me/devices/${clientId}/`, { method: "DELETE" });
-  } catch (e) {
-    // Best-effort — caller handles local cleanup
-  }
+  await apiFetch(`/users/me/devices/${clientId}/`, { method: "DELETE" });
 }
 
 async function syncDeviceMetadata() {

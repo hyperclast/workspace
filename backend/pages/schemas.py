@@ -56,6 +56,13 @@ class PageOut(Schema):
     modified: datetime
     is_owner: Optional[bool] = True
     access_code: Optional[str] = None
+    folder_id: Optional[str] = None
+
+    @staticmethod
+    def resolve_folder_id(obj):
+        if obj.folder_id:
+            return obj.folder.external_id
+        return None
 
     class Config:
         from_attributes = True

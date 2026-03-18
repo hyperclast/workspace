@@ -2,7 +2,7 @@
  * End-to-end test for measuring page content load time.
  *
  * This test measures how long it takes from page load to content appearing
- * in the editor via CRDT sync. The goal is to catch performance regressions.
+ * in the editor. The goal is to catch performance regressions.
  *
  * Run with:
  *   npm run test:load-time
@@ -26,6 +26,59 @@ const WARNING_LOAD_TIME_MS = parseInt(process.env.E2E_WARNING_LOAD_TIME_MS || "1
 const TEST_EMAIL = process.env.TEST_EMAIL || "dev@localhost";
 const TEST_PASSWORD = process.env.TEST_PASSWORD || "dev";
 
+/**
+ * Helper: Login and wait for editor
+ */
+async function loginAndWait(page) {
+  await page.goto(`${BASE_URL}/login`);
+  await page.waitForSelector("#login-email", { timeout: 10000 });
+  await page.fill("#login-email", TEST_EMAIL);
+  await page.fill("#login-password", TEST_PASSWORD);
+  await page.click('button[type="submit"]');
+  await page.waitForSelector("#editor", { timeout: 15000 });
+  await page.waitForSelector(".cm-content", { timeout: 10000 });
+}
+
+/**
+ * Helper: Create a page with content via the REST API.
+ * This is more reliable than typing into the editor and waiting for CRDT sync.
+ */
+async function createPageWithContent(page, title, content) {
+  return await page.evaluate(
+    async ({ title, content }) => {
+      const csrfToken = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("csrftoken="))
+        ?.split("=")[1];
+
+      const projectsRes = await fetch("/api/v1/projects/");
+      const projects = await projectsRes.json();
+      if (!projects.length) throw new Error("No projects available");
+
+      const res = await fetch("/api/v1/pages/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken,
+        },
+        body: JSON.stringify({
+          project_id: projects[0].external_id,
+          title,
+          details: { content, filetype: "txt", schema_version: 1 },
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Failed to create page: ${err}`);
+      }
+
+      return await res.json();
+    },
+    { title, content }
+  );
+}
+
 test.describe("Page Content Load Time", () => {
   const TEST_CONTENT = `Load time test content ${Date.now()}`;
   let testPageId = "";
@@ -34,34 +87,11 @@ test.describe("Page Content Load Time", () => {
     const context = await browser.newContext();
     const page = await context.newPage();
 
-    await page.goto(`${BASE_URL}/login`);
-    await page.waitForSelector("#login-email", { timeout: 10000 });
-    await page.fill("#login-email", TEST_EMAIL);
-    await page.fill("#login-password", TEST_PASSWORD);
-    await page.click('button[type="submit"]');
-    await page.waitForSelector("#editor", { timeout: 15000 });
-    await page.waitForSelector(".cm-content", { timeout: 10000 });
+    await loginAndWait(page);
 
-    testPageId = await page.evaluate(() => {
-      const match = window.location.pathname.match(/\/pages\/([^/]+)/);
-      return match ? match[1] : window.currentPage?.external_id || "";
-    });
-
-    // Wait for collaboration to connect before typing
-    await page.waitForFunction(
-      () => document.getElementById("collab-status")?.className.includes("connected"),
-      { timeout: 15000 }
-    );
-
-    await page.click(".cm-content");
-    await page.keyboard.type(TEST_CONTENT);
-
-    // Wait for CRDT sync to persist (not just a fixed delay)
-    await page.waitForFunction(
-      () => document.getElementById("collab-status")?.className.includes("connected"),
-      { timeout: 10000 }
-    );
-    await page.waitForTimeout(1000); // buffer for y_updates write
+    // Create a test page with content via the API (guarantees persistence)
+    const created = await createPageWithContent(page, `Load Time Test ${Date.now()}`, TEST_CONTENT);
+    testPageId = created.external_id;
 
     console.log(`\n🔧 Setup: Created test content on page ${testPageId}`);
     await context.close();
@@ -70,19 +100,12 @@ test.describe("Page Content Load Time", () => {
   test("content should appear within acceptable time (hard reload)", async ({ page }) => {
     console.log(`\n🔧 Logging in as: ${TEST_EMAIL}`);
 
-    await page.goto(`${BASE_URL}/login`);
-    await page.waitForSelector("#login-email", { timeout: 10000 });
-    await page.fill("#login-email", TEST_EMAIL);
-    await page.fill("#login-password", TEST_PASSWORD);
-    await page.click('button[type="submit"]');
-    await page.waitForSelector("#editor", { timeout: 15000 });
-    await page.waitForSelector(".cm-content", { timeout: 10000 });
+    await loginAndWait(page);
     console.log("✅ Logged in");
 
-    if (testPageId) {
-      await page.goto(`${BASE_URL}/pages/${testPageId}/`);
-      await page.waitForSelector(".cm-content", { timeout: 10000 });
-    }
+    // Navigate to the test page and verify content is present
+    await page.goto(`${BASE_URL}/pages/${testPageId}/`);
+    await page.waitForSelector(".cm-content", { timeout: 10000 });
 
     await page.waitForFunction(
       (expected) => {
@@ -90,9 +113,9 @@ test.describe("Page Content Load Time", () => {
         return content && content.textContent.includes(expected);
       },
       TEST_CONTENT,
-      { timeout: 30000 }
+      { timeout: 15000 }
     );
-    console.log("✅ Initial content loaded via CRDT");
+    console.log("✅ Initial content loaded");
 
     const client = await page.context().newCDPSession(page);
     await client.send("Network.clearBrowserCache");
@@ -114,9 +137,7 @@ test.describe("Page Content Load Time", () => {
 
     // Verify we're still on the correct page (not redirected to login)
     const currentUrl = page.url();
-    if (testPageId) {
-      expect(currentUrl).toContain(testPageId);
-    }
+    expect(currentUrl).toContain(testPageId);
 
     await page.waitForFunction(
       (expected) => {
@@ -144,17 +165,10 @@ test.describe("Page Content Load Time", () => {
   });
 
   test("measure detailed timing breakdown", async ({ page }) => {
-    await page.goto(`${BASE_URL}/login`);
-    await page.waitForSelector("#login-email", { timeout: 10000 });
-    await page.fill("#login-email", TEST_EMAIL);
-    await page.fill("#login-password", TEST_PASSWORD);
-    await page.click('button[type="submit"]');
-    await page.waitForSelector("#editor", { timeout: 15000 });
+    await loginAndWait(page);
 
-    if (testPageId) {
-      await page.goto(`${BASE_URL}/pages/${testPageId}/`);
-      await page.waitForSelector(".cm-content", { timeout: 10000 });
-    }
+    await page.goto(`${BASE_URL}/pages/${testPageId}/`);
+    await page.waitForSelector(".cm-content", { timeout: 10000 });
 
     const client = await page.context().newCDPSession(page);
     await client.send("Network.clearBrowserCache");
@@ -197,10 +211,10 @@ test.describe("Page Content Load Time", () => {
       console.log(`   Editor visible: ${editorVisibleTime}ms`);
     }
     if (contentVisibleTime) {
-      console.log(`   Content loaded via CRDT: ${contentVisibleTime}ms`);
+      console.log(`   Content loaded: ${contentVisibleTime}ms`);
       if (editorVisibleTime) {
         console.log(
-          `   ⏱️  Time waiting for WebSocket/CRDT: ~${contentVisibleTime - editorVisibleTime}ms`
+          `   ⏱️  Time from editor visible to content: ~${contentVisibleTime - editorVisibleTime}ms`
         );
       }
     } else {

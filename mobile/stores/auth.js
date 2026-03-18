@@ -18,7 +18,11 @@ const useAuthStore = create((set, get) => ({
       const token = await Storage.getItemAsync(TOKEN_KEY);
       set({ token, hydrated: true });
       if (token) {
-        void syncDeviceMetadata().catch(() => {});
+        void syncDeviceMetadata().catch((e) => {
+          if (e?.status === 404) {
+            get().clearAuth();
+          }
+        });
       }
     } catch {
       set({ token: null, hydrated: true });

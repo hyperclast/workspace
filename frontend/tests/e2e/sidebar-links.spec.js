@@ -168,15 +168,20 @@ test.describe("Sidebar Links Navigation", () => {
     await backlinkButton.click();
     console.log("✅ Clicked backlink");
 
-    // Verify we navigated to source page
+    // Verify we navigated to source page and content loaded
     const editor = page.locator("#editor");
     await expect(editor).toBeVisible({ timeout: 10000 });
     console.log("✅ Editor is visible after navigation");
 
-    const cmContent = page.locator(".cm-content");
-    await expect(cmContent).toBeVisible({ timeout: 5000 });
-    const contentText = await cmContent.textContent();
-    expect(contentText).toContain(targetPageTitle);
+    // Wait for content to actually load (REST fetch is async after navigation)
+    await page.waitForFunction(
+      (expected) => {
+        const content = document.querySelector(".cm-content");
+        return content && content.textContent.includes(expected);
+      },
+      targetPageTitle,
+      { timeout: 15000 }
+    );
     console.log("✅ Source page content loaded correctly (contains link to target)");
 
     // Verify sidebar is functional

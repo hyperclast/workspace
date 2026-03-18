@@ -65,6 +65,34 @@ describe("loadToken", () => {
     expect(useAuthStore.getState().token).toBeNull();
     expect(useAuthStore.getState().hydrated).toBe(true);
   });
+
+  it("clears auth when syncDeviceMetadata returns 404 (device revoked)", async () => {
+    Storage.getItemAsync.mockResolvedValue("stored-token");
+    Storage.deleteItemAsync.mockResolvedValue();
+    const err404 = new Error("Not found");
+    err404.status = 404;
+    syncDeviceMetadata.mockRejectedValue(err404);
+
+    await useAuthStore.getState().loadToken();
+
+    // syncDeviceMetadata is fire-and-forget; flush the .catch() handler
+    await new Promise((r) => setImmediate(r));
+
+    expect(useAuthStore.getState().token).toBeNull();
+    expect(Storage.deleteItemAsync).toHaveBeenCalledWith(TOKEN_KEY);
+  });
+
+  it("keeps auth when syncDeviceMetadata fails with non-404 error", async () => {
+    Storage.getItemAsync.mockResolvedValue("stored-token");
+    syncDeviceMetadata.mockRejectedValue(new Error("Network error"));
+
+    await useAuthStore.getState().loadToken();
+
+    // Flush the fire-and-forget .catch() handler
+    await new Promise((r) => setImmediate(r));
+
+    expect(useAuthStore.getState().token).toBe("stored-token");
+  });
 });
 
 describe("login", () => {

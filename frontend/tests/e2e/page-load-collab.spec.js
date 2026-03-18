@@ -264,6 +264,8 @@ test.describe("Page Load Performance", () => {
 // ============================================================================
 
 test.describe("Collaboration Sync", () => {
+  test.describe.configure({ retries: 1 });
+
   test.beforeEach(async ({ page }) => {
     await loginAndWait(page);
   });
@@ -285,15 +287,16 @@ test.describe("Collaboration Sync", () => {
       );
       const contentVisibleTime = Date.now();
 
-      // Wait for the collab_setup span to complete in metrics.
-      // This is the definitive signal that setupCollaborationAsync() finished,
-      // rather than the CSS class which depends on event timing and can race
-      // with the async flow (rAF delay + WebSocket + sync + editor upgrade).
+      // Wait for a *successful* collab_setup span in metrics.
+      // The span appears on both success and timeout, so we specifically
+      // check for success status to avoid false positives from WS timeouts.
       await page.waitForFunction(
         () => {
           if (!window.__metrics) return false;
           const data = window.__metrics.getRawData();
-          return data.spans.some((s) => s.name === "collab_setup");
+          return data.spans.some(
+            (s) => s.name === "collab_setup" && s.endAttributes?.status === "success"
+          );
         },
         { timeout: THRESHOLDS.COLLAB_CONNECTED_MS }
       );

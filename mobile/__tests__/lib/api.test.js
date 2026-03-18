@@ -1,4 +1,4 @@
-import { apiFetch, syncDeviceMetadata, TOKEN_KEY } from "../../lib/api";
+import { apiFetch, syncDeviceMetadata, loginRequest, TOKEN_KEY } from "../../lib/api";
 import * as Device from "expo-device";
 import * as Storage from "../../lib/storage";
 
@@ -86,6 +86,22 @@ describe("apiFetch", () => {
     });
 
     await expect(apiFetch("/test")).rejects.toThrow("Internal Server Error");
+  });
+
+  it("attaches status property to errors for non-ok responses", async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: () => Promise.resolve({ error: "Not found" }),
+    });
+
+    try {
+      await apiFetch("/test");
+      expect("should not reach here").toBe(false);
+    } catch (e) {
+      expect(e.message).toBe("Not found");
+      expect(e.status).toBe(404);
+    }
   });
 
   it("throws 'Request timed out' when timeout fires", async () => {
@@ -188,5 +204,109 @@ describe("syncDeviceMetadata", () => {
 
     const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("/users/me/devices/my-device-uuid/");
+  });
+});
+
+describe("loginRequest timeout", () => {
+  it("throws 'Request timed out' when auth endpoint hangs", async () => {
+    jest.useFakeTimers();
+    Storage.getOrCreateClientId.mockResolvedValue("test-client-id");
+
+    // First fetch (authenticate) hangs indefinitely
+    mockFetch.mockImplementation((_url, options) => {
+      return new Promise((_resolve, reject) => {
+        if (options?.signal) {
+          options.signal.addEventListener("abort", () => {
+            const err = new Error("The operation was aborted");
+            err.name = "AbortError";
+            reject(err);
+          });
+        }
+      });
+    });
+
+    const promise = loginRequest("user@example.com", "password");
+
+    jest.advanceTimersByTime(15000);
+
+    await expect(promise).rejects.toThrow("Request timed out");
+
+    jest.useRealTimers();
+  });
+
+  it("throws 'Request timed out' when device registration hangs", async () => {
+    jest.useFakeTimers();
+    Storage.getOrCreateClientId.mockResolvedValue("test-client-id");
+
+    let callCount = 0;
+    mockFetch.mockImplementation((_url, options) => {
+      callCount++;
+      if (callCount === 1) {
+        // First fetch (authenticate) succeeds with session token
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              meta: { session_token: "session-tok" },
+            }),
+        });
+      }
+      // Second fetch (registerDeviceAndGetToken) hangs
+      return new Promise((_resolve, reject) => {
+        if (options?.signal) {
+          options.signal.addEventListener("abort", () => {
+            const err = new Error("The operation was aborted");
+            err.name = "AbortError";
+            reject(err);
+          });
+        }
+      });
+    });
+
+    const promise = loginRequest("user@example.com", "password");
+
+    // Attach the rejection handler before advancing timers so the rejection
+    // is caught immediately when the timeout fires.
+    const assertion = expect(promise).rejects.toThrow("Request timed out");
+
+    // Let the first (resolved) fetch settle, then fire the 15s timeout
+    await jest.advanceTimersByTimeAsync(15000);
+
+    await assertion;
+
+    jest.useRealTimers();
+  });
+
+  it("passes AbortSignal to fetch during auth and device registration", async () => {
+    Storage.getOrCreateClientId.mockResolvedValue("test-client-id");
+    Storage.setItemAsync.mockResolvedValue();
+
+    let callCount = 0;
+    mockFetch.mockImplementation((_url, options) => {
+      callCount++;
+      // Both calls should receive an AbortSignal
+      expect(options.signal).toBeInstanceOf(AbortSignal);
+
+      if (callCount === 1) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              meta: { session_token: "session-tok" },
+            }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ access_token: "device-tok" }),
+      });
+    });
+
+    await loginRequest("user@example.com", "password");
+
+    expect(callCount).toBe(2);
   });
 });
