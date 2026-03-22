@@ -75,7 +75,7 @@ export default function ProjectDetailScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: project.name }} />
+      <Stack.Screen options={{ title: project.name, headerShown: true }} />
       <View style={styles.container}>
         {project.description ? <Text style={styles.description}>{project.description}</Text> : null}
         <FlatList

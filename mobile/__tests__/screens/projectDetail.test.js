@@ -3,10 +3,16 @@ import useProjectStore from "../../stores/projects";
 import usePageStore from "../../stores/pages";
 
 const mockPush = jest.fn();
+let capturedStackScreenOptions = null;
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ projectId: "proj-1" }),
   router: { push: (...args) => mockPush(...args) },
-  Stack: { Screen: () => null },
+  Stack: {
+    Screen: ({ options }) => {
+      capturedStackScreenOptions = options;
+      return null;
+    },
+  },
 }));
 
 jest.mock("../../lib/api", () => ({
@@ -24,6 +30,7 @@ const pageStoreInitial = usePageStore.getState();
 beforeEach(() => {
   useProjectStore.setState(projectStoreInitial, true);
   usePageStore.setState(pageStoreInitial, true);
+  capturedStackScreenOptions = null;
   jest.clearAllMocks();
 });
 
@@ -163,6 +170,17 @@ describe("ProjectDetailScreen", () => {
     await waitFor(() => {
       expect(mockCreatePage).toHaveBeenCalledWith("proj-1", "Untitled");
       expect(mockFetchProjects).toHaveBeenCalled();
+    });
+  });
+
+  it("configures header with back button via headerShown", () => {
+    setProject(baseProject);
+
+    render(<ProjectDetailScreen />);
+
+    expect(capturedStackScreenOptions).toMatchObject({
+      title: "My Project",
+      headerShown: true,
     });
   });
 

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
-import { Slot, router } from "expo-router";
+import { Stack, router } from "expo-router";
 import useAuthStore from "../../stores/auth";
 
 export default function AppLayout() {
@@ -26,7 +26,7 @@ export default function AppLayout() {
     );
   }
 
-  return <Slot />;
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
 
 const styles = StyleSheet.create({

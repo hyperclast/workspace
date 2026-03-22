@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react-native";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react-native";
 import useProjectStore from "../../stores/projects";
 
 const mockPush = jest.fn();
@@ -107,5 +107,20 @@ describe("ProjectListScreen (Home)", () => {
     expect(screen.getByText("Project Alpha")).toBeTruthy();
     expect(screen.getByText("Project Gamma")).toBeTruthy();
     expect(screen.queryByText("Acme")).toBeNull();
+  });
+
+  it("tapping a project navigates to /project/{projectId}", () => {
+    useProjectStore.setState({
+      projects: singleOrgProjects,
+      loading: false,
+      error: null,
+      fetchProjects: jest.fn(),
+    });
+
+    render(<ProjectListScreen />);
+
+    fireEvent.press(screen.getByText("Project Alpha"));
+
+    expect(mockPush).toHaveBeenCalledWith("/project/proj-1");
   });
 });
