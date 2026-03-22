@@ -190,10 +190,14 @@ class TestCreateComment(CommentsTestMixin, BaseAuthenticatedViewTestCase):
         payload = response.json()
         self.assertEqual(payload["parent_id"], root.external_id)
 
-    def test_create_root_without_anchor_text_fails(self):
+    @patch("pages.api.comments.notify_comments_updated")
+    def test_create_root_without_anchor_text_succeeds(self, mock_notify):
+        """Page-level comments (no anchor) are allowed."""
         data = {"body": "No anchor.", "parent_id": None}
         response = self.send_api_request(url=self.url(), method="post", data=data)
-        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        self.assertEqual(response.status_code, HTTPStatus.CREATED)
+        payload = response.json()
+        self.assertEqual(payload["anchor_text"], "")
 
     def test_create_reply_with_anchor_fails(self):
         root = CommentFactory(page=self.page, author=self.user, anchor_text="text")
