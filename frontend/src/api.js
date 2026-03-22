@@ -668,3 +668,119 @@ export async function fetchRewindDetail(pageExternalId, rewindExternalId) {
   }
   return response.json();
 }
+
+// Comments API
+
+/**
+ * Fetch comments for a page.
+ * @param {string} pageExternalId - External ID of the page
+ * @param {number} [limit=100] - Number of root comments to fetch
+ * @param {number} [offset=0] - Offset for pagination
+ * @param {number} [repliesLimit=20] - Max replies per root comment
+ * @returns {Promise<{items: Array, count: number}>}
+ */
+export async function fetchComments(pageExternalId, limit = 100, offset = 0, repliesLimit = 20) {
+  const params = new URLSearchParams({ limit, offset, replies_limit: repliesLimit });
+  const response = await csrfFetch(`${API_BASE}/pages/${pageExternalId}/comments/?${params}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch comments: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Fetch replies for a root comment.
+ * @param {string} pageExternalId - External ID of the page
+ * @param {string} commentId - External ID of the root comment
+ * @param {number} [limit=20] - Number of replies to fetch
+ * @param {number} [offset=0] - Offset for pagination
+ * @returns {Promise<{items: Array, count: number}>}
+ */
+export async function fetchReplies(pageExternalId, commentId, limit = 20, offset = 0) {
+  const params = new URLSearchParams({ limit, offset });
+  const response = await csrfFetch(
+    `${API_BASE}/pages/${pageExternalId}/comments/${commentId}/replies/?${params}`
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to fetch replies: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Create a comment on a page.
+ * @param {string} pageExternalId - External ID of the page
+ * @param {Object} data - Comment data
+ * @param {string} data.body - Comment body (markdown)
+ * @param {string} [data.anchor_from_b64] - Base64-encoded Yjs RelativePosition (from)
+ * @param {string} [data.anchor_to_b64] - Base64-encoded Yjs RelativePosition (to)
+ * @param {string} [data.anchor_text] - Selected text
+ * @param {string} [data.parent_id] - Parent comment external_id for replies
+ * @returns {Promise<Object>} The created comment
+ */
+export async function createComment(pageExternalId, data) {
+  const response = await csrfFetch(`${API_BASE}/pages/${pageExternalId}/comments/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to create comment: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Update a comment (body or anchors).
+ * @param {string} pageExternalId - External ID of the page
+ * @param {string} commentId - External ID of the comment
+ * @param {Object} data - Fields to update
+ * @param {string} [data.body] - Updated body
+ * @param {string} [data.anchor_from_b64] - Base64 anchor (deferred resolution)
+ * @param {string} [data.anchor_to_b64] - Base64 anchor (deferred resolution)
+ * @returns {Promise<Object>} The updated comment
+ */
+export async function updateComment(pageExternalId, commentId, data) {
+  const response = await csrfFetch(`${API_BASE}/pages/${pageExternalId}/comments/${commentId}/`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update comment: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Delete a comment.
+ * @param {string} pageExternalId - External ID of the page
+ * @param {string} commentId - External ID of the comment
+ * @returns {Promise<void>}
+ */
+export async function deleteComment(pageExternalId, commentId) {
+  const response = await csrfFetch(`${API_BASE}/pages/${pageExternalId}/comments/${commentId}/`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to delete comment: ${response.statusText}`);
+  }
+}
+
+/**
+ * Trigger AI review for a page.
+ * @param {string} pageExternalId - External ID of the page
+ * @param {string} persona - AI persona ID (socrates, einstein, dewey)
+ * @returns {Promise<Object>} Status response
+ */
+export async function triggerAIReview(pageExternalId, persona) {
+  const response = await csrfFetch(`${API_BASE}/pages/${pageExternalId}/comments/ai-review/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ persona }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to trigger AI review: ${response.statusText}`);
+  }
+  return response.json();
+}

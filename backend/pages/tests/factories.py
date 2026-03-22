@@ -4,6 +4,7 @@ from django.utils import timezone
 
 from pages.constants import PageEditorRole
 from pages.models import (
+    Comment,
     Folder,
     Page,
     PageEditor,
@@ -143,3 +144,22 @@ class ProjectInvitationFactory(factory.django.DjangoModelFactory):
     token = factory.Faker("sha256")
     accepted = False
     expires_at = factory.LazyFunction(lambda: timezone.now() + timedelta(days=7))
+
+
+class CommentFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Comment
+
+    page = factory.SubFactory(PageFactory)
+    author = factory.SubFactory(UserFactory)
+    body = factory.Faker("sentence")
+    parent = None
+    ai_persona = ""
+    requester = None
+
+    @factory.lazy_attribute
+    def anchor_text(self):
+        # Replies must not have anchor_text (DB constraint: replies_no_anchor)
+        if self.parent:
+            return ""
+        return factory.Faker("sentence").evaluate(None, None, {"locale": None})

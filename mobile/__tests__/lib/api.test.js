@@ -140,6 +140,70 @@ describe("apiFetch", () => {
     expect(result).toEqual({ data: "ok" });
   });
 
+  it("aborts fetch when caller-provided signal is aborted", async () => {
+    const callerController = new AbortController();
+
+    mockFetch.mockImplementation((_url, options) => {
+      return new Promise((_resolve, reject) => {
+        if (options?.signal) {
+          options.signal.addEventListener("abort", () => {
+            const err = new Error("The operation was aborted");
+            err.name = "AbortError";
+            reject(err);
+          });
+        }
+      });
+    });
+
+    const promise = apiFetch("/test", { signal: callerController.signal, timeoutMs: 0 });
+
+    callerController.abort();
+
+    // Should be the original AbortError, not wrapped as timeout
+    try {
+      await promise;
+      expect("should not reach here").toBe(false);
+    } catch (e) {
+      expect(e.name).toBe("AbortError");
+      expect(e.code).not.toBe("ETIMEDOUT");
+    }
+  });
+
+  it("immediately aborts when caller signal is already aborted", async () => {
+    const callerController = new AbortController();
+    callerController.abort();
+
+    mockFetch.mockImplementation((_url, options) => {
+      return new Promise((_resolve, reject) => {
+        if (options?.signal?.aborted) {
+          const err = new Error("The operation was aborted");
+          err.name = "AbortError";
+          reject(err);
+        }
+      });
+    });
+
+    await expect(
+      apiFetch("/test", { signal: callerController.signal, timeoutMs: 0 })
+    ).rejects.toThrow("The operation was aborted");
+  });
+
+  it("cleans up caller signal listener after fetch completes", async () => {
+    const callerController = new AbortController();
+    const removeSpy = jest.spyOn(callerController.signal, "removeEventListener");
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ data: "ok" }),
+    });
+
+    await apiFetch("/test", { signal: callerController.signal, timeoutMs: 0 });
+
+    expect(removeSpy).toHaveBeenCalledWith("abort", expect.any(Function));
+    removeSpy.mockRestore();
+  });
+
   it("does not forward timeoutMs to fetch", async () => {
     mockFetch.mockResolvedValue({
       ok: true,
@@ -278,6 +342,205 @@ describe("loginRequest timeout", () => {
     jest.useRealTimers();
   });
 
+  it("sets ETIMEDOUT error code on timeout", async () => {
+    jest.useFakeTimers();
+    Storage.getOrCreateClientId.mockResolvedValue("test-client-id");
+
+    mockFetch.mockImplementation((_url, options) => {
+      return new Promise((_resolve, reject) => {
+        if (options?.signal) {
+          options.signal.addEventListener("abort", () => {
+            const err = new Error("The operation was aborted");
+            err.name = "AbortError";
+            reject(err);
+          });
+        }
+      });
+    });
+
+    const promise = loginRequest("user@example.com", "password");
+
+    jest.advanceTimersByTime(15000);
+
+    try {
+      await promise;
+      expect("should not reach here").toBe(false);
+    } catch (e) {
+      expect(e.message).toBe("Request timed out");
+      expect(e.code).toBe("ETIMEDOUT");
+      expect(e.cause).toBeInstanceOf(Error);
+      expect(e.cause.name).toBe("AbortError");
+    }
+
+    jest.useRealTimers();
+  });
+
+  it("passes through network errors without wrapping as timeout", async () => {
+    Storage.getOrCreateClientId.mockResolvedValue("test-client-id");
+
+    mockFetch.mockRejectedValue(new TypeError("Network request failed"));
+
+    await expect(loginRequest("user@example.com", "password")).rejects.toThrow(
+      "Network request failed"
+    );
+    // Verify it's the original TypeError, not wrapped as a timeout
+    try {
+      await loginRequest("user@example.com", "password");
+    } catch (e) {
+      expect(e).toBeInstanceOf(TypeError);
+      expect(e.code).not.toBe("ETIMEDOUT");
+    }
+  });
+});
+
+describe("loginRequest error handling", () => {
+  it("throws user-friendly error when server returns 5xx HTML", async () => {
+    Storage.getOrCreateClientId.mockResolvedValue("test-client-id");
+
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: () => Promise.reject(new SyntaxError("Unexpected token")),
+    });
+
+    await expect(loginRequest("user@example.com", "password")).rejects.toThrow(
+      "Server error, please try again"
+    );
+  });
+
+  it("extracts allauth error message on invalid credentials (400)", async () => {
+    Storage.getOrCreateClientId.mockResolvedValue("test-client-id");
+
+    // Allauth 400 response (after APIErrorNormalizerMiddleware)
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: () =>
+        Promise.resolve({
+          error: "error",
+          message: "An error occurred.",
+          detail: null,
+          status: 400,
+          errors: [
+            {
+              message: "The email address and/or password you specified are not correct.",
+              code: "email_password_mismatch",
+              param: "password",
+            },
+          ],
+        }),
+    });
+
+    await expect(loginRequest("user@example.com", "wrong")).rejects.toThrow(
+      "The email address and/or password you specified are not correct."
+    );
+  });
+
+  it("detects pending email verification (401) and shows verification message", async () => {
+    Storage.getOrCreateClientId.mockResolvedValue("test-client-id");
+
+    // Allauth 401 response (after APIErrorNormalizerMiddleware)
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: () =>
+        Promise.resolve({
+          error: "error",
+          message: "An error occurred.",
+          detail: null,
+          status: 401,
+          data: {
+            flows: [{ id: "verify_email", is_pending: true }, { id: "login" }],
+          },
+          meta: { is_authenticated: false },
+        }),
+    });
+
+    await expect(loginRequest("user@example.com", "password")).rejects.toThrow(
+      "Please verify your email address before signing in."
+    );
+  });
+
+  it("uses fallback error when no session token and no errors array", async () => {
+    Storage.getOrCreateClientId.mockResolvedValue("test-client-id");
+
+    // Allauth 409 (already authenticated) — no errors, no session token
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: () =>
+        Promise.resolve({
+          error: "error",
+          message: "An error occurred.",
+          detail: null,
+          status: 409,
+        }),
+    });
+
+    await expect(loginRequest("user@example.com", "password")).rejects.toThrow("Login failed");
+  });
+
+  it("throws when device registration returns 5xx HTML", async () => {
+    Storage.getOrCreateClientId.mockResolvedValue("test-client-id");
+
+    let callCount = 0;
+    mockFetch.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        // Auth succeeds
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ meta: { session_token: "session-tok" } }),
+        });
+      }
+      // Device registration returns 5xx HTML
+      return Promise.resolve({
+        ok: false,
+        status: 500,
+        json: () => Promise.reject(new SyntaxError("Unexpected token")),
+      });
+    });
+
+    await expect(loginRequest("user@example.com", "password")).rejects.toThrow(
+      "Server error, please try again"
+    );
+  });
+
+  it("throws 'Device registration failed' on 422 validation error", async () => {
+    Storage.getOrCreateClientId.mockResolvedValue("test-client-id");
+
+    let callCount = 0;
+    mockFetch.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        // Auth succeeds
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ meta: { session_token: "session-tok" } }),
+        });
+      }
+      // 422 with normalized error — no access_token field
+      return Promise.resolve({
+        ok: false,
+        status: 422,
+        json: () =>
+          Promise.resolve({
+            error: "error",
+            message: "An error occurred.",
+            detail: [{ type: "missing", loc: ["client_id"], msg: "Field required" }],
+          }),
+      });
+    });
+
+    await expect(loginRequest("user@example.com", "password")).rejects.toThrow(
+      "Device registration failed"
+    );
+  });
+});
+
+describe("loginRequest success", () => {
   it("passes AbortSignal to fetch during auth and device registration", async () => {
     Storage.getOrCreateClientId.mockResolvedValue("test-client-id");
     Storage.setItemAsync.mockResolvedValue();
@@ -308,5 +571,32 @@ describe("loginRequest timeout", () => {
     await loginRequest("user@example.com", "password");
 
     expect(callCount).toBe(2);
+  });
+
+  it("stores access token via Storage.setItemAsync on success", async () => {
+    Storage.getOrCreateClientId.mockResolvedValue("test-client-id");
+    Storage.setItemAsync.mockResolvedValue();
+
+    let callCount = 0;
+    mockFetch.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ meta: { session_token: "session-tok" } }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ access_token: "my-device-token" }),
+      });
+    });
+
+    const token = await loginRequest("user@example.com", "password");
+
+    expect(token).toBe("my-device-token");
+    expect(Storage.setItemAsync).toHaveBeenCalledWith("access_token", "my-device-token");
   });
 });

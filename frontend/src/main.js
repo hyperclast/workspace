@@ -48,6 +48,8 @@ import { autocompletion } from "@codemirror/autocomplete";
 import { decorateLinks, linkClickHandler } from "./decorateLinks.js";
 import { decorateImagePreviews, imageClickHandler } from "./decorateImagePreviews.js";
 import { decorateMentions } from "./decorateMentions.js";
+import { decorateComments } from "./decorateComments.js";
+import { commentPopover } from "./commentPopover.js";
 import { linkCompletionSource } from "./linkAutocomplete.js";
 import { mentionCompletionSource } from "./mentionAutocomplete.js";
 import { findSectionFold } from "./findSectionFold.js";
@@ -902,6 +904,8 @@ async function setupCollaborationAsync(page, restContent, filetype, signal = nul
   collabSpan.addEvent("create_collab_objects_start");
   collabObjects = createCollaborationObjects(pageId, displayName);
   window.undoManager = collabObjects.undoManager;
+  window.ydoc = collabObjects.ydoc;
+  window.ytext = collabObjects.ytext;
   collabSpan.addEvent("create_collab_objects_complete");
 
   // If collaboration is not available (access denied from cache), stay in REST-only mode
@@ -1136,6 +1140,8 @@ function cleanupCurrentPage() {
     destroyCollaboration(collabObjects);
     collabObjects = null;
     window.undoManager = null;
+    window.ydoc = null;
+    window.ytext = null;
   }
 
   if (window.editorView) {
@@ -1263,6 +1269,8 @@ async function openPage(external_id, skipPushState = false) {
     destroyCollaboration(collabObjects);
     collabObjects = null;
     window.undoManager = null;
+    window.ydoc = null;
+    window.ytext = null;
   }
 
   const navSpan = metrics.startSpan("page_navigation", {
@@ -1600,6 +1608,8 @@ function initializeEditor(pageContent = "", additionalExtensions = [], filetype 
     decorateImagePreviews,
     imageClickHandler,
     decorateMentions,
+    ...decorateComments,
+    ...commentPopover,
     autocompletion({
       override: [linkCompletionSource, mentionCompletionSource],
       activateOnTyping: true,

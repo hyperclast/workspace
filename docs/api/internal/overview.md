@@ -340,5 +340,6 @@ while (true) {
 
 - [**Ask API**](./ask.md) - AI-powered question answering about your pages using RAG
 - [**Authentication API**](./auth.md) - Login, signup, logout, and password reset (django-allauth headless)
+- [**Comments API**](./comments.md) - Page comments anchored to text ranges, with threaded replies and AI persona reviews
 - [**Pages API**](./pages.md) - Create, read, update, and delete pages; manage page links
 - [**Users API**](./users.md) - User information and settings management

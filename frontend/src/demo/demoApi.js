@@ -5,7 +5,7 @@
  * instead of making network requests.
  */
 
-import { DEMO_PROJECTS, DEMO_PAGES, getDemoPage } from "./demoContent.js";
+import { DEMO_PROJECTS, DEMO_PAGES, DEMO_COMMENTS, getDemoPage } from "./demoContent.js";
 import { DemoModeError, getDemoFiletype } from "./index.js";
 
 /**
@@ -229,4 +229,60 @@ export async function syncPageLinks(pageId, _content) {
   // In demo mode, syncing is a no-op - just return current links
   const { outgoing, incoming } = await fetchPageLinks(pageId);
   return { synced: true, outgoing, incoming };
+}
+
+// --- Comments ---
+
+/**
+ * Fetch comments for a demo page
+ */
+export async function fetchComments(pageId) {
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  const items = DEMO_COMMENTS[pageId] || [];
+  const withCounts = items.map((c) => ({
+    ...c,
+    replies_count: (c.replies || []).length,
+  }));
+  return { items: withCounts, count: withCounts.length };
+}
+
+/**
+ * Fetch replies for a root comment (demo: returns existing replies)
+ */
+export async function fetchReplies(pageId, commentId, limit = 20, offset = 0) {
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const items = DEMO_COMMENTS[pageId] || [];
+  const root = items.find((c) => c.external_id === commentId);
+  if (!root) return { items: [], count: 0 };
+  const all = root.replies || [];
+  const slice = all.slice(offset, offset + limit);
+  return { items: slice, count: all.length };
+}
+
+/**
+ * Create comment - not available in demo mode
+ */
+export async function createComment(_pageId, _data) {
+  throw new DemoModeError("add comments");
+}
+
+/**
+ * Update comment - not available in demo mode
+ */
+export async function updateComment(_pageId, _commentId, _data) {
+  throw new DemoModeError("edit comments");
+}
+
+/**
+ * Delete comment - not available in demo mode
+ */
+export async function deleteComment(_pageId, _commentId) {
+  throw new DemoModeError("delete comments");
+}
+
+/**
+ * Trigger AI review - not available in demo mode
+ */
+export async function triggerAIReview(_pageId, _persona) {
+  throw new DemoModeError("use AI review");
 }

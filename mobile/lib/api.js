@@ -118,6 +118,11 @@ function hasPendingEmailVerification(data) {
   return data?.data?.flows?.some((f) => f.id === "verify_email" && f.is_pending);
 }
 
+// Minimal fetch wrapper with timeout support. Used by authenticate() and
+// registerDeviceAndGetToken() which run BEFORE auth is established and need
+// raw Response access (allauth returns structured errors in 4xx bodies).
+// apiFetch() can't be used here because it requires a token and auto-throws
+// on !res.ok, which would prevent parsing allauth's error responses.
 async function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController();
   let didTimeout = false;
@@ -159,6 +164,9 @@ async function registerDeviceAndGetToken(sessionToken) {
     }),
   });
 
+  if (res.status >= 500) {
+    throw new Error("Server error, please try again");
+  }
   const data = await res.json().catch(() => null);
   if (!data?.access_token) {
     throw new Error("Device registration failed");
@@ -177,6 +185,9 @@ async function authenticate(url, email, password, fallbackError) {
     body: JSON.stringify({ email, password }),
   });
 
+  if (res.status >= 500) {
+    throw new Error("Server error, please try again");
+  }
   const data = await res.json().catch(() => null);
   if (!data) {
     throw new Error("Server error, please try again");

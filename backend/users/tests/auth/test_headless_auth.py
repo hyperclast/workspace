@@ -1,5 +1,7 @@
+import re
 from http import HTTPStatus
 
+from django.core import mail
 from django.test import override_settings
 
 from allauth.account.models import EmailAddress, EmailConfirmationHMAC
@@ -152,6 +154,19 @@ class TestLogin(BaseViewTestCase):
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         self.assertIn("errors", payload)
 
+    @override_settings(ACCOUNT_EMAIL_VERIFICATION="mandatory")
+    def test_login_success_with_mandatory_verification(self):
+        """Login succeeds under prod settings when user has a verified email."""
+        user = UserFactory()
+        EmailAddress.objects.create(user=user, email=user.email, verified=True, primary=True)
+
+        response = self.send_login_request(user.email, TEST_USER_PASSWORD)
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertTrue(payload["meta"]["is_authenticated"])
+        self.assertEqual(payload["data"]["user"]["email"], user.email)
+
 
 @override_settings(ACCOUNT_EMAIL_VERIFICATION="none")
 class TestSignup(BaseViewTestCase):
@@ -237,6 +252,20 @@ class TestSignup(BaseViewTestCase):
         # No projects or pages
         self.assertEqual(Project.objects.filter(creator=user).count(), 0)
 
+    @override_settings(ACCOUNT_EMAIL_VERIFICATION="mandatory")
+    def test_signup_success_with_mandatory_verification(self):
+        """Under prod settings, signup returns 401 with verify_email flow (not auto-login)."""
+        response = self.send_signup_request("prodsignup@example.com", "testpass1234")
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+        self.assertFalse(payload["meta"]["is_authenticated"])
+
+        flows = payload["data"]["flows"]
+        verify_flow = next((f for f in flows if f["id"] == "verify_email"), None)
+        self.assertIsNotNone(verify_flow)
+        self.assertTrue(verify_flow["is_pending"])
+
 
 class TestPasswordReset(BaseViewTestCase):
     """Test password reset flow endpoints."""
@@ -318,6 +347,71 @@ class TestPasswordResetSubmit(BaseViewTestCase):
 
         # Should return error for invalid key
         self.assertIn(response.status_code, [HTTPStatus.BAD_REQUEST, HTTPStatus.OK])
+
+
+@override_settings(ACCOUNT_EMAIL_VERIFICATION="none")
+class TestPasswordResetFullFlow(BaseViewTestCase):
+    """End-to-end password reset: request → email → validate key → new password → login.
+
+    Previous tests only used invalid keys. This test generates a real reset token
+    via the API, extracts it from the email outbox, and completes the full flow.
+    """
+
+    def test_full_password_reset_flow(self):
+        """Complete password reset flow with a real token."""
+        user = UserFactory()
+        original_password = TEST_USER_PASSWORD
+        new_password = "brandnewpass9876"
+
+        # 1. Request password reset
+        response = self.send_api_request(
+            url="/api/browser/v1/auth/password/request",
+            method="post",
+            data={"email": user.email},
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        # 2. Extract reset key from the email
+        self.assertEqual(len(mail.outbox), 1)
+        email_body = mail.outbox[0].body
+        match = re.search(r"[?&]key=([A-Za-z0-9_:/-]+)", email_body)
+        self.assertIsNotNone(match, f"Could not find reset key in email body: {email_body!r}")
+        reset_key = match.group(1)
+
+        # 3. Validate the key
+        validate_response = self.send_api_request(
+            url="/api/browser/v1/auth/password/reset",
+            method="get",
+            headers={"X-Password-Reset-Key": reset_key},
+        )
+        self.assertEqual(validate_response.status_code, HTTPStatus.OK)
+
+        # 4. Submit new password
+        submit_response = self.send_api_request(
+            url="/api/browser/v1/auth/password/reset",
+            method="post",
+            data={"key": reset_key, "password": new_password},
+            headers={"X-Password-Reset-Key": reset_key},
+        )
+        # Allauth returns 200 or 401 on success (user may or may not be logged in)
+        self.assertIn(submit_response.status_code, [HTTPStatus.OK, HTTPStatus.UNAUTHORIZED])
+
+        # 5. Login with new password succeeds
+        login_response = self.send_api_request(
+            url="/api/browser/v1/auth/login",
+            method="post",
+            data={"email": user.email, "password": new_password},
+        )
+        self.assertEqual(login_response.status_code, HTTPStatus.OK)
+        self.assertTrue(login_response.json()["meta"]["is_authenticated"])
+
+        # 6. Login with old password fails
+        old_login_response = self.send_api_request(
+            url="/api/browser/v1/auth/login",
+            method="post",
+            data={"email": user.email, "password": original_password},
+        )
+        self.assertEqual(old_login_response.status_code, HTTPStatus.BAD_REQUEST)
 
 
 @override_settings(ACCOUNT_EMAIL_VERIFICATION="mandatory")
@@ -695,6 +789,20 @@ class TestAppClientLogin(BaseViewTestCase):
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         self.assertIn("errors", response.json())
 
+    @override_settings(ACCOUNT_EMAIL_VERIFICATION="mandatory")
+    def test_app_login_with_mandatory_verification(self):
+        """App client login succeeds under prod settings with verified email."""
+        user = UserFactory()
+        EmailAddress.objects.create(user=user, email=user.email, verified=True, primary=True)
+
+        response = self.send_app_login_request(user.email, TEST_USER_PASSWORD)
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertTrue(payload["meta"]["is_authenticated"])
+        self.assertIn("session_token", payload["meta"])
+        self.assertEqual(payload["data"]["user"]["email"], user.email)
+
 
 @override_settings(ACCOUNT_EMAIL_VERIFICATION="none")
 class TestAppClientSignup(BaseViewTestCase):
@@ -734,3 +842,66 @@ class TestAppClientSignup(BaseViewTestCase):
 
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         self.assertIn("errors", response.json())
+
+    @override_settings(ACCOUNT_EMAIL_VERIFICATION="mandatory")
+    def test_app_signup_with_mandatory_verification(self):
+        """Under prod settings, app signup returns 401 with verify_email flow."""
+        response = self.send_app_signup_request("prodmobile@example.com", "testpass1234")
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+        self.assertFalse(payload["meta"]["is_authenticated"])
+
+        flows = payload["data"]["flows"]
+        verify_flow = next((f for f in flows if f["id"] == "verify_email"), None)
+        self.assertIsNotNone(verify_flow)
+        self.assertTrue(verify_flow["is_pending"])
+
+
+@override_settings(ACCOUNT_EMAIL_VERIFICATION="mandatory")
+class TestSignupDuplicateEmailWithMandatoryVerification(BaseViewTestCase):
+    """Regression tests for duplicate email signup under prod settings.
+
+    The original bug: signing up with an already-existing email caused a 500
+    because allauth called get_frontend_url("account_signup") which wasn't in
+    HEADLESS_FRONTEND_URLS. This only happens with EMAIL_VERIFICATION="mandatory"
+    because that's the only mode where allauth allows duplicates through form
+    validation (to prevent email enumeration) and proceeds to send a notification
+    email that requires the signup URL.
+
+    With EMAIL_VERIFICATION="none", allauth rejects duplicates at form validation
+    with a 400 error, never reaching get_frontend_url.
+    """
+
+    def send_signup_request(self, email, password):
+        url = "/api/browser/v1/auth/signup"
+        data = {"email": email, "password": password}
+        return self.send_api_request(url=url, method="post", data=data)
+
+    def test_signup_duplicate_email_does_not_500(self):
+        """Signing up with an existing email must not cause a server error."""
+        user = UserFactory()
+
+        response = self.send_signup_request(user.email, "testpass1234")
+
+        self.assertNotEqual(response.status_code, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def test_signup_duplicate_email_returns_verify_email_flow(self):
+        """Duplicate email signup returns 401 with verify_email flow (enumeration prevention).
+
+        Allauth hides the fact that the account exists by returning the same
+        response as a fresh signup with mandatory verification. A notification
+        email is sent to the existing user behind the scenes.
+        """
+        user = UserFactory()
+
+        response = self.send_signup_request(user.email, "testpass1234")
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+        self.assertFalse(payload["meta"]["is_authenticated"])
+
+        flows = payload["data"]["flows"]
+        verify_flow = next((f for f in flows if f["id"] == "verify_email"), None)
+        self.assertIsNotNone(verify_flow)
+        self.assertTrue(verify_flow["is_pending"])

@@ -2,7 +2,7 @@
  * Demo content - curated pages showcasing Hyperclast features
  */
 
-const WELCOME_CONTENT = `A fast, focused workspace for people who think in text. Try editing this page—your changes stay local until you sign up.
+const WELCOME_CONTENT = `A fast, focused workspace for people who think in text. Try editing this page. Your changes stay local until you sign up.
 
 ## Try It Out
 - [ ] Click this checkbox
@@ -23,8 +23,8 @@ function greet(name) {
 
 ## Explore the Demo
 Check out the other pages in the sidebar:
-- [Internal Links](/pages/demo-links/) — connect your ideas
-- [Sections & Tasks](/pages/demo-sections/) — organize with foldable sections
+- [Internal Links](/pages/demo-links/) : Connect your ideas
+- [Sections & Tasks](/pages/demo-sections/) : Organize with foldable sections
 
 ## Ready to Save Your Work?
 Sign up to sync across devices and collaborate with your team.
@@ -44,7 +44,7 @@ Or type \`[Link Text](/pages/page-id/)\` directly.
 - [Sections & Tasks](/pages/demo-sections/)
 
 ## Backlinks
-Open the **Ref** tab in the right sidebar to see which pages link here—and where this page links to.
+Open the **Ref** tab in the right sidebar to see which pages link here, and where this page links to.
 
 ## Autocomplete
 Type \`[\` and the editor suggests pages. Try typing \`[Welcome\` to see it in action.
@@ -226,6 +226,88 @@ export const DEMO_PAGES = {
     is_owner: true,
     project_id: "demo-project",
   },
+};
+
+/**
+ * Demo comments keyed by page external_id
+ */
+export const DEMO_COMMENTS = {
+  "demo-welcome": [
+    {
+      external_id: "demo-cmt-1",
+      parent_id: null,
+      author: null,
+      ai_persona: "socrates",
+      requester: { external_id: "demo-user", email: "demo@example.com" },
+      body: 'What does "fast" mean in this context? Fast loading times, fast editing, or fast navigation between pages?',
+      anchor_from_b64: null,
+      anchor_to_b64: null,
+      anchor_text: "A fast, focused workspace for people who think in text.",
+      created: new Date(Date.now() - 3600000).toISOString(),
+      modified: new Date(Date.now() - 3600000).toISOString(),
+      replies: [
+        {
+          external_id: "demo-cmt-1r",
+          parent_id: "demo-cmt-1",
+          author: { external_id: "demo-user", email: "demo@example.com", display_name: "You" },
+          ai_persona: "",
+          requester: null,
+          body: "All of the above! But mainly fast editing. No lag even on long documents.",
+          anchor_from_b64: null,
+          anchor_to_b64: null,
+          anchor_text: "",
+          created: new Date(Date.now() - 3000000).toISOString(),
+          modified: new Date(Date.now() - 3000000).toISOString(),
+          replies: [],
+        },
+      ],
+    },
+    {
+      external_id: "demo-cmt-2",
+      parent_id: null,
+      author: null,
+      ai_persona: "einstein",
+      requester: { external_id: "demo-user", email: "demo@example.com" },
+      body: "The combination of checkboxes, code blocks, and blockquotes in a single editor is interesting: it positions this as a hybrid between a task manager and a writing tool.",
+      anchor_from_b64: null,
+      anchor_to_b64: null,
+      anchor_text: "Use **bold**, *italic*, `inline code`, and more. Blockquotes work too:",
+      created: new Date(Date.now() - 1800000).toISOString(),
+      modified: new Date(Date.now() - 1800000).toISOString(),
+      replies: [],
+    },
+    {
+      external_id: "demo-cmt-3",
+      parent_id: null,
+      author: null,
+      ai_persona: "dewey",
+      requester: { external_id: "demo-user", email: "demo@example.com" },
+      body: "For more on markdown-based editors and their design patterns, see [CommonMark Spec](https://spec.commonmark.org/) and [CodeMirror 6 documentation](https://codemirror.net/docs/).",
+      anchor_from_b64: null,
+      anchor_to_b64: null,
+      anchor_text: "Code blocks with syntax highlighting:",
+      created: new Date(Date.now() - 900000).toISOString(),
+      modified: new Date(Date.now() - 900000).toISOString(),
+      replies: [],
+    },
+  ],
+  "demo-sections": [
+    {
+      external_id: "demo-cmt-4",
+      parent_id: null,
+      author: { external_id: "demo-user", email: "demo@example.com", display_name: "Demo User" },
+      ai_persona: "",
+      requester: null,
+      body: "We should break this into separate pages once the list gets longer.",
+      anchor_from_b64: null,
+      anchor_to_b64: null,
+      anchor_text:
+        "Organize long documents with foldable sections. Click the arrow in the left gutter to fold any section.",
+      created: new Date(Date.now() - 7200000).toISOString(),
+      modified: new Date(Date.now() - 7200000).toISOString(),
+      replies: [],
+    },
+  ],
 };
 
 /**

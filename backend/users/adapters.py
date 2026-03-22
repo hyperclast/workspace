@@ -290,3 +290,24 @@ class CustomHeadlessAdapter(DefaultHeadlessAdapter):
             "email": user.email,
             "has_usable_password": user.has_usable_password(),
         }
+
+    def get_frontend_url(self, urlname, **kwargs):
+        """Return the frontend URL, falling back to app root for unmapped URL names.
+
+        Allauth's default raises ImproperlyConfigured when HEADLESS_ONLY=True
+        and a URL name isn't in HEADLESS_FRONTEND_URLS. This catches that and
+        falls back to FRONTEND_URL so emails/redirects don't cause 500s.
+        """
+        from allauth.core.internal.httpkit import render_url
+        from allauth.headless import app_settings as headless_settings
+
+        url_template = headless_settings.FRONTEND_URLS.get(urlname)
+        if url_template:
+            return render_url(self.request, url_template, **kwargs)
+
+        log_warning(
+            "No HEADLESS_FRONTEND_URLS mapping for '%s' (kwargs=%s) — falling back to FRONTEND_URL",
+            urlname,
+            kwargs,
+        )
+        return settings.FRONTEND_URL + "/"

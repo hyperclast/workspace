@@ -275,6 +275,8 @@ export function createCollaborationObjects(pageExternalId, displayName = "Anonym
             );
           } else if (message.type === "folders_updated") {
             window.dispatchEvent(new CustomEvent("foldersUpdated"));
+          } else if (message.type === "comments_updated") {
+            window.dispatchEvent(new CustomEvent("commentsUpdated"));
           }
         } catch (e) {
           // Not a JSON message, ignore

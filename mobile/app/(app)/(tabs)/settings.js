@@ -12,6 +12,8 @@ export default function SettingsScreen() {
     setLoggingOut(true);
     try {
       await logout();
+    } catch {
+      // Server-side revocation failed but local cleanup succeeded (store's finally block)
     } finally {
       router.replace("/login");
     }

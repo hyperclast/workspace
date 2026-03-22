@@ -245,8 +245,11 @@ HEADLESS_ADAPTER = "users.adapters.CustomHeadlessAdapter"
 HEADLESS_ONLY = True
 HEADLESS_CLIENTS = ["browser", "app"]
 HEADLESS_FRONTEND_URLS = {
-    "account_reset_password_from_key": f"{FRONTEND_URL}/reset-password?key={{key}}",
     "account_confirm_email": "/accounts/confirm-email/{key}/",
+    "account_reset_password": f"{FRONTEND_URL}/forgot-password",
+    "account_reset_password_from_key": f"{FRONTEND_URL}/reset-password?key={{key}}",
+    "account_signup": f"{FRONTEND_URL}/signup",
+    "socialaccount_login_error": f"{FRONTEND_URL}/login",
 }
 
 # Hyperclast settings (continued)

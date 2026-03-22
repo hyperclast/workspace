@@ -630,3 +630,10 @@ class PageYjsConsumer(BaseYjsConsumer):
         Notify the client to refetch the folder tree.
         """
         await self.send(text_data='{"type":"folders_updated"}')
+
+    async def comments_updated(self, event):
+        """
+        Handle comments_updated broadcast from the page channel layer.
+        Notify the client to refetch comments.
+        """
+        await self.send(text_data='{"type":"comments_updated"}')

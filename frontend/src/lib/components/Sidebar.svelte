@@ -7,6 +7,7 @@
   } from "../stores/sidebar.svelte.js";
   import { getFeatureFlags, SIDEBAR_OVERLAY_BREAKPOINT } from "../../config.js";
   import AskTab from "./sidebar/AskTab.svelte";
+  import CommentsTab from "./sidebar/CommentsTab.svelte";
   import LinksTab from "./sidebar/LinksTab.svelte";
   import DevTab from "./sidebar/DevTab.svelte";
   import RewindTab from "../../rewind/RewindTab.svelte";
@@ -26,7 +27,8 @@
     const overlay = document.getElementById("chat-overlay");
     const tabsContainer = document.querySelector(".sidebar-tabs");
 
-    overlay?.addEventListener("click", () => closeSidebar());
+    const handleOverlayClick = () => closeSidebar();
+    overlay?.addEventListener("click", handleOverlayClick);
 
     // Tab clicks via delegation on the tabs container
     const handleTabContainerClick = (e) => {
@@ -47,7 +49,7 @@
     window.addEventListener("resize", handleResize);
 
     return () => {
-      overlay?.removeEventListener("click", () => closeSidebar());
+      overlay?.removeEventListener("click", handleOverlayClick);
       tabsContainer?.removeEventListener("click", handleTabContainerClick);
       window.removeEventListener("resize", handleResize);
     };
@@ -95,6 +97,15 @@
     <AskTab />
   </div>
 
+  <!-- Comments Tab -->
+  <div
+    class="sidebar-tab-content"
+    class:hidden={activeTab !== "comments"}
+    data-tab-content="comments"
+  >
+    <CommentsTab />
+  </div>
+
   <!-- Links Tab -->
   <div
     class="sidebar-tab-content"
@@ -127,7 +138,7 @@
   {/if}
 
   <!-- Private tabs will be dynamically added -->
-  {#each tabs.filter(t => t.id !== "ask" && t.id !== "links" && t.id !== "dev" && t.id !== "rewind") as tab (tab.id)}
+  {#each tabs.filter(t => t.id !== "ask" && t.id !== "comments" && t.id !== "links" && t.id !== "dev" && t.id !== "rewind") as tab (tab.id)}
     <div
       class="sidebar-tab-content"
       class:hidden={activeTab !== tab.id}

@@ -53,6 +53,19 @@ def notify_project_folders_updated(project_external_id: str):
             log_warning("Failed to broadcast folders_updated for project %s: %s", project_external_id, e)
 
 
+def notify_comments_updated(page_external_id: str):
+    """Broadcast comment change to all clients viewing the page."""
+    channel_layer = get_channel_layer()
+    if channel_layer:
+        try:
+            async_to_sync(channel_layer.group_send)(
+                f"page_{page_external_id}",
+                {"type": "comments_updated"},
+            )
+        except Exception as e:
+            log_warning("Failed to broadcast comments_updated for page %s: %s", page_external_id, e)
+
+
 def notify_write_permission_revoked(page_external_id: str, user_id: int):
     """
     Notify WebSocket consumers that a user's write permission was revoked.

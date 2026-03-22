@@ -7,7 +7,15 @@ from ask.api import router as ask_router
 from core.api import router as utils_router
 from filehub.api import files_router, webhooks_router
 from imports.api import imports_router
-from pages.api import folders_router, links_router, mentions_router, pages_router, projects_router, rewind_router
+from pages.api import (
+    comments_router,
+    folders_router,
+    links_router,
+    mentions_router,
+    pages_router,
+    projects_router,
+    rewind_router,
+)
 from users.api import ai_router, devices_router, orgs_router, tokens_router, users_router
 
 
@@ -28,6 +36,7 @@ api.add_router("", folders_router)  # For /projects/{id}/folders/*
 api.add_router("/pages/", pages_router)
 api.add_router("/pages/", rewind_router)
 api.add_router("/pages/", links_router)
+api.add_router("/pages/", comments_router)
 api.add_router("/mentions/", mentions_router)
 api.add_router("/ask/", ask_router)
 api.add_router("/utils/", utils_router)
