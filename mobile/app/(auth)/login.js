@@ -24,7 +24,7 @@ export default function LoginScreen() {
   async function handleSubmit() {
     setError("");
     if (!email.trim() || !password) {
-      setError("Email and password are required");
+      setError("Enter your email and password");
       return;
     }
     setLoading(true);
@@ -36,7 +36,7 @@ export default function LoginScreen() {
       }
       router.replace("/");
     } catch (e) {
-      setError(e.message || "Authentication failed");
+      setError(e.message || "Login failed");
     } finally {
       setLoading(false);
     }

@@ -1,37 +1,47 @@
-import { useEffect, useState } from "react";
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl } from "react-native";
-import { fetchProjects } from "../../../lib/api";
+import { useEffect, useCallback, useMemo } from "react";
+import {
+  View,
+  Text,
+  SectionList,
+  StyleSheet,
+  ActivityIndicator,
+  RefreshControl,
+  TouchableOpacity,
+} from "react-native";
+import { router } from "expo-router";
+import useProjectStore from "../../../stores/projects";
 
 export default function ProjectListScreen() {
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState("");
-
-  async function loadProjects() {
-    try {
-      const data = await fetchProjects();
-      setProjects(Array.isArray(data) ? data : []);
-      setError("");
-    } catch (e) {
-      setError(e.message || "Failed to load projects");
-      if (e.message === "Unauthorized") return;
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }
+  const projects = useProjectStore((s) => s.projects);
+  const loading = useProjectStore((s) => s.loading);
+  const error = useProjectStore((s) => s.error);
+  const fetchProjects = useProjectStore((s) => s.fetchProjects);
 
   useEffect(() => {
-    loadProjects();
+    fetchProjects();
   }, []);
 
-  function onRefresh() {
-    setRefreshing(true);
-    loadProjects();
-  }
+  const onRefresh = useCallback(() => {
+    fetchProjects();
+  }, [fetchProjects]);
 
-  if (loading) {
+  const sections = useMemo(() => {
+    if (projects.length === 0) return [];
+    const grouped = new Map();
+    for (const project of projects) {
+      const orgKey = project.org?.external_id || "_personal";
+      const orgName = project.org?.name || "Personal";
+      if (!grouped.has(orgKey)) {
+        grouped.set(orgKey, { title: orgName, data: [] });
+      }
+      grouped.get(orgKey).data.push(project);
+    }
+    return Array.from(grouped.values());
+  }, [projects]);
+
+  const showSectionHeaders = sections.length > 1;
+
+  if (loading && projects.length === 0) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" />
@@ -42,22 +52,31 @@ export default function ProjectListScreen() {
   return (
     <View style={styles.container}>
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <FlatList
-        data={projects}
+      <SectionList
+        sections={sections}
         keyExtractor={(item) => item.external_id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={onRefresh} />}
+        renderSectionHeader={({ section }) =>
+          showSectionHeaders ? (
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionHeaderText}>{section.title}</Text>
+            </View>
+          ) : null
+        }
         renderItem={({ item }) => (
-          <View style={styles.projectRow}>
+          <TouchableOpacity
+            style={styles.projectRow}
+            onPress={() => router.push(`/project/${item.external_id}`)}
+            accessibilityRole="button"
+          >
             <Text style={styles.projectName}>{item.name}</Text>
             {item.description ? (
               <Text style={styles.projectDesc} numberOfLines={2}>
                 {item.description}
               </Text>
             ) : null}
-            <Text style={styles.projectMeta}>
-              {item.org?.name || "Personal"} · {item.pages?.length ?? 0} pages
-            </Text>
-          </View>
+            <Text style={styles.projectMeta}>{item.pages?.length ?? 0} pages</Text>
+          </TouchableOpacity>
         )}
         ListEmptyComponent={!error ? <Text style={styles.empty}>No projects yet</Text> : null}
       />
@@ -76,6 +95,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#fff",
+  },
+  sectionHeader: {
+    backgroundColor: "#f5f5f5",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  sectionHeaderText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#999",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   projectRow: {
     padding: 16,

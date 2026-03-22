@@ -1,6 +1,6 @@
 # Hyperclast Mobile
 
-Expo (React Native) mobile app for Hyperclast. Current scope: login/signup, project list, and tab navigation (proof of concept).
+Expo (React Native) mobile app for Hyperclast. Implements login/signup, project/page browsing, page editing, mentions, settings with device management, and tab navigation.
 
 ## Prerequisites
 
@@ -32,6 +32,11 @@ EXPO_PUBLIC_API_URL=http://192.168.1.42:9800/api/v1
 ```
 
 Ensure the backend binds `0.0.0.0` (Docker does this by default, or use `runserver_plus 0.0.0.0:9800`).
+
+The host/netloc from `EXPO_PUBLIC_API_URL` (e.g. `192.168.1.42:9800`) must also be added to these backend env vars:
+
+- `WS_ALLOWED_HOSTS` — so Django accepts requests from that host (e.g., `192.168.1.42`)
+- `WS_CSRF_TRUSTED_ORIGINS` — as a full origin, e.g. `http://192.168.1.42:9800`
 
 ## Running
 
@@ -65,12 +70,13 @@ See [docs/api/internal/auth.md](../docs/api/internal/auth.md) for endpoint detai
 # Run all tests
 npm test
 
-# Run a specific test file
+# Run a specific test file or directory
 npx jest __tests__/stores/auth.test.js
-npx jest __tests__/lib/api.test.js
+npx jest __tests__/screens/
+npx jest __tests__/lib/
 ```
 
-Test infrastructure: Jest + jest-expo preset, `@testing-library/react-native`, manual mocks for `expo-secure-store`, `expo-crypto`, `expo-router`, `expo-device`.
+131 tests across 12 test suites. Test infrastructure: Jest + jest-expo preset, `@testing-library/react-native`, manual mocks for `expo-secure-store`, `expo-crypto`, `expo-router`, `expo-device`.
 
 ## Project Structure
 
@@ -86,17 +92,27 @@ mobile/
       (tabs)/
         _layout.js              # Tab bar (Home, Mentions, Settings)
         index.js                # Home: project list with pull-to-refresh
-        mentions.js             # Mentions placeholder
-        settings.js             # Account info + logout
+        mentions.js             # Mentions: pages where user is @mentioned
+        settings.js             # Account, storage, devices, app version, logout
+      project/
+        [projectId].js          # Project detail: page list + FAB for new page
+      page/
+        [pageId]/
+          _layout.js            # Page route stack layout
+          index.js              # Page view: markdown rendering + internal links
+          edit.js               # Page edit: title + content TextInput + save
   stores/
     auth.js                     # Zustand auth store (token, hydrated, login/signup/logout)
+    projects.js                 # Zustand project store (projects list, fetch)
+    pages.js                    # Zustand page store (current page, fetch/update/create)
   lib/
-    api.js                      # API client (device registration, fetch, timeout)
+    api.js                      # API client (device registration, CRUD, timeout)
     storage.js                  # Platform-aware secure storage + client ID generation
   __mocks__/                    # Jest manual mocks (expo-secure-store, expo-crypto, etc.)
   __tests__/
-    stores/auth.test.js         # Auth store tests (11 tests)
-    lib/api.test.js             # API client tests (11 tests)
+    stores/                     # Store tests (auth, projects, pages)
+    screens/                    # Screen tests (home, projectDetail, pageView, pageEdit, mentions, settings)
+    lib/                        # API client tests
   .env-template                 # Environment variable template
   app.json                      # Expo config
   package.json                  # Dependencies + Jest config

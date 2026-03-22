@@ -1,4 +1,18 @@
-import { apiFetch, syncDeviceMetadata, loginRequest, TOKEN_KEY } from "../../lib/api";
+import {
+  apiFetch,
+  syncDeviceMetadata,
+  loginRequest,
+  fetchPage,
+  createPage,
+  updatePage,
+  deletePage,
+  fetchMentions,
+  fetchMe,
+  fetchStorage,
+  fetchDevices,
+  revokeDevice,
+  TOKEN_KEY,
+} from "../../lib/api";
 import * as Device from "expo-device";
 import * as Storage from "../../lib/storage";
 
@@ -598,5 +612,186 @@ describe("loginRequest success", () => {
 
     expect(token).toBe("my-device-token");
     expect(Storage.setItemAsync).toHaveBeenCalledWith("access_token", "my-device-token");
+  });
+});
+
+describe("fetchPage", () => {
+  it("calls GET /pages/{id}/", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ external_id: "page-123", title: "Test Page" }),
+    });
+
+    const result = await fetchPage("page-123");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/pages/page-123/"),
+      expect.objectContaining({ headers: expect.any(Object) })
+    );
+    expect(result).toEqual({ external_id: "page-123", title: "Test Page" });
+  });
+});
+
+describe("createPage", () => {
+  it("calls POST /pages/ with project_id and title", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: () => Promise.resolve({ external_id: "new-page", title: "My Page" }),
+    });
+
+    const result = await createPage("proj-1", "My Page");
+
+    const [url, options] = mockFetch.mock.calls[0];
+    expect(url).toContain("/pages/");
+    expect(options.method).toBe("POST");
+    const body = JSON.parse(options.body);
+    expect(body).toEqual({ project_id: "proj-1", title: "My Page" });
+    expect(result).toEqual({ external_id: "new-page", title: "My Page" });
+  });
+
+  it("defaults title to 'Untitled' when not provided", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: () => Promise.resolve({ external_id: "new-page", title: "Untitled" }),
+    });
+
+    await createPage("proj-1", "");
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body.title).toBe("Untitled");
+  });
+});
+
+describe("updatePage", () => {
+  it("calls PUT /pages/{id}/ with data and mode: 'overwrite'", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ external_id: "page-1", title: "Updated" }),
+    });
+
+    const result = await updatePage("page-1", {
+      title: "Updated",
+      details: { content: "new content" },
+    });
+
+    const [url, options] = mockFetch.mock.calls[0];
+    expect(url).toContain("/pages/page-1/");
+    expect(options.method).toBe("PUT");
+    const body = JSON.parse(options.body);
+    expect(body).toEqual({
+      title: "Updated",
+      details: { content: "new content" },
+      mode: "overwrite",
+    });
+    expect(result).toEqual({ external_id: "page-1", title: "Updated" });
+  });
+});
+
+describe("deletePage", () => {
+  it("calls DELETE /pages/{id}/ and returns null", async () => {
+    mockFetch.mockResolvedValue({ ok: true, status: 204 });
+
+    const result = await deletePage("page-1");
+
+    const [url, options] = mockFetch.mock.calls[0];
+    expect(url).toContain("/pages/page-1/");
+    expect(options.method).toBe("DELETE");
+    expect(result).toBeNull();
+  });
+});
+
+describe("fetchMentions", () => {
+  it("calls GET /mentions/ and returns JSON", async () => {
+    const mentionsData = { mentions: [{ page_title: "Test" }], total: 1, has_more: false };
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(mentionsData),
+    });
+
+    const result = await fetchMentions();
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/mentions/"),
+      expect.any(Object)
+    );
+    expect(result).toEqual(mentionsData);
+  });
+});
+
+describe("fetchMe", () => {
+  it("calls GET /users/me/ and returns JSON", async () => {
+    const userData = { external_id: "u-1", email: "me@example.com", username: "me" };
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(userData),
+    });
+
+    const result = await fetchMe();
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/users/me/"),
+      expect.any(Object)
+    );
+    expect(result).toEqual(userData);
+  });
+});
+
+describe("fetchStorage", () => {
+  it("calls GET /users/storage/ and returns JSON", async () => {
+    const storageData = { total_bytes: 1048576, file_count: 3 };
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(storageData),
+    });
+
+    const result = await fetchStorage();
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/users/storage/"),
+      expect.any(Object)
+    );
+    expect(result).toEqual(storageData);
+  });
+});
+
+describe("fetchDevices", () => {
+  it("calls GET /users/me/devices/ and returns JSON", async () => {
+    const devicesData = [
+      { client_id: "dev-1", name: "iPhone", is_current: true },
+      { client_id: "dev-2", name: "iPad", is_current: false },
+    ];
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(devicesData),
+    });
+
+    const result = await fetchDevices();
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/users/me/devices/"),
+      expect.any(Object)
+    );
+    expect(result).toEqual(devicesData);
+  });
+});
+
+describe("revokeDevice", () => {
+  it("calls DELETE /users/me/devices/{clientId}/ and returns null", async () => {
+    mockFetch.mockResolvedValue({ ok: true, status: 204 });
+
+    const result = await revokeDevice("dev-2");
+
+    const [url, options] = mockFetch.mock.calls[0];
+    expect(url).toContain("/users/me/devices/dev-2/");
+    expect(options.method).toBe("DELETE");
+    expect(result).toBeNull();
   });
 });

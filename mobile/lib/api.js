@@ -89,7 +89,7 @@ async function apiFetch(path, options = {}) {
     }
     if (!res.ok) {
       const body = await res.json().catch(() => null);
-      const message = body?.message || body?.error || `HTTP ${res.status}`;
+      const message = body?.detail || body?.message || body?.error || `HTTP ${res.status}`;
       const err = new Error(message);
       err.status = res.status;
       throw err;
@@ -237,6 +237,48 @@ async function fetchProjects() {
   return apiFetch("/projects/?details=full");
 }
 
+async function fetchPage(id) {
+  return apiFetch(`/pages/${id}/`);
+}
+
+async function createPage(projectId, title) {
+  return apiFetch("/pages/", {
+    method: "POST",
+    body: JSON.stringify({ project_id: projectId, title: title || "Untitled" }),
+  });
+}
+
+async function updatePage(id, data) {
+  return apiFetch(`/pages/${id}/`, {
+    method: "PUT",
+    body: JSON.stringify({ ...data, mode: "overwrite" }),
+  });
+}
+
+async function deletePage(id) {
+  return apiFetch(`/pages/${id}/`, { method: "DELETE" });
+}
+
+async function fetchMentions() {
+  return apiFetch("/mentions/");
+}
+
+async function fetchMe() {
+  return apiFetch("/users/me/");
+}
+
+async function fetchStorage() {
+  return apiFetch("/users/storage/");
+}
+
+async function fetchDevices() {
+  return apiFetch("/users/me/devices/");
+}
+
+async function revokeDevice(clientId) {
+  return apiFetch(`/users/me/devices/${clientId}/`, { method: "DELETE" });
+}
+
 export {
   API_URL,
   TOKEN_KEY,
@@ -245,5 +287,14 @@ export {
   signupRequest,
   logoutRequest,
   fetchProjects,
+  fetchPage,
+  createPage,
+  updatePage,
+  deletePage,
+  fetchMentions,
+  fetchMe,
+  fetchStorage,
+  fetchDevices,
+  revokeDevice,
   syncDeviceMetadata,
 };
