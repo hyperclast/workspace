@@ -120,6 +120,21 @@ class TestListComments(CommentsTestMixin, BaseAuthenticatedViewTestCase):
         self.assertEqual(data["items"][0]["replies_count"], 30)
         self.assertEqual(len(data["items"][0]["replies"]), 20)
 
+    def test_list_comments_nested_replies_count(self):
+        """Inline replies expose replies_count for their own children."""
+        root = CommentFactory(page=self.page, author=self.user, anchor_text="text")
+        reply = CommentFactory(page=self.page, author=self.user, parent=root)
+        # Add 3 sub-replies to the reply
+        for _ in range(3):
+            CommentFactory(page=self.page, author=self.user, parent=reply)
+
+        response = self.send_api_request(url=self.url())
+        data = response.json()
+
+        self.assertEqual(data["count"], 1)
+        self.assertEqual(data["items"][0]["replies_count"], 1)
+        self.assertEqual(data["items"][0]["replies"][0]["replies_count"], 3)
+
 
 class TestListReplies(CommentsTestMixin, BaseAuthenticatedViewTestCase):
     def test_list_replies_paginated(self):
@@ -141,12 +156,30 @@ class TestListReplies(CommentsTestMixin, BaseAuthenticatedViewTestCase):
         response = self.send_api_request(url=self.replies_url("nonexistent-id"))
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
 
-    def test_list_replies_404_for_reply(self):
+    def test_list_replies_of_reply(self):
+        """Listing replies of a nested comment works."""
         root = CommentFactory(page=self.page, author=self.user, anchor_text="text")
         reply = CommentFactory(page=self.page, author=self.user, parent=root)
+        nested = CommentFactory(page=self.page, author=self.user, parent=reply)
 
         response = self.send_api_request(url=self.replies_url(reply.external_id))
-        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        data = response.json()
+        self.assertEqual(data["count"], 1)
+        self.assertEqual(data["items"][0]["external_id"], nested.external_id)
+
+    def test_list_replies_includes_child_count(self):
+        """Each reply in the response includes replies_count for its own children."""
+        root = CommentFactory(page=self.page, author=self.user, anchor_text="text")
+        reply = CommentFactory(page=self.page, author=self.user, parent=root)
+        for _ in range(4):
+            CommentFactory(page=self.page, author=self.user, parent=reply)
+
+        response = self.send_api_request(url=self.replies_url(root.external_id))
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        data = response.json()
+        self.assertEqual(data["count"], 1)
+        self.assertEqual(data["items"][0]["replies_count"], 4)
 
     def test_list_replies_no_access(self):
         other_user = UserFactory()
@@ -211,14 +244,30 @@ class TestCreateComment(CommentsTestMixin, BaseAuthenticatedViewTestCase):
         response = self.send_api_request(url=self.url(), method="post", data=data)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
 
-    def test_create_reply_to_reply_fails(self):
+    @patch("pages.api.comments.notify_comments_updated")
+    def test_create_nested_reply(self, mock_notify):
+        """Replies to replies (arbitrary nesting) are allowed."""
         root = CommentFactory(page=self.page, author=self.user, anchor_text="text")
         reply = CommentFactory(page=self.page, author=self.user, parent=root)
 
         data = {"body": "Nested reply.", "parent_id": reply.external_id}
         response = self.send_api_request(url=self.url(), method="post", data=data)
-        # reply is not a root comment, so parent lookup fails
-        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+        self.assertEqual(response.status_code, HTTPStatus.CREATED)
+        payload = response.json()
+        self.assertEqual(payload["parent_id"], reply.external_id)
+
+    @patch("pages.api.comments.notify_comments_updated")
+    def test_create_deeply_nested_reply(self, mock_notify):
+        """Three levels of nesting works."""
+        root = CommentFactory(page=self.page, author=self.user, anchor_text="text")
+        level1 = CommentFactory(page=self.page, author=self.user, parent=root)
+        level2 = CommentFactory(page=self.page, author=self.user, parent=level1)
+
+        data = {"body": "Level 3 reply.", "parent_id": level2.external_id}
+        response = self.send_api_request(url=self.url(), method="post", data=data)
+        self.assertEqual(response.status_code, HTTPStatus.CREATED)
+        payload = response.json()
+        self.assertEqual(payload["parent_id"], level2.external_id)
 
     def test_create_empty_body_fails(self):
         data = {"body": "   ", "anchor_text": "text", "parent_id": None}
@@ -355,6 +404,18 @@ class TestDeleteComment(CommentsTestMixin, BaseAuthenticatedViewTestCase):
         reply = CommentFactory(page=self.page, author=self.user, parent=root)
 
         self.assertEqual(Comment.objects.count(), 2)
+        response = self.send_api_request(url=self.url(comment_id=root.external_id), method="delete")
+        self.assertEqual(response.status_code, HTTPStatus.NO_CONTENT)
+        self.assertEqual(Comment.objects.count(), 0)
+
+    @patch("pages.api.comments.notify_comments_updated")
+    def test_delete_cascades_nested_replies(self, mock_notify):
+        """Deleting a comment cascades through all nesting levels."""
+        root = CommentFactory(page=self.page, author=self.user, anchor_text="text")
+        reply = CommentFactory(page=self.page, author=self.user, parent=root)
+        nested = CommentFactory(page=self.page, author=self.user, parent=reply)
+
+        self.assertEqual(Comment.objects.count(), 3)
         response = self.send_api_request(url=self.url(comment_id=root.external_id), method="delete")
         self.assertEqual(response.status_code, HTTPStatus.NO_CONTENT)
         self.assertEqual(Comment.objects.count(), 0)

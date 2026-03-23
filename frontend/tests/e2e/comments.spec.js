@@ -8,6 +8,7 @@
  * 4. Bidirectional click-to-scroll between sidebar and editor
  * 5. Bars persist after page reload
  * 6. Clicking a bar opens the sidebar to comments tab
+ * 7. Arbitrary nesting: reply-to-reply via API + cascade delete
  *
  * Run with:
  *   npx playwright test comments.spec.js --headed
@@ -471,5 +472,88 @@ test.describe("Comments", () => {
     const activeCard = page.locator(".comment-card-active");
     await expect(activeCard).toBeVisible({ timeout: 5000 });
     console.log("TEST PASSED: Bar click opens sidebar and highlights card");
+  });
+
+  test("arbitrary nesting: reply-to-reply via UI and cascade delete", async ({ page }) => {
+    await login(page);
+    console.log("Logged in");
+
+    await createPageWithContent(
+      page,
+      `Nesting Test ${Date.now()}`,
+      "Arbitrary nesting test content. This text will be commented on."
+    );
+
+    await openCommentsTab(page);
+
+    // 1. Create root comment via UI popover
+    await createCommentViaPopover(page, "nesting test", "Root comment");
+    const commentCard = page.locator(".comment-card").first();
+    await expect(commentCard).toBeVisible({ timeout: 10000 });
+    console.log("Root comment created");
+
+    // 2. Reply to root via UI (level 1)
+    const rootReplyBtn = commentCard.locator("> .comment-actions .comment-action-btn", {
+      hasText: "Reply",
+    });
+    await rootReplyBtn.click();
+    const rootReplyTextarea = commentCard.locator("> .comment-reply-input .comment-textarea");
+    await expect(rootReplyTextarea).toBeVisible({ timeout: 3000 });
+    await rootReplyTextarea.fill("Level 1 reply");
+    await commentCard.locator("> .comment-reply-input .comment-submit-btn").click();
+
+    const level1Reply = commentCard.locator("> .comment-replies > .comment-reply").first();
+    await expect(level1Reply).toBeVisible({ timeout: 10000 });
+    await expect(level1Reply.locator("> .comment-body")).toContainText("Level 1 reply");
+    console.log("Level 1 reply created via UI");
+
+    // 3. Reply to level 1 reply via UI (level 2) — the key arbitrary nesting test
+    const level1ReplyBtn = level1Reply.locator("> .comment-actions .comment-action-btn", {
+      hasText: "Reply",
+    });
+    await expect(level1ReplyBtn).toBeVisible({ timeout: 3000 });
+    await level1ReplyBtn.click();
+
+    const level1ReplyTextarea = level1Reply.locator("> .comment-reply-input .comment-textarea");
+    await expect(level1ReplyTextarea).toBeVisible({ timeout: 3000 });
+    await level1ReplyTextarea.fill("Level 2 reply");
+    await level1Reply.locator("> .comment-reply-input .comment-submit-btn").click();
+
+    const level2Reply = level1Reply.locator("> .comment-replies > .comment-reply").first();
+    await expect(level2Reply).toBeVisible({ timeout: 10000 });
+    await expect(level2Reply.locator("> .comment-body")).toContainText("Level 2 reply");
+    console.log("Level 2 reply created via UI (reply to reply)");
+
+    // 4. Reply to level 2 reply via UI (level 3) — even deeper nesting
+    const level2ReplyBtn = level2Reply.locator("> .comment-actions .comment-action-btn", {
+      hasText: "Reply",
+    });
+    await expect(level2ReplyBtn).toBeVisible({ timeout: 3000 });
+    await level2ReplyBtn.click();
+
+    const level2ReplyTextarea = level2Reply.locator("> .comment-reply-input .comment-textarea");
+    await expect(level2ReplyTextarea).toBeVisible({ timeout: 3000 });
+    await level2ReplyTextarea.fill("Level 3 reply");
+    await level2Reply.locator("> .comment-reply-input .comment-submit-btn").click();
+
+    const level3Reply = level2Reply.locator("> .comment-replies > .comment-reply").first();
+    await expect(level3Reply).toBeVisible({ timeout: 10000 });
+    await expect(level3Reply.locator("> .comment-body")).toContainText("Level 3 reply");
+    console.log("Level 3 reply created via UI (3 levels deep)");
+
+    // 5. Verify all 3 levels are visible simultaneously
+    await expect(commentCard.locator(".comment-reply")).toHaveCount(3);
+    console.log("All 3 nested replies visible in the tree");
+
+    // 6. Cascade delete: delete level 1 reply → should remove levels 2 and 3 too
+    const deleteBtn = level1Reply.locator("> .comment-actions .comment-action-delete");
+    await deleteBtn.click();
+    const confirmBtn = level1Reply.locator("> .comment-actions .comment-action-confirm");
+    await expect(confirmBtn).toBeVisible({ timeout: 3000 });
+    await confirmBtn.click();
+
+    // All replies should be gone
+    await expect(commentCard.locator(".comment-reply")).toHaveCount(0, { timeout: 10000 });
+    console.log("TEST PASSED: Arbitrary nesting via UI + cascade delete works");
   });
 });

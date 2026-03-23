@@ -1,5 +1,7 @@
 <script>
-  import { onMount, onDestroy } from "svelte";
+  import { onMount, onDestroy, tick } from "svelte";
+  import { flip } from "svelte/animate";
+  import { slide } from "svelte/transition";
   import { registerTabHandler, registerPageChangeHandler, getState, openSidebar, setActiveTab } from "../../stores/sidebar.svelte.js";
   import {
     fetchComments as apiFetchComments,
@@ -55,9 +57,22 @@
   let currentPageId = $state(null);
   let loading = $state(false);
   let loadingMoreReplies = $state(null);
-  let replyingTo = $state(null); // external_id of root comment being replied to
+  let replyingTo = $state(null); // external_id of comment being replied to
+  let expandedReplyIds = new Set(); // comment IDs whose deeper replies have been loaded
   let pageCommentBody = $state("");
   let replyBody = $state("");
+
+  async function startReply(commentId) {
+    if (replyingTo === commentId) {
+      replyingTo = null;
+      return;
+    }
+    replyingTo = commentId;
+    replyBody = "";
+    await tick();
+    document.querySelector(".comment-reply-input .comment-textarea")?.focus();
+  }
+
   let commentsUpdatedHandler = null;
   let reviewLoading = $state(null); // persona currently loading, or null
   let isRewindMode = $state(false);
@@ -65,6 +80,7 @@
   let docChangeHandler = null;
   let docChangeTimer = null;
   let activeCommentId = $state(null);
+  let showNewComment = $state(false);
   let commentFocusedHandler = null;
   let collabStatusHandler = null;
   let resolveRetryTimer = null;
@@ -79,6 +95,20 @@
 
     const ranges = resolveCommentAnchors(comments, currentPageId, view, ydoc, ytext);
     updateCommentHighlights(view, ranges);
+
+    // Sort comments by document position (anchored comments first, then unanchored)
+    const posMap = new Map();
+    for (const r of ranges) {
+      posMap.set(r.commentId, r.from);
+    }
+    comments = [...comments].sort((a, b) => {
+      const posA = posMap.get(a.external_id);
+      const posB = posMap.get(b.external_id);
+      if (posA == null && posB == null) return 0;
+      if (posA == null) return 1;
+      if (posB == null) return -1;
+      return posA - posB;
+    });
   }
 
   /**
@@ -102,12 +132,58 @@
     }, 500);
   }
 
+  /**
+   * Find a comment by external_id anywhere in the tree.
+   */
+  function findInTree(items, targetId) {
+    for (const c of items) {
+      if (c.external_id === targetId) return c;
+      if (c.replies?.length > 0) {
+        const found = findInTree(c.replies, targetId);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Re-expand any replies that were previously loaded at deeper nesting levels.
+   * Called after loadComments to restore nested reply state.
+   */
+  async function reExpandDeepReplies() {
+    if (expandedReplyIds.size === 0) return;
+    const { fetchReplies } = getApi();
+    for (const id of expandedReplyIds) {
+      const comment = findInTree(comments, id);
+      if (!comment || (comment.replies_count || 0) === 0) continue;
+      const loaded = comment.replies?.length || 0;
+      if (loaded >= comment.replies_count) continue;
+      try {
+        const data = await fetchReplies(currentPageId, id, 20, loaded);
+        comments = updateInTree(comments, id, (c) => ({
+          ...c,
+          replies: [...(c.replies || []), ...data.items],
+        }));
+      } catch (e) {
+        // Stale ID — comment was deleted; remove from tracking set
+        expandedReplyIds.delete(id);
+      }
+    }
+  }
+
+  let loadCommentsInFlight = false;
+
   async function loadComments() {
     if (!currentPageId) {
       comments = [];
       updateCommentHighlights(window.editorView, []);
       return;
     }
+
+    // Skip if already loading (prevents WebSocket-triggered reload from
+    // racing with an in-progress handleReply → loadComments chain).
+    if (loadCommentsInFlight) return;
+    loadCommentsInFlight = true;
 
     // Only show loading spinner on initial load, not on refreshes
     const isInitial = comments.length === 0;
@@ -116,6 +192,7 @@
       const { fetchComments } = getApi();
       const data = await fetchComments(currentPageId);
       comments = data.items || [];
+      await reExpandDeepReplies();
       resolveAndHighlight();
       // Always retry — the editor may be replaced by the collab upgrade later,
       // wiping highlights applied to the initial REST-content editor.
@@ -127,6 +204,7 @@
       comments = [];
     }
     if (isInitial) loading = false;
+    loadCommentsInFlight = false;
   }
 
   async function handleCreatePageComment() {
@@ -139,11 +217,26 @@
         parent_id: null,
       });
       pageCommentBody = "";
+      showNewComment = false;
       await loadComments();
     } catch (e) {
       console.error("Error creating page comment:", e);
       showToast("Couldn't post your comment at this time.", "error");
     }
+  }
+
+  /**
+   * Recursively find a comment by external_id and apply an updater function.
+   * Works at any nesting depth.
+   */
+  function updateInTree(items, targetId, updater) {
+    return items.map((c) => {
+      if (c.external_id === targetId) return updater(c);
+      if (c.replies?.length > 0) {
+        return { ...c, replies: updateInTree(c.replies, targetId, updater) };
+      }
+      return c;
+    });
   }
 
   async function handleReply(parentId) {
@@ -157,6 +250,15 @@
       });
       replyBody = "";
       replyingTo = null;
+
+      // Track that this parent has expanded nested replies so loadComments
+      // re-fetches them after the server-pushed refresh.
+      const parent = findInTree(comments, parentId);
+      if (parent?.parent_id) {
+        // Replying to a non-root comment — track the parent for re-expansion
+        expandedReplyIds.add(parentId);
+      }
+
       await loadComments();
     } catch (e) {
       console.error("Error creating reply:", e);
@@ -258,11 +360,12 @@
     try {
       const { fetchReplies } = getApi();
       const data = await fetchReplies(currentPageId, comment.external_id, 20, loadedCount);
-      comments = comments.map((c) =>
-        c.external_id === comment.external_id
-          ? { ...c, replies: [...(c.replies || []), ...data.items] }
-          : c
-      );
+      comments = updateInTree(comments, comment.external_id, (c) => ({
+        ...c,
+        replies: [...(c.replies || []), ...data.items],
+      }));
+      // Track so loadComments preserves this expansion
+      expandedReplyIds.add(comment.external_id);
       resolveAndHighlight();
     } finally {
       loadingMoreReplies = null;
@@ -351,6 +454,107 @@
   });
 </script>
 
+{#snippet renderReply(reply)}
+  <div class="comment-reply">
+    <div class="comment-header">
+      <span class="comment-avatar comment-avatar-small">{getAuthorName(reply).charAt(0).toUpperCase()}</span>
+      <span class="comment-author">{getAuthorName(reply)}</span>
+      <span class="comment-time">{formatDate(reply.created)}</span>
+    </div>
+    <div class="comment-body">{@html formatCommentBody(reply.body)}</div>
+    <div class="comment-actions">
+      <button class="comment-action-btn" onclick={() => startReply(reply.external_id)}>
+        Reply
+      </button>
+      {#if canDelete(reply)}
+        {#if confirmingDelete === reply.external_id}
+          <button class="comment-action-btn comment-action-confirm" onclick={() => handleDelete(reply.external_id)}>Confirm</button>
+          <button class="comment-action-btn" onclick={() => cancelDelete()}>Cancel</button>
+        {:else}
+          <button class="comment-action-btn comment-action-delete" onclick={() => handleDelete(reply.external_id)}>
+            Delete
+          </button>
+        {/if}
+      {/if}
+    </div>
+    {#if reply.replies && reply.replies.length > 0}
+      <div class="comment-replies">
+        {#each reply.replies as childReply (childReply.external_id)}
+          {@render renderReply(childReply)}
+        {/each}
+      </div>
+    {/if}
+    {#if (reply.replies_count || 0) > (reply.replies?.length || 0)}
+      <button
+        class="comment-load-more"
+        disabled={loadingMoreReplies === reply.external_id}
+        onclick={() => handleLoadMoreReplies(reply)}
+      >
+        {loadingMoreReplies === reply.external_id
+          ? "Loading..."
+          : `Load more replies (${(reply.replies_count || 0) - (reply.replies?.length || 0)} more)`}
+      </button>
+    {/if}
+    {#if replyingTo === reply.external_id}
+      <div class="comment-reply-input">
+        <textarea
+          class="comment-textarea"
+          placeholder="Write a reply..."
+          bind:value={replyBody}
+          onkeydown={(e) => {
+            if (e.key === "Escape") { replyingTo = null; replyBody = ""; }
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleReply(reply.external_id); }
+          }}
+        ></textarea>
+        <div class="comment-input-actions">
+          <button class="comment-cancel-btn" onclick={() => { replyingTo = null; replyBody = ""; }}>Cancel</button>
+          <button class="comment-submit-btn" onclick={() => handleReply(reply.external_id)} disabled={!replyBody.trim()}>Reply</button>
+        </div>
+        <div class="comment-shortcut-hint">{navigator.platform?.includes("Mac") ? "⌘" : "Ctrl"} Enter</div>
+      </div>
+    {/if}
+  </div>
+{/snippet}
+
+{#snippet replyTree(comment)}
+  {#if comment.replies && comment.replies.length > 0}
+    <div class="comment-replies">
+      {#each comment.replies as reply (reply.external_id)}
+        {@render renderReply(reply)}
+      {/each}
+    </div>
+  {/if}
+  {#if (comment.replies_count || 0) > (comment.replies?.length || 0)}
+    <button
+      class="comment-load-more"
+      disabled={loadingMoreReplies === comment.external_id}
+      onclick={() => handleLoadMoreReplies(comment)}
+    >
+      {loadingMoreReplies === comment.external_id
+        ? "Loading..."
+        : `Load more replies (${(comment.replies_count || 0) - (comment.replies?.length || 0)} more)`}
+    </button>
+  {/if}
+  {#if replyingTo === comment.external_id}
+    <div class="comment-reply-input">
+      <textarea
+        class="comment-textarea"
+        placeholder="Write a reply..."
+        bind:value={replyBody}
+        onkeydown={(e) => {
+          if (e.key === "Escape") { replyingTo = null; replyBody = ""; }
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleReply(comment.external_id); }
+        }}
+      ></textarea>
+      <div class="comment-input-actions">
+        <button class="comment-cancel-btn" onclick={() => { replyingTo = null; replyBody = ""; }}>Cancel</button>
+        <button class="comment-submit-btn" onclick={() => handleReply(comment.external_id)} disabled={!replyBody.trim()}>Reply</button>
+      </div>
+      <div class="comment-shortcut-hint">{navigator.platform?.includes("Mac") ? "⌘" : "Ctrl"} Enter</div>
+    </div>
+  {/if}
+{/snippet}
+
 <div class="comments-content">
   {#if isRewindMode}
     <div class="comments-rewind-notice">
@@ -385,7 +589,7 @@
         {#each comments as comment (comment.external_id)}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="comment-card" class:comment-card-ai={comment.ai_persona} class:comment-card-active={activeCommentId === comment.external_id} data-comment-id={comment.external_id} onclick={() => handleCommentClick(comment.external_id)}>
+          <div class="comment-card" class:comment-card-ai={comment.ai_persona} class:comment-card-active={activeCommentId === comment.external_id} data-comment-id={comment.external_id} onclick={() => handleCommentClick(comment.external_id)} animate:flip={{ duration: 200 }} transition:slide={{ duration: 200 }}>
             <div class="comment-header">
               {#if comment.ai_persona}
                 <span class="comment-avatar comment-avatar-ai">{comment.ai_persona === "socrates" ? "🏛" : comment.ai_persona === "einstein" ? "🔬" : "📚"}</span>
@@ -401,10 +605,13 @@
               <span class="comment-time">{formatDate(comment.created)}</span>
             </div>
 
+            {#if comment.anchor_text}
+              <div class="comment-anchor-quote">{comment.anchor_text}</div>
+            {/if}
             <div class="comment-body">{@html formatCommentBody(comment.body)}</div>
 
             <div class="comment-actions">
-              <button class="comment-action-btn" onclick={() => { replyingTo = replyingTo === comment.external_id ? null : comment.external_id; replyBody = ""; }}>
+              <button class="comment-action-btn" onclick={() => startReply(comment.external_id)}>
                 Reply
               </button>
               {#if canDelete(comment)}
@@ -419,75 +626,35 @@
               {/if}
             </div>
 
-            <!-- Replies -->
-            {#if comment.replies && comment.replies.length > 0}
-              <div class="comment-replies">
-                {#each comment.replies as reply (reply.external_id)}
-                  <div class="comment-reply">
-                    <div class="comment-header">
-                      <span class="comment-avatar comment-avatar-small">{getAuthorName(reply).charAt(0).toUpperCase()}</span>
-                      <span class="comment-author">{getAuthorName(reply)}</span>
-                      <span class="comment-time">{formatDate(reply.created)}</span>
-                    </div>
-                    <div class="comment-body">{@html formatCommentBody(reply.body)}</div>
-                    {#if canDelete(reply)}
-                      <div class="comment-actions">
-                        {#if confirmingDelete === reply.external_id}
-                          <button class="comment-action-btn comment-action-confirm" onclick={() => handleDelete(reply.external_id)}>Confirm</button>
-                          <button class="comment-action-btn" onclick={() => cancelDelete()}>Cancel</button>
-                        {:else}
-                          <button class="comment-action-btn comment-action-delete" onclick={() => handleDelete(reply.external_id)}>
-                            Delete
-                          </button>
-                        {/if}
-                      </div>
-                    {/if}
-                  </div>
-                {/each}
-              </div>
-            {/if}
-            {#if (comment.replies_count || 0) > (comment.replies?.length || 0)}
-              <button
-                class="comment-load-more"
-                disabled={loadingMoreReplies === comment.external_id}
-                onclick={() => handleLoadMoreReplies(comment)}
-              >
-                {loadingMoreReplies === comment.external_id
-                  ? "Loading..."
-                  : `Load more replies (${(comment.replies_count || 0) - (comment.replies?.length || 0)} more)`}
-              </button>
-            {/if}
-
-            <!-- Reply input -->
-            {#if replyingTo === comment.external_id}
-              <div class="comment-reply-input">
-                <textarea
-                  class="comment-textarea"
-                  placeholder="Write a reply..."
-                  bind:value={replyBody}
-                  onkeydown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleReply(comment.external_id); } }}
-                ></textarea>
-                <div class="comment-input-actions">
-                  <button class="comment-cancel-btn" onclick={() => { replyingTo = null; replyBody = ""; }}>Cancel</button>
-                  <button class="comment-submit-btn" onclick={() => handleReply(comment.external_id)} disabled={!replyBody.trim()}>Reply</button>
-                </div>
-              </div>
-            {/if}
+            <!-- Replies (recursive) -->
+            {@render replyTree(comment)}
           </div>
         {/each}
       </div>
     {/if}
 
     <div class="comment-new-input">
-      <textarea
-        class="comment-textarea"
-        placeholder="Add a page note..."
-        bind:value={pageCommentBody}
-        onkeydown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleCreatePageComment(); } }}
-      ></textarea>
-      <div class="comment-input-actions">
-        <button class="comment-submit-btn" onclick={() => handleCreatePageComment()} disabled={!pageCommentBody.trim()}>Add note</button>
-      </div>
+      {#if showNewComment}
+        <textarea
+          class="comment-textarea"
+          placeholder="Write a comment..."
+          bind:value={pageCommentBody}
+          onkeydown={(e) => {
+            if (e.key === "Escape") { showNewComment = false; pageCommentBody = ""; }
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleCreatePageComment(); }
+          }}
+        ></textarea>
+        <div class="comment-input-actions">
+          <button class="comment-cancel-btn" onclick={() => { showNewComment = false; pageCommentBody = ""; }}>Cancel</button>
+          <button class="comment-submit-btn" onclick={() => handleCreatePageComment()} disabled={!pageCommentBody.trim()}>Comment</button>
+        </div>
+        <div class="comment-shortcut-hint">{navigator.platform?.includes("Mac") ? "⌘" : "Ctrl"} Enter</div>
+      {:else}
+        <button class="comment-new-btn" onclick={async () => { showNewComment = true; await tick(); document.querySelector('.comment-new-input .comment-textarea')?.focus(); }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Comment
+        </button>
+      {/if}
     </div>
   {/if}
 </div>
@@ -538,21 +705,17 @@
   }
 
   .comment-card {
-    background: var(--bg-surface, #fafafa);
-    border: 1px solid var(--border-light, rgba(0, 0, 0, 0.06));
-    border-radius: 8px;
-    padding: 0.625rem;
+    padding: 0.375rem 0.5rem;
     cursor: pointer;
+    border-radius: 6px;
   }
 
-  .comment-card-ai {
-    background: var(--bg-ai, #f5f0ff);
-    border-color: var(--border-ai, rgba(124, 58, 237, 0.1));
+  .comment-card + .comment-card {
+    border-top: 1px solid var(--border-light, rgba(0, 0, 0, 0.06));
   }
 
   .comment-card-active {
-    border-color: rgba(255, 180, 0, 0.5);
-    box-shadow: 0 0 0 1px rgba(255, 180, 0, 0.3);
+    background: rgba(255, 180, 0, 0.06);
   }
 
   .comment-header {
@@ -613,12 +776,46 @@
     margin-left: auto;
   }
 
+  .comment-anchor-quote {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #666);
+    border-left: 2px solid var(--border-light, rgba(0, 0, 0, 0.12));
+    padding-left: 0.5rem;
+    margin-bottom: 0.25rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .comment-body {
     font-size: 0.8125rem;
     color: var(--text-primary, #333);
     line-height: 1.4;
     white-space: pre-wrap;
     word-break: break-word;
+  }
+
+  .comment-new-btn {
+    font-size: 0.8125rem;
+    color: var(--text-secondary, #666);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.375rem 0;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
+  .comment-new-btn:hover {
+    color: var(--text-primary, #333);
+  }
+
+  .comment-shortcut-hint {
+    font-size: 0.6875rem;
+    color: var(--text-tertiary, #aaa);
+    text-align: right;
   }
 
   .comment-actions {
@@ -804,14 +1001,8 @@
   }
 
   /* Dark mode */
-  :global(.dark) .comment-card {
-    background: var(--bg-surface, #1e1e1e);
-    border-color: var(--border-light, rgba(255, 255, 255, 0.08));
-  }
-
-  :global(.dark) .comment-card-ai {
-    background: rgba(124, 58, 237, 0.08);
-    border-color: rgba(124, 58, 237, 0.15);
+  :global(.dark) .comment-card-active {
+    background: rgba(255, 180, 0, 0.08);
   }
 
   :global(.dark) .comment-textarea {

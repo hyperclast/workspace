@@ -31,7 +31,7 @@ class Comment(TimeStampedModel):
     )
     external_id = UniqueIDTextField()
 
-    # Thread structure — one level deep enforced at API level, not DB
+    # Thread structure — arbitrary nesting via self-FK
     parent = models.ForeignKey(
         "self",
         null=True,

@@ -66,7 +66,7 @@ Get all comments for a page, with nested replies.
 | `anchor_from_b64` | Base64 Yjs RelativePosition (start). Null if pending deferred resolution |
 | `anchor_to_b64`   | Base64 Yjs RelativePosition (end)                                        |
 | `anchor_text`     | Plain text snapshot of the highlighted range                             |
-| `replies`         | Nested array of reply comments (same schema, no further nesting)         |
+| `replies`         | Nested array of reply comments (same schema, supports arbitrary nesting) |
 
 ---
 
@@ -77,22 +77,21 @@ Get all comments for a page, with nested replies.
 | **Endpoint** | `POST /api/v1/pages/{page_id}/comments/` |
 | **Auth**     | Bearer token (editor)                    |
 
-| Field             | Type   | Required? | Description                               |
-| ----------------- | ------ | --------- | ----------------------------------------- |
-| `body`            | string | Yes       | Comment body (markdown)                   |
-| `anchor_text`     | string | Root only | Highlighted text                          |
-| `anchor_from_b64` | string | No        | Base64 Yjs RelativePosition (start)       |
-| `anchor_to_b64`   | string | No        | Base64 Yjs RelativePosition (end)         |
-| `parent_id`       | string | No        | External ID of root comment (for replies) |
+| Field             | Type   | Required? | Description                                 |
+| ----------------- | ------ | --------- | ------------------------------------------- |
+| `body`            | string | Yes       | Comment body (markdown)                     |
+| `anchor_text`     | string | Root only | Highlighted text                            |
+| `anchor_from_b64` | string | No        | Base64 Yjs RelativePosition (start)         |
+| `anchor_to_b64`   | string | No        | Base64 Yjs RelativePosition (end)           |
+| `parent_id`       | string | No        | External ID of parent comment (for replies) |
 
 **Response (201):** The created comment object.
 
 **Notes:**
 
 - Root comments require `anchor_text`
-- Replies set `parent_id` to a root comment's external ID
-- Replies cannot have anchors (they inherit parent's anchor)
-- Threading is one level deep — replies to replies are rejected
+- Replies set `parent_id` to any comment's external ID (arbitrary nesting)
+- Replies cannot have anchors (they inherit the root comment's anchor)
 
 ---
 

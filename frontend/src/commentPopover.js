@@ -44,7 +44,9 @@ function stripTooltipChrome(dom) {
 function createButtonTooltip(view) {
   const dom = document.createElement("div");
   dom.className = "cm-comment-popover-button";
-  dom.setAttribute("aria-label", "Add comment");
+  // Commented aria-label below as it is shown as mouseover text by Firefox, which messes up the UI
+  // Button text can be used for accessibility
+  // dom.setAttribute("aria-label", "Add comment");
   stripTooltipChrome(dom);
 
   const btn = document.createElement("button");
@@ -52,7 +54,6 @@ function createButtonTooltip(view) {
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
   const shortcut = isMac ? "\u2318\u2325M" : "Ctrl+Alt+M";
   btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Comment</span><span class="cm-comment-popover-shortcut">${shortcut}</span>`;
-  btn.title = "Comment on selection";
   btn.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -227,8 +228,9 @@ const commentPopoverField = StateField.define({
         if (val.stage === "form") {
           return {
             pos: val.from,
-            above: false,
-            strictSide: true,
+            end: val.to,
+            above: true,
+            strictSide: false,
             arrow: false,
             create: (view) => createFormTooltip(view),
           };
@@ -291,53 +293,53 @@ const commentPopoverTheme = EditorView.baseTheme({
   },
   ".cm-comment-popover-button button": {
     borderRadius: "6px",
-    border: "1px solid rgba(55, 53, 47, 0.09)",
-    background: "#fff",
-    color: "#37352f",
-    fontSize: "12px",
+    border: "none",
+    background: "#2383e2",
+    color: "#fff",
+    fontSize: "13px",
     fontWeight: "500",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
-    gap: "5px",
-    padding: "5px 10px",
-    boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 0 0 1px rgba(55,53,47,0.04)",
+    gap: "6px",
+    padding: "6px 12px",
+    boxShadow: "0 2px 8px rgba(35, 131, 226, 0.3)",
     lineHeight: "1",
     whiteSpace: "nowrap",
     transition: "background 0.1s",
   },
   ".cm-comment-popover-button button:hover": {
-    background: "rgba(55, 53, 47, 0.04)",
+    background: "#1a6fc2",
   },
   ".cm-comment-popover-form": {
-    width: "280px",
-    padding: "10px 12px",
+    width: "320px",
+    padding: "12px 14px",
     background: "#fff",
     borderRadius: "8px",
     boxShadow: "0 4px 16px rgba(0,0,0,0.08), 0 0 0 1px rgba(55,53,47,0.06)",
     border: "none",
     display: "flex",
     flexDirection: "column",
-    gap: "6px",
+    gap: "8px",
   },
   ".cm-comment-popover-quote": {
-    fontSize: "12px",
+    fontSize: "13px",
     color: "rgba(55, 53, 47, 0.5)",
     fontStyle: "italic",
     borderLeft: "2px solid rgba(55, 53, 47, 0.12)",
     paddingLeft: "8px",
-    maxHeight: "34px",
+    maxHeight: "38px",
     overflow: "hidden",
     textOverflow: "ellipsis",
     lineHeight: "1.4",
   },
   ".cm-comment-popover-textarea": {
     width: "100%",
-    minHeight: "52px",
-    padding: "6px 8px",
+    minHeight: "60px",
+    padding: "8px 10px",
     border: "1px solid rgba(55, 53, 47, 0.12)",
     borderRadius: "4px",
-    fontSize: "13px",
+    fontSize: "14px",
     fontFamily: "inherit",
     resize: "vertical",
     boxSizing: "border-box",
@@ -351,7 +353,7 @@ const commentPopoverTheme = EditorView.baseTheme({
     boxShadow: "0 0 0 2px rgba(35, 131, 226, 0.15)",
   },
   ".cm-comment-popover-error": {
-    fontSize: "12px",
+    fontSize: "13px",
     color: "#eb5757",
     minHeight: "0",
   },
@@ -362,12 +364,12 @@ const commentPopoverTheme = EditorView.baseTheme({
     gap: "6px",
   },
   ".cm-comment-popover-cancel": {
-    fontSize: "12px",
+    fontSize: "13px",
     color: "rgba(55, 53, 47, 0.5)",
     background: "none",
     border: "none",
     cursor: "pointer",
-    padding: "4px 8px",
+    padding: "5px 10px",
     borderRadius: "4px",
     transition: "background 0.1s",
   },
@@ -375,14 +377,14 @@ const commentPopoverTheme = EditorView.baseTheme({
     background: "rgba(55, 53, 47, 0.06)",
   },
   ".cm-comment-popover-submit": {
-    fontSize: "12px",
+    fontSize: "13px",
     fontWeight: "500",
     color: "#fff",
     background: "#2383e2",
     border: "none",
     borderRadius: "4px",
     cursor: "pointer",
-    padding: "4px 12px",
+    padding: "5px 14px",
     transition: "background 0.1s",
   },
   ".cm-comment-popover-submit:hover": {
@@ -393,13 +395,13 @@ const commentPopoverTheme = EditorView.baseTheme({
     cursor: "not-allowed",
   },
   ".cm-comment-popover-hint": {
-    fontSize: "11px",
+    fontSize: "12px",
     color: "rgba(55, 53, 47, 0.35)",
     textAlign: "right",
   },
   ".cm-comment-popover-shortcut": {
-    fontSize: "11px",
-    color: "rgba(55, 53, 47, 0.35)",
+    fontSize: "12px",
+    color: "rgba(255, 255, 255, 0.6)",
     marginLeft: "2px",
   },
   ".cm-comment-popover-selection": {
@@ -408,13 +410,11 @@ const commentPopoverTheme = EditorView.baseTheme({
   },
   // Dark mode
   "&dark .cm-comment-popover-button button": {
-    background: "#202020",
-    borderColor: "rgba(255,255,255,0.08)",
-    color: "#ebebeb",
-    boxShadow: "0 1px 4px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.04)",
+    background: "#529cca",
+    boxShadow: "0 2px 8px rgba(82, 156, 202, 0.3)",
   },
   "&dark .cm-comment-popover-button button:hover": {
-    background: "#2d2d2d",
+    background: "#6bb3dd",
   },
   "&dark .cm-comment-popover-form": {
     background: "#202020",
@@ -446,7 +446,7 @@ const commentPopoverTheme = EditorView.baseTheme({
     background: "#6bb3dd",
   },
   "&dark .cm-comment-popover-shortcut": {
-    color: "rgba(255, 255, 255, 0.25)",
+    color: "rgba(255, 255, 255, 0.6)",
   },
   "&dark .cm-comment-popover-hint": {
     color: "rgba(255, 255, 255, 0.25)",

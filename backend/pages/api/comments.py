@@ -5,6 +5,7 @@ from typing import List, Optional
 
 from django.conf import settings
 from django.core.cache import cache
+from django.db.models import Count
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Field, Query, Router, Schema
@@ -171,6 +172,7 @@ def list_comments(request: HttpRequest, external_id: str, query: CommentsQueryPa
     replies_qs = (
         Comment.objects.filter(parent_id__in=root_ids)
         .select_related("author", "requester", "parent")
+        .annotate(child_count=Count("replies"))
         .order_by("created")
     )
 
@@ -182,7 +184,7 @@ def list_comments(request: HttpRequest, external_id: str, query: CommentsQueryPa
     for root in roots:
         all_replies = replies_by_parent.get(root.id, [])
         limited = all_replies[: query.replies_limit]
-        reply_outs = [_comment_to_out(r) for r in limited]
+        reply_outs = [_comment_to_out(r, replies_count=r.child_count) for r in limited]
         items.append(_comment_to_out(root, replies=reply_outs, replies_count=len(all_replies)))
 
     return CommentsListOut(items=items, count=total)
@@ -198,20 +200,25 @@ def list_replies(
     comment_id: str,
     query: RepliesQueryParams = Query(...),
 ):
-    """List replies for a root comment, with pagination."""
+    """List replies for a comment, with pagination."""
     page = get_object_or_404(
         Page.objects.get_user_accessible_pages(request.user),
         external_id=external_id,
     )
 
-    root = Comment.objects.filter(page=page, external_id=comment_id, parent__isnull=True).first()
-    if not root:
+    comment = Comment.objects.filter(page=page, external_id=comment_id).first()
+    if not comment:
         return 404, {"detail": "Comment not found."}
 
-    replies_qs = Comment.objects.filter(parent=root).select_related("author", "requester", "parent").order_by("created")
+    replies_qs = (
+        Comment.objects.filter(parent=comment)
+        .select_related("author", "requester", "parent")
+        .annotate(child_count=Count("replies"))
+        .order_by("created")
+    )
     total = replies_qs.count()
     replies = list(replies_qs[query.offset : query.offset + query.limit])
-    items = [_comment_to_out(r) for r in replies]
+    items = [_comment_to_out(r, replies_count=r.child_count) for r in replies]
 
     return RepliesListOut(items=items, count=total)
 
@@ -234,7 +241,7 @@ def create_comment(request: HttpRequest, external_id: str, payload: CommentCreat
     # Validate: replies
     parent = None
     if payload.parent_id:
-        parent = Comment.objects.filter(page=page, external_id=payload.parent_id, parent__isnull=True).first()
+        parent = Comment.objects.filter(page=page, external_id=payload.parent_id).first()
         if not parent:
             return 404, {"detail": "Parent comment not found."}
 

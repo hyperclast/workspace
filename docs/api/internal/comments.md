@@ -94,13 +94,13 @@ Requires `user_can_access_page()` — anyone who can read the page can see comme
 - `anchor_text` is a plain text snapshot of the highlighted range.
 - `ai_persona` is empty for human comments, or one of: `socrates`, `einstein`, `dewey`.
 - `requester` is set for AI comments (the user who triggered the review), null for human comments.
-- `replies_count` is the total number of replies for root comments; use it to show "Load more replies (X more)".
+- `replies_count` is the total number of direct replies for a comment; use it to show "Load more replies (X more)". Each inline reply also includes `replies_count` for its own children, enabling lazy-loaded nesting.
 
 ---
 
 ## List replies
 
-Load additional replies for a root comment (pagination).
+Load additional replies for a comment (pagination).
 
 ### URL
 
@@ -112,10 +112,10 @@ Load additional replies for a root comment (pagination).
 
 ### Path Params
 
-| Parameter     | Type   | Description                |
-| ------------- | ------ | -------------------------- |
-| `external_id` | string | Page's external ID         |
-| `comment_id`  | string | Root comment's external ID |
+| Parameter     | Type   | Description                  |
+| ------------- | ------ | ---------------------------- |
+| `external_id` | string | Page's external ID           |
+| `comment_id`  | string | Parent comment's external ID |
 
 ### Query Params
 
@@ -158,9 +158,9 @@ Requires `user_can_access_page()` — anyone who can read the page can list repl
 
 ### Error Responses
 
-| Status | Condition                      |
-| ------ | ------------------------------ |
-| 404    | Page or root comment not found |
+| Status | Condition                 |
+| ------ | ------------------------- |
+| 404    | Page or comment not found |
 
 ---
 
@@ -185,7 +185,7 @@ Requires `user_can_edit_in_page()` — editors only.
 | Field             | Type   | Required | Description                                                                    |
 | ----------------- | ------ | -------- | ------------------------------------------------------------------------------ |
 | `body`            | string | Yes      | Comment body (markdown)                                                        |
-| `parent_id`       | string | No       | External ID of root comment (for replies), null for root                       |
+| `parent_id`       | string | No       | External ID of parent comment (for replies), null for root                     |
 | `anchor_from_b64` | string | No       | Base64 Yjs RelativePosition (start). Required for root, forbidden for replies. |
 | `anchor_to_b64`   | string | No       | Base64 Yjs RelativePosition (end). Required for root, forbidden for replies.   |
 | `anchor_text`     | string | No       | Highlighted text. Required for root comments.                                  |
@@ -197,11 +197,11 @@ Requires `user_can_edit_in_page()` — editors only.
 
 ### Error Responses
 
-| Status | Condition                                                           |
-| ------ | ------------------------------------------------------------------- |
-| 400    | Empty body, missing anchor on root, anchor on reply, reply-to-reply |
-| 403    | User is not an editor                                               |
-| 404    | Page or parent comment not found                                    |
+| Status | Condition                                           |
+| ------ | --------------------------------------------------- |
+| 400    | Empty body, missing anchor on root, anchor on reply |
+| 403    | User is not an editor                               |
+| 404    | Page or parent comment not found                    |
 
 ---
 
