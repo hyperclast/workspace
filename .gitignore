@@ -1,3 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv
+.pytest_cache/
+.coverage
+.coverage.*
+
 # Logs
 logs
 *.log

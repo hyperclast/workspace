@@ -25,6 +25,7 @@ urlpatterns = [
     path("vs/obsidian/", views.vs_obsidian, name="vs_obsidian"),
     path("dev/", views.dev_index, name="dev_index"),
     path("dev/cli/", views.cli_docs, name="cli_docs"),
+    path("dev/mcp/", views.mcp_docs, name="mcp_docs"),
     path("dev/api/", views.api_docs, name="api_docs_index"),
     path("dev/api/<str:doc_name>/", views.api_docs, name="api_docs"),
     path("dev/oss/", views.oss_index, name="oss_index"),

@@ -1,10 +1,4 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-
-# C extensions
-*.so
+# (Byte-compiled, C extensions, venv, pytest, coverage → root .gitignore)
 
 # Distribution / packaging
 .Python
@@ -40,15 +34,12 @@ pip-delete-this-directory.txt
 htmlcov/
 .tox/
 .nox/
-.coverage
-.coverage.*
 .cache
 nosetests.xml
 coverage.xml
 *.cover
 *.py,cover
 .hypothesis/
-.pytest_cache/
 cover/
 
 # Translations
@@ -131,7 +122,6 @@ celerybeat.pid
 .env
 .env-*
 !.env-template
-.venv
 env/
 venv/
 ENV/

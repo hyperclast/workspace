@@ -159,6 +159,36 @@ def oss_repo(request, repo_name):
     return render(request, f"core/docs/oss_{repo_name}.html", context)
 
 
+def mcp_docs(request):
+    """Render MCP server documentation from markdown."""
+    docs_path = Path(settings.BASE_DIR) / "core" / "docs" / "mcp.md"
+
+    try:
+        with open(docs_path, "r") as f:
+            markdown_content = f.read()
+    except FileNotFoundError:
+        raise Http404("Documentation not found")
+
+    html_content = markdown2.markdown(
+        markdown_content,
+        extras={
+            "fenced-code-blocks": {"cssclass": ""},
+            "tables": None,
+            "header-ids": None,
+        },
+    )
+
+    context = {
+        "content": html_content,
+        "is_mcp_docs": True,
+        "page_title": "MCP Server",
+        "seo_title": "MCP Server - Hyperclast",
+        "seo_description": "Hyperclast MCP server. Connect AI assistants like Claude to read and write your pages via the Model Context Protocol.",
+        **_get_dev_context(request),
+    }
+    return render(request, "core/docs/api_docs.html", context)
+
+
 def cli_docs(request):
     """Render CLI documentation page."""
     context = {
