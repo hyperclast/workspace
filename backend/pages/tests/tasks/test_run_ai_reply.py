@@ -104,6 +104,25 @@ class TestRunAIReplyTask(BaseAuthenticatedViewTestCase):
         run_ai_reply(self.user_reply.id, "plato", self.user.id)
         self.assertEqual(Comment.objects.filter(parent=self.user_reply).count(), 0)
 
+    def test_max_depth_skips_reply(self):
+        """AI reply is silently skipped when the user's reply is at max depth."""
+        from pages.models.comments import COMMENT_MAX_DEPTH
+
+        # Build a chain to max depth - 1 (the user_reply needs to be at depth 7)
+        comment = self.ai_comment  # depth=0
+        for i in range(COMMENT_MAX_DEPTH - 2):
+            comment = CommentFactory(
+                page=self.page,
+                author=self.user,
+                parent=comment,
+            )
+        # comment is now at depth=6, create user reply at depth=7
+        deep_reply = CommentFactory(page=self.page, author=self.user, parent=comment)
+        self.assertEqual(deep_reply.depth, COMMENT_MAX_DEPTH - 1)
+
+        run_ai_reply(deep_reply.id, "socrates", self.user.id)
+        self.assertEqual(Comment.objects.filter(parent=deep_reply).count(), 0)
+
     def test_missing_comment_clears_cache(self):
         cache_key = "ai_reply:999999"
         cache.set(cache_key, 1, 300)

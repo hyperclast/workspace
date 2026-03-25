@@ -355,6 +355,14 @@ def run_ai_reply(reply_comment_id: int, persona: str, requester_id: int):
         cache.delete(cache_key)
         return
 
+    # Check max depth before generating a reply
+    from pages.models.comments import COMMENT_MAX_DEPTH
+
+    if user_reply.depth >= COMMENT_MAX_DEPTH - 1:
+        log_info("AI reply: max depth reached for comment %s, skipping", reply_comment_id)
+        cache.delete(cache_key)
+        return
+
     persona_prompt = PERSONA_PROMPTS.get(persona)
     if not persona_prompt:
         log_error("AI reply: unknown persona '%s'", persona)
@@ -418,6 +426,7 @@ def run_ai_reply(reply_comment_id: int, persona: str, requester_id: int):
         requester=requester,
         parent=user_reply,
         root=root,
+        depth=user_reply.depth + 1,
         body=response_text,
     )
 

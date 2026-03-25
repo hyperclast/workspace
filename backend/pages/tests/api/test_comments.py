@@ -545,6 +545,40 @@ class TestAIReplyTrigger(CommentsTestMixin, BaseAuthenticatedViewTestCase):
         self.assertEqual(len(enqueue_called), 1)
 
 
+class TestCommentDepthLimit(CommentsTestMixin, BaseAuthenticatedViewTestCase):
+    """Test max nesting depth enforcement."""
+
+    def _build_chain(self, depth):
+        """Build a comment chain to the given depth and return the deepest comment."""
+        comment = CommentFactory(page=self.page, author=self.user)
+        for _ in range(depth):
+            comment = CommentFactory(page=self.page, author=self.user, parent=comment)
+        return comment
+
+    @patch("pages.api.comments.notify_comments_updated")
+    def test_reply_at_max_depth_rejected(self, _mock):
+        """Cannot reply to a comment at depth 7 (would create depth 8)."""
+        deepest = self._build_chain(7)  # depth=7
+        self.assertEqual(deepest.depth, 7)
+
+        data = {"body": "Too deep.", "parent_id": deepest.external_id}
+        response = self.send_api_request(url=self.url(), method="post", data=data)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        self.assertIn("nesting depth", response.json()["detail"])
+
+    @patch("pages.api.comments.notify_comments_updated")
+    def test_reply_at_penultimate_depth_succeeds(self, _mock):
+        """Can reply to a comment at depth 6 (creates depth 7, the max)."""
+        parent = self._build_chain(6)  # depth=6
+        self.assertEqual(parent.depth, 6)
+
+        data = {"body": "Just within limit.", "parent_id": parent.external_id}
+        response = self.send_api_request(url=self.url(), method="post", data=data)
+        self.assertEqual(response.status_code, HTTPStatus.CREATED)
+        reply = Comment.objects.get(external_id=response.json()["external_id"])
+        self.assertEqual(reply.depth, 7)
+
+
 class TestCommentFactory(CommentsTestMixin, BaseAuthenticatedViewTestCase):
     """Verify CommentFactory handles root vs reply anchor_text correctly."""
 

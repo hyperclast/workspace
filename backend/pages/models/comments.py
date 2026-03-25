@@ -7,6 +7,8 @@ from core.fields import UniqueIDTextField
 
 User = get_user_model()
 
+COMMENT_MAX_DEPTH = 8  # Maximum nesting levels (depth 0–7)
+
 
 class AIPersona(TextChoices):
     SOCRATES = "socrates", "Socrates"
@@ -51,6 +53,10 @@ class Comment(TimeStampedModel):
         on_delete=models.CASCADE,
     )
 
+    # Nesting depth — 0 for root comments, parent.depth + 1 for replies.
+    # Enables O(1) max-depth validation on insert.
+    depth = models.PositiveSmallIntegerField(default=0)
+
     # Anchor: Yjs RelativePosition (binary), base64-encoded for JSON transport.
     # Only set on root comments, not replies (replies inherit parent's anchor).
     # Created by the frontend (pycrdt doesn't support RelativePosition).
@@ -91,6 +97,11 @@ class Comment(TimeStampedModel):
                     anchor_to__isnull=True,
                 ),
                 name="replies_no_anchor",
+            ),
+            # Enforce maximum nesting depth
+            models.CheckConstraint(
+                check=models.Q(depth__lt=COMMENT_MAX_DEPTH),
+                name="comment_max_depth",
             ),
         ]
 

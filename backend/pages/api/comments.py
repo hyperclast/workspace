@@ -14,6 +14,7 @@ from backend.utils import log_warning
 from collab.utils import notify_comments_updated
 from core.authentication import session_auth, token_auth
 from pages.models import AIPersona, Comment, Page
+from pages.models.comments import COMMENT_MAX_DEPTH
 from pages.permissions import user_can_edit_in_page
 from pages.throttling import AIReviewThrottle, CommentCreationThrottle
 
@@ -63,6 +64,7 @@ class CommentOut(Schema):
     anchor_from_b64: Optional[str] = None
     anchor_to_b64: Optional[str] = None
     anchor_text: str = ""
+    can_reply: bool = True
     created: datetime
     modified: datetime
     replies: List["CommentOut"] = []
@@ -139,6 +141,7 @@ def _comment_to_out(comment, replies=None, replies_count=0) -> CommentOut:
         anchor_from_b64=anchor_from_b64,
         anchor_to_b64=anchor_to_b64,
         anchor_text=comment.anchor_text,
+        can_reply=comment.depth < COMMENT_MAX_DEPTH - 1,
         created=comment.created,
         modified=comment.modified,
         replies=replies or [],
@@ -249,6 +252,10 @@ def create_comment(request: HttpRequest, external_id: str, payload: CommentCreat
         # Replies must not have anchors
         if payload.anchor_from_b64 or payload.anchor_to_b64:
             return 400, {"detail": "Replies cannot have their own anchors."}
+
+        # Enforce max nesting depth
+        if parent.depth >= COMMENT_MAX_DEPTH - 1:
+            return 400, {"detail": "Maximum comment nesting depth reached."}
     else:
         # Root comments are either anchored (have anchor_text) or page-level (no anchor)
         pass
@@ -278,6 +285,7 @@ def create_comment(request: HttpRequest, external_id: str, payload: CommentCreat
         author=request.user,
         parent=parent,
         root=root,
+        depth=parent.depth + 1 if parent else 0,
         anchor_from=anchor_from,
         anchor_to=anchor_to,
         anchor_text=payload.anchor_text or "",

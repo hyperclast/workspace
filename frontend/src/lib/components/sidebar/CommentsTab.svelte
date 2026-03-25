@@ -490,7 +490,7 @@
     </div>
     <div class="comment-body">{@html formatCommentBody(reply.body)}</div>
     <div class="comment-actions">
-      <button class="comment-action-btn" onclick={() => startReply(reply.external_id)}>
+      <button class="comment-action-btn" disabled={reply.can_reply === false} title={reply.can_reply === false ? "Maximum thread depth reached" : ""} onclick={() => startReply(reply.external_id)}>
         Reply
       </button>
       {#if canDelete(reply)}
@@ -638,7 +638,7 @@
             <div class="comment-body">{@html formatCommentBody(comment.body)}</div>
 
             <div class="comment-actions">
-              <button class="comment-action-btn" onclick={() => startReply(comment.external_id)}>
+              <button class="comment-action-btn" disabled={comment.can_reply === false} title={comment.can_reply === false ? "Maximum thread depth reached" : ""} onclick={() => startReply(comment.external_id)}>
                 Reply
               </button>
               {#if canDelete(comment)}
@@ -860,8 +860,13 @@
     padding: 0;
   }
 
-  .comment-action-btn:hover {
+  .comment-action-btn:hover:not(:disabled) {
     color: var(--text-secondary, #666);
+  }
+
+  .comment-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .comment-action-delete:hover {
