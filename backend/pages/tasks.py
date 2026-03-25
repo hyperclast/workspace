@@ -4,6 +4,7 @@ from html import escape as html_escape
 from django.conf import settings
 from django.contrib.auth import get_user_model
 
+from ask.constants import AIProvider
 from backend.utils import log_error, log_info
 from core.helpers import task
 
@@ -81,10 +82,25 @@ def send_project_editor_removed_email(event_id: str):
 
 # --- AI Review ---
 
+REVIEW_MODELS = {
+    AIProvider.OPENAI.value: "gpt-5.4",
+    AIProvider.ANTHROPIC.value: "claude-sonnet-4-6",
+    AIProvider.GOOGLE.value: "gemini/gemini-3.1-pro",
+    AIProvider.CUSTOM.value: "gpt-5.4",
+}
+
 ANCHOR_INSTRUCTION = (
     "When commenting on a passage, quote the exact text you are commenting on "
     "in the `anchor_text` field. Quote at least a full sentence — enough to be "
     "unambiguous within the document. Never quote just a single word or short phrase."
+)
+
+QUALITY_INSTRUCTION = (
+    "Be highly selective. Only comment on passages where you have something genuinely "
+    "insightful to say. Every comment must be specific and actionable — never vague or "
+    "generic. Fewer high-quality comments are always better than many mediocre ones. "
+    "If the text is clear and well-written with nothing meaningful to add, return an "
+    "empty JSON array `[]`."
 )
 
 PERSONA_PROMPTS = {
@@ -103,6 +119,12 @@ PERSONA_PROMPTS = {
         "You are a research librarian. Read the text and suggest relevant external "
         "resources — articles, papers, documentation, tools — for the topics discussed. "
         "Anchor each suggestion to the specific passage it relates to. Provide URLs where possible."
+    ),
+    "athena": (
+        "You are a strategic advisor. Read the text and identify the author's goals, then "
+        "push them forward with bold, concrete suggestions. Point out where the author is "
+        "being timid or vague and propose decisive action. Reference specific passages. "
+        "Be direct and encouraging — like Athena counseling a hero."
     ),
 }
 
@@ -169,7 +191,10 @@ def _parse_ai_response(response_text: str) -> list:
     except (json.JSONDecodeError, TypeError):
         pass
 
-    log_info("AI review response was not valid JSON array, skipping")
+    log_info(
+        "AI review response was not valid JSON array, skipping. First 500 chars: %s",
+        response_text[:500],
+    )
     return []
 
 
@@ -178,40 +203,56 @@ def run_ai_review(page_id: int, persona: str, requester_id: int):
     """Run AI review on a page. Creates Comment objects for each AI comment."""
     from django.core.cache import cache
 
-    from ask.helpers.llm import create_chat_completion
-    from collab.utils import notify_comments_updated
+    from ask.exceptions import AIKeyNotConfiguredError
+    from ask.helpers.llm import create_chat_completion, get_ai_config_for_user
+    from collab.utils import notify_ai_review_complete, notify_comments_updated
     from pages.models import Comment, Page
 
     cache_key = f"ai_review:{page_id}:{persona}"
+    page_eid = None
     try:
         page = Page.objects.get(id=page_id, is_deleted=False)
+        page_eid = str(page.external_id)
         requester = User.objects.get(id=requester_id)
     except (Page.DoesNotExist, User.DoesNotExist) as e:
         log_error("AI review: page or user not found: %s", e)
+        if page_eid:
+            notify_ai_review_complete(page_eid, persona, 0)
         cache.delete(cache_key)
         return
 
     content = page.details.get("content", "")
     if not content.strip():
-        log_info("AI review: page %s has no content, skipping", page.external_id)
+        log_info("AI review: page %s has no content, skipping", page_eid)
+        notify_ai_review_complete(page_eid, persona, 0)
         cache.delete(cache_key)
         return
 
     persona_prompt = PERSONA_PROMPTS.get(persona)
     if not persona_prompt:
         log_error("AI review: unknown persona '%s'", persona)
+        notify_ai_review_complete(page_eid, persona, 0)
         cache.delete(cache_key)
         return
+
+    # Resolve review model for the user's AI provider
+    try:
+        config = get_ai_config_for_user(requester)
+        review_model = REVIEW_MODELS.get(config.provider)
+    except AIKeyNotConfiguredError:
+        review_model = None
 
     numbered_content = _build_numbered_content(content)
     context_pages = _build_context_pages(page)
 
     system_message = (
         f"{persona_prompt}\n\n"
+        f"{QUALITY_INSTRUCTION}\n\n"
         f"{ANCHOR_INSTRUCTION}\n\n"
         "Respond with a JSON array of comments. Each comment has two fields:\n"
         '- "anchor_text": the exact text passage you are commenting on (quoted from the document)\n'
         '- "body": your comment (markdown)\n\n'
+        "If you have no meaningful comments, return an empty JSON array `[]`.\n\n"
         "Example response:\n"
         "```json\n"
         "[\n"
@@ -232,20 +273,22 @@ def run_ai_review(page_id: int, persona: str, requester_id: int):
     ]
 
     try:
-        response = create_chat_completion(messages=messages, user=requester)
+        response = create_chat_completion(messages=messages, user=requester, model=review_model, max_tokens=4096)
         response_text = response["choices"][0]["message"]["content"]
     except Exception as e:
-        log_error("AI review: LLM call failed for page %s: %s", page.external_id, e)
+        log_error("AI review: LLM call failed for page %s: %s", page_eid, e)
+        notify_ai_review_complete(page_eid, persona, 0)
         cache.delete(cache_key)
         return
 
     parsed_comments = _parse_ai_response(response_text)
     if not parsed_comments:
-        log_info("AI review: no comments parsed for page %s", page.external_id)
+        log_info("AI review: no comments parsed for page %s", page_eid)
+        notify_ai_review_complete(page_eid, persona, 0)
         cache.delete(cache_key)
         return
 
-    log_info("AI review: creating %d comments for page %s", len(parsed_comments), page.external_id)
+    log_info("AI review: creating %d comments for page %s", len(parsed_comments), page_eid)
 
     for item in parsed_comments:
         Comment.objects.create(
@@ -257,8 +300,9 @@ def run_ai_review(page_id: int, persona: str, requester_id: int):
             body=item["body"],
         )
 
-    # Broadcast once after all comments are created
-    notify_comments_updated(str(page.external_id))
+    # Broadcast comments update + review completion
+    notify_comments_updated(page_eid)
+    notify_ai_review_complete(page_eid, persona, len(parsed_comments))
 
     # Clear the in-progress flag so the user can trigger another review
     cache.delete(cache_key)

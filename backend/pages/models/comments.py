@@ -12,6 +12,7 @@ class AIPersona(TextChoices):
     SOCRATES = "socrates", "Socrates"
     EINSTEIN = "einstein", "Einstein"
     DEWEY = "dewey", "Dewey"
+    ATHENA = "athena", "Athena"
 
 
 class Comment(TimeStampedModel):

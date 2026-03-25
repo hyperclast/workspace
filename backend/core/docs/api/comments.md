@@ -59,14 +59,14 @@ Get all comments for a page, with nested replies.
 }
 ```
 
-| Field             | Description                                                              |
-| ----------------- | ------------------------------------------------------------------------ |
-| `ai_persona`      | Empty for human comments, or `socrates` / `einstein` / `dewey`           |
-| `requester`       | User who triggered AI review (null for human comments)                   |
-| `anchor_from_b64` | Base64 Yjs RelativePosition (start). Null if pending deferred resolution |
-| `anchor_to_b64`   | Base64 Yjs RelativePosition (end)                                        |
-| `anchor_text`     | Plain text snapshot of the highlighted range                             |
-| `replies`         | Nested array of reply comments (same schema, supports arbitrary nesting) |
+| Field             | Description                                                               |
+| ----------------- | ------------------------------------------------------------------------- |
+| `ai_persona`      | Empty for human comments, or `socrates` / `einstein` / `dewey` / `athena` |
+| `requester`       | User who triggered AI review (null for human comments)                    |
+| `anchor_from_b64` | Base64 Yjs RelativePosition (start). Null if pending deferred resolution  |
+| `anchor_to_b64`   | Base64 Yjs RelativePosition (end)                                         |
+| `anchor_text`     | Plain text snapshot of the highlighted range                              |
+| `replies`         | Nested array of reply comments (same schema, supports arbitrary nesting)  |
 
 ---
 
@@ -144,9 +144,9 @@ Start an AI persona review of a page. Comments are created asynchronously.
 | **Endpoint** | `POST /api/v1/pages/{page_id}/comments/ai-review/` |
 | **Auth**     | Bearer token (editor)                              |
 
-| Field     | Type   | Required? | Description                        |
-| --------- | ------ | --------- | ---------------------------------- |
-| `persona` | string | Yes       | `socrates`, `einstein`, or `dewey` |
+| Field     | Type   | Required? | Description                                  |
+| --------- | ------ | --------- | -------------------------------------------- |
+| `persona` | string | Yes       | `socrates`, `einstein`, `dewey`, or `athena` |
 
 **Response (202):**
 
@@ -159,11 +159,12 @@ Start an AI persona review of a page. Comments are created asynchronously.
 
 **AI Personas:**
 
-| Persona    | Behavior                                     |
-| ---------- | -------------------------------------------- |
-| `socrates` | Asks clarifying questions about your text    |
-| `einstein` | Surfaces insights, patterns, and connections |
-| `dewey`    | Suggests external resources and references   |
+| Persona    | Behavior                                         |
+| ---------- | ------------------------------------------------ |
+| `socrates` | Asks clarifying questions about your text        |
+| `einstein` | Surfaces insights, patterns, and connections     |
+| `dewey`    | Suggests external resources and references       |
+| `athena`   | Bold strategic advice to push your goals forward |
 
 **Error Responses:**
 

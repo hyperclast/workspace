@@ -66,6 +66,19 @@ def notify_comments_updated(page_external_id: str):
             log_warning("Failed to broadcast comments_updated for page %s: %s", page_external_id, e)
 
 
+def notify_ai_review_complete(page_external_id: str, persona: str, comment_count: int):
+    """Broadcast AI review completion to all clients viewing the page."""
+    channel_layer = get_channel_layer()
+    if channel_layer:
+        try:
+            async_to_sync(channel_layer.group_send)(
+                f"page_{page_external_id}",
+                {"type": "ai_review_complete", "persona": persona, "comment_count": comment_count},
+            )
+        except Exception as e:
+            log_warning("Failed to broadcast ai_review_complete for page %s: %s", page_external_id, e)
+
+
 def notify_write_permission_revoked(page_external_id: str, user_id: int):
     """
     Notify WebSocket consumers that a user's write permission was revoked.

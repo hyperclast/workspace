@@ -637,3 +637,18 @@ class PageYjsConsumer(BaseYjsConsumer):
         Notify the client to refetch comments.
         """
         await self.send(text_data='{"type":"comments_updated"}')
+
+    async def ai_review_complete(self, event):
+        """
+        Handle ai_review_complete broadcast from the page channel layer.
+        Notify the client that an AI persona review has finished.
+        """
+        await self.send(
+            text_data=json.dumps(
+                {
+                    "type": "ai_review_complete",
+                    "persona": event["persona"],
+                    "comment_count": event["comment_count"],
+                }
+            )
+        )

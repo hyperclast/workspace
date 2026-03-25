@@ -277,6 +277,12 @@ export function createCollaborationObjects(pageExternalId, displayName = "Anonym
             window.dispatchEvent(new CustomEvent("foldersUpdated"));
           } else if (message.type === "comments_updated") {
             window.dispatchEvent(new CustomEvent("commentsUpdated"));
+          } else if (message.type === "ai_review_complete") {
+            window.dispatchEvent(
+              new CustomEvent("aiReviewComplete", {
+                detail: { persona: message.persona, commentCount: message.comment_count },
+              })
+            );
           }
         } catch (e) {
           // Not a JSON message, ignore

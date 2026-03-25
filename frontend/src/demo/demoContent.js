@@ -290,6 +290,20 @@ export const DEMO_COMMENTS = {
       modified: new Date(Date.now() - 900000).toISOString(),
       replies: [],
     },
+    {
+      external_id: "demo-cmt-3b",
+      parent_id: null,
+      author: null,
+      ai_persona: "athena",
+      requester: { external_id: "demo-user", email: "demo@example.com" },
+      body: "You've outlined the features but haven't committed to a shipping order. **Pick the three highest-impact items and set a deadline for each.** Vague plans stay vague — decisive action moves you forward.",
+      anchor_from_b64: null,
+      anchor_to_b64: null,
+      anchor_text: "",
+      created: new Date(Date.now() - 600000).toISOString(),
+      modified: new Date(Date.now() - 600000).toISOString(),
+      replies: [],
+    },
   ],
   "demo-sections": [
     {

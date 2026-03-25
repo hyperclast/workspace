@@ -2,6 +2,7 @@
   import { onMount, onDestroy, tick } from "svelte";
   import { flip } from "svelte/animate";
   import { slide } from "svelte/transition";
+  import { PERSONAS, PERSONA_SPRITE_URL } from "../../personaImages.js";
   import { registerTabHandler, registerPageChangeHandler, getState, openSidebar, setActiveTab } from "../../stores/sidebar.svelte.js";
   import {
     fetchComments as apiFetchComments,
@@ -74,7 +75,8 @@
   }
 
   let commentsUpdatedHandler = null;
-  let reviewLoading = $state(null); // persona currently loading, or null
+  let aiReviewCompleteHandler = null;
+  let pendingPersonas = $state(new Set());
   let isRewindMode = $state(false);
   let unsubscribeRewind = null;
   let docChangeHandler = null;
@@ -291,9 +293,11 @@
     confirmingDelete = null;
   }
 
+  const _inflight = new Set(); // synchronous guard — $state batching can't be trusted for dedup
   async function handleTriggerAIReview(persona) {
-    if (!currentPageId || reviewLoading) return;
-    reviewLoading = persona;
+    if (!currentPageId || _inflight.has(persona)) return;
+    _inflight.add(persona);
+    pendingPersonas = new Set([...pendingPersonas, persona]);
     try {
       const { triggerAIReview } = getApi();
       await triggerAIReview(currentPageId, persona);
@@ -301,8 +305,9 @@
     } catch (e) {
       console.error("Error triggering AI review:", e);
       showToast("Couldn't start AI review at this time.", "error");
+      _inflight.delete(persona);
+      pendingPersonas = new Set([...pendingPersonas].filter(p => p !== persona));
     }
-    reviewLoading = null;
   }
 
   function formatDate(dateStr) {
@@ -381,8 +386,23 @@
 
     commentsUpdatedHandler = () => {
       loadComments();
+      // Fallback: clear pending in case ai_review_complete event was lost
+      _inflight.clear();
+      pendingPersonas = new Set();
     };
     window.addEventListener("commentsUpdated", commentsUpdatedHandler);
+
+    aiReviewCompleteHandler = (e) => {
+      const { persona, commentCount } = e.detail;
+      const wasPending = pendingPersonas.has(persona);
+      _inflight.delete(persona);
+      pendingPersonas = new Set([...pendingPersonas].filter(p => p !== persona));
+      if (wasPending && commentCount === 0) {
+        const name = PERSONAS[persona]?.name ?? persona;
+        showToast(`${name} has nothing to add right now`);
+      }
+    };
+    window.addEventListener("aiReviewComplete", aiReviewCompleteHandler);
 
     // Editor → Sidebar: clicking a comment bar/dot scrolls sidebar to that card
     commentFocusedHandler = (e) => {
@@ -431,6 +451,9 @@
     if (commentsUpdatedHandler) {
       window.removeEventListener("commentsUpdated", commentsUpdatedHandler);
     }
+    if (aiReviewCompleteHandler) {
+      window.removeEventListener("aiReviewComplete", aiReviewCompleteHandler);
+    }
     if (unsubscribeRewind) {
       unsubscribeRewind();
     }
@@ -457,7 +480,11 @@
 {#snippet renderReply(reply)}
   <div class="comment-reply">
     <div class="comment-header">
-      <span class="comment-avatar comment-avatar-small">{getAuthorName(reply).charAt(0).toUpperCase()}</span>
+      {#if reply.ai_persona}
+        <span class="comment-avatar comment-avatar-small comment-avatar-ai" style="background-image: url({PERSONA_SPRITE_URL}); background-position: {PERSONAS[reply.ai_persona]?.bgPosition || '0 0'}; background-size: 200% 200%;"></span>
+      {:else}
+        <span class="comment-avatar comment-avatar-small">{getAuthorName(reply).charAt(0).toUpperCase()}</span>
+      {/if}
       <span class="comment-author">{getAuthorName(reply)}</span>
       <span class="comment-time">{formatDate(reply.created)}</span>
     </div>
@@ -565,17 +592,17 @@
     <div class="comments-loading">Loading...</div>
   {:else}
     <div class="comments-ai-triggers">
-      <button class="ai-trigger-btn" title="Socrates — clarifying questions" disabled={!!reviewLoading} onclick={() => handleTriggerAIReview("socrates")}>
-        {reviewLoading === "socrates" ? "..." : "🏛"}
-      </button>
-      <button class="ai-trigger-btn" title="Einstein — insights" disabled={!!reviewLoading} onclick={() => handleTriggerAIReview("einstein")}>
-        {reviewLoading === "einstein" ? "..." : "🔬"}
-      </button>
-      <button class="ai-trigger-btn" title="Dewey — references" disabled={!!reviewLoading} onclick={() => handleTriggerAIReview("dewey")}>
-        {reviewLoading === "dewey" ? "..." : "📚"}
-      </button>
-      {#if reviewLoading}
-        <span class="ai-review-status">{reviewLoading.charAt(0).toUpperCase() + reviewLoading.slice(1)} is reading your page...</span>
+      {#each Object.entries(PERSONAS) as [key, persona]}
+        <button class="ai-trigger-btn" class:ai-trigger-pending={pendingPersonas.has(key)} title="{persona.name} — {persona.subtitle}" disabled={pendingPersonas.has(key)} onclick={() => handleTriggerAIReview(key)}>
+          <span class="ai-trigger-img" style="background-image: url({PERSONA_SPRITE_URL}); background-position: {persona.bgPosition}; background-size: 200% 200%;"></span>
+          <span class="ai-trigger-label">{persona.name}</span>
+        </button>
+      {/each}
+    </div>
+    <div class="ai-review-status">
+      {#if pendingPersonas.size > 0}
+        {[...pendingPersonas].map(p => PERSONAS[p]?.name).join(", ")}
+        {pendingPersonas.size === 1 ? "is" : "are"} reviewing your page...
       {/if}
     </div>
 
@@ -592,7 +619,7 @@
           <div class="comment-card" class:comment-card-ai={comment.ai_persona} class:comment-card-active={activeCommentId === comment.external_id} data-comment-id={comment.external_id} onclick={() => handleCommentClick(comment.external_id)} animate:flip={{ duration: 200 }} transition:slide={{ duration: 200 }}>
             <div class="comment-header">
               {#if comment.ai_persona}
-                <span class="comment-avatar comment-avatar-ai">{comment.ai_persona === "socrates" ? "🏛" : comment.ai_persona === "einstein" ? "🔬" : "📚"}</span>
+                <span class="comment-avatar comment-avatar-ai" style="background-image: url({PERSONA_SPRITE_URL}); background-position: {PERSONAS[comment.ai_persona]?.bgPosition || '0 0'}; background-size: 200% 200%;"></span>
               {:else}
                 <span class="comment-avatar">{getAuthorName(comment).charAt(0).toUpperCase()}</span>
               {/if}
@@ -740,8 +767,8 @@
   }
 
   .comment-avatar-ai {
-    background: transparent;
-    font-size: 0.875rem;
+    background-repeat: no-repeat;
+    background-color: transparent;
   }
 
   .comment-avatar-small {
@@ -942,28 +969,66 @@
   }
 
   .ai-trigger-btn {
-    font-size: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.375rem;
     background: var(--bg-surface, #fafafa);
     border: 1px solid var(--border-light, rgba(0, 0, 0, 0.1));
     border-radius: 6px;
     cursor: pointer;
-    padding: 0.25rem 0.5rem;
-    line-height: 1;
+    position: relative;
+    flex: 1;
+    min-width: 0;
   }
 
   .ai-trigger-btn:hover:not(:disabled) {
     background: var(--bg-elevated, #e5e5e5);
+    border-color: var(--border-medium, rgba(0, 0, 0, 0.2));
   }
 
   .ai-trigger-btn:disabled {
-    opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .ai-trigger-img {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 4px;
+    background-repeat: no-repeat;
+    filter: grayscale(1);
+    transition: filter 0.3s ease;
+  }
+
+  .ai-trigger-btn:hover:not(:disabled) .ai-trigger-img {
+    filter: grayscale(0);
+  }
+
+  .ai-trigger-pending .ai-trigger-img {
+    filter: grayscale(0);
+  }
+
+  .ai-trigger-pending {
+    animation: persona-pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes persona-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); }
+    50% { box-shadow: 0 0 8px 2px rgba(124, 58, 237, 0.3); }
+  }
+
+  .ai-trigger-label {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--text-secondary, #666);
   }
 
   .ai-review-status {
     font-size: 0.75rem;
     color: var(--text-secondary, #666);
-    align-self: center;
+    min-height: 1.25rem;
+    text-align: center;
   }
 
   .comment-new-input {
@@ -1019,4 +1084,5 @@
   :global(.dark) .ai-trigger-btn:hover:not(:disabled) {
     background: var(--bg-elevated, #2a2a2a);
   }
+
 </style>
