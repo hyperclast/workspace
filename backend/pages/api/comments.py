@@ -266,10 +266,17 @@ def create_comment(request: HttpRequest, external_id: str, payload: CommentCreat
     except (binascii.Error, ValueError):
         return 400, {"detail": "Invalid base64 in anchor data."}
 
+    # For replies, root points to the thread's root comment.
+    # If the parent is itself a root (parent.root is None), then parent is the root.
+    root = None
+    if parent:
+        root = parent.root if parent.root_id else parent
+
     comment = Comment.objects.create(
         page=page,
         author=request.user,
         parent=parent,
+        root=root,
         anchor_from=anchor_from,
         anchor_to=anchor_to,
         anchor_text=payload.anchor_text or "",

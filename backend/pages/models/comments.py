@@ -41,6 +41,16 @@ class Comment(TimeStampedModel):
         on_delete=models.CASCADE,
     )
 
+    # Root of the thread — NULL for root comments, set to the root comment for replies.
+    # Enables fetching an entire thread in a single query.
+    root = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        related_name="thread_descendants",
+        on_delete=models.CASCADE,
+    )
+
     # Anchor: Yjs RelativePosition (binary), base64-encoded for JSON transport.
     # Only set on root comments, not replies (replies inherit parent's anchor).
     # Created by the frontend (pycrdt doesn't support RelativePosition).
@@ -70,6 +80,7 @@ class Comment(TimeStampedModel):
     class Meta:
         indexes = [
             models.Index(fields=["page", "created"], name="comment_page_created_idx"),
+            models.Index(fields=["root", "created"], name="comment_root_created_idx"),
         ]
         constraints = [
             # Replies cannot have their own anchors
@@ -82,6 +93,33 @@ class Comment(TimeStampedModel):
                 name="replies_no_anchor",
             ),
         ]
+
+    def get_thread(self):
+        """
+        Return all comments in this comment's thread, ordered by creation time.
+        Uses the ``root`` FK for a single query. The result includes the root
+        comment itself and all its descendants (flat list, not nested).
+        """
+        root_id = self.root_id or self.id
+        return (
+            Comment.objects.filter(models.Q(id=root_id) | models.Q(root_id=root_id))
+            .select_related("author")
+            .order_by("created")
+        )
+
+    def get_ancestor_chain(self):
+        """
+        Return the chain from the root down to this comment (inclusive).
+        Fetches the full thread in one query, then walks parent pointers in memory.
+        """
+        thread = {c.id: c for c in self.get_thread()}
+        chain = []
+        current = thread.get(self.id, self)
+        while current is not None:
+            chain.append(current)
+            current = thread.get(current.parent_id)
+        chain.reverse()
+        return chain
 
     def __str__(self):
         if self.ai_persona:
