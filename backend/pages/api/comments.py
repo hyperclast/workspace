@@ -30,6 +30,7 @@ COMMENTS_PAGE_SIZE_MAX = 100
 REPLIES_PAGE_SIZE_MAX = 50
 REPLIES_DEFAULT_LIMIT = 20
 AI_REVIEW_DEDUP_TIMEOUT = 300  # seconds
+AI_REPLY_DEDUP_TIMEOUT = 300  # seconds
 
 
 # --- Schemas ---
@@ -169,23 +170,23 @@ def list_comments(request: HttpRequest, external_id: str, query: CommentsQueryPa
         return CommentsListOut(items=[], count=total)
 
     root_ids = [r.id for r in roots]
-    replies_qs = (
-        Comment.objects.filter(parent_id__in=root_ids)
-        .select_related("author", "requester", "parent")
-        .annotate(child_count=Count("replies"))
-        .order_by("created")
+
+    # Fetch ALL descendants of these roots (full thread tree via root FK)
+    descendants = list(
+        Comment.objects.filter(root_id__in=root_ids).select_related("author", "requester", "parent").order_by("created")
     )
 
-    replies_by_parent = {}
-    for reply in replies_qs:
-        replies_by_parent.setdefault(reply.parent_id, []).append(reply)
+    # Group by parent_id for recursive tree building
+    children_by_parent = {}
+    for d in descendants:
+        children_by_parent.setdefault(d.parent_id, []).append(d)
 
-    items = []
-    for root in roots:
-        all_replies = replies_by_parent.get(root.id, [])
-        limited = all_replies[: query.replies_limit]
-        reply_outs = [_comment_to_out(r, replies_count=r.child_count) for r in limited]
-        items.append(_comment_to_out(root, replies=reply_outs, replies_count=len(all_replies)))
+    def _build_subtree(comment):
+        children = children_by_parent.get(comment.id, [])
+        child_outs = [_build_subtree(c) for c in children]
+        return _comment_to_out(comment, replies=child_outs, replies_count=len(children))
+
+    items = [_build_subtree(root) for root in roots]
 
     return CommentsListOut(items=items, count=total)
 
@@ -285,6 +286,14 @@ def create_comment(request: HttpRequest, external_id: str, payload: CommentCreat
 
     # Broadcast to other clients
     notify_comments_updated(str(page.external_id))
+
+    # If this is a reply to an AI persona comment, trigger auto-reply
+    if parent and parent.ai_persona:
+        from pages.tasks import run_ai_reply
+
+        reply_cache_key = f"ai_reply:{comment.id}"
+        if cache.add(reply_cache_key, 1, timeout=AI_REPLY_DEDUP_TIMEOUT):
+            run_ai_reply.enqueue(comment.id, parent.ai_persona, request.user.id)
 
     return 201, _comment_to_out(comment)
 

@@ -158,6 +158,12 @@ class CommentFactory(factory.django.DjangoModelFactory):
     requester = None
 
     @factory.lazy_attribute
+    def root(self):
+        if self.parent:
+            return self.parent.root if self.parent.root_id else self.parent
+        return None
+
+    @factory.lazy_attribute
     def anchor_text(self):
         # Replies must not have anchor_text (DB constraint: replies_no_anchor)
         if self.parent:

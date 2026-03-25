@@ -306,3 +306,120 @@ def run_ai_review(page_id: int, persona: str, requester_id: int):
 
     # Clear the in-progress flag so the user can trigger another review
     cache.delete(cache_key)
+
+
+# --- AI Reply ---
+
+REPLY_INSTRUCTION = (
+    "You are continuing a conversation in a comment thread on a document. "
+    "Read the conversation so far and respond naturally in character. "
+    "Be concise — aim for 1-3 sentences. "
+    "Respond with your reply text only, no JSON formatting."
+)
+
+
+def _format_thread_for_prompt(chain):
+    """Format a chain of comments as conversation for the AI prompt."""
+    parts = []
+    for c in chain:
+        if c.ai_persona:
+            speaker = c.ai_persona.capitalize()
+        elif c.author:
+            name = f"{c.author.first_name} {c.author.last_name}".strip()
+            speaker = name if name else "User"
+        else:
+            speaker = "User"
+        parts.append(f"**{speaker}:** {c.body}")
+    return "\n\n".join(parts)
+
+
+@task(settings.JOB_INTERNAL_QUEUE)
+def run_ai_reply(reply_comment_id: int, persona: str, requester_id: int):
+    """Generate an AI persona reply to a user's comment in a thread."""
+    from django.core.cache import cache
+
+    from ask.exceptions import AIKeyNotConfiguredError
+    from ask.helpers.llm import create_chat_completion, get_ai_config_for_user
+    from collab.utils import notify_comments_updated
+    from pages.models import Comment
+
+    cache_key = f"ai_reply:{reply_comment_id}"
+
+    try:
+        user_reply = Comment.objects.select_related("page", "author").get(id=reply_comment_id)
+        page = user_reply.page
+        page_eid = str(page.external_id)
+        requester = User.objects.get(id=requester_id)
+    except (Comment.DoesNotExist, User.DoesNotExist) as e:
+        log_error("AI reply: comment or user not found: %s", e)
+        cache.delete(cache_key)
+        return
+
+    persona_prompt = PERSONA_PROMPTS.get(persona)
+    if not persona_prompt:
+        log_error("AI reply: unknown persona '%s'", persona)
+        cache.delete(cache_key)
+        return
+
+    # Build the conversation thread (single query via root FK)
+    chain = user_reply.get_ancestor_chain()
+    thread_text = _format_thread_for_prompt(chain)
+
+    # Get the anchor text from the root comment
+    root_comment = chain[0]
+    anchor_context = ""
+    if root_comment.anchor_text:
+        anchor_context = (
+            f"\nThe discussion is about this passage from the document:\n" f'"{root_comment.anchor_text}"\n'
+        )
+
+    # Get page content for broader context
+    content = page.details.get("content", "")
+    page_context = ""
+    if content.strip():
+        truncated = content[:MAX_CHARS_PER_PAGE]
+        page_context = f"\n\n<document>\n{truncated}\n</document>"
+
+    # Resolve model for the user's AI provider
+    try:
+        config = get_ai_config_for_user(requester)
+        review_model = REVIEW_MODELS.get(config.provider)
+    except AIKeyNotConfiguredError:
+        review_model = None
+
+    system_message = f"{persona_prompt}\n\n{REPLY_INSTRUCTION}"
+    user_content = f"{anchor_context}\nConversation so far:\n\n{thread_text}{page_context}"
+
+    messages = [
+        {"role": "system", "content": system_message},
+        {"role": "user", "content": user_content},
+    ]
+
+    try:
+        response = create_chat_completion(messages=messages, user=requester, model=review_model, max_tokens=1024)
+        response_text = response["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        log_error("AI reply: LLM call failed for comment %s: %s", reply_comment_id, e)
+        cache.delete(cache_key)
+        return
+
+    if not response_text:
+        log_info("AI reply: empty response for comment %s", reply_comment_id)
+        cache.delete(cache_key)
+        return
+
+    # root is the thread's root comment
+    root = user_reply.root if user_reply.root_id else user_reply
+
+    Comment.objects.create(
+        page=page,
+        author=None,
+        ai_persona=persona,
+        requester=requester,
+        parent=user_reply,
+        root=root,
+        body=response_text,
+    )
+
+    notify_comments_updated(page_eid)
+    cache.delete(cache_key)
