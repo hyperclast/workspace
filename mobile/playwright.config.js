@@ -1,5 +1,8 @@
 const { defineConfig } = require("@playwright/test");
 
+const port = process.env.EXPO_WEB_PORT || 8081;
+const baseURL = process.env.EXPO_WEB_URL || `http://localhost:${port}`;
+
 module.exports = defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
@@ -8,7 +11,7 @@ module.exports = defineConfig({
   reporter: [["list"], ["html", { open: "never" }]],
 
   use: {
-    baseURL: process.env.EXPO_WEB_URL || "http://localhost:8081",
+    baseURL,
     trace: "on-first-retry",
     video: "retain-on-failure",
     screenshot: "only-on-failure",
@@ -24,5 +27,10 @@ module.exports = defineConfig({
     },
   ],
 
-  webServer: undefined,
+  webServer: {
+    command: `npx expo start --web --port ${port}`,
+    url: `http://localhost:${port}`,
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+  },
 });

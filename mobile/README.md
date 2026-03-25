@@ -66,8 +66,10 @@ See [docs/api/internal/auth.md](../docs/api/internal/auth.md) for endpoint detai
 
 ## Testing
 
+### Unit Tests
+
 ```bash
-# Run all tests
+# Run all unit tests
 npm test
 
 # Run a specific test file or directory
@@ -77,6 +79,43 @@ npx jest __tests__/lib/
 ```
 
 131 tests across 12 test suites. Test infrastructure: Jest + jest-expo preset, `@testing-library/react-native`, manual mocks for `expo-secure-store`, `expo-crypto`, `expo-router`, `expo-device`.
+
+### E2E Tests (Playwright)
+
+E2E tests run against the Expo web build using Playwright (Chromium). All backend API calls are intercepted and mocked (see `e2e/helpers.js`), so no running backend is required.
+
+**First-time setup:**
+
+```bash
+# Install Playwright browsers (chromium only)
+npx playwright install chromium
+```
+
+**Running E2E tests:**
+
+```bash
+# Run all E2E tests (headless)
+npm run test:e2e
+
+# Run in headed mode (opens browser window)
+npm run test:e2e:headed
+
+# Run a specific spec file
+npx playwright test e2e/auth.spec.js
+
+# View the HTML test report after a run
+npx playwright show-report
+```
+
+Playwright auto-starts the Expo web dev server on port 8081 by default. To use a different port, set `EXPO_WEB_PORT`:
+
+```bash
+EXPO_WEB_PORT=8099 npm run test:e2e
+```
+
+If you already have Expo running on the target port, Playwright will reuse the existing server.
+
+6 spec files covering auth, navigation, projects, pages, mentions, and settings.
 
 ## Project Structure
 
