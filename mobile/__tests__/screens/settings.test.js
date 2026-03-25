@@ -150,6 +150,50 @@ describe("SettingsScreen", () => {
     expect(screen.queryByText("Remove")).toBeNull();
   });
 
+  it("shows error banner when any API call fails", async () => {
+    fetchMe.mockResolvedValue({ external_id: "u1", email: "alice@example.com", username: "alice" });
+    fetchStorage.mockRejectedValue(new Error("Storage unavailable"));
+    fetchDevices.mockResolvedValue([]);
+
+    render(<SettingsScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Some data couldn't be loaded")).toBeTruthy();
+    });
+    // Successful sections still render
+    expect(screen.getByText("alice@example.com")).toBeTruthy();
+    // Failed section does not render
+    expect(screen.queryByText("Storage")).toBeNull();
+  });
+
+  it("shows error banner when all API calls fail", async () => {
+    fetchMe.mockRejectedValue(new Error("Network error"));
+    fetchStorage.mockRejectedValue(new Error("Network error"));
+    fetchDevices.mockRejectedValue(new Error("Network error"));
+
+    render(<SettingsScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Some data couldn't be loaded")).toBeTruthy();
+    });
+    expect(screen.queryByText("Account")).toBeNull();
+    expect(screen.queryByText("Storage")).toBeNull();
+    expect(screen.queryByText("Devices")).toBeNull();
+    // App section with sign-out always renders
+    expect(screen.getByText("Sign out")).toBeTruthy();
+  });
+
+  it("does not show error banner when all API calls succeed", async () => {
+    mockAllApis();
+
+    render(<SettingsScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText("alice@example.com")).toBeTruthy();
+    });
+    expect(screen.queryByText("Some data couldn't be loaded")).toBeNull();
+  });
+
   it("shows user info even when fetchStorage fails", async () => {
     fetchMe.mockResolvedValue({ external_id: "u1", email: "alice@example.com", username: "alice" });
     fetchStorage.mockRejectedValue(new Error("Storage unavailable"));

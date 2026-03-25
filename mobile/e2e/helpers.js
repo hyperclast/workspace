@@ -139,10 +139,11 @@ async function mockApi(page, overrides = {}) {
 
     if (method === "POST" && path.includes("/auth/login")) {
       if (overrides.loginError) {
+        const { status = 400, ...body } = overrides.loginError;
         return route.fulfill({
-          status: 400,
+          status,
           contentType: "application/json",
-          body: JSON.stringify(overrides.loginError),
+          body: JSON.stringify(body),
         });
       }
       return route.fulfill({
@@ -295,7 +296,8 @@ async function mockApi(page, overrides = {}) {
 
 /**
  * Convenience: set up auth + API mocks, then navigate.
- * Waits for the home screen to appear.
+ * Does NOT wait for app hydration — callers should await a visible
+ * element before interacting with the page.
  */
 async function navigateAuthenticated(page, path = "/", overrides = {}) {
   await setupAuth(page);

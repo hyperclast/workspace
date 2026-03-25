@@ -58,6 +58,18 @@ test.describe("Authentication", () => {
     await expect(page.getByText("Sign in to continue")).toBeVisible();
   });
 
+  test("sign up with valid credentials shows home screen", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/");
+
+    await page.getByText("Need an account? Sign up").click();
+    await page.getByPlaceholder("Email").fill("new@example.com");
+    await page.getByPlaceholder("Password").fill("password123");
+    await page.getByText("Sign up", { exact: true }).click();
+
+    await expect(page.getByText("Project Alpha")).toBeVisible();
+  });
+
   test("logout redirects to login", async ({ page }) => {
     await navigateAuthenticated(page);
     await expect(page.getByText("Project Alpha")).toBeVisible();

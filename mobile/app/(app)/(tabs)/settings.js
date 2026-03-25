@@ -21,6 +21,7 @@ export default function SettingsScreen() {
   const [storage, setStorage] = useState(null);
   const [devices, setDevices] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,6 +32,9 @@ export default function SettingsScreen() {
         if (userResult.status === "fulfilled") setUser(userResult.value);
         if (storageResult.status === "fulfilled") setStorage(storageResult.value);
         if (devicesResult.status === "fulfilled") setDevices(devicesResult.value);
+        if (results.some((r) => r.status === "rejected")) {
+          setError("Some data couldn't be loaded");
+        }
         setLoading(false);
       }
     })();
@@ -81,6 +85,7 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.container}>
+      {error && <Text style={styles.error}>{error}</Text>}
       {user && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
@@ -154,6 +159,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#fff",
+  },
+  error: {
+    color: "#c00",
+    marginBottom: 8,
+    fontSize: 14,
   },
   section: {
     marginBottom: 24,

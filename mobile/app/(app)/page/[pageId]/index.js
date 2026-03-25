@@ -11,7 +11,7 @@ import { useLocalSearchParams, router, Stack } from "expo-router";
 import Markdown from "react-native-markdown-display";
 import usePageStore from "../../../../stores/pages";
 
-const INTERNAL_LINK_RE = /^\/pages\/([^/]+)\/$/;
+const INTERNAL_LINK_RE = /^\/pages\/([^/]+)\/?$/;
 
 export default function PageViewScreen() {
   const { pageId } = useLocalSearchParams();

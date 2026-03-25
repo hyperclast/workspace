@@ -136,6 +136,17 @@ describe("PageViewScreen", () => {
     expect(mockPush).toHaveBeenCalledWith("/page/other-page-id");
   });
 
+  it("navigates to page view on internal link without trailing slash", () => {
+    setPage(basePage);
+
+    render(<PageViewScreen />);
+
+    const result = capturedOnLinkPress("/pages/other-page-id");
+
+    expect(result).toBe(false);
+    expect(mockPush).toHaveBeenCalledWith("/page/other-page-id");
+  });
+
   it("allows external links to open normally", () => {
     setPage(basePage);
 
