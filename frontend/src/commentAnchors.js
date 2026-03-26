@@ -73,7 +73,7 @@ function createRelativePositions(from, to, ytext) {
  * @param {import("@codemirror/view").EditorView} [view] - EditorView instance
  * @param {Y.Doc} [ydoc] - Yjs document
  * @param {Y.Text} [ytext] - Yjs shared text
- * @returns {Array} Resolved ranges: [{ from, to, commentId, isAi }]
+ * @returns {Array} Resolved ranges: [{ from, to, commentId, isAi, isResolved }]
  */
 export function resolveCommentAnchors(comments, pageExternalId, view, ydoc, ytext) {
   if (!view || !comments?.length) return [];
@@ -129,6 +129,7 @@ export function resolveCommentAnchors(comments, pageExternalId, view, ydoc, ytex
           to,
           commentId: comment.external_id,
           isAi: !!comment.ai_persona,
+          isResolved: !!comment.is_resolved,
         });
       }
     }

@@ -4,7 +4,7 @@ import { Decoration, EditorView } from "@codemirror/view";
 /**
  * Effect to set comment highlight ranges.
  * Dispatched externally when comments are loaded/updated and anchors resolved.
- * Each range: { from: number, to: number, commentId: string, isAi: boolean }
+ * Each range: { from: number, to: number, commentId: string, isAi: boolean, isResolved: boolean }
  */
 export const setCommentHighlights = StateEffect.define();
 
@@ -16,6 +16,7 @@ export const setActiveComment = StateEffect.define();
 const commentLine = Decoration.line({ class: "cm-comment-bar" });
 const commentLineAi = Decoration.line({ class: "cm-comment-bar cm-comment-bar-ai" });
 const commentLineActive = Decoration.line({ class: "cm-comment-bar cm-comment-bar-active" });
+const commentLineResolved = Decoration.line({ class: "cm-comment-bar cm-comment-bar-resolved" });
 
 /**
  * StateField that holds comment highlight decorations.
@@ -56,7 +57,7 @@ export const commentHighlightField = StateField.define({
       if (range.from >= range.to) continue;
       if (range.from < 0 || range.to > tr.state.doc.length) continue;
 
-      let deco = range.isAi ? commentLineAi : commentLine;
+      let deco = range.isResolved ? commentLineResolved : range.isAi ? commentLineAi : commentLine;
       if (range.commentId === activeId) {
         deco = commentLineActive;
       }
@@ -113,6 +114,9 @@ export const commentHighlightTheme = EditorView.baseTheme({
   },
   ".cm-comment-bar-active": {
     borderRight: "3px solid rgba(255, 180, 0, 0.8)",
+  },
+  ".cm-comment-bar-resolved": {
+    borderRight: "3px solid rgba(22, 163, 74, 0.25)",
   },
 });
 

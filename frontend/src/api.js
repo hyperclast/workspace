@@ -767,6 +767,44 @@ export async function deleteComment(pageExternalId, commentId) {
 }
 
 /**
+ * Resolve a comment thread.
+ * @param {string} pageExternalId - External ID of the page
+ * @param {string} commentId - External ID of the root comment
+ * @returns {Promise<Object>} The updated comment
+ */
+export async function resolveComment(pageExternalId, commentId) {
+  const response = await csrfFetch(
+    `${API_BASE}/pages/${pageExternalId}/comments/${commentId}/resolve/`,
+    {
+      method: "POST",
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to resolve comment: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Unresolve a comment thread.
+ * @param {string} pageExternalId - External ID of the page
+ * @param {string} commentId - External ID of the root comment
+ * @returns {Promise<Object>} The updated comment
+ */
+export async function unresolveComment(pageExternalId, commentId) {
+  const response = await csrfFetch(
+    `${API_BASE}/pages/${pageExternalId}/comments/${commentId}/unresolve/`,
+    {
+      method: "POST",
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to unresolve comment: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
  * Trigger AI review for a page.
  * @param {string} pageExternalId - External ID of the page
  * @param {string} persona - AI persona ID (socrates, einstein, dewey)

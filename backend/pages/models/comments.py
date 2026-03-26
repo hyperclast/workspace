@@ -83,6 +83,16 @@ class Comment(TimeStampedModel):
         on_delete=models.SET_NULL,
     )
 
+    # Resolution state — only set on root comments (depth=0)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        related_name="resolved_comments",
+        on_delete=models.SET_NULL,
+    )
+
     class Meta:
         indexes = [
             models.Index(fields=["page", "created"], name="comment_page_created_idx"),
@@ -102,6 +112,11 @@ class Comment(TimeStampedModel):
             models.CheckConstraint(
                 check=models.Q(depth__lt=COMMENT_MAX_DEPTH),
                 name="comment_max_depth",
+            ),
+            # Only root comments can be resolved
+            models.CheckConstraint(
+                check=models.Q(parent__isnull=True) | models.Q(resolved_at__isnull=True),
+                name="replies_not_resolved",
             ),
         ]
 
@@ -131,6 +146,11 @@ class Comment(TimeStampedModel):
             current = thread.get(current.parent_id)
         chain.reverse()
         return chain
+
+    @property
+    def is_resolved(self) -> bool:
+        """Whether this comment thread is resolved."""
+        return bool(self.resolved_at)
 
     @property
     def can_reply(self) -> bool:

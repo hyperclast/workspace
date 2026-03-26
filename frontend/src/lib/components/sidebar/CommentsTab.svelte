@@ -8,6 +8,8 @@
     fetchComments as apiFetchComments,
     createComment as apiCreateComment,
     deleteComment as apiDeleteComment,
+    resolveComment as apiResolveComment,
+    unresolveComment as apiUnresolveComment,
     triggerAIReview as apiTriggerAIReview,
   } from "../../../api.js";
   import { isDemoMode } from "../../../demo/index.js";
@@ -15,6 +17,8 @@
     fetchComments as demoFetchComments,
     createComment as demoCreateComment,
     deleteComment as demoDeleteComment,
+    resolveComment as demoResolveComment,
+    unresolveComment as demoUnresolveComment,
     triggerAIReview as demoTriggerAIReview,
   } from "../../../demo/demoApi.js";
   import {
@@ -34,8 +38,8 @@
 
   function getApi() {
     return isDemoMode()
-      ? { fetchComments: demoFetchComments, createComment: demoCreateComment, deleteComment: demoDeleteComment, triggerAIReview: demoTriggerAIReview }
-      : { fetchComments: apiFetchComments, createComment: apiCreateComment, deleteComment: apiDeleteComment, triggerAIReview: apiTriggerAIReview };
+      ? { fetchComments: demoFetchComments, createComment: demoCreateComment, deleteComment: demoDeleteComment, resolveComment: demoResolveComment, unresolveComment: demoUnresolveComment, triggerAIReview: demoTriggerAIReview }
+      : { fetchComments: apiFetchComments, createComment: apiCreateComment, deleteComment: apiDeleteComment, resolveComment: apiResolveComment, unresolveComment: apiUnresolveComment, triggerAIReview: apiTriggerAIReview };
   }
 
   function escapeHtml(text) {
@@ -91,7 +95,14 @@
     const ytext = window.ytext;
     if (!view || !currentPageId) return;
 
-    const ranges = resolveCommentAnchors(comments, currentPageId, view, ydoc, ytext);
+    const allRanges = resolveCommentAnchors(comments, currentPageId, view, ydoc, ytext);
+    // Filter out resolved comment bars when hidden
+    const ranges = showResolved
+      ? allRanges
+      : allRanges.filter((r) => {
+          const c = comments.find((cm) => cm.external_id === r.commentId);
+          return c && !c.is_resolved;
+        });
     updateCommentHighlights(view, ranges);
 
     // Sort comments by document position (anchored comments first, then unanchored)
@@ -225,6 +236,49 @@
 
   function cancelDelete() {
     confirmingDelete = null;
+  }
+
+  // --- Resolve/unresolve ---
+
+  let showResolved = $state(localStorage.getItem("comments-show-resolved") === "true");
+
+  function getResolvedCount() {
+    return comments.filter((c) => !c.parent_id && c.is_resolved).length;
+  }
+
+  function getVisibleComments() {
+    if (showResolved) return comments;
+    return comments.filter((c) => !c.is_resolved);
+  }
+
+  function toggleShowResolved() {
+    showResolved = !showResolved;
+    localStorage.setItem("comments-show-resolved", showResolved);
+    resolveAndHighlight();
+  }
+
+  async function handleResolve(commentId) {
+    if (!currentPageId) return;
+    try {
+      const { resolveComment } = getApi();
+      await resolveComment(currentPageId, commentId);
+      await loadComments();
+    } catch (e) {
+      console.error("Error resolving comment:", e);
+      showToast("Couldn't resolve the comment at this time.", "error");
+    }
+  }
+
+  async function handleUnresolve(commentId) {
+    if (!currentPageId) return;
+    try {
+      const { unresolveComment } = getApi();
+      await unresolveComment(currentPageId, commentId);
+      await loadComments();
+    } catch (e) {
+      console.error("Error unresolving comment:", e);
+      showToast("Couldn't unresolve the comment at this time.", "error");
+    }
   }
 
   const _inflight = new Set(); // synchronous guard — $state batching can't be trusted for dedup
@@ -496,17 +550,33 @@
       {/if}
     </div>
 
+    {#if getResolvedCount() > 0}
+      <div class="comments-resolved-bar">
+        <span class="comments-resolved-count">{getResolvedCount()} resolved</span>
+        <button class="comments-resolved-toggle" onclick={() => toggleShowResolved()}>
+          {showResolved ? "Hide" : "Show"}
+        </button>
+      </div>
+    {/if}
+
     {#if comments.length === 0}
       <div class="comments-empty">
         <p class="comments-empty-text">No comments yet</p>
         <p class="comments-empty-hint">Select text in the editor and add a comment</p>
       </div>
+    {:else if getVisibleComments().length === 0}
+      <div class="comments-empty">
+        <p class="comments-empty-text">All comments resolved</p>
+        <p class="comments-empty-hint">
+          <button class="comments-resolved-toggle" onclick={() => toggleShowResolved()}>Show resolved</button>
+        </p>
+      </div>
     {:else}
       <div class="comments-list">
-        {#each comments as comment (comment.external_id)}
+        {#each getVisibleComments() as comment (comment.external_id)}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="comment-card" class:comment-card-ai={comment.ai_persona} class:comment-card-active={activeCommentId === comment.external_id} data-comment-id={comment.external_id} onclick={() => handleCommentClick(comment.external_id)} animate:flip={{ duration: 200 }} transition:slide={{ duration: 200 }}>
+          <div class="comment-card" class:comment-card-ai={comment.ai_persona} class:comment-card-active={activeCommentId === comment.external_id} class:comment-card-resolved={comment.is_resolved} data-comment-id={comment.external_id} onclick={() => handleCommentClick(comment.external_id)} animate:flip={{ duration: 200 }} transition:slide={{ duration: 200 }}>
             <div class="comment-header">
               {#if comment.ai_persona}
                 <span class="comment-avatar comment-avatar-ai" style="background-image: url({PERSONA_SPRITE_URL}); background-position: {PERSONAS[comment.ai_persona]?.bgPosition || '0 0'}; background-size: 200% 200%;"></span>
@@ -520,6 +590,22 @@
                 {/if}
               </span>
               <span class="comment-time">{formatDate(comment.created)}</span>
+              {#if !comment.parent_id}
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <span
+                  class="comment-resolve-btn"
+                  class:comment-resolve-btn-resolved={comment.is_resolved}
+                  title={comment.is_resolved ? "Unresolve" : "Resolve"}
+                  onclick={(e) => { e.stopPropagation(); comment.is_resolved ? handleUnresolve(comment.external_id) : handleResolve(comment.external_id); }}
+                >
+                  {#if comment.is_resolved}
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                  {:else}
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="9 12 12 15 16 10"/></svg>
+                  {/if}
+                </span>
+              {/if}
             </div>
 
             {#if comment.anchor_text}
@@ -940,6 +1026,70 @@
     margin: 0;
   }
 
+  /* Resolved filter bar */
+  .comments-resolved-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary, #666);
+    border-bottom: 1px solid var(--border-light, rgba(0, 0, 0, 0.06));
+  }
+
+  .comments-resolved-count {
+    color: var(--text-tertiary, #aaa);
+  }
+
+  .comments-resolved-toggle {
+    font-size: 0.75rem;
+    color: var(--accent, #0969da);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .comments-resolved-toggle:hover {
+    text-decoration: underline;
+  }
+
+  /* Resolve button (checkmark in header) */
+  .comment-resolve-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    color: var(--text-tertiary, #aaa);
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .comment-resolve-btn:hover {
+    color: #16a34a;
+    background: rgba(22, 163, 74, 0.08);
+  }
+
+  .comment-resolve-btn-resolved {
+    color: #16a34a;
+  }
+
+  .comment-resolve-btn-resolved:hover {
+    color: var(--text-tertiary, #aaa);
+    background: rgba(0, 0, 0, 0.04);
+  }
+
+  /* Resolved card styling */
+  .comment-card-resolved {
+    opacity: 0.55;
+  }
+
+  .comment-card-resolved:hover {
+    opacity: 0.85;
+  }
+
   /* Dark mode */
   :global(.dark) .comment-card-active {
     background: rgba(255, 180, 0, 0.08);
@@ -958,6 +1108,10 @@
 
   :global(.dark) .ai-trigger-btn:hover:not(:disabled) {
     background: var(--bg-elevated, #2a2a2a);
+  }
+
+  :global(.dark) .comment-resolve-btn-resolved:hover {
+    background: rgba(255, 255, 255, 0.06);
   }
 
 </style>

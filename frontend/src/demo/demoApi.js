@@ -281,6 +281,20 @@ export async function deleteComment(_pageId, _commentId) {
 }
 
 /**
+ * Resolve comment - not available in demo mode
+ */
+export async function resolveComment(_pageId, _commentId) {
+  throw new DemoModeError("resolve comments");
+}
+
+/**
+ * Unresolve comment - not available in demo mode
+ */
+export async function unresolveComment(_pageId, _commentId) {
+  throw new DemoModeError("unresolve comments");
+}
+
+/**
  * Trigger AI review - not available in demo mode
  */
 export async function triggerAIReview(_pageId, _persona) {

@@ -8,6 +8,7 @@ from django.core.cache import cache
 from django.db.models import Count
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from ninja import Field, Query, Router, Schema
 
 from backend.utils import log_warning
@@ -64,6 +65,9 @@ class CommentOut(Schema):
     anchor_to_b64: Optional[str] = None
     anchor_text: str = ""
     can_reply: bool = True
+    is_resolved: bool = False
+    resolved_by: Optional[AuthorOut] = None
+    resolved_at: Optional[datetime] = None
     created: datetime
     modified: datetime
     replies: List["CommentOut"] = []
@@ -141,6 +145,9 @@ def _comment_to_out(comment, replies=None, replies_count=0) -> CommentOut:
         anchor_to_b64=anchor_to_b64,
         anchor_text=comment.anchor_text,
         can_reply=comment.can_reply,
+        is_resolved=comment.is_resolved,
+        resolved_by=_author_out(comment.resolved_by) if comment.resolved_by_id else None,
+        resolved_at=comment.resolved_at,
         created=comment.created,
         modified=comment.modified,
         replies=replies or [],
@@ -162,7 +169,7 @@ def list_comments(request: HttpRequest, external_id: str, query: CommentsQueryPa
     # Fetch root comments with pagination
     root_qs = (
         Comment.objects.filter(page=page, parent__isnull=True)
-        .select_related("author", "requester", "parent")
+        .select_related("author", "requester", "parent", "resolved_by")
         .order_by("created")
     )
     total = root_qs.count()
@@ -175,7 +182,9 @@ def list_comments(request: HttpRequest, external_id: str, query: CommentsQueryPa
 
     # Fetch ALL descendants of these roots (full thread tree via root FK)
     descendants = list(
-        Comment.objects.filter(root_id__in=root_ids).select_related("author", "requester", "parent").order_by("created")
+        Comment.objects.filter(root_id__in=root_ids)
+        .select_related("author", "requester", "parent", "resolved_by")
+        .order_by("created")
     )
 
     # Group by parent_id for recursive tree building
@@ -215,7 +224,7 @@ def list_replies(
 
     replies_qs = (
         Comment.objects.filter(parent=comment)
-        .select_related("author", "requester", "parent")
+        .select_related("author", "requester", "parent", "resolved_by")
         .annotate(child_count=Count("replies"))
         .order_by("created")
     )
@@ -436,3 +445,73 @@ def delete_comment(request: HttpRequest, external_id: str, comment_id: str):
     notify_comments_updated(str(page.external_id))
 
     return 204, None
+
+
+@comments_router.post(
+    "/{external_id}/comments/{comment_id}/resolve/",
+    response={200: CommentOut, 400: dict, 403: dict, 404: dict},
+)
+def resolve_comment(request: HttpRequest, external_id: str, comment_id: str):
+    """Mark a root comment thread as resolved."""
+    page = get_object_or_404(
+        Page.objects.get_user_accessible_pages(request.user),
+        external_id=external_id,
+    )
+
+    if not user_can_edit_in_page(request.user, page):
+        return 403, {"detail": "You do not have edit access to this page."}
+
+    comment = (
+        Comment.objects.filter(page=page, external_id=comment_id)
+        .select_related("author", "requester", "resolved_by")
+        .first()
+    )
+    if not comment:
+        return 404, {"detail": "Comment not found."}
+
+    if comment.parent_id is not None:
+        return 400, {"detail": "Only root comments can be resolved."}
+
+    # Idempotent — already resolved is a no-op
+    if not comment.resolved_at:
+        comment.resolved_at = timezone.now()
+        comment.resolved_by = request.user
+        comment.save(update_fields=["resolved_at", "resolved_by", "modified"])
+        notify_comments_updated(str(page.external_id))
+
+    return 200, _comment_to_out(comment)
+
+
+@comments_router.post(
+    "/{external_id}/comments/{comment_id}/unresolve/",
+    response={200: CommentOut, 400: dict, 403: dict, 404: dict},
+)
+def unresolve_comment(request: HttpRequest, external_id: str, comment_id: str):
+    """Mark a root comment thread as unresolved."""
+    page = get_object_or_404(
+        Page.objects.get_user_accessible_pages(request.user),
+        external_id=external_id,
+    )
+
+    if not user_can_edit_in_page(request.user, page):
+        return 403, {"detail": "You do not have edit access to this page."}
+
+    comment = (
+        Comment.objects.filter(page=page, external_id=comment_id)
+        .select_related("author", "requester", "resolved_by")
+        .first()
+    )
+    if not comment:
+        return 404, {"detail": "Comment not found."}
+
+    if comment.parent_id is not None:
+        return 400, {"detail": "Only root comments can be unresolved."}
+
+    # Idempotent — already unresolved is a no-op
+    if comment.resolved_at:
+        comment.resolved_at = None
+        comment.resolved_by = None
+        comment.save(update_fields=["resolved_at", "resolved_by", "modified"])
+        notify_comments_updated(str(page.external_id))
+
+    return 200, _comment_to_out(comment)
