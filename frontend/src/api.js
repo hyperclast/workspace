@@ -676,11 +676,10 @@ export async function fetchRewindDetail(pageExternalId, rewindExternalId) {
  * @param {string} pageExternalId - External ID of the page
  * @param {number} [limit=100] - Number of root comments to fetch
  * @param {number} [offset=0] - Offset for pagination
- * @param {number} [repliesLimit=20] - Max replies per root comment
  * @returns {Promise<{items: Array, count: number}>}
  */
-export async function fetchComments(pageExternalId, limit = 100, offset = 0, repliesLimit = 20) {
-  const params = new URLSearchParams({ limit, offset, replies_limit: repliesLimit });
+export async function fetchComments(pageExternalId, limit = 100, offset = 0) {
+  const params = new URLSearchParams({ limit, offset });
   const response = await csrfFetch(`${API_BASE}/pages/${pageExternalId}/comments/?${params}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch comments: ${response.statusText}`);

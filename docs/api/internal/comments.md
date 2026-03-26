@@ -29,11 +29,10 @@ Retrieve comments for a page, with nested replies.
 
 ### Query Params
 
-| Parameter       | Type | Default | Description                     |
-| --------------- | ---- | ------- | ------------------------------- |
-| `limit`         | int  | 100     | Max root comments (max 100)     |
-| `offset`        | int  | 0       | Number of root comments to skip |
-| `replies_limit` | int  | 20      | Max replies per root (max 50)   |
+| Parameter | Type | Default | Description                     |
+| --------- | ---- | ------- | ------------------------------- |
+| `limit`   | int  | 100     | Max root comments (max 100)     |
+| `offset`  | int  | 0       | Number of root comments to skip |
 
 ### Authorization
 
@@ -63,6 +62,7 @@ Requires `user_can_access_page()` — anyone who can read the page can see comme
       "anchor_text": "the highlighted passage",
       "created": "2026-03-18T10:00:00Z",
       "modified": "2026-03-18T10:00:00Z",
+      "can_reply": true,
       "replies_count": 1,
       "replies": [
         {
@@ -77,7 +77,9 @@ Requires `user_can_access_page()` — anyone who can read the page can see comme
           "anchor_text": "",
           "created": "2026-03-18T10:05:00Z",
           "modified": "2026-03-18T10:05:00Z",
-          "replies": []
+          "can_reply": true,
+          "replies": [],
+          "replies_count": 0
         }
       ]
     }
@@ -88,13 +90,14 @@ Requires `user_can_access_page()` — anyone who can read the page can see comme
 
 **Notes:**
 
-- Root comments are paginated. Replies are nested inline; only the first `replies_limit` replies are returned per root. Use [List replies](#list-replies) to load more.
+- Root comments are paginated. All replies are nested inline as a full thread tree.
 - Sorted by `created` ascending.
 - `anchor_from_b64` / `anchor_to_b64` are base64-encoded Yjs RelativePositions. May be null for AI comments pending deferred resolution.
 - `anchor_text` is a plain text snapshot of the highlighted range.
-- `ai_persona` is empty for human comments, or one of: `socrates`, `einstein`, `dewey`.
+- `ai_persona` is empty for human comments, or one of: `socrates`, `einstein`, `dewey`, `athena`.
 - `requester` is set for AI comments (the user who triggered the review), null for human comments.
-- `replies_count` is the total number of direct replies for a comment; use it to show "Load more replies (X more)". Each inline reply also includes `replies_count` for its own children, enabling lazy-loaded nesting.
+- `can_reply` is `true` if the comment's depth allows further replies, `false` at max depth. Nesting is limited to 8 levels (depth 0–7) via `COMMENT_MAX_DEPTH`.
+- `replies_count` is the number of direct child replies for a comment.
 
 ---
 
@@ -148,6 +151,7 @@ Requires `user_can_access_page()` — anyone who can read the page can list repl
       "anchor_text": "",
       "created": "2026-03-18T10:05:00Z",
       "modified": "2026-03-18T10:05:00Z",
+      "can_reply": true,
       "replies": [],
       "replies_count": 0
     }
@@ -197,11 +201,11 @@ Requires `user_can_edit_in_page()` — editors only.
 
 ### Error Responses
 
-| Status | Condition                                           |
-| ------ | --------------------------------------------------- |
-| 400    | Empty body, missing anchor on root, anchor on reply |
-| 403    | User is not an editor                               |
-| 404    | Page or parent comment not found                    |
+| Status | Condition                                                          |
+| ------ | ------------------------------------------------------------------ |
+| 400    | Empty body, missing anchor on root, anchor on reply, max depth hit |
+| 403    | User is not an editor                                              |
+| 404    | Page or parent comment not found                                   |
 
 ---
 
@@ -247,7 +251,7 @@ Edit a comment's body or set anchors (deferred resolution).
 
 ## Delete comment
 
-Delete a comment. Deleting a root comment cascades to all replies.
+Delete a comment. Deleting a comment cascades to all its replies (at any depth).
 
 ### URL
 
@@ -293,9 +297,9 @@ Requires `user_can_edit_in_page()` — editors only.
 
 ### Request Body
 
-| Field     | Type   | Required | Description                                    |
-| --------- | ------ | -------- | ---------------------------------------------- |
-| `persona` | string | Yes      | AI persona: `socrates`, `einstein`, or `dewey` |
+| Field     | Type   | Required | Description                                              |
+| --------- | ------ | -------- | -------------------------------------------------------- |
+| `persona` | string | Yes      | AI persona: `socrates`, `einstein`, `dewey`, or `athena` |
 
 ### Response
 

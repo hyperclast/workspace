@@ -3,12 +3,18 @@ from html import escape as html_escape
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 
 from ask.constants import AIProvider
+from ask.exceptions import AIKeyNotConfiguredError
+from ask.helpers.llm import create_chat_completion, get_ai_config_for_user
 from backend.utils import log_error, log_info
+from collab.utils import notify_ai_review_complete, notify_comments_updated
 from core.helpers import task
 
 from .models import (
+    Comment,
+    Page,
     PageEditorAddEvent,
     PageEditorRemoveEvent,
     PageInvitation,
@@ -141,8 +147,6 @@ def _build_numbered_content(content: str) -> str:
 
 def _build_context_pages(page) -> str:
     """Build context from other pages in the project, respecting cost guardrails."""
-    from pages.models import Page
-
     other_pages = (
         Page.objects.filter(project=page.project, is_deleted=False)
         .exclude(id=page.id)
@@ -201,13 +205,6 @@ def _parse_ai_response(response_text: str) -> list:
 @task(settings.JOB_INTERNAL_QUEUE)
 def run_ai_review(page_id: int, persona: str, requester_id: int):
     """Run AI review on a page. Creates Comment objects for each AI comment."""
-    from django.core.cache import cache
-
-    from ask.exceptions import AIKeyNotConfiguredError
-    from ask.helpers.llm import create_chat_completion, get_ai_config_for_user
-    from collab.utils import notify_ai_review_complete, notify_comments_updated
-    from pages.models import Comment, Page
-
     cache_key = f"ai_review:{page_id}:{persona}"
     page_eid = None
     try:
@@ -336,13 +333,6 @@ def _format_thread_for_prompt(chain):
 @task(settings.JOB_INTERNAL_QUEUE)
 def run_ai_reply(reply_comment_id: int, persona: str, requester_id: int):
     """Generate an AI persona reply to a user's comment in a thread."""
-    from django.core.cache import cache
-
-    from ask.exceptions import AIKeyNotConfiguredError
-    from ask.helpers.llm import create_chat_completion, get_ai_config_for_user
-    from collab.utils import notify_comments_updated
-    from pages.models import Comment
-
     cache_key = f"ai_reply:{reply_comment_id}"
 
     try:
@@ -356,9 +346,7 @@ def run_ai_reply(reply_comment_id: int, persona: str, requester_id: int):
         return
 
     # Check max depth before generating a reply
-    from pages.models.comments import COMMENT_MAX_DEPTH
-
-    if user_reply.depth >= COMMENT_MAX_DEPTH - 1:
+    if not user_reply.can_reply:
         log_info("AI reply: max depth reached for comment %s, skipping", reply_comment_id)
         cache.delete(cache_key)
         return

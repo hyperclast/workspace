@@ -45,8 +45,8 @@ class TestRunAIReplyTask(BaseAuthenticatedViewTestCase):
         cache.clear()
         super().tearDown()
 
-    @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_comments_updated")
+    @patch("pages.tasks.create_chat_completion")
     def test_creates_reply_comment(self, mock_llm, mock_broadcast):
         mock_llm.return_value = {
             "choices": [{"message": {"content": "Can you define what 10x means in concrete numbers?"}}]
@@ -67,8 +67,8 @@ class TestRunAIReplyTask(BaseAuthenticatedViewTestCase):
         self.assertEqual(reply.page_id, self.page.id)
         mock_broadcast.assert_called_once_with(str(self.page.external_id))
 
-    @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_comments_updated")
+    @patch("pages.tasks.create_chat_completion")
     def test_works_with_empty_page_content(self, mock_llm, mock_broadcast):
         """Thread context alone is sufficient — empty page content should not block reply."""
         self.page.details["content"] = ""
@@ -81,7 +81,7 @@ class TestRunAIReplyTask(BaseAuthenticatedViewTestCase):
         self.assertEqual(Comment.objects.filter(parent=self.user_reply).count(), 1)
         mock_broadcast.assert_called_once()
 
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.create_chat_completion")
     def test_llm_failure_clears_cache_no_comment(self, mock_llm):
         mock_llm.side_effect = Exception("API error")
         cache_key = f"ai_reply:{self.user_reply.id}"
@@ -92,7 +92,7 @@ class TestRunAIReplyTask(BaseAuthenticatedViewTestCase):
         self.assertIsNone(cache.get(cache_key))
         self.assertEqual(Comment.objects.filter(parent=self.user_reply).count(), 0)
 
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.create_chat_completion")
     def test_empty_llm_response_clears_cache_no_comment(self, mock_llm):
         mock_llm.return_value = {"choices": [{"message": {"content": "   "}}]}
 
@@ -139,8 +139,8 @@ class TestRunAIReplyTask(BaseAuthenticatedViewTestCase):
 
         self.assertIsNone(cache.get(cache_key))
 
-    @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_comments_updated")
+    @patch("pages.tasks.create_chat_completion")
     def test_includes_anchor_text_in_prompt(self, mock_llm, mock_broadcast):
         mock_llm.return_value = {"choices": [{"message": {"content": "Interesting."}}]}
 
@@ -152,8 +152,8 @@ class TestRunAIReplyTask(BaseAuthenticatedViewTestCase):
         user_message = next(m for m in messages if m["role"] == "user")
         self.assertIn(self.ai_comment.anchor_text, user_message["content"])
 
-    @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_comments_updated")
+    @patch("pages.tasks.create_chat_completion")
     def test_includes_thread_conversation_in_prompt(self, mock_llm, mock_broadcast):
         mock_llm.return_value = {"choices": [{"message": {"content": "Follow-up."}}]}
 
@@ -166,8 +166,8 @@ class TestRunAIReplyTask(BaseAuthenticatedViewTestCase):
         self.assertIn("What do you mean by scalable?", user_message["content"])
         self.assertIn("I mean it should handle 10x traffic.", user_message["content"])
 
-    @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_comments_updated")
+    @patch("pages.tasks.create_chat_completion")
     def test_deep_thread_chain(self, mock_llm, mock_broadcast):
         """AI reply works correctly in a deeper thread (AI -> User -> AI -> User)."""
         # Simulate AI's first reply

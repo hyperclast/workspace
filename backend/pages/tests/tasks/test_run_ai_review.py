@@ -72,9 +72,9 @@ class TestRunAIReviewTask(BaseAuthenticatedViewTestCase):
         cache.clear()
         super().tearDown()
 
-    @patch("collab.utils.notify_ai_review_complete")
-    @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_ai_review_complete")
+    @patch("pages.tasks.notify_comments_updated")
+    @patch("pages.tasks.create_chat_completion")
     def test_creates_comments_from_llm_response(self, mock_llm, mock_broadcast, mock_review_complete):
         mock_llm.return_value = {
             "choices": [
@@ -97,8 +97,8 @@ class TestRunAIReviewTask(BaseAuthenticatedViewTestCase):
         mock_broadcast.assert_called_once_with(str(self.page.external_id))
         mock_review_complete.assert_called_once_with(str(self.page.external_id), "socrates", 1)
 
-    @patch("collab.utils.notify_ai_review_complete")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_ai_review_complete")
+    @patch("pages.tasks.create_chat_completion")
     def test_empty_content_skips_gracefully(self, mock_llm, mock_review_complete):
         self.page.details["content"] = ""
         self.page.save(update_fields=["details", "modified"])
@@ -109,8 +109,8 @@ class TestRunAIReviewTask(BaseAuthenticatedViewTestCase):
         self.assertEqual(Comment.objects.filter(page=self.page).count(), 0)
         mock_review_complete.assert_called_once_with(str(self.page.external_id), "socrates", 0)
 
-    @patch("collab.utils.notify_ai_review_complete")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_ai_review_complete")
+    @patch("pages.tasks.create_chat_completion")
     def test_llm_failure_clears_cache_and_returns(self, mock_llm, mock_review_complete):
         mock_llm.side_effect = Exception("API error")
         cache_key = f"ai_review:{self.page.id}:socrates"
@@ -122,9 +122,9 @@ class TestRunAIReviewTask(BaseAuthenticatedViewTestCase):
         self.assertEqual(Comment.objects.filter(page=self.page).count(), 0)
         mock_review_complete.assert_called_once_with(str(self.page.external_id), "socrates", 0)
 
-    @patch("collab.utils.notify_ai_review_complete")
-    @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_ai_review_complete")
+    @patch("pages.tasks.notify_comments_updated")
+    @patch("pages.tasks.create_chat_completion")
     def test_unparseable_response_creates_no_comments(self, mock_llm, mock_broadcast, mock_review_complete):
         mock_llm.return_value = {"choices": [{"message": {"content": "I cannot produce JSON."}}]}
 

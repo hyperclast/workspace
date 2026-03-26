@@ -5,6 +5,7 @@ from django.core.cache import cache
 
 from core.tests.common import BaseAuthenticatedViewTestCase
 from pages.models import Comment
+from pages.models.comments import COMMENT_MAX_DEPTH
 from pages.tests.factories import CommentFactory, PageFactory, ProjectFactory
 from users.constants import OrgMemberRole
 from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory
@@ -125,6 +126,69 @@ class TestListComments(CommentsTestMixin, BaseAuthenticatedViewTestCase):
         self.assertEqual(data["items"][0]["replies_count"], 1)
         self.assertEqual(data["items"][0]["replies"][0]["replies_count"], 3)
 
+    def test_list_comments_branching_tree(self):
+        """Branching thread tree is correctly nested in the response (T-3)."""
+        root = CommentFactory(page=self.page, author=self.user, anchor_text="text")
+        # Two direct replies to root
+        reply_a = CommentFactory(page=self.page, author=self.user, parent=root)
+        reply_b = CommentFactory(page=self.page, author=self.user, parent=root)
+        # Sub-replies under reply_a
+        sub_a1 = CommentFactory(page=self.page, author=self.user, parent=reply_a)
+        sub_a2 = CommentFactory(page=self.page, author=self.user, parent=reply_a)
+        sub_a3 = CommentFactory(page=self.page, author=self.user, parent=reply_a)
+        # Sub-reply under reply_b
+        sub_b1 = CommentFactory(page=self.page, author=self.user, parent=reply_b)
+
+        response = self.send_api_request(url=self.url())
+        data = response.json()
+
+        self.assertEqual(data["count"], 1)
+        thread = data["items"][0]
+        self.assertEqual(thread["external_id"], root.external_id)
+        self.assertEqual(thread["replies_count"], 2)
+        self.assertEqual(len(thread["replies"]), 2)
+
+        # Find reply_a and reply_b in the response (ordered by created)
+        r_a = thread["replies"][0]
+        r_b = thread["replies"][1]
+        self.assertEqual(r_a["external_id"], reply_a.external_id)
+        self.assertEqual(r_b["external_id"], reply_b.external_id)
+
+        # reply_a has 3 sub-replies
+        self.assertEqual(r_a["replies_count"], 3)
+        self.assertEqual(len(r_a["replies"]), 3)
+        sub_a_ids = {s["external_id"] for s in r_a["replies"]}
+        self.assertEqual(sub_a_ids, {sub_a1.external_id, sub_a2.external_id, sub_a3.external_id})
+
+        # reply_b has 1 sub-reply
+        self.assertEqual(r_b["replies_count"], 1)
+        self.assertEqual(len(r_b["replies"]), 1)
+        self.assertEqual(r_b["replies"][0]["external_id"], sub_b1.external_id)
+
+    def test_list_comments_can_reply_true_for_shallow(self):
+        """can_reply is true for a root comment (T-6)."""
+        CommentFactory(page=self.page, author=self.user, anchor_text="text")
+
+        response = self.send_api_request(url=self.url())
+        data = response.json()
+
+        self.assertTrue(data["items"][0]["can_reply"])
+
+    def test_list_comments_can_reply_false_at_max_depth(self):
+        """can_reply is false for a comment at max depth (T-6)."""
+        comment = CommentFactory(page=self.page, author=self.user)
+        for _ in range(COMMENT_MAX_DEPTH - 1):
+            comment = CommentFactory(page=self.page, author=self.user, parent=comment)
+
+        response = self.send_api_request(url=self.url())
+        data = response.json()
+
+        # Walk to the deepest reply in the nested response
+        node = data["items"][0]
+        while node["replies"]:
+            node = node["replies"][0]
+        self.assertFalse(node["can_reply"])
+
     def test_list_comments_deep_thread_returned_inline(self):
         """AI conversation threads are fully expanded without 'load more' clicks."""
         ai_root = CommentFactory(page=self.page, author=None, ai_persona="socrates", requester=self.user)
@@ -198,6 +262,34 @@ class TestListReplies(CommentsTestMixin, BaseAuthenticatedViewTestCase):
         data = response.json()
         self.assertEqual(data["count"], 1)
         self.assertEqual(data["items"][0]["replies_count"], 4)
+
+    def test_list_replies_includes_can_reply(self):
+        """list_replies response includes can_reply for each reply (T-8)."""
+        root = CommentFactory(page=self.page, author=self.user, anchor_text="text")
+        reply = CommentFactory(page=self.page, author=self.user, parent=root)
+
+        response = self.send_api_request(url=self.replies_url(root.external_id))
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        data = response.json()
+        self.assertEqual(len(data["items"]), 1)
+        self.assertIn("can_reply", data["items"][0])
+        # depth 1 reply can still be replied to
+        self.assertTrue(data["items"][0]["can_reply"])
+
+    def test_list_replies_can_reply_false_at_max_depth(self):
+        """list_replies returns can_reply=false for replies at max depth (T-8)."""
+        # Build a chain to max depth - 1 (the deepest allowed)
+        comment = CommentFactory(page=self.page, author=self.user)
+        for _ in range(COMMENT_MAX_DEPTH - 1):
+            comment = CommentFactory(page=self.page, author=self.user, parent=comment)
+
+        # List replies of the second-to-last comment — should include the deepest
+        parent = Comment.objects.get(id=comment.parent_id)
+        response = self.send_api_request(url=self.replies_url(parent.external_id))
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        data = response.json()
+        self.assertEqual(len(data["items"]), 1)
+        self.assertFalse(data["items"][0]["can_reply"])
 
     def test_list_replies_no_access(self):
         other_user = UserFactory()
@@ -446,7 +538,7 @@ class TestAIReview(CommentsTestMixin, BaseAuthenticatedViewTestCase):
         cache.clear()
         super().tearDown()
 
-    @patch("pages.tasks.run_ai_review")
+    @patch("pages.api.comments.run_ai_review")
     @patch("collab.tasks.sync_snapshot_with_page")
     def test_trigger_ai_review(self, mock_sync, mock_task):
         mock_task.enqueue = lambda *args, **kwargs: None
@@ -464,7 +556,7 @@ class TestAIReview(CommentsTestMixin, BaseAuthenticatedViewTestCase):
         response = self.send_api_request(url=url, method="post", data={"persona": "plato"})
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
 
-    @patch("pages.tasks.run_ai_review")
+    @patch("pages.api.comments.run_ai_review")
     @patch("collab.tasks.sync_snapshot_with_page")
     def test_syncs_content_before_enqueue(self, mock_sync, mock_task):
         mock_task.enqueue = lambda *args, **kwargs: None
@@ -495,7 +587,7 @@ class TestAIReplyTrigger(CommentsTestMixin, BaseAuthenticatedViewTestCase):
         cache.clear()
         super().tearDown()
 
-    @patch("pages.tasks.run_ai_reply")
+    @patch("pages.api.comments.run_ai_reply")
     @patch("pages.api.comments.notify_comments_updated")
     def test_reply_to_ai_comment_enqueues_ai_reply(self, _mock_broadcast, mock_task):
         mock_task.enqueue = lambda *args, **kwargs: None
@@ -509,7 +601,7 @@ class TestAIReplyTrigger(CommentsTestMixin, BaseAuthenticatedViewTestCase):
         reply = Comment.objects.filter(parent=ai_comment, author=self.user).first()
         self.assertIsNotNone(reply)
 
-    @patch("pages.tasks.run_ai_reply")
+    @patch("pages.api.comments.run_ai_reply")
     @patch("pages.api.comments.notify_comments_updated")
     def test_reply_to_human_comment_does_not_enqueue(self, _mock_broadcast, mock_task):
         enqueue_called = []
@@ -522,26 +614,32 @@ class TestAIReplyTrigger(CommentsTestMixin, BaseAuthenticatedViewTestCase):
         self.assertEqual(response.status_code, HTTPStatus.CREATED)
         self.assertEqual(len(enqueue_called), 0)
 
-    @patch("pages.tasks.run_ai_reply")
+    @patch("pages.api.comments.run_ai_reply")
     @patch("pages.api.comments.notify_comments_updated")
     def test_dedup_prevents_double_enqueue(self, _mock_broadcast, mock_task):
-        """If the cache key already exists, enqueue should not be called."""
+        """If the cache key already exists for a reply, enqueue is skipped."""
         enqueue_called = []
         mock_task.enqueue = lambda *args, **kwargs: enqueue_called.append(args)
 
         ai_comment = CommentFactory(page=self.page, author=None, ai_persona="einstein", requester=self.user)
-        data = {"body": "Testing dedup.", "parent_id": ai_comment.external_id}
 
-        # First reply should trigger enqueue
+        # First reply — should trigger enqueue
+        data = {"body": "First reply.", "parent_id": ai_comment.external_id}
         response = self.send_api_request(url=self.url(), method="post", data=data)
         self.assertEqual(response.status_code, HTTPStatus.CREATED)
-        reply_1 = Comment.objects.filter(parent=ai_comment, author=self.user).first()
+        self.assertEqual(len(enqueue_called), 1)
 
-        # Pre-set cache for the second reply to simulate dedup
-        second_data = {"body": "Second reply.", "parent_id": ai_comment.external_id}
-        # Create second reply — we need to pre-set the cache key for it
-        # Since we can't know the comment ID before creation, test that
-        # the first call did enqueue
+        # The cache key for the first reply is `ai_reply:{reply.id}`.
+        # Pre-set the cache key for the *next* reply that will be created
+        # to simulate the dedup guard being active.
+        next_id = Comment.objects.order_by("-id").first().id + 1
+        cache.set(f"ai_reply:{next_id}", 1, timeout=300)
+
+        # Second reply to the same AI comment — enqueue should be skipped
+        data = {"body": "Second reply.", "parent_id": ai_comment.external_id}
+        response = self.send_api_request(url=self.url(), method="post", data=data)
+        self.assertEqual(response.status_code, HTTPStatus.CREATED)
+        # Still only 1 enqueue call — the second was deduped
         self.assertEqual(len(enqueue_called), 1)
 
 

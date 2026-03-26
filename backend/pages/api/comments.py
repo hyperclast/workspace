@@ -14,8 +14,8 @@ from backend.utils import log_warning
 from collab.utils import notify_comments_updated
 from core.authentication import session_auth, token_auth
 from pages.models import AIPersona, Comment, Page
-from pages.models.comments import COMMENT_MAX_DEPTH
 from pages.permissions import user_can_edit_in_page
+from pages.tasks import run_ai_reply, run_ai_review
 from pages.throttling import AIReviewThrottle, CommentCreationThrottle
 
 
@@ -46,7 +46,6 @@ class AuthorOut(Schema):
 class CommentsQueryParams(Schema):
     limit: int = Field(default=COMMENTS_PAGE_SIZE_MAX, le=COMMENTS_PAGE_SIZE_MAX)
     offset: int = Field(default=0, ge=0)
-    replies_limit: int = Field(default=REPLIES_DEFAULT_LIMIT, le=REPLIES_PAGE_SIZE_MAX)
 
 
 class RepliesQueryParams(Schema):
@@ -141,7 +140,7 @@ def _comment_to_out(comment, replies=None, replies_count=0) -> CommentOut:
         anchor_from_b64=anchor_from_b64,
         anchor_to_b64=anchor_to_b64,
         anchor_text=comment.anchor_text,
-        can_reply=comment.depth < COMMENT_MAX_DEPTH - 1,
+        can_reply=comment.can_reply,
         created=comment.created,
         modified=comment.modified,
         replies=replies or [],
@@ -254,7 +253,7 @@ def create_comment(request: HttpRequest, external_id: str, payload: CommentCreat
             return 400, {"detail": "Replies cannot have their own anchors."}
 
         # Enforce max nesting depth
-        if parent.depth >= COMMENT_MAX_DEPTH - 1:
+        if not parent.can_reply:
             return 400, {"detail": "Maximum comment nesting depth reached."}
     else:
         # Root comments are either anchored (have anchor_text) or page-level (no anchor)
@@ -297,8 +296,6 @@ def create_comment(request: HttpRequest, external_id: str, payload: CommentCreat
 
     # If this is a reply to an AI persona comment, trigger auto-reply
     if parent and parent.ai_persona:
-        from pages.tasks import run_ai_reply
-
         reply_cache_key = f"ai_reply:{comment.id}"
         if cache.add(reply_cache_key, 1, timeout=AI_REPLY_DEDUP_TIMEOUT):
             run_ai_reply.enqueue(comment.id, parent.ai_persona, request.user.id)
@@ -325,8 +322,6 @@ def trigger_ai_review(request: HttpRequest, external_id: str, payload: AIReviewI
     valid_personas = [choice[0] for choice in AIPersona.choices]
     if payload.persona not in valid_personas:
         return 400, {"detail": f"Invalid persona. Must be one of: {', '.join(valid_personas)}"}
-
-    from pages.tasks import run_ai_review
 
     # Atomic dedup: set a cache flag for this page+persona.
     # cache.add() is atomic — returns False if the key already exists.

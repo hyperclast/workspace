@@ -132,6 +132,11 @@ class Comment(TimeStampedModel):
         chain.reverse()
         return chain
 
+    @property
+    def can_reply(self) -> bool:
+        """Whether a reply can be added as a child of this comment."""
+        return self.depth < COMMENT_MAX_DEPTH - 1
+
     def __str__(self):
         if self.ai_persona:
             return f"{self.ai_persona} comment on {self.page}"

@@ -6,7 +6,6 @@
   import { registerTabHandler, registerPageChangeHandler, getState, openSidebar, setActiveTab } from "../../stores/sidebar.svelte.js";
   import {
     fetchComments as apiFetchComments,
-    fetchReplies as apiFetchReplies,
     createComment as apiCreateComment,
     deleteComment as apiDeleteComment,
     triggerAIReview as apiTriggerAIReview,
@@ -14,7 +13,6 @@
   import { isDemoMode } from "../../../demo/index.js";
   import {
     fetchComments as demoFetchComments,
-    fetchReplies as demoFetchReplies,
     createComment as demoCreateComment,
     deleteComment as demoDeleteComment,
     triggerAIReview as demoTriggerAIReview,
@@ -36,8 +34,8 @@
 
   function getApi() {
     return isDemoMode()
-      ? { fetchComments: demoFetchComments, fetchReplies: demoFetchReplies, createComment: demoCreateComment, deleteComment: demoDeleteComment, triggerAIReview: demoTriggerAIReview }
-      : { fetchComments: apiFetchComments, fetchReplies: apiFetchReplies, createComment: apiCreateComment, deleteComment: apiDeleteComment, triggerAIReview: apiTriggerAIReview };
+      ? { fetchComments: demoFetchComments, createComment: demoCreateComment, deleteComment: demoDeleteComment, triggerAIReview: demoTriggerAIReview }
+      : { fetchComments: apiFetchComments, createComment: apiCreateComment, deleteComment: apiDeleteComment, triggerAIReview: apiTriggerAIReview };
   }
 
   function escapeHtml(text) {
@@ -57,9 +55,7 @@
   let comments = $state([]);
   let currentPageId = $state(null);
   let loading = $state(false);
-  let loadingMoreReplies = $state(null);
   let replyingTo = $state(null); // external_id of comment being replied to
-  let expandedReplyIds = new Set(); // comment IDs whose deeper replies have been loaded
   let pageCommentBody = $state("");
   let replyBody = $state("");
 
@@ -134,45 +130,6 @@
     }, 500);
   }
 
-  /**
-   * Find a comment by external_id anywhere in the tree.
-   */
-  function findInTree(items, targetId) {
-    for (const c of items) {
-      if (c.external_id === targetId) return c;
-      if (c.replies?.length > 0) {
-        const found = findInTree(c.replies, targetId);
-        if (found) return found;
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Re-expand any replies that were previously loaded at deeper nesting levels.
-   * Called after loadComments to restore nested reply state.
-   */
-  async function reExpandDeepReplies() {
-    if (expandedReplyIds.size === 0) return;
-    const { fetchReplies } = getApi();
-    for (const id of expandedReplyIds) {
-      const comment = findInTree(comments, id);
-      if (!comment || (comment.replies_count || 0) === 0) continue;
-      const loaded = comment.replies?.length || 0;
-      if (loaded >= comment.replies_count) continue;
-      try {
-        const data = await fetchReplies(currentPageId, id, 20, loaded);
-        comments = updateInTree(comments, id, (c) => ({
-          ...c,
-          replies: [...(c.replies || []), ...data.items],
-        }));
-      } catch (e) {
-        // Stale ID — comment was deleted; remove from tracking set
-        expandedReplyIds.delete(id);
-      }
-    }
-  }
-
   let loadCommentsInFlight = false;
 
   async function loadComments() {
@@ -194,7 +151,6 @@
       const { fetchComments } = getApi();
       const data = await fetchComments(currentPageId);
       comments = data.items || [];
-      await reExpandDeepReplies();
       resolveAndHighlight();
       // Always retry — the editor may be replaced by the collab upgrade later,
       // wiping highlights applied to the initial REST-content editor.
@@ -227,20 +183,6 @@
     }
   }
 
-  /**
-   * Recursively find a comment by external_id and apply an updater function.
-   * Works at any nesting depth.
-   */
-  function updateInTree(items, targetId, updater) {
-    return items.map((c) => {
-      if (c.external_id === targetId) return updater(c);
-      if (c.replies?.length > 0) {
-        return { ...c, replies: updateInTree(c.replies, targetId, updater) };
-      }
-      return c;
-    });
-  }
-
   async function handleReply(parentId) {
     if (!replyBody.trim() || !currentPageId) return;
 
@@ -252,14 +194,6 @@
       });
       replyBody = "";
       replyingTo = null;
-
-      // Track that this parent has expanded nested replies so loadComments
-      // re-fetches them after the server-pushed refresh.
-      const parent = findInTree(comments, parentId);
-      if (parent?.parent_id) {
-        // Replying to a non-root comment — track the parent for re-expansion
-        expandedReplyIds.add(parentId);
-      }
 
       await loadComments();
     } catch (e) {
@@ -353,27 +287,6 @@
       view.dispatch({
         effects: EditorView.scrollIntoView(range.from, { y: "center" }),
       });
-    }
-  }
-
-  async function handleLoadMoreReplies(comment) {
-    if (!currentPageId || loadingMoreReplies) return;
-    const loadedCount = comment.replies?.length || 0;
-    if (loadedCount >= (comment.replies_count || 0)) return;
-
-    loadingMoreReplies = comment.external_id;
-    try {
-      const { fetchReplies } = getApi();
-      const data = await fetchReplies(currentPageId, comment.external_id, 20, loadedCount);
-      comments = updateInTree(comments, comment.external_id, (c) => ({
-        ...c,
-        replies: [...(c.replies || []), ...data.items],
-      }));
-      // Track so loadComments preserves this expansion
-      expandedReplyIds.add(comment.external_id);
-      resolveAndHighlight();
-    } finally {
-      loadingMoreReplies = null;
     }
   }
 
@@ -511,17 +424,6 @@
         {/each}
       </div>
     {/if}
-    {#if (reply.replies_count || 0) > (reply.replies?.length || 0)}
-      <button
-        class="comment-load-more"
-        disabled={loadingMoreReplies === reply.external_id}
-        onclick={() => handleLoadMoreReplies(reply)}
-      >
-        {loadingMoreReplies === reply.external_id
-          ? "Loading..."
-          : `Load more replies (${(reply.replies_count || 0) - (reply.replies?.length || 0)} more)`}
-      </button>
-    {/if}
     {#if replyingTo === reply.external_id}
       <div class="comment-reply-input">
         <textarea
@@ -550,17 +452,6 @@
         {@render renderReply(reply)}
       {/each}
     </div>
-  {/if}
-  {#if (comment.replies_count || 0) > (comment.replies?.length || 0)}
-    <button
-      class="comment-load-more"
-      disabled={loadingMoreReplies === comment.external_id}
-      onclick={() => handleLoadMoreReplies(comment)}
-    >
-      {loadingMoreReplies === comment.external_id
-        ? "Loading..."
-        : `Load more replies (${(comment.replies_count || 0) - (comment.replies?.length || 0)} more)`}
-    </button>
   {/if}
   {#if replyingTo === comment.external_id}
     <div class="comment-reply-input">
@@ -884,26 +775,6 @@
     display: flex;
     flex-direction: column;
     gap: 0.375rem;
-  }
-
-  .comment-load-more {
-    margin-top: 0.375rem;
-    font-size: 0.6875rem;
-    color: var(--text-tertiary, #aaa);
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    text-align: left;
-  }
-
-  .comment-load-more:hover:not(:disabled) {
-    color: var(--accent, #0969da);
-  }
-
-  .comment-load-more:disabled {
-    cursor: not-allowed;
-    opacity: 0.7;
   }
 
   .comment-reply {

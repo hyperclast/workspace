@@ -59,14 +59,15 @@ Get all comments for a page, with nested replies.
 }
 ```
 
-| Field             | Description                                                               |
-| ----------------- | ------------------------------------------------------------------------- |
-| `ai_persona`      | Empty for human comments, or `socrates` / `einstein` / `dewey` / `athena` |
-| `requester`       | User who triggered AI review (null for human comments)                    |
-| `anchor_from_b64` | Base64 Yjs RelativePosition (start). Null if pending deferred resolution  |
-| `anchor_to_b64`   | Base64 Yjs RelativePosition (end)                                         |
-| `anchor_text`     | Plain text snapshot of the highlighted range                              |
-| `replies`         | Nested array of reply comments (same schema, supports arbitrary nesting)  |
+| Field             | Description                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------------ |
+| `ai_persona`      | Empty for human comments, or `socrates` / `einstein` / `dewey` / `athena`                        |
+| `requester`       | User who triggered AI review (null for human comments)                                           |
+| `anchor_from_b64` | Base64 Yjs RelativePosition (start). Null if pending deferred resolution                         |
+| `anchor_to_b64`   | Base64 Yjs RelativePosition (end)                                                                |
+| `anchor_text`     | Plain text snapshot of the highlighted range                                                     |
+| `can_reply`       | `true` if the comment's depth allows further replies, `false` at max depth (8 levels)            |
+| `replies`         | Nested array of reply comments (same schema, nested up to 8 levels deep via `COMMENT_MAX_DEPTH`) |
 
 ---
 
@@ -90,7 +91,8 @@ Get all comments for a page, with nested replies.
 **Notes:**
 
 - Root comments require `anchor_text`
-- Replies set `parent_id` to any comment's external ID (arbitrary nesting)
+- Replies set `parent_id` to any comment's external ID
+- Nesting is limited to 8 levels deep (`COMMENT_MAX_DEPTH`). Replies at max depth return 400.
 - Replies cannot have anchors (they inherit the root comment's anchor)
 
 ---
@@ -129,7 +131,7 @@ Get all comments for a page, with nested replies.
 
 **Notes:**
 
-- Deleting a root comment cascades to all replies
+- Deleting a comment cascades to all its replies (at any depth)
 - Human comments: author only
 - AI comments: any editor
 

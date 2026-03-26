@@ -232,9 +232,9 @@ class TestRunAIReview(TestCase):
         cache.clear()
         super().tearDown()
 
-    @patch("collab.utils.notify_ai_review_complete")
-    @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_ai_review_complete")
+    @patch("pages.tasks.notify_comments_updated")
+    @patch("pages.tasks.create_chat_completion")
     def test_successful_review_creates_comments(self, mock_llm, mock_notify, mock_review_complete):
         ai_response = json.dumps(
             [
@@ -259,9 +259,9 @@ class TestRunAIReview(TestCase):
         mock_notify.assert_called_once_with(str(self.page.external_id))
         mock_review_complete.assert_called_once_with(str(self.page.external_id), "socrates", 2)
 
-    @patch("collab.utils.notify_ai_review_complete")
-    @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_ai_review_complete")
+    @patch("pages.tasks.notify_comments_updated")
+    @patch("pages.tasks.create_chat_completion")
     def test_successful_review_clears_cache_flag(self, mock_llm, mock_notify, mock_review_complete):
         ai_response = json.dumps(
             [
@@ -277,8 +277,8 @@ class TestRunAIReview(TestCase):
 
         self.assertIsNone(cache.get(cache_key))
 
-    @patch("collab.utils.notify_ai_review_complete")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_ai_review_complete")
+    @patch("pages.tasks.create_chat_completion")
     def test_page_not_found_clears_cache(self, mock_llm, mock_review_complete):
         cache_key = "ai_review:99999:socrates"
         cache.set(cache_key, 1, timeout=300)
@@ -290,8 +290,8 @@ class TestRunAIReview(TestCase):
         # page_eid is None when page not found, so no review_complete notification
         mock_review_complete.assert_not_called()
 
-    @patch("collab.utils.notify_ai_review_complete")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_ai_review_complete")
+    @patch("pages.tasks.create_chat_completion")
     def test_user_not_found_clears_cache(self, mock_llm, mock_review_complete):
         cache_key = f"ai_review:{self.page.id}:socrates"
         cache.set(cache_key, 1, timeout=300)
@@ -303,8 +303,8 @@ class TestRunAIReview(TestCase):
         # page was found so page_eid is set — notification should fire
         mock_review_complete.assert_called_once_with(str(self.page.external_id), "socrates", 0)
 
-    @patch("collab.utils.notify_ai_review_complete")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_ai_review_complete")
+    @patch("pages.tasks.create_chat_completion")
     def test_empty_content_clears_cache(self, mock_llm, mock_review_complete):
         self.page.details = {"content": ""}
         self.page.save(update_fields=["details", "modified"])
@@ -318,8 +318,8 @@ class TestRunAIReview(TestCase):
         self.assertIsNone(cache.get(cache_key))
         mock_review_complete.assert_called_once_with(str(self.page.external_id), "socrates", 0)
 
-    @patch("collab.utils.notify_ai_review_complete")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_ai_review_complete")
+    @patch("pages.tasks.create_chat_completion")
     def test_whitespace_only_content_clears_cache(self, mock_llm, mock_review_complete):
         self.page.details = {"content": "   \n  "}
         self.page.save(update_fields=["details", "modified"])
@@ -333,8 +333,8 @@ class TestRunAIReview(TestCase):
         self.assertIsNone(cache.get(cache_key))
         mock_review_complete.assert_called_once_with(str(self.page.external_id), "socrates", 0)
 
-    @patch("collab.utils.notify_ai_review_complete")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_ai_review_complete")
+    @patch("pages.tasks.create_chat_completion")
     def test_invalid_persona_clears_cache(self, mock_llm, mock_review_complete):
         cache_key = f"ai_review:{self.page.id}:plato"
         cache.set(cache_key, 1, timeout=300)
@@ -345,9 +345,9 @@ class TestRunAIReview(TestCase):
         self.assertIsNone(cache.get(cache_key))
         mock_review_complete.assert_called_once_with(str(self.page.external_id), "plato", 0)
 
-    @patch("collab.utils.notify_ai_review_complete")
-    @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_ai_review_complete")
+    @patch("pages.tasks.notify_comments_updated")
+    @patch("pages.tasks.create_chat_completion")
     def test_llm_failure_clears_cache_no_comments(self, mock_llm, mock_notify, mock_review_complete):
         mock_llm.side_effect = Exception("API timeout")
 
@@ -361,9 +361,9 @@ class TestRunAIReview(TestCase):
         mock_notify.assert_not_called()
         mock_review_complete.assert_called_once_with(str(self.page.external_id), "socrates", 0)
 
-    @patch("collab.utils.notify_ai_review_complete")
-    @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_ai_review_complete")
+    @patch("pages.tasks.notify_comments_updated")
+    @patch("pages.tasks.create_chat_completion")
     def test_unparseable_response_clears_cache_no_comments(self, mock_llm, mock_notify, mock_review_complete):
         mock_llm.return_value = {"choices": [{"message": {"content": "Sorry, I can't do that."}}]}
 
@@ -377,9 +377,9 @@ class TestRunAIReview(TestCase):
         mock_notify.assert_not_called()
         mock_review_complete.assert_called_once_with(str(self.page.external_id), "socrates", 0)
 
-    @patch("collab.utils.notify_ai_review_complete")
-    @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_ai_review_complete")
+    @patch("pages.tasks.notify_comments_updated")
+    @patch("pages.tasks.create_chat_completion")
     def test_deleted_page_not_found(self, mock_llm, mock_notify, mock_review_complete):
         self.page.is_deleted = True
         self.page.save(update_fields=["is_deleted", "modified"])
@@ -392,9 +392,9 @@ class TestRunAIReview(TestCase):
         mock_llm.assert_not_called()
         self.assertIsNone(cache.get(cache_key))
 
-    @patch("collab.utils.notify_ai_review_complete")
-    @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_ai_review_complete")
+    @patch("pages.tasks.notify_comments_updated")
+    @patch("pages.tasks.create_chat_completion")
     def test_current_page_title_escaped_in_prompt(self, mock_llm, mock_notify, mock_review_complete):
         """Page titles with special chars are HTML-escaped in the LLM prompt."""
         self.page.title = 'My "Notes" <v2> & more'
@@ -410,9 +410,9 @@ class TestRunAIReview(TestCase):
         self.assertIn("My &quot;Notes&quot; &lt;v2&gt; &amp; more", user_message)
         self.assertNotIn("<v2>", user_message)
 
-    @patch("collab.utils.notify_ai_review_complete")
-    @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_ai_review_complete")
+    @patch("pages.tasks.notify_comments_updated")
+    @patch("pages.tasks.create_chat_completion")
     def test_athena_persona_accepted(self, mock_llm, mock_notify, mock_review_complete):
         """The athena persona is valid and creates comments."""
         ai_response = json.dumps([{"anchor_text": "Some document", "body": "Set a deadline and ship it."}])
@@ -425,9 +425,9 @@ class TestRunAIReview(TestCase):
         self.assertEqual(comments.first().body, "Set a deadline and ship it.")
         mock_review_complete.assert_called_once_with(str(self.page.external_id), "athena", 1)
 
-    @patch("collab.utils.notify_ai_review_complete")
-    @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.notify_ai_review_complete")
+    @patch("pages.tasks.notify_comments_updated")
+    @patch("pages.tasks.create_chat_completion")
     def test_empty_json_array_notifies_zero_comments(self, mock_llm, mock_notify, mock_review_complete):
         """When the AI returns an empty array, no comments are created but notification is sent."""
         mock_llm.return_value = {"choices": [{"message": {"content": "[]"}}]}

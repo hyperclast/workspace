@@ -177,7 +177,7 @@ class TestAIReviewCacheDedup(CommentsRegressionMixin, BaseAuthenticatedViewTestC
     def ai_review_url(self):
         return f"/api/pages/{self.page.external_id}/comments/ai-review/"
 
-    @patch("pages.tasks.run_ai_review")
+    @patch("pages.api.comments.run_ai_review")
     @patch("collab.tasks.sync_snapshot_with_page")
     def test_first_request_accepted(self, _mock_sync, mock_task):
         mock_task.enqueue = lambda *args, **kwargs: None
@@ -185,7 +185,7 @@ class TestAIReviewCacheDedup(CommentsRegressionMixin, BaseAuthenticatedViewTestC
         response = self.send_api_request(url=self.ai_review_url(), method="post", data={"persona": "socrates"})
         self.assertEqual(response.status_code, HTTPStatus.ACCEPTED)
 
-    @patch("pages.tasks.run_ai_review")
+    @patch("pages.api.comments.run_ai_review")
     @patch("collab.tasks.sync_snapshot_with_page")
     def test_duplicate_request_returns_409(self, _mock_sync, mock_task):
         mock_task.enqueue = lambda *args, **kwargs: None
@@ -198,7 +198,7 @@ class TestAIReviewCacheDedup(CommentsRegressionMixin, BaseAuthenticatedViewTestC
         self.assertEqual(response.status_code, HTTPStatus.CONFLICT)
         self.assertIn("already reviewing", response.json()["detail"])
 
-    @patch("pages.tasks.run_ai_review")
+    @patch("pages.api.comments.run_ai_review")
     @patch("collab.tasks.sync_snapshot_with_page")
     def test_different_persona_not_blocked(self, _mock_sync, mock_task):
         mock_task.enqueue = lambda *args, **kwargs: None
@@ -210,7 +210,7 @@ class TestAIReviewCacheDedup(CommentsRegressionMixin, BaseAuthenticatedViewTestC
         response = self.send_api_request(url=self.ai_review_url(), method="post", data={"persona": "einstein"})
         self.assertEqual(response.status_code, HTTPStatus.ACCEPTED)
 
-    @patch("pages.tasks.run_ai_review")
+    @patch("pages.api.comments.run_ai_review")
     @patch("collab.tasks.sync_snapshot_with_page")
     def test_flag_cleared_allows_retry(self, _mock_sync, mock_task):
         mock_task.enqueue = lambda *args, **kwargs: None
@@ -230,7 +230,7 @@ class TestCommentCreationThrottling(CommentsRegressionMixin, BaseAuthenticatedVi
     """Comment creation is rate-limited per user."""
 
     @override_settings(WS_COMMENTS_RATE_LIMIT_REQUESTS=1, WS_COMMENTS_RATE_LIMIT_WINDOW_SECONDS=60)
-    @patch("collab.utils.notify_comments_updated")
+    @patch("pages.api.comments.notify_comments_updated")
     def test_second_create_within_window_throttled(self, _mock):
         data = {"body": "First.", "anchor_text": "text", "parent_id": None}
         self.send_api_request(url=self.url(), method="post", data=data)
@@ -250,7 +250,7 @@ class TestAIReviewThrottling(CommentsRegressionMixin, BaseAuthenticatedViewTestC
         WS_AI_REVIEW_RATE_LIMIT_REQUESTS=1,
         WS_AI_REVIEW_RATE_LIMIT_WINDOW_SECONDS=60,
     )
-    @patch("pages.tasks.run_ai_review")
+    @patch("pages.api.comments.run_ai_review")
     @patch("collab.tasks.sync_snapshot_with_page")
     def test_second_ai_review_within_window_throttled(self, _mock_sync, mock_task):
         mock_task.enqueue = lambda *args, **kwargs: None
@@ -263,7 +263,7 @@ class TestAIReviewThrottling(CommentsRegressionMixin, BaseAuthenticatedViewTestC
 class TestSyncFailureLogsWarning(CommentsRegressionMixin, BaseAuthenticatedViewTestCase):
     """#9: Sync failure should log warning, not silently pass."""
 
-    @patch("pages.tasks.run_ai_review")
+    @patch("pages.api.comments.run_ai_review")
     @patch("pages.api.comments.log_warning")
     @patch(
         "collab.tasks.sync_snapshot_with_page",
