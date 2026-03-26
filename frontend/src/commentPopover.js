@@ -10,13 +10,14 @@
 
 import * as Y from "yjs";
 import { StateField, StateEffect } from "@codemirror/state";
-import { showTooltip, Decoration, EditorView, keymap } from "@codemirror/view";
+import { showTooltip, Decoration, EditorView, ViewPlugin, keymap } from "@codemirror/view";
 import { createComment } from "./api.js";
 
 // --- Effects ---
 
 const openCommentForm = StateEffect.define();
 const closeCommentPopover = StateEffect.define();
+const setCommentButton = StateEffect.define();
 
 // --- State ---
 
@@ -249,6 +250,10 @@ const commentPopoverField = StateField.define({
 });
 
 // --- Selection watcher: shows button tooltip when text is selected ---
+//
+// The button is driven by explicit show/hide effects from the controller
+// rather than recalculating on every selection change. This prevents the
+// button from chasing the cursor during mouse drag or keyboard extend.
 
 const commentButtonTooltip = StateField.define({
   create() {
@@ -260,30 +265,126 @@ const commentButtonTooltip = StateField.define({
     const popoverState = tr.state.field(commentPopoverField);
     if (popoverState.stage === "form") return null;
 
-    // Show button when there's a non-empty selection
-    const sel = tr.state.selection.main;
-    if (sel.from !== sel.to) {
-      // Anchor to the end of the last line of the selection (not sel.to,
-      // which may be on a distant line after trailing blank lines).
-      const lastLine = tr.state.doc.lineAt(sel.to);
-      const anchorPos =
-        sel.to === lastLine.from && sel.to > sel.from
-          ? tr.state.doc.lineAt(sel.to - 1).to // sel.to is at line start — use previous line end
-          : sel.to;
-      return {
-        pos: anchorPos,
-        above: false,
-        arrow: false,
-        create: (view) => createButtonTooltip(view),
-      };
+    // Explicit show/hide from the controller takes priority
+    for (const effect of tr.effects) {
+      if (effect.is(setCommentButton)) return effect.value;
     }
-    return null;
+
+    // Hide when selection is empty
+    const sel = tr.state.selection.main;
+    if (sel.from === sel.to) return null;
+
+    // Hide when selection changes without an explicit show effect —
+    // the controller will re-show after mouseup or keyboard debounce.
+    // (tr.selection is defined only when the transaction explicitly sets
+    // a selection, as opposed to mapping the old selection through changes.)
+    if (tr.selection) return null;
+
+    return value;
   },
 
   provide(field) {
     return showTooltip.from(field);
   },
 });
+
+// --- Controller: orchestrates when the button appears ---
+
+function computeButtonTooltipPos(state) {
+  const sel = state.selection.main;
+  if (sel.from === sel.to) return null;
+
+  // Anchor to the end of the last line of the selection (not sel.to,
+  // which may be on a distant line after trailing blank lines).
+  const lastLine = state.doc.lineAt(sel.to);
+  const anchorPos =
+    sel.to === lastLine.from && sel.to > sel.from
+      ? state.doc.lineAt(sel.to - 1).to // sel.to is at line start — use previous line end
+      : sel.to;
+
+  return {
+    pos: anchorPos,
+    above: false,
+    arrow: false,
+    create: (view) => createButtonTooltip(view),
+  };
+}
+
+const KEYBOARD_DEBOUNCE_MS = 300;
+
+const commentButtonController = ViewPlugin.fromClass(
+  class {
+    constructor(view) {
+      this.view = view;
+      this.mouseIsDown = false;
+      this.debounceTimer = null;
+
+      this._onDocMouseUp = this._onDocMouseUp.bind(this);
+      document.addEventListener("mouseup", this._onDocMouseUp);
+    }
+
+    _onDocMouseUp() {
+      if (!this.mouseIsDown) return;
+      this.mouseIsDown = false;
+      // Let CM finalize the selection from the mouseup before reading it
+      requestAnimationFrame(() => {
+        this._showButton();
+      });
+    }
+
+    _showButton() {
+      const state = this.view.state;
+      if (state.field(commentPopoverField).stage === "form") return;
+      const tooltip = computeButtonTooltipPos(state);
+      if (tooltip) {
+        this.view.dispatch({ effects: setCommentButton.of(tooltip) });
+      }
+    }
+
+    update(update) {
+      if (!update.selectionSet) return;
+
+      // Selection changed — the StateField already hid the button.
+      // Now decide when to re-show it.
+
+      if (this.mouseIsDown) {
+        // Mouse is actively dragging — wait for mouseup
+        clearTimeout(this.debounceTimer);
+        this.debounceTimer = null;
+        return;
+      }
+
+      const sel = update.state.selection.main;
+      if (sel.from === sel.to) {
+        // Selection cleared — nothing to show
+        clearTimeout(this.debounceTimer);
+        this.debounceTimer = null;
+        return;
+      }
+
+      // Keyboard selection — debounce so the button doesn't chase the cursor
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = setTimeout(() => {
+        this._showButton();
+        this.debounceTimer = null;
+      }, KEYBOARD_DEBOUNCE_MS);
+    }
+
+    destroy() {
+      document.removeEventListener("mouseup", this._onDocMouseUp);
+      clearTimeout(this.debounceTimer);
+    }
+  },
+  {
+    eventHandlers: {
+      mousedown() {
+        this.mouseIsDown = true;
+        clearTimeout(this.debounceTimer);
+        this.debounceTimer = null;
+      },
+    },
+  }
+);
 
 // --- Theme ---
 
@@ -490,6 +591,10 @@ const commentKeymap = keymap.of([{ key: "Mod-Alt-m", run: openCommentFormCommand
 export const commentPopover = [
   commentPopoverField,
   commentButtonTooltip,
+  commentButtonController,
   commentPopoverTheme,
   commentKeymap,
 ];
+
+// Exported for tests — not part of the public API.
+export const _commentButtonController = commentButtonController;
