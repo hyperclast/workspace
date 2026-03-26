@@ -677,6 +677,156 @@ class TestCommentDepthLimit(CommentsTestMixin, BaseAuthenticatedViewTestCase):
         self.assertEqual(reply.depth, 7)
 
 
+class TestResolveComment(CommentsTestMixin, BaseAuthenticatedViewTestCase):
+    """Tests for resolve/unresolve comment endpoints."""
+
+    def resolve_url(self, comment_id, page=None):
+        page = page or self.page
+        return f"/api/pages/{page.external_id}/comments/{comment_id}/resolve/"
+
+    def unresolve_url(self, comment_id, page=None):
+        page = page or self.page
+        return f"/api/pages/{page.external_id}/comments/{comment_id}/unresolve/"
+
+    @patch("pages.api.comments.notify_comments_updated")
+    def test_resolve_root_comment(self, mock_notify):
+        """Resolving a root comment sets resolved_at and resolved_by."""
+        comment = CommentFactory(page=self.page, author=self.user, anchor_text="text")
+
+        response = self.send_api_request(url=self.resolve_url(comment.external_id), method="post")
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        data = response.json()
+        self.assertTrue(data["is_resolved"])
+        self.assertIsNotNone(data["resolved_at"])
+        self.assertEqual(data["resolved_by"]["external_id"], self.user.external_id)
+
+        comment.refresh_from_db()
+        self.assertIsNotNone(comment.resolved_at)
+        self.assertEqual(comment.resolved_by, self.user)
+        mock_notify.assert_called_once()
+
+    @patch("pages.api.comments.notify_comments_updated")
+    def test_unresolve_comment(self, mock_notify):
+        """Unresolving clears resolved_at and resolved_by."""
+        comment = CommentFactory(page=self.page, author=self.user, anchor_text="text")
+        # Resolve first
+        self.send_api_request(url=self.resolve_url(comment.external_id), method="post")
+        mock_notify.reset_mock()
+
+        response = self.send_api_request(url=self.unresolve_url(comment.external_id), method="post")
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        data = response.json()
+        self.assertFalse(data["is_resolved"])
+        self.assertIsNone(data["resolved_at"])
+        self.assertIsNone(data["resolved_by"])
+
+        comment.refresh_from_db()
+        self.assertIsNone(comment.resolved_at)
+        self.assertIsNone(comment.resolved_by)
+        mock_notify.assert_called_once()
+
+    @patch("pages.api.comments.notify_comments_updated")
+    def test_resolve_is_idempotent(self, mock_notify):
+        """Resolving an already-resolved comment is a no-op 200."""
+        comment = CommentFactory(page=self.page, author=self.user, anchor_text="text")
+        self.send_api_request(url=self.resolve_url(comment.external_id), method="post")
+        mock_notify.reset_mock()
+
+        response = self.send_api_request(url=self.resolve_url(comment.external_id), method="post")
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertTrue(response.json()["is_resolved"])
+        mock_notify.assert_not_called()
+
+    @patch("pages.api.comments.notify_comments_updated")
+    def test_unresolve_is_idempotent(self, mock_notify):
+        """Unresolving an already-unresolved comment is a no-op 200."""
+        comment = CommentFactory(page=self.page, author=self.user, anchor_text="text")
+
+        response = self.send_api_request(url=self.unresolve_url(comment.external_id), method="post")
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertFalse(response.json()["is_resolved"])
+        mock_notify.assert_not_called()
+
+    @patch("pages.api.comments.notify_comments_updated")
+    def test_resolve_reply_rejected(self, _mock):
+        """Cannot resolve a reply — only root comments."""
+        root = CommentFactory(page=self.page, author=self.user, anchor_text="text")
+        reply = CommentFactory(page=self.page, author=self.user, parent=root)
+
+        response = self.send_api_request(url=self.resolve_url(reply.external_id), method="post")
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        self.assertIn("root", response.json()["detail"].lower())
+
+    @patch("pages.api.comments.notify_comments_updated")
+    def test_unresolve_reply_rejected(self, _mock):
+        """Cannot unresolve a reply — only root comments."""
+        root = CommentFactory(page=self.page, author=self.user, anchor_text="text")
+        reply = CommentFactory(page=self.page, author=self.user, parent=root)
+
+        response = self.send_api_request(url=self.unresolve_url(reply.external_id), method="post")
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+
+    def test_resolve_requires_edit_access(self):
+        """Viewers cannot resolve comments."""
+        viewer = UserFactory()
+        OrgMemberFactory(org=self.org, user=viewer, role=OrgMemberRole.MEMBER.value)
+        # Make org members not auto-access, then add viewer as project viewer
+        self.project.org_members_can_access = False
+        self.project.save(update_fields=["org_members_can_access", "modified"])
+        from pages.models import ProjectEditor
+
+        ProjectEditor.objects.create(project=self.project, user=viewer, role="viewer")
+
+        comment = CommentFactory(page=self.page, author=self.user, anchor_text="text")
+        self.login(viewer)
+        response = self.send_api_request(url=self.resolve_url(comment.external_id), method="post")
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+
+    @patch("pages.api.comments.notify_comments_updated")
+    def test_any_editor_can_resolve(self, _mock):
+        """Any page editor (not just the author) can resolve a comment."""
+        other_user = UserFactory()
+        OrgMemberFactory(org=self.org, user=other_user, role=OrgMemberRole.MEMBER.value)
+        comment = CommentFactory(page=self.page, author=self.user, anchor_text="text")
+
+        self.login(other_user)
+        response = self.send_api_request(url=self.resolve_url(comment.external_id), method="post")
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertTrue(response.json()["is_resolved"])
+
+    def test_resolve_not_found(self):
+        """Resolving a non-existent comment returns 404."""
+        response = self.send_api_request(url=self.resolve_url("nonexistent"), method="post")
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+    @patch("pages.api.comments.notify_comments_updated")
+    def test_list_includes_resolved_fields(self, _mock):
+        """List endpoint includes is_resolved, resolved_by, and resolved_at."""
+        comment = CommentFactory(page=self.page, author=self.user, anchor_text="text")
+        self.send_api_request(url=self.resolve_url(comment.external_id), method="post")
+
+        response = self.send_api_request(url=self.url())
+        data = response.json()
+        item = data["items"][0]
+        self.assertTrue(item["is_resolved"])
+        self.assertIsNotNone(item["resolved_at"])
+        self.assertEqual(item["resolved_by"]["external_id"], self.user.external_id)
+
+    @patch("pages.api.comments.notify_comments_updated")
+    def test_unresolved_comment_fields(self, _mock):
+        """Unresolved comments have is_resolved=False and null resolved_by/resolved_at."""
+        CommentFactory(page=self.page, author=self.user, anchor_text="text")
+
+        response = self.send_api_request(url=self.url())
+        data = response.json()
+        item = data["items"][0]
+        self.assertFalse(item["is_resolved"])
+        self.assertIsNone(item["resolved_at"])
+        self.assertIsNone(item["resolved_by"])
+
+
 class TestCommentFactory(CommentsTestMixin, BaseAuthenticatedViewTestCase):
     """Verify CommentFactory handles root vs reply anchor_text correctly."""
 

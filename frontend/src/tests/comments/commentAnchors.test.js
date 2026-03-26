@@ -375,4 +375,51 @@ describe("resolveCommentAnchors — pure logic", () => {
     expect(result[0].commentId).toBe("root1");
     expect(result[1].commentId).toBe("root2");
   });
+
+  // --- Resolved flag ---
+
+  test("sets isResolved flag for resolved comments", () => {
+    createView("Hello world");
+    const comments = [
+      makeComment({
+        external_id: "resolved1",
+        anchor_text: "Hello",
+        is_resolved: true,
+      }),
+    ];
+
+    const result = resolveCommentAnchors(comments, "page1", view, null, null);
+    expect(result).toHaveLength(1);
+    expect(result[0].isResolved).toBe(true);
+  });
+
+  test("sets isResolved=false for unresolved comments", () => {
+    createView("Hello world");
+    const comments = [
+      makeComment({
+        external_id: "active1",
+        anchor_text: "Hello",
+        is_resolved: false,
+      }),
+    ];
+
+    const result = resolveCommentAnchors(comments, "page1", view, null, null);
+    expect(result).toHaveLength(1);
+    expect(result[0].isResolved).toBe(false);
+  });
+
+  test("isResolved defaults to false for comments without the field", () => {
+    createView("Hello world");
+    const comments = [
+      makeComment({
+        external_id: "legacy1",
+        anchor_text: "Hello",
+        // no is_resolved field
+      }),
+    ];
+
+    const result = resolveCommentAnchors(comments, "page1", view, null, null);
+    expect(result).toHaveLength(1);
+    expect(result[0].isResolved).toBe(false);
+  });
 });

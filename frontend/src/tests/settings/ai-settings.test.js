@@ -340,8 +340,11 @@ describe("AI Settings - Number formatting for usage stats", () => {
 
 describe("AI Settings - Date formatting", () => {
   test("formats dates for chart labels", () => {
+    // Mirrors UsageChart.svelte:formatDate — split-and-construct avoids the
+    // UTC-midnight pitfall of `new Date("YYYY-MM-DD")`.
     const formatDate = (dateStr) => {
-      const date = new Date(dateStr);
+      const [year, month, day] = dateStr.split("-").map(Number);
+      const date = new Date(year, month - 1, day);
       return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     };
 
