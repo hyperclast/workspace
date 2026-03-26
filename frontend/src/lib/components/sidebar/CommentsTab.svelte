@@ -294,14 +294,13 @@
     registerTabHandler("comments", loadComments);
     registerPageChangeHandler((pageId) => {
       currentPageId = pageId;
+      _inflight.clear();
+      pendingPersonas = new Set();
       loadComments();
     });
 
     commentsUpdatedHandler = () => {
       loadComments();
-      // Fallback: clear pending in case ai_review_complete event was lost
-      _inflight.clear();
-      pendingPersonas = new Set();
     };
     window.addEventListener("commentsUpdated", commentsUpdatedHandler);
 

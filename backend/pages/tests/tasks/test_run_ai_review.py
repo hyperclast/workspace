@@ -86,7 +86,7 @@ class TestRunAIReviewTask(BaseAuthenticatedViewTestCase):
             ]
         }
 
-        run_ai_review(self.page.id, "socrates", self.user.id)
+        run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
 
         comments = list(Comment.objects.filter(page=self.page, ai_persona="socrates"))
         self.assertEqual(len(comments), 1)
@@ -103,7 +103,7 @@ class TestRunAIReviewTask(BaseAuthenticatedViewTestCase):
         self.page.details["content"] = ""
         self.page.save(update_fields=["details", "modified"])
 
-        run_ai_review(self.page.id, "socrates", self.user.id)
+        run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
 
         mock_llm.assert_not_called()
         self.assertEqual(Comment.objects.filter(page=self.page).count(), 0)
@@ -116,7 +116,7 @@ class TestRunAIReviewTask(BaseAuthenticatedViewTestCase):
         cache_key = f"ai_review:{self.page.id}:socrates"
         cache.set(cache_key, 1, 300)
 
-        run_ai_review(self.page.id, "socrates", self.user.id)
+        run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
 
         self.assertIsNone(cache.get(cache_key))
         self.assertEqual(Comment.objects.filter(page=self.page).count(), 0)
@@ -128,7 +128,7 @@ class TestRunAIReviewTask(BaseAuthenticatedViewTestCase):
     def test_unparseable_response_creates_no_comments(self, mock_llm, mock_broadcast, mock_review_complete):
         mock_llm.return_value = {"choices": [{"message": {"content": "I cannot produce JSON."}}]}
 
-        run_ai_review(self.page.id, "socrates", self.user.id)
+        run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
 
         self.assertEqual(Comment.objects.filter(page=self.page).count(), 0)
         mock_broadcast.assert_not_called()

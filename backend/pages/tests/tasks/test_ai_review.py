@@ -8,14 +8,16 @@ Covers:
 """
 
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.core.cache import cache
 from django.test import TestCase
 
 from pages.models import Comment
+from ask.constants import AIProvider
 from pages.tasks import (
     MAX_CHARS_PER_PAGE,
+    REVIEW_MODELS,
     _build_context_pages,
     _parse_ai_response,
     run_ai_review,
@@ -244,7 +246,7 @@ class TestRunAIReview(TestCase):
         )
         mock_llm.return_value = {"choices": [{"message": {"content": ai_response}}]}
 
-        run_ai_review(self.page.id, "socrates", self.user.id)
+        run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
 
         comments = Comment.objects.filter(page=self.page)
         self.assertEqual(comments.count(), 2)
@@ -273,7 +275,7 @@ class TestRunAIReview(TestCase):
         cache_key = f"ai_review:{self.page.id}:socrates"
         cache.set(cache_key, 1, timeout=300)
 
-        run_ai_review(self.page.id, "socrates", self.user.id)
+        run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
 
         self.assertIsNone(cache.get(cache_key))
 
@@ -283,12 +285,12 @@ class TestRunAIReview(TestCase):
         cache_key = "ai_review:99999:socrates"
         cache.set(cache_key, 1, timeout=300)
 
-        run_ai_review(99999, "socrates", self.user.id)
+        run_ai_review(99999, "fake-eid", "socrates", self.user.id)
 
         mock_llm.assert_not_called()
         self.assertIsNone(cache.get(cache_key))
-        # page_eid is None when page not found, so no review_complete notification
-        mock_review_complete.assert_not_called()
+        # page_external_id is now passed in, so notification always fires
+        mock_review_complete.assert_called_once_with("fake-eid", "socrates", 0)
 
     @patch("pages.tasks.notify_ai_review_complete")
     @patch("pages.tasks.create_chat_completion")
@@ -296,7 +298,7 @@ class TestRunAIReview(TestCase):
         cache_key = f"ai_review:{self.page.id}:socrates"
         cache.set(cache_key, 1, timeout=300)
 
-        run_ai_review(self.page.id, "socrates", 99999)
+        run_ai_review(self.page.id, str(self.page.external_id), "socrates", 99999)
 
         mock_llm.assert_not_called()
         self.assertIsNone(cache.get(cache_key))
@@ -312,7 +314,7 @@ class TestRunAIReview(TestCase):
         cache_key = f"ai_review:{self.page.id}:socrates"
         cache.set(cache_key, 1, timeout=300)
 
-        run_ai_review(self.page.id, "socrates", self.user.id)
+        run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
 
         mock_llm.assert_not_called()
         self.assertIsNone(cache.get(cache_key))
@@ -327,7 +329,7 @@ class TestRunAIReview(TestCase):
         cache_key = f"ai_review:{self.page.id}:socrates"
         cache.set(cache_key, 1, timeout=300)
 
-        run_ai_review(self.page.id, "socrates", self.user.id)
+        run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
 
         mock_llm.assert_not_called()
         self.assertIsNone(cache.get(cache_key))
@@ -339,7 +341,7 @@ class TestRunAIReview(TestCase):
         cache_key = f"ai_review:{self.page.id}:plato"
         cache.set(cache_key, 1, timeout=300)
 
-        run_ai_review(self.page.id, "plato", self.user.id)
+        run_ai_review(self.page.id, str(self.page.external_id), "plato", self.user.id)
 
         mock_llm.assert_not_called()
         self.assertIsNone(cache.get(cache_key))
@@ -354,7 +356,7 @@ class TestRunAIReview(TestCase):
         cache_key = f"ai_review:{self.page.id}:socrates"
         cache.set(cache_key, 1, timeout=300)
 
-        run_ai_review(self.page.id, "socrates", self.user.id)
+        run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
 
         self.assertEqual(Comment.objects.filter(page=self.page).count(), 0)
         self.assertIsNone(cache.get(cache_key))
@@ -370,7 +372,7 @@ class TestRunAIReview(TestCase):
         cache_key = f"ai_review:{self.page.id}:socrates"
         cache.set(cache_key, 1, timeout=300)
 
-        run_ai_review(self.page.id, "socrates", self.user.id)
+        run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
 
         self.assertEqual(Comment.objects.filter(page=self.page).count(), 0)
         self.assertIsNone(cache.get(cache_key))
@@ -387,10 +389,12 @@ class TestRunAIReview(TestCase):
         cache_key = f"ai_review:{self.page.id}:socrates"
         cache.set(cache_key, 1, timeout=300)
 
-        run_ai_review(self.page.id, "socrates", self.user.id)
+        run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
 
         mock_llm.assert_not_called()
         self.assertIsNone(cache.get(cache_key))
+        # page_external_id is always available, so notification fires even for deleted pages
+        mock_review_complete.assert_called_once_with(str(self.page.external_id), "socrates", 0)
 
     @patch("pages.tasks.notify_ai_review_complete")
     @patch("pages.tasks.notify_comments_updated")
@@ -403,7 +407,7 @@ class TestRunAIReview(TestCase):
         ai_response = json.dumps([{"anchor_text": "text", "body": "comment"}])
         mock_llm.return_value = {"choices": [{"message": {"content": ai_response}}]}
 
-        run_ai_review(self.page.id, "socrates", self.user.id)
+        run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
 
         # Verify the user message sent to LLM has escaped title
         user_message = mock_llm.call_args.kwargs["messages"][1]["content"]
@@ -418,7 +422,7 @@ class TestRunAIReview(TestCase):
         ai_response = json.dumps([{"anchor_text": "Some document", "body": "Set a deadline and ship it."}])
         mock_llm.return_value = {"choices": [{"message": {"content": ai_response}}]}
 
-        run_ai_review(self.page.id, "athena", self.user.id)
+        run_ai_review(self.page.id, str(self.page.external_id), "athena", self.user.id)
 
         comments = Comment.objects.filter(page=self.page, ai_persona="athena")
         self.assertEqual(comments.count(), 1)
@@ -432,8 +436,132 @@ class TestRunAIReview(TestCase):
         """When the AI returns an empty array, no comments are created but notification is sent."""
         mock_llm.return_value = {"choices": [{"message": {"content": "[]"}}]}
 
-        run_ai_review(self.page.id, "socrates", self.user.id)
+        run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
 
         self.assertEqual(Comment.objects.filter(page=self.page).count(), 0)
         mock_notify.assert_not_called()
         mock_review_complete.assert_called_once_with(str(self.page.external_id), "socrates", 0)
+
+
+# --- Model selection ---
+
+
+class TestAIReviewModelSelection(TestCase):
+    """Tests that run_ai_review selects the correct model based on user config."""
+
+    def setUp(self):
+        self.org = OrgFactory()
+        self.user = UserFactory()
+        OrgMemberFactory(org=self.org, user=self.user, role=OrgMemberRole.MEMBER.value)
+        self.project = ProjectFactory(org=self.org, creator=self.user)
+        self.page = PageFactory(
+            project=self.project,
+            creator=self.user,
+            details={"content": "Some document content for AI review."},
+        )
+
+    def tearDown(self):
+        cache.clear()
+        super().tearDown()
+
+    def _make_config(self, provider, model_name="", api_base_url=""):
+        config = MagicMock()
+        config.provider = provider
+        config.model_name = model_name
+        config.api_base_url = api_base_url
+        return config
+
+    @patch("collab.utils.notify_ai_review_complete")
+    @patch("collab.utils.notify_comments_updated")
+    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("ask.helpers.llm.get_ai_config_for_user")
+    def test_no_user_model_uses_review_model(self, mock_get_config, mock_llm, mock_notify, mock_rc):
+        """When user has no model_name configured, REVIEW_MODELS fallback is used."""
+        mock_get_config.return_value = self._make_config(AIProvider.OPENAI.value)
+        ai_response = json.dumps([{"anchor_text": "text", "body": "comment"}])
+        mock_llm.return_value = {"choices": [{"message": {"content": ai_response}}]}
+
+        run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
+
+        mock_llm.assert_called_once()
+        self.assertEqual(mock_llm.call_args.kwargs["model"], REVIEW_MODELS[AIProvider.OPENAI.value])
+
+    @patch("collab.utils.notify_ai_review_complete")
+    @patch("collab.utils.notify_comments_updated")
+    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("ask.helpers.llm.get_ai_config_for_user")
+    def test_user_model_overrides_review_model(self, mock_get_config, mock_llm, mock_notify, mock_rc):
+        """When user has a model_name configured, it takes precedence (model=None lets LLM helper use config)."""
+        mock_get_config.return_value = self._make_config(AIProvider.OPENAI.value, model_name="gpt-4o")
+        ai_response = json.dumps([{"anchor_text": "text", "body": "comment"}])
+        mock_llm.return_value = {"choices": [{"message": {"content": ai_response}}]}
+
+        run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
+
+        mock_llm.assert_called_once()
+        self.assertIsNone(mock_llm.call_args.kwargs["model"])
+
+    @patch("collab.utils.notify_ai_review_complete")
+    @patch("collab.utils.notify_comments_updated")
+    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("ask.helpers.llm.get_ai_config_for_user")
+    def test_custom_provider_never_uses_review_model(self, mock_get_config, mock_llm, mock_notify, mock_rc):
+        """Custom providers should never get a hardcoded review model forced on them."""
+        mock_get_config.return_value = self._make_config(
+            AIProvider.CUSTOM.value, api_base_url="https://my-llm.example.com/v1"
+        )
+        ai_response = json.dumps([{"anchor_text": "text", "body": "comment"}])
+        mock_llm.return_value = {"choices": [{"message": {"content": ai_response}}]}
+
+        run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
+
+        mock_llm.assert_called_once()
+        self.assertIsNone(mock_llm.call_args.kwargs["model"])
+
+    @patch("collab.utils.notify_ai_review_complete")
+    @patch("collab.utils.notify_comments_updated")
+    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("ask.helpers.llm.get_ai_config_for_user")
+    def test_custom_provider_with_model_name_not_overridden(self, mock_get_config, mock_llm, mock_notify, mock_rc):
+        """Custom provider with a user-configured model_name should not be overridden."""
+        mock_get_config.return_value = self._make_config(
+            AIProvider.CUSTOM.value, model_name="llama-3-70b", api_base_url="https://my-llm.example.com/v1"
+        )
+        ai_response = json.dumps([{"anchor_text": "text", "body": "comment"}])
+        mock_llm.return_value = {"choices": [{"message": {"content": ai_response}}]}
+
+        run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
+
+        mock_llm.assert_called_once()
+        self.assertIsNone(mock_llm.call_args.kwargs["model"])
+
+    @patch("collab.utils.notify_ai_review_complete")
+    @patch("collab.utils.notify_comments_updated")
+    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("ask.helpers.llm.get_ai_config_for_user")
+    def test_anthropic_provider_uses_anthropic_review_model(self, mock_get_config, mock_llm, mock_notify, mock_rc):
+        """Anthropic provider without user model_name gets the Anthropic review model."""
+        mock_get_config.return_value = self._make_config(AIProvider.ANTHROPIC.value)
+        ai_response = json.dumps([{"anchor_text": "text", "body": "comment"}])
+        mock_llm.return_value = {"choices": [{"message": {"content": ai_response}}]}
+
+        run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
+
+        mock_llm.assert_called_once()
+        self.assertEqual(mock_llm.call_args.kwargs["model"], REVIEW_MODELS[AIProvider.ANTHROPIC.value])
+
+    @patch("collab.utils.notify_ai_review_complete")
+    @patch("collab.utils.notify_comments_updated")
+    @patch("ask.helpers.llm.create_chat_completion")
+    def test_ai_key_not_configured_passes_none_model(self, mock_llm, mock_notify, mock_rc):
+        """When AIKeyNotConfiguredError is raised, model=None is passed."""
+        from ask.exceptions import AIKeyNotConfiguredError
+
+        with patch("ask.helpers.llm.get_ai_config_for_user", side_effect=AIKeyNotConfiguredError):
+            ai_response = json.dumps([{"anchor_text": "text", "body": "comment"}])
+            mock_llm.return_value = {"choices": [{"message": {"content": ai_response}}]}
+
+            run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
+
+            mock_llm.assert_called_once()
+            self.assertIsNone(mock_llm.call_args.kwargs["model"])

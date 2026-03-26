@@ -203,18 +203,16 @@ def _parse_ai_response(response_text: str) -> list:
 
 
 @task(settings.JOB_INTERNAL_QUEUE)
-def run_ai_review(page_id: int, persona: str, requester_id: int):
+def run_ai_review(page_id: int, page_external_id: str, persona: str, requester_id: int):
     """Run AI review on a page. Creates Comment objects for each AI comment."""
     cache_key = f"ai_review:{page_id}:{persona}"
-    page_eid = None
+    page_eid = page_external_id
     try:
         page = Page.objects.get(id=page_id, is_deleted=False)
-        page_eid = str(page.external_id)
         requester = User.objects.get(id=requester_id)
     except (Page.DoesNotExist, User.DoesNotExist) as e:
         log_error("AI review: page or user not found: %s", e)
-        if page_eid:
-            notify_ai_review_complete(page_eid, persona, 0)
+        notify_ai_review_complete(page_eid, persona, 0)
         cache.delete(cache_key)
         return
 
@@ -232,10 +230,15 @@ def run_ai_review(page_id: int, persona: str, requester_id: int):
         cache.delete(cache_key)
         return
 
-    # Resolve review model for the user's AI provider
+    # Resolve review model for the user's AI provider.
+    # Only use REVIEW_MODELS as a fallback when the user hasn't configured a
+    # specific model, and never for custom providers (where the hardcoded model
+    # name would be sent to an unrelated API base).
     try:
         config = get_ai_config_for_user(requester)
-        review_model = REVIEW_MODELS.get(config.provider)
+        review_model = None
+        if not config.model_name and config.provider != AIProvider.CUSTOM.value:
+            review_model = REVIEW_MODELS.get(config.provider)
     except AIKeyNotConfiguredError:
         review_model = None
 
@@ -376,10 +379,12 @@ def run_ai_reply(reply_comment_id: int, persona: str, requester_id: int):
         truncated = content[:MAX_CHARS_PER_PAGE]
         page_context = f"\n\n<document>\n{truncated}\n</document>"
 
-    # Resolve model for the user's AI provider
+    # Resolve model for the user's AI provider (same logic as run_ai_review).
     try:
         config = get_ai_config_for_user(requester)
-        review_model = REVIEW_MODELS.get(config.provider)
+        review_model = None
+        if not config.model_name and config.provider != AIProvider.CUSTOM.value:
+            review_model = REVIEW_MODELS.get(config.provider)
     except AIKeyNotConfiguredError:
         review_model = None
 

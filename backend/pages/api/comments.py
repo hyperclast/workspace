@@ -342,7 +342,7 @@ def trigger_ai_review(request: HttpRequest, external_id: str, payload: AIReviewI
 
     # Enqueue the AI review job
     persona_name = payload.persona.capitalize()
-    run_ai_review.enqueue(page.id, payload.persona, request.user.id)
+    run_ai_review.enqueue(page.id, str(page.external_id), payload.persona, request.user.id)
 
     return 202, AIReviewOut(
         status="queued",
