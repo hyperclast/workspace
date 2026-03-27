@@ -780,7 +780,9 @@ export async function resolveComment(pageExternalId, commentId) {
     }
   );
   if (!response.ok) {
-    throw new Error(`Failed to resolve comment: ${response.statusText}`);
+    const err = new Error(`Failed to resolve comment: ${response.statusText}`);
+    err.status = response.status;
+    throw err;
   }
   return response.json();
 }
@@ -799,7 +801,9 @@ export async function unresolveComment(pageExternalId, commentId) {
     }
   );
   if (!response.ok) {
-    throw new Error(`Failed to unresolve comment: ${response.statusText}`);
+    const err = new Error(`Failed to unresolve comment: ${response.statusText}`);
+    err.status = response.status;
+    throw err;
   }
   return response.json();
 }

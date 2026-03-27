@@ -1031,3 +1031,122 @@ class TestPageLevelAccessCreatePage(BaseAuthenticatedViewTestCase):
 
         self.assertEqual(response.status_code, HTTPStatus.OK)
         self.assertEqual(response.json()["external_id"], self.page.external_id)
+
+
+class TestGetPageRoleField(BaseAuthenticatedViewTestCase):
+    """Test that GET /api/pages/{id}/ includes the user's role for the page."""
+
+    def setUp(self):
+        super().setUp()
+        self.org = OrgFactory()
+        self.project = ProjectFactory(org=self.org, creator=self.user)
+
+    def test_page_creator_gets_admin_role(self):
+        """Page creator should see role='admin'."""
+        OrgMemberFactory(org=self.org, user=self.user, role=OrgMemberRole.ADMIN.value)
+        page = PageFactory(project=self.project, creator=self.user)
+
+        response = self.send_api_request(url=f"/api/pages/{page.external_id}/", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.json()["role"], "admin")
+
+    def test_org_admin_gets_admin_role(self):
+        """Org admin (non-creator) should see role='admin'."""
+        OrgMemberFactory(org=self.org, user=self.user, role=OrgMemberRole.ADMIN.value)
+        other_user = UserFactory()
+        OrgMemberFactory(org=self.org, user=other_user, role=OrgMemberRole.MEMBER.value)
+        page = PageFactory(project=self.project, creator=other_user)
+
+        response = self.send_api_request(url=f"/api/pages/{page.external_id}/", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.json()["role"], "admin")
+
+    def test_org_member_gets_editor_role(self):
+        """Org member (non-admin) should see role='editor'."""
+        other_user = UserFactory()
+        OrgMemberFactory(org=self.org, user=other_user, role=OrgMemberRole.ADMIN.value)
+        # Project must be created by other_user so self.user is not the project creator
+        # (project creators get ADMIN via get_project_access_level)
+        project = ProjectFactory(org=self.org, creator=other_user)
+        OrgMemberFactory(org=self.org, user=self.user, role=OrgMemberRole.MEMBER.value)
+        page = PageFactory(project=project, creator=other_user)
+
+        response = self.send_api_request(url=f"/api/pages/{page.external_id}/", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.json()["role"], "editor")
+
+    def test_project_editor_with_editor_role(self):
+        """Project editor with role='editor' should see role='editor'."""
+        # self.user is NOT an org member — only a project editor
+        other_org = OrgFactory()
+        other_user = UserFactory()
+        OrgMemberFactory(org=other_org, user=other_user, role=OrgMemberRole.ADMIN.value)
+        project = ProjectFactory(org=other_org, creator=other_user)
+        ProjectEditorFactory(project=project, user=self.user, role=ProjectEditorRole.EDITOR.value)
+        page = PageFactory(project=project, creator=other_user)
+
+        response = self.send_api_request(url=f"/api/pages/{page.external_id}/", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.json()["role"], "editor")
+
+    def test_project_editor_with_viewer_role(self):
+        """Project editor with role='viewer' should see role='viewer'."""
+        other_org = OrgFactory()
+        other_user = UserFactory()
+        OrgMemberFactory(org=other_org, user=other_user, role=OrgMemberRole.ADMIN.value)
+        project = ProjectFactory(org=other_org, creator=other_user)
+        ProjectEditorFactory(project=project, user=self.user, role=ProjectEditorRole.VIEWER.value)
+        page = PageFactory(project=project, creator=other_user)
+
+        response = self.send_api_request(url=f"/api/pages/{page.external_id}/", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.json()["role"], "viewer")
+
+    def test_page_editor_with_editor_role(self):
+        """Page editor with role='editor' should see role='editor'."""
+        other_org = OrgFactory()
+        other_user = UserFactory()
+        OrgMemberFactory(org=other_org, user=other_user, role=OrgMemberRole.ADMIN.value)
+        project = ProjectFactory(org=other_org, creator=other_user)
+        project.org_members_can_access = False
+        project.save()
+        page = PageFactory(project=project, creator=other_user)
+        PageEditorFactory(page=page, user=self.user, role=PageEditorRole.EDITOR.value)
+
+        response = self.send_api_request(url=f"/api/pages/{page.external_id}/", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.json()["role"], "editor")
+
+    def test_page_editor_with_viewer_role(self):
+        """Page editor with role='viewer' should see role='viewer'."""
+        other_org = OrgFactory()
+        other_user = UserFactory()
+        OrgMemberFactory(org=other_org, user=other_user, role=OrgMemberRole.ADMIN.value)
+        project = ProjectFactory(org=other_org, creator=other_user)
+        project.org_members_can_access = False
+        project.save()
+        page = PageFactory(project=project, creator=other_user)
+        PageEditorFactory(page=page, user=self.user, role=PageEditorRole.VIEWER.value)
+
+        response = self.send_api_request(url=f"/api/pages/{page.external_id}/", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.json()["role"], "viewer")
+
+    def test_list_pages_returns_null_role(self):
+        """list_pages endpoint should return role=null (not computed for lists)."""
+        OrgMemberFactory(org=self.org, user=self.user, role=OrgMemberRole.MEMBER.value)
+        PageFactory(project=self.project, creator=self.user)
+
+        response = self.send_api_request(url="/api/pages/", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        items = response.json()["items"]
+        self.assertTrue(len(items) > 0)
+        self.assertIsNone(items[0]["role"])

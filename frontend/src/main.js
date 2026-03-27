@@ -683,6 +683,7 @@ async function loadPage(page, signal = null) {
     modified: page.modified,
     updated: page.updated,
     is_owner: page.is_owner,
+    role: page.role,
     access_code: page.access_code,
   };
 

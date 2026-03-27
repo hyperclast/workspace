@@ -253,7 +253,7 @@ def create_comment(request: HttpRequest, external_id: str, payload: CommentCreat
     # Validate: replies
     parent = None
     if payload.parent_id:
-        parent = Comment.objects.filter(page=page, external_id=payload.parent_id).first()
+        parent = Comment.objects.filter(page=page, external_id=payload.parent_id).select_related("root").first()
         if not parent:
             return 404, {"detail": "Parent comment not found."}
 
@@ -287,6 +287,10 @@ def create_comment(request: HttpRequest, external_id: str, payload: CommentCreat
     root = None
     if parent:
         root = parent.root if parent.root_id else parent
+
+        # Resolved threads cannot receive new replies
+        if root.resolved_at:
+            return 400, {"detail": "Cannot reply to a resolved thread."}
 
     comment = Comment.objects.create(
         page=page,

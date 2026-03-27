@@ -23,6 +23,7 @@ from core.utils import get_content_type_for_filetype, prepare_page_content_for_e
 from pages.constants import PageEditorRole
 from pages.models import Folder, Page, PageEditor, PageInvitation, Project, ProjectEditor, ProjectInvitation
 from pages.permissions import (
+    get_page_access_level,
     get_user_page_access_label,
     is_org_member_email,
     user_can_access_page,
@@ -146,6 +147,7 @@ def get_page(request: HttpRequest, external_id: str):
         Page.objects.get_user_accessible_pages(request.user),
         external_id=external_id,
     )
+    page.role = get_page_access_level(request.user, page).value
     return page
 
 

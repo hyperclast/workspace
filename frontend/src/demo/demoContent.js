@@ -168,6 +168,7 @@ export const DEMO_PAGES = {
     modified: new Date().toISOString(),
     updated: new Date().toISOString(),
     is_owner: true,
+    role: "admin",
     project_id: "demo-project",
   },
   "demo-links": {
@@ -182,6 +183,7 @@ export const DEMO_PAGES = {
     modified: new Date().toISOString(),
     updated: new Date().toISOString(),
     is_owner: true,
+    role: "admin",
     project_id: "demo-project",
   },
   "demo-sections": {
@@ -196,6 +198,7 @@ export const DEMO_PAGES = {
     modified: new Date().toISOString(),
     updated: new Date().toISOString(),
     is_owner: true,
+    role: "admin",
     project_id: "demo-project",
   },
   "demo-csv": {
@@ -210,6 +213,7 @@ export const DEMO_PAGES = {
     modified: new Date().toISOString(),
     updated: new Date().toISOString(),
     is_owner: true,
+    role: "admin",
     project_id: "demo-project",
   },
   "demo-logs": {
@@ -224,6 +228,7 @@ export const DEMO_PAGES = {
     modified: new Date().toISOString(),
     updated: new Date().toISOString(),
     is_owner: true,
+    role: "admin",
     project_id: "demo-project",
   },
 };

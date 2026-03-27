@@ -145,6 +145,55 @@ describe("decorateComments — line bar decorations", () => {
     expect(view.dom.querySelectorAll(".cm-comment-bar").length).toBe(0);
   });
 
+  test("resolved comment gets resolved class", () => {
+    createView("Line one\nLine two");
+
+    view.dispatch({
+      effects: setCommentHighlights.of([
+        { from: 9, to: 17, commentId: "c1", isAi: false, isResolved: true },
+      ]),
+    });
+
+    const resolvedLines = view.dom.querySelectorAll(".cm-comment-bar-resolved");
+    expect(resolvedLines.length).toBe(1);
+    // Should not have regular or AI class
+    const regularOnly = view.dom.querySelectorAll(".cm-comment-bar:not(.cm-comment-bar-resolved)");
+    expect(regularOnly.length).toBe(0);
+  });
+
+  test("resolved takes priority over AI class", () => {
+    createView("Line one\nLine two");
+
+    view.dispatch({
+      effects: setCommentHighlights.of([
+        { from: 9, to: 17, commentId: "c1", isAi: true, isResolved: true },
+      ]),
+    });
+
+    const resolvedLines = view.dom.querySelectorAll(".cm-comment-bar-resolved");
+    expect(resolvedLines.length).toBe(1);
+    const aiLines = view.dom.querySelectorAll(".cm-comment-bar-ai");
+    expect(aiLines.length).toBe(0);
+  });
+
+  test("active takes priority over resolved", () => {
+    createView("Line one\nLine two");
+
+    view.dispatch({
+      effects: [
+        setCommentHighlights.of([
+          { from: 9, to: 17, commentId: "c1", isAi: false, isResolved: true },
+        ]),
+        setActiveComment.of("c1"),
+      ],
+    });
+
+    const activeLines = view.dom.querySelectorAll(".cm-comment-bar-active");
+    expect(activeLines.length).toBe(1);
+    const resolvedLines = view.dom.querySelectorAll(".cm-comment-bar-resolved");
+    expect(resolvedLines.length).toBe(0);
+  });
+
   test("decorations persist through unrelated document changes", () => {
     createView("Line one\nLine two\nLine three");
 

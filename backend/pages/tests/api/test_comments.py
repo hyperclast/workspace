@@ -826,6 +826,38 @@ class TestResolveComment(CommentsTestMixin, BaseAuthenticatedViewTestCase):
         self.assertIsNone(item["resolved_at"])
         self.assertIsNone(item["resolved_by"])
 
+    @patch("pages.api.comments.notify_comments_updated")
+    def test_reply_to_resolved_root_rejected(self, _mock):
+        """Cannot reply directly to a resolved root comment."""
+        root = CommentFactory(page=self.page, author=self.user, anchor_text="text")
+        self.send_api_request(url=self.resolve_url(root.external_id), method="post")
+
+        data = {"body": "Late reply.", "parent_id": root.external_id}
+        response = self.send_api_request(url=self.url(), method="post", data=data)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        self.assertIn("resolved", response.json()["detail"].lower())
+
+    @patch("pages.api.comments.notify_comments_updated")
+    def test_reply_to_descendant_of_resolved_root_rejected(self, _mock):
+        """Cannot reply to a child of a resolved root comment."""
+        root = CommentFactory(page=self.page, author=self.user, anchor_text="text")
+        reply = CommentFactory(page=self.page, author=self.user, parent=root)
+        self.send_api_request(url=self.resolve_url(root.external_id), method="post")
+
+        data = {"body": "Nested late reply.", "parent_id": reply.external_id}
+        response = self.send_api_request(url=self.url(), method="post", data=data)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        self.assertIn("resolved", response.json()["detail"].lower())
+
+    @patch("pages.api.comments.notify_comments_updated")
+    def test_reply_to_unresolved_root_still_works(self, _mock):
+        """Replying to an unresolved thread still succeeds (regression guard)."""
+        root = CommentFactory(page=self.page, author=self.user, anchor_text="text")
+
+        data = {"body": "Normal reply.", "parent_id": root.external_id}
+        response = self.send_api_request(url=self.url(), method="post", data=data)
+        self.assertEqual(response.status_code, HTTPStatus.CREATED)
+
 
 class TestCommentFactory(CommentsTestMixin, BaseAuthenticatedViewTestCase):
     """Verify CommentFactory handles root vs reply anchor_text correctly."""

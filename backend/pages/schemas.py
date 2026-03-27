@@ -55,6 +55,7 @@ class PageOut(Schema):
     created: datetime
     modified: datetime
     is_owner: Optional[bool] = True
+    role: Optional[str] = None
     access_code: Optional[str] = None
     folder_id: Optional[str] = None
 

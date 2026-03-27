@@ -58,6 +58,7 @@
 
   let comments = $state([]);
   let currentPageId = $state(null);
+  let currentPageRole = $state(null); // "admin", "editor", "viewer", or null
   let loading = $state(false);
   let replyingTo = $state(null); // external_id of comment being replied to
   let pageCommentBody = $state("");
@@ -265,7 +266,11 @@
       await loadComments();
     } catch (e) {
       console.error("Error resolving comment:", e);
-      showToast("Couldn't resolve the comment at this time.", "error");
+      if (e.status === 403) {
+        showToast("You need edit access to resolve comments.", "error");
+      } else {
+        showToast("Couldn't resolve the comment at this time.", "error");
+      }
     }
   }
 
@@ -277,7 +282,11 @@
       await loadComments();
     } catch (e) {
       console.error("Error unresolving comment:", e);
-      showToast("Couldn't unresolve the comment at this time.", "error");
+      if (e.status === 403) {
+        showToast("You need edit access to unresolve comments.", "error");
+      } else {
+        showToast("Couldn't unresolve the comment at this time.", "error");
+      }
     }
   }
 
@@ -328,6 +337,10 @@
     return userExternalId && comment.author?.external_id === userExternalId;
   }
 
+  function canResolve() {
+    return currentPageRole === "admin" || currentPageRole === "editor";
+  }
+
   function handleCommentClick(commentId) {
     activeCommentId = commentId;
     setActiveCommentHighlight(window.editorView, commentId);
@@ -348,6 +361,7 @@
     registerTabHandler("comments", loadComments);
     registerPageChangeHandler((pageId) => {
       currentPageId = pageId;
+      currentPageRole = window.getCurrentPage?.()?.role ?? null;
       _inflight.clear();
       pendingPersonas = new Set();
       loadComments();
@@ -443,7 +457,7 @@
   });
 </script>
 
-{#snippet renderReply(reply)}
+{#snippet renderReply(reply, threadResolved)}
   <div class="comment-reply">
     <div class="comment-header">
       {#if reply.ai_persona}
@@ -456,7 +470,7 @@
     </div>
     <div class="comment-body">{@html formatCommentBody(reply.body)}</div>
     <div class="comment-actions">
-      <button class="comment-action-btn" disabled={reply.can_reply === false} title={reply.can_reply === false ? "Maximum thread depth reached" : ""} onclick={() => startReply(reply.external_id)}>
+      <button class="comment-action-btn" disabled={threadResolved || reply.can_reply === false} title={threadResolved ? "Thread is resolved" : reply.can_reply === false ? "Maximum thread depth reached" : ""} onclick={() => startReply(reply.external_id)}>
         Reply
       </button>
       {#if canDelete(reply)}
@@ -473,7 +487,7 @@
     {#if reply.replies && reply.replies.length > 0}
       <div class="comment-replies">
         {#each reply.replies as childReply (childReply.external_id)}
-          {@render renderReply(childReply)}
+          {@render renderReply(childReply, threadResolved)}
         {/each}
       </div>
     {/if}
@@ -502,7 +516,7 @@
   {#if comment.replies && comment.replies.length > 0}
     <div class="comment-replies">
       {#each comment.replies as reply (reply.external_id)}
-        {@render renderReply(reply)}
+        {@render renderReply(reply, comment.is_resolved)}
       {/each}
     </div>
   {/if}
@@ -590,7 +604,7 @@
                 {/if}
               </span>
               <span class="comment-time">{formatDate(comment.created)}</span>
-              {#if !comment.parent_id}
+              {#if !comment.parent_id && canResolve()}
                 <!-- svelte-ignore a11y_click_events_have_key_events -->
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <span
@@ -614,7 +628,7 @@
             <div class="comment-body">{@html formatCommentBody(comment.body)}</div>
 
             <div class="comment-actions">
-              <button class="comment-action-btn" disabled={comment.can_reply === false} title={comment.can_reply === false ? "Maximum thread depth reached" : ""} onclick={() => startReply(comment.external_id)}>
+              <button class="comment-action-btn" disabled={comment.is_resolved || comment.can_reply === false} title={comment.is_resolved ? "Thread is resolved" : comment.can_reply === false ? "Maximum thread depth reached" : ""} onclick={() => startReply(comment.external_id)}>
                 Reply
               </button>
               {#if canDelete(comment)}

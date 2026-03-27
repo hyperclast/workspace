@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fetchProjectsWithPages, createProject, createPage, fetchOrgs, fetchPage } from "../api.js";
+import {
+  fetchProjectsWithPages,
+  createProject,
+  createPage,
+  fetchOrgs,
+  fetchPage,
+  resolveComment,
+  unresolveComment,
+} from "../api.js";
 
 // Mock csrfFetch
 vi.mock("../csrf.js", () => ({
@@ -225,6 +233,89 @@ describe("API Service", () => {
       });
 
       await expect(fetchOrgs()).rejects.toThrow("Failed to fetch organizations");
+    });
+  });
+
+  describe("resolveComment", () => {
+    it("resolves a comment successfully", async () => {
+      const mockComment = { external_id: "c1", is_resolved: true };
+
+      csrfFetch.mockResolvedValue({
+        ok: true,
+        json: async () => mockComment,
+      });
+
+      const result = await resolveComment("page1", "c1");
+
+      expect(csrfFetch).toHaveBeenCalledWith("/api/v1/pages/page1/comments/c1/resolve/", {
+        method: "POST",
+      });
+      expect(result).toEqual(mockComment);
+    });
+
+    it("throws error with status on 403", async () => {
+      csrfFetch.mockResolvedValue({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+      });
+
+      try {
+        await resolveComment("page1", "c1");
+        expect.fail("Should have thrown");
+      } catch (e) {
+        expect(e.message).toContain("Failed to resolve comment");
+        expect(e.status).toBe(403);
+      }
+    });
+
+    it("throws error with status on other failures", async () => {
+      csrfFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+      });
+
+      try {
+        await unresolveComment("page1", "c1");
+        expect.fail("Should have thrown");
+      } catch (e) {
+        expect(e.status).toBe(500);
+      }
+    });
+  });
+
+  describe("unresolveComment", () => {
+    it("unresolves a comment successfully", async () => {
+      const mockComment = { external_id: "c1", is_resolved: false };
+
+      csrfFetch.mockResolvedValue({
+        ok: true,
+        json: async () => mockComment,
+      });
+
+      const result = await unresolveComment("page1", "c1");
+
+      expect(csrfFetch).toHaveBeenCalledWith("/api/v1/pages/page1/comments/c1/unresolve/", {
+        method: "POST",
+      });
+      expect(result).toEqual(mockComment);
+    });
+
+    it("throws error with status on 403", async () => {
+      csrfFetch.mockResolvedValue({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+      });
+
+      try {
+        await unresolveComment("page1", "c1");
+        expect.fail("Should have thrown");
+      } catch (e) {
+        expect(e.message).toContain("Failed to unresolve comment");
+        expect(e.status).toBe(403);
+      }
     });
   });
 });
