@@ -473,8 +473,8 @@ class TestAIReviewModelSelection(TestCase):
 
     @patch("collab.utils.notify_ai_review_complete")
     @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
-    @patch("ask.helpers.llm.get_ai_config_for_user")
+    @patch("pages.tasks.create_chat_completion")
+    @patch("pages.tasks.get_ai_config_for_user")
     def test_no_user_model_uses_review_model(self, mock_get_config, mock_llm, mock_notify, mock_rc):
         """When user has no model_name configured, REVIEW_MODELS fallback is used."""
         mock_get_config.return_value = self._make_config(AIProvider.OPENAI.value)
@@ -488,8 +488,8 @@ class TestAIReviewModelSelection(TestCase):
 
     @patch("collab.utils.notify_ai_review_complete")
     @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
-    @patch("ask.helpers.llm.get_ai_config_for_user")
+    @patch("pages.tasks.create_chat_completion")
+    @patch("pages.tasks.get_ai_config_for_user")
     def test_user_model_overrides_review_model(self, mock_get_config, mock_llm, mock_notify, mock_rc):
         """When user has a model_name configured, it takes precedence (model=None lets LLM helper use config)."""
         mock_get_config.return_value = self._make_config(AIProvider.OPENAI.value, model_name="gpt-4o")
@@ -503,8 +503,8 @@ class TestAIReviewModelSelection(TestCase):
 
     @patch("collab.utils.notify_ai_review_complete")
     @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
-    @patch("ask.helpers.llm.get_ai_config_for_user")
+    @patch("pages.tasks.create_chat_completion")
+    @patch("pages.tasks.get_ai_config_for_user")
     def test_custom_provider_never_uses_review_model(self, mock_get_config, mock_llm, mock_notify, mock_rc):
         """Custom providers should never get a hardcoded review model forced on them."""
         mock_get_config.return_value = self._make_config(
@@ -520,8 +520,8 @@ class TestAIReviewModelSelection(TestCase):
 
     @patch("collab.utils.notify_ai_review_complete")
     @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
-    @patch("ask.helpers.llm.get_ai_config_for_user")
+    @patch("pages.tasks.create_chat_completion")
+    @patch("pages.tasks.get_ai_config_for_user")
     def test_custom_provider_with_model_name_not_overridden(self, mock_get_config, mock_llm, mock_notify, mock_rc):
         """Custom provider with a user-configured model_name should not be overridden."""
         mock_get_config.return_value = self._make_config(
@@ -537,8 +537,8 @@ class TestAIReviewModelSelection(TestCase):
 
     @patch("collab.utils.notify_ai_review_complete")
     @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
-    @patch("ask.helpers.llm.get_ai_config_for_user")
+    @patch("pages.tasks.create_chat_completion")
+    @patch("pages.tasks.get_ai_config_for_user")
     def test_anthropic_provider_uses_anthropic_review_model(self, mock_get_config, mock_llm, mock_notify, mock_rc):
         """Anthropic provider without user model_name gets the Anthropic review model."""
         mock_get_config.return_value = self._make_config(AIProvider.ANTHROPIC.value)
@@ -552,12 +552,12 @@ class TestAIReviewModelSelection(TestCase):
 
     @patch("collab.utils.notify_ai_review_complete")
     @patch("collab.utils.notify_comments_updated")
-    @patch("ask.helpers.llm.create_chat_completion")
+    @patch("pages.tasks.create_chat_completion")
     def test_ai_key_not_configured_passes_none_model(self, mock_llm, mock_notify, mock_rc):
         """When AIKeyNotConfiguredError is raised, model=None is passed."""
         from ask.exceptions import AIKeyNotConfiguredError
 
-        with patch("ask.helpers.llm.get_ai_config_for_user", side_effect=AIKeyNotConfiguredError):
+        with patch("pages.tasks.get_ai_config_for_user", side_effect=AIKeyNotConfiguredError):
             ai_response = json.dumps([{"anchor_text": "text", "body": "comment"}])
             mock_llm.return_value = {"choices": [{"message": {"content": ai_response}}]}
 
