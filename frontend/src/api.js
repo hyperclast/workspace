@@ -814,11 +814,15 @@ export async function unresolveComment(pageExternalId, commentId) {
  * @param {string} persona - AI persona ID (socrates, einstein, dewey)
  * @returns {Promise<Object>} Status response
  */
-export async function triggerAIReview(pageExternalId, persona) {
+export async function triggerAIReview(pageExternalId, persona, selectionText) {
+  const payload = { persona };
+  if (selectionText) {
+    payload.selection_text = selectionText;
+  }
   const response = await csrfFetch(`${API_BASE}/pages/${pageExternalId}/comments/ai-review/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ persona }),
+    body: JSON.stringify(payload),
   });
   if (!response.ok) {
     throw new Error(`Failed to trigger AI review: ${response.statusText}`);

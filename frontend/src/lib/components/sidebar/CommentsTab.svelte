@@ -78,6 +78,8 @@
   let commentsUpdatedHandler = null;
   let aiReviewCompleteHandler = null;
   let pendingPersonas = $state(new Set());
+  let pendingSelections = {};  // { [persona]: boolean } — tracks whether each pending review is selection-scoped
+  let hasEditorSelection = $state(false);
   let isRewindMode = $state(false);
   let unsubscribeRewind = null;
   let docChangeHandler = null;
@@ -293,17 +295,30 @@
   const _inflight = new Set(); // synchronous guard — $state batching can't be trusted for dedup
   async function handleTriggerAIReview(persona) {
     if (!currentPageId || _inflight.has(persona)) return;
+
+    // Capture editor selection at click time
+    let selectionText = "";
+    const view = window.editorView;
+    if (view) {
+      const sel = view.state.selection.main;
+      if (sel.from !== sel.to) {
+        selectionText = view.state.doc.sliceString(sel.from, sel.to);
+      }
+    }
+
     _inflight.add(persona);
     pendingPersonas = new Set([...pendingPersonas, persona]);
+    pendingSelections[persona] = !!selectionText;
     try {
       const { triggerAIReview } = getApi();
-      await triggerAIReview(currentPageId, persona);
+      await triggerAIReview(currentPageId, persona, selectionText || undefined);
       // Comments will arrive via WebSocket commentsUpdated event
     } catch (e) {
       console.error("Error triggering AI review:", e);
       showToast("Couldn't start AI review at this time.", "error");
       _inflight.delete(persona);
       pendingPersonas = new Set([...pendingPersonas].filter(p => p !== persona));
+      delete pendingSelections[persona];
     }
   }
 
@@ -377,6 +392,7 @@
       const wasPending = pendingPersonas.has(persona);
       _inflight.delete(persona);
       pendingPersonas = new Set([...pendingPersonas].filter(p => p !== persona));
+      delete pendingSelections[persona];
       if (wasPending && commentCount === 0) {
         const name = PERSONAS[persona]?.name ?? persona;
         showToast(`${name} has nothing to add right now`);
@@ -427,7 +443,19 @@
     loadComments();
   });
 
+  // Track editor selection for the AI review hint
+  function checkEditorSelection() {
+    const view = window.editorView;
+    if (!view) { hasEditorSelection = false; return; }
+    const sel = view.state.selection.main;
+    hasEditorSelection = sel.from !== sel.to;
+  }
+  document.addEventListener("mouseup", checkEditorSelection);
+  document.addEventListener("keyup", checkEditorSelection);
+
   onDestroy(() => {
+    document.removeEventListener("mouseup", checkEditorSelection);
+    document.removeEventListener("keyup", checkEditorSelection);
     if (commentsUpdatedHandler) {
       window.removeEventListener("commentsUpdated", commentsUpdatedHandler);
     }
@@ -551,7 +579,7 @@
   {:else}
     <div class="comments-ai-triggers">
       {#each Object.entries(PERSONAS) as [key, persona]}
-        <button class="ai-trigger-btn" class:ai-trigger-pending={pendingPersonas.has(key)} title="{persona.name} — {persona.subtitle}" disabled={pendingPersonas.has(key)} onclick={() => handleTriggerAIReview(key)}>
+        <button class="ai-trigger-btn" class:ai-trigger-pending={pendingPersonas.has(key)} title="{persona.name} — {hasEditorSelection ? 'Review selection' : persona.subtitle}" disabled={pendingPersonas.has(key)} onclick={() => handleTriggerAIReview(key)}>
           <span class="ai-trigger-img" style="background-image: url({PERSONA_SPRITE_URL}); background-position: {persona.bgPosition}; background-size: 200% 200%;"></span>
           <span class="ai-trigger-label">{persona.name}</span>
         </button>
@@ -559,8 +587,11 @@
     </div>
     <div class="ai-review-status">
       {#if pendingPersonas.size > 0}
+        {@const hasSelection = [...pendingPersonas].some(p => pendingSelections[p])}
         {[...pendingPersonas].map(p => PERSONAS[p]?.name).join(", ")}
-        {pendingPersonas.size === 1 ? "is" : "are"} reviewing your page...
+        {pendingPersonas.size === 1 ? "is" : "are"} reviewing your {hasSelection ? "selection" : "page"}...
+      {:else if hasEditorSelection}
+        <span class="ai-selection-hint">Review selected text</span>
       {/if}
     </div>
 
@@ -934,6 +965,10 @@
   .comment-submit-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .ai-selection-hint {
+    color: var(--accent, #0969da);
   }
 
   .comments-ai-triggers {

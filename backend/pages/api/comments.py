@@ -98,8 +98,12 @@ class CommentUpdateIn(Schema):
     anchor_to_b64: Optional[str] = Field(None, max_length=COMMENT_ANCHOR_B64_MAX_LENGTH)
 
 
+SELECTION_TEXT_MAX_LENGTH = 50_000
+
+
 class AIReviewIn(Schema):
     persona: str
+    selection_text: Optional[str] = Field(None, max_length=SELECTION_TEXT_MAX_LENGTH)
 
 
 class AIReviewOut(Schema):
@@ -355,11 +359,13 @@ def trigger_ai_review(request: HttpRequest, external_id: str, payload: AIReviewI
 
     # Enqueue the AI review job
     persona_name = payload.persona.capitalize()
-    run_ai_review.enqueue(page.id, str(page.external_id), payload.persona, request.user.id)
+    selection_text = (payload.selection_text or "").strip()
+    run_ai_review.enqueue(page.id, str(page.external_id), payload.persona, request.user.id, selection_text)
 
+    scope = "selection" if selection_text else "page"
     return 202, AIReviewOut(
         status="queued",
-        message=f"{persona_name} is reviewing your page...",
+        message=f"{persona_name} is reviewing your {scope}...",
     )
 
 

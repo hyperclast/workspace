@@ -101,6 +101,13 @@ ANCHOR_INSTRUCTION = (
     "unambiguous within the document. Never quote just a single word or short phrase."
 )
 
+SELECTION_INSTRUCTION = (
+    "The user has selected a specific passage for review. Focus your comments "
+    "exclusively on the text between the <selection> and </selection> tags. "
+    "Do not comment on any text outside the selection. Your anchor_text values "
+    "must be exact quotes from within the selected passage."
+)
+
 QUALITY_INSTRUCTION = (
     "Be highly selective. Only comment on passages where you have something genuinely "
     "insightful to say. Every comment must be specific and actionable — never vague or "
@@ -203,8 +210,8 @@ def _parse_ai_response(response_text: str) -> list:
 
 
 @task(settings.JOB_INTERNAL_QUEUE)
-def run_ai_review(page_id: int, page_external_id: str, persona: str, requester_id: int):
-    """Run AI review on a page. Creates Comment objects for each AI comment."""
+def run_ai_review(page_id: int, page_external_id: str, persona: str, requester_id: int, selection_text: str = ""):
+    """Run AI review on a page (or a selected passage). Creates Comment objects for each AI comment."""
     cache_key = f"ai_review:{page_id}:{persona}"
     page_eid = page_external_id
     try:
@@ -242,12 +249,33 @@ def run_ai_review(page_id: int, page_external_id: str, persona: str, requester_i
     except AIKeyNotConfiguredError:
         review_model = None
 
-    numbered_content = _build_numbered_content(content)
+    # When the user selected text, mark it in the content for the AI.
+    if selection_text:
+        sel_start = content.find(selection_text)
+        if sel_start != -1:
+            marked = (
+                content[:sel_start]
+                + "<selection>"
+                + selection_text
+                + "</selection>"
+                + content[sel_start + len(selection_text) :]
+            )
+            numbered_content = _build_numbered_content(marked)
+        else:
+            # Selection not found (doc may have been edited) — send it standalone
+            numbered_content = _build_numbered_content(selection_text)
+    else:
+        numbered_content = _build_numbered_content(content)
+
     context_pages = _build_context_pages(page)
+
+    # Build system instructions — add selection scoping when applicable
+    extra_instruction = f"{SELECTION_INSTRUCTION}\n\n" if selection_text else ""
 
     system_message = (
         f"{persona_prompt}\n\n"
         f"{QUALITY_INSTRUCTION}\n\n"
+        f"{extra_instruction}"
         f"{ANCHOR_INSTRUCTION}\n\n"
         "Respond with a JSON array of comments. Each comment has two fields:\n"
         '- "anchor_text": the exact text passage you are commenting on (quoted from the document)\n'

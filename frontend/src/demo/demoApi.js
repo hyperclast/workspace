@@ -297,6 +297,6 @@ export async function unresolveComment(_pageId, _commentId) {
 /**
  * Trigger AI review - not available in demo mode
  */
-export async function triggerAIReview(_pageId, _persona) {
+export async function triggerAIReview(_pageId, _persona, _selectionText) {
   throw new DemoModeError("use AI review");
 }
