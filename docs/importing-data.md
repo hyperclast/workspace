@@ -109,14 +109,16 @@ ImportBannedUser
 │ 11. Pre-extraction safety check (zip bomb detection)             │
 │ 12. Extract zip safely with streaming extraction                 │
 │ 13. Parse markdown/CSV files into ParsedPage objects             │
-│ 14. Flatten nested structure                                     │
-│ 15. Query existing source_hash values for deduplication          │
-│ 16. Create Page objects in batches                               │
-│ 17. Create ImportedPage records                                  │
-│ 18. Remap internal links to Hyperclast format                    │
-│ 19. Archive original zip to R2                                   │
-│ 20. Delete temp file                                             │
-│ 21. Update status to 'completed' with counts                     │
+│ 14. Create folders from page tree hierarchy                      │
+│ 15. Flatten nested structure                                     │
+│ 16. Query existing source_hash values for deduplication          │
+│ 17. Skip index-only parent pages (navigational links only)       │
+│ 18. Create Page objects in batches (assigned to folders)          │
+│ 19. Create ImportedPage records                                  │
+│ 20. Remap internal links to Hyperclast format                    │
+│ 21. Archive original zip to R2                                   │
+│ 22. Delete temp file                                             │
+│ 23. Update status to 'completed' with counts                     │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -179,6 +181,44 @@ Export-XXXXXXXX.zip
 | Table         | Markdown table   | Preserved             |
 | To-do         | `- [ ] task`     | Preserved             |
 | Image         | `![](path)`      | Preserved             |
+
+### Folder Integration
+
+Notion's page hierarchy maps to Hyperclast folders during import:
+
+- **Parent pages create folders.** When a parsed page has children, a `Folder` is created in the target project with the parent's title.
+- **Parent pages go inside their own folder.** The parent page is placed inside its folder alongside its children, preserving the hierarchical relationship.
+- **Index-only parents are skipped.** If a parent page's content is purely navigational — only Notion internal links to child `.md`/`.csv` files, or empty — no page is created for it. The folder alone represents the structure.
+- **Parents with real content are preserved.** If a parent page contains substantive text beyond child links, it is created as a page inside its folder.
+
+```
+# Notion export structure:
+Parent abc123.md          ← content: just links to children
+Parent/
+  Child1 def456.md
+  Child2 ghi789.md
+
+# Imported into Hyperclast:
+📁 Parent/
+  ├── Child1              ← page
+  └── Child2              ← page
+  (no "Parent" page — it was index-only)
+
+# If parent has real content:
+Parent abc123.md          ← content: "Project overview..." + child links
+
+# Imported into Hyperclast:
+📁 Parent/
+  ├── Parent              ← page (substantive content preserved)
+  ├── Child1              ← page
+  └── Child2              ← page
+```
+
+**Limits:**
+
+- Maximum 500 folders per project
+- Maximum folder depth of 10 levels (deeper nesting is flattened)
+- Folder names are sanitized (forbidden characters stripped, truncated to 255 chars)
 
 ### Link Remapping
 

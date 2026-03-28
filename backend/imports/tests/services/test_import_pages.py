@@ -7,7 +7,7 @@ from unittest.mock import patch
 from django.test import TestCase
 
 from imports.models import ImportJob, ImportedPage
-from imports.services.notion import ParsedPage, create_import_pages
+from imports.services.notion import ParsedPage, _is_index_only_page, create_import_pages
 from pages.models import Page
 from pages.models.links import PageLink
 from pages.tests.factories import ProjectFactory
@@ -365,9 +365,21 @@ class TestCreateImportPagesEdgeCases(TestCase):
 
     def test_handles_deeply_nested_pages(self):
         """Correctly flattens deeply nested page tree."""
-        level3 = ParsedPage(title="Level 3", content="", original_path="l1/l2/l3.md", source_hash="l3")
-        level2 = ParsedPage(title="Level 2", content="", original_path="l1/l2.md", source_hash="l2", children=[level3])
-        level1 = ParsedPage(title="Level 1", content="", original_path="l1.md", source_hash="l1", children=[level2])
+        level3 = ParsedPage(title="Level 3", content="Leaf content", original_path="l1/l2/l3.md", source_hash="l3")
+        level2 = ParsedPage(
+            title="Level 2",
+            content="Level 2 content",
+            original_path="l1/l2.md",
+            source_hash="l2",
+            children=[level3],
+        )
+        level1 = ParsedPage(
+            title="Level 1",
+            content="Level 1 content",
+            original_path="l1.md",
+            source_hash="l1",
+            children=[level2],
+        )
 
         result = create_import_pages([level1], self.project, self.user)
 
@@ -822,7 +834,7 @@ class TestCreateImportPagesFolderCreation(TestCase):
         self.project = ProjectFactory(org=self.org, creator=self.user)
 
     def test_creates_folders_from_nested_tree(self):
-        """Pages with children create folders, and child pages are assigned to them."""
+        """Pages with children create folders, and both parent and child pages are assigned to them."""
         from pages.models import Folder
 
         child = ParsedPage(
@@ -850,13 +862,18 @@ class TestCreateImportPagesFolderCreation(TestCase):
         self.assertEqual(folder.name, "Parent Folder")
         self.assertIsNone(folder.parent)
 
+        # The parent page should be inside its own folder (not at project root)
+        parent_page = next(p for p in result["pages"] if p.title == "Parent Folder")
+        parent_page.refresh_from_db()
+        self.assertEqual(parent_page.folder, folder)
+
         # The child page should be assigned to the folder
         child_page = next(p for p in result["pages"] if p.title == "Child Page")
         child_page.refresh_from_db()
         self.assertEqual(child_page.folder, folder)
 
     def test_creates_nested_folders_from_deep_tree(self):
-        """Multi-level nesting creates corresponding folder hierarchy."""
+        """Multi-level nesting creates corresponding folder hierarchy with parent pages inside their folders."""
         from pages.models import Folder
 
         grandchild = ParsedPage(
@@ -890,6 +907,21 @@ class TestCreateImportPagesFolderCreation(TestCase):
         child_folder = folders.get(name="Child Folder")
         parent_folder = folders.get(name="Parent Folder")
         self.assertEqual(child_folder.parent, parent_folder)
+
+        # Parent page goes inside the parent folder
+        parent_page = next(p for p in result["pages"] if p.title == "Parent Folder")
+        parent_page.refresh_from_db()
+        self.assertEqual(parent_page.folder, parent_folder)
+
+        # Child page (which also has children) goes inside the child folder
+        child_page = next(p for p in result["pages"] if p.title == "Child Folder")
+        child_page.refresh_from_db()
+        self.assertEqual(child_page.folder, child_folder)
+
+        # Grandchild goes inside the child folder
+        gc_page = next(p for p in result["pages"] if p.title == "Grandchild")
+        gc_page.refresh_from_db()
+        self.assertEqual(gc_page.folder, child_folder)
 
     @patch("pages.services.folders.MAX_FOLDERS_PER_PROJECT", 5)
     def test_folder_count_limit_enforced(self):
@@ -1052,6 +1084,78 @@ class TestCreateImportPagesFolderCreation(TestCase):
         folder_names = set(folders.values_list("name", flat=True))
         self.assertEqual(folder_names, {"Root", "Level1", "Level2"})
 
+        root_folder = folders.get(name="Root")
+        level1_folder = folders.get(name="Level1")
+        level2_folder = folders.get(name="Level2")
+
+        # Parent pages at each level should be inside their own folder
+        self.assertEqual(page_folder_map[id(root_dir)], root_folder)
+        self.assertEqual(page_folder_map[id(level1_dir)], level1_folder)
+        self.assertEqual(page_folder_map[id(level2_dir)], level2_folder)
+
+        # Level3 exceeds max_depth — it and its children are flattened into Level2
+        self.assertEqual(page_folder_map[id(level3_dir)], level2_folder)
+        self.assertEqual(page_folder_map[id(leaf)], level2_folder)
+
+    def test_parent_page_not_orphaned_at_root(self):
+        """Parent page with children is placed inside its own folder, not at project root."""
+        from pages.models import Folder
+
+        child1 = ParsedPage(
+            title="Child 1",
+            content="C1 content",
+            original_path="parent/child1.md",
+            source_hash="c1_hash_12345678",
+        )
+        child2 = ParsedPage(
+            title="Child 2",
+            content="C2 content",
+            original_path="parent/child2.md",
+            source_hash="c2_hash_12345678",
+        )
+        parent = ParsedPage(
+            title="Parent Page",
+            content="Parent content with [Child 1](child1.md) and [Child 2](child2.md)",
+            original_path="parent.md",
+            source_hash="parent_hash_1234567",
+            children=[child1, child2],
+        )
+        # A sibling leaf page at root — should NOT get a folder
+        sibling = ParsedPage(
+            title="Sibling",
+            content="Sibling content",
+            original_path="sibling.md",
+            source_hash="sibling_hash_12345",
+        )
+
+        result = create_import_pages([parent, sibling], self.project, self.user)
+
+        self.assertEqual(result["stats"]["created"], 4)
+
+        # One folder created for "Parent Page"
+        folders = Folder.objects.filter(project=self.project)
+        self.assertEqual(folders.count(), 1)
+        folder = folders.first()
+        self.assertEqual(folder.name, "Parent Page")
+
+        # Parent page is INSIDE its own folder (not orphaned at root)
+        parent_page = next(p for p in result["pages"] if p.title == "Parent Page")
+        parent_page.refresh_from_db()
+        self.assertEqual(parent_page.folder, folder)
+
+        # Both children are inside the same folder
+        c1_page = next(p for p in result["pages"] if p.title == "Child 1")
+        c2_page = next(p for p in result["pages"] if p.title == "Child 2")
+        c1_page.refresh_from_db()
+        c2_page.refresh_from_db()
+        self.assertEqual(c1_page.folder, folder)
+        self.assertEqual(c2_page.folder, folder)
+
+        # Sibling leaf page remains at project root (no folder)
+        sibling_page = next(p for p in result["pages"] if p.title == "Sibling")
+        sibling_page.refresh_from_db()
+        self.assertIsNone(sibling_page.folder)
+
     def test_parent_page_without_children_gets_no_folder(self):
         """A leaf page (no children) does not create a folder."""
         from pages.models import Folder
@@ -1113,3 +1217,256 @@ class TestCreateImportPagesFolderCreation(TestCase):
 
         # Still only 1 folder — get_or_create reused it
         self.assertEqual(Folder.objects.filter(project=self.project).count(), 1)
+
+    def test_index_only_parent_skipped(self):
+        """A parent whose content is only Notion links is skipped — folder alone suffices."""
+        from pages.models import Folder
+
+        child1 = ParsedPage(
+            title="Child 1",
+            content="Real child content",
+            original_path="parent/child1.md",
+            source_hash="c1_hash_12345678",
+        )
+        child2 = ParsedPage(
+            title="Child 2",
+            content="More content",
+            original_path="parent/child2.md",
+            source_hash="c2_hash_12345678",
+        )
+        # Parent content is purely links to children — index-only
+        parent = ParsedPage(
+            title="Index Parent",
+            content="[Child 1](Child%201%20c1_hash_12345678.md)\n\n[Child 2](Child%202%20c2_hash_12345678.md)",
+            original_path="parent.md",
+            source_hash="parent_hash_1234567",
+            children=[child1, child2],
+        )
+
+        result = create_import_pages([parent], self.project, self.user)
+
+        # Only 2 pages created (children), parent is skipped
+        self.assertEqual(result["stats"]["created"], 2)
+        self.assertEqual(result["stats"]["skipped"], 1)
+
+        # Folder still exists for the parent
+        folders = Folder.objects.filter(project=self.project)
+        self.assertEqual(folders.count(), 1)
+        folder = folders.first()
+        self.assertEqual(folder.name, "Index Parent")
+
+        # No page named "Index Parent" exists
+        page_titles = {p.title for p in result["pages"]}
+        self.assertNotIn("Index Parent", page_titles)
+
+        # Children are inside the folder
+        for page in result["pages"]:
+            page.refresh_from_db()
+            self.assertEqual(page.folder, folder)
+
+    def test_parent_with_real_content_not_skipped(self):
+        """A parent with substantive content beyond links is preserved as a page."""
+        from pages.models import Folder
+
+        child = ParsedPage(
+            title="Child",
+            content="Child content",
+            original_path="parent/child.md",
+            source_hash="child_hash_1234567",
+        )
+        # Parent has real content mixed with links
+        parent = ParsedPage(
+            title="Content Parent",
+            content="# Overview\n\nThis project covers important topics.\n\n[Child](Child%20child_hash_1234567.md)",
+            original_path="parent.md",
+            source_hash="parent_hash_1234567",
+            children=[child],
+        )
+
+        result = create_import_pages([parent], self.project, self.user)
+
+        # Both pages created — parent has real content
+        self.assertEqual(result["stats"]["created"], 2)
+        self.assertEqual(result["stats"]["skipped"], 0)
+
+        page_titles = {p.title for p in result["pages"]}
+        self.assertIn("Content Parent", page_titles)
+
+    def test_parent_with_empty_content_skipped(self):
+        """A parent with completely empty content (children only) is skipped."""
+        from pages.models import Folder
+
+        child = ParsedPage(
+            title="Child",
+            content="Child content",
+            original_path="parent/child.md",
+            source_hash="child_hash_1234567",
+        )
+        parent = ParsedPage(
+            title="Empty Parent",
+            content="",
+            original_path="parent.md",
+            source_hash="parent_hash_1234567",
+            children=[child],
+        )
+
+        result = create_import_pages([parent], self.project, self.user)
+
+        self.assertEqual(result["stats"]["created"], 1)
+        self.assertEqual(result["stats"]["skipped"], 1)
+
+        page_titles = {p.title for p in result["pages"]}
+        self.assertNotIn("Empty Parent", page_titles)
+        self.assertIn("Child", page_titles)
+
+
+class TestIsIndexOnlyPage(TestCase):
+    """Unit tests for the _is_index_only_page() heuristic."""
+
+    def test_page_without_children_is_not_index(self):
+        """Leaf pages are never index-only, regardless of content."""
+        page = ParsedPage(
+            title="Leaf",
+            content="[Link](Other%20abc123.md)",
+            original_path="leaf.md",
+            source_hash="abc",
+        )
+        self.assertFalse(_is_index_only_page(page))
+
+    def test_parent_with_only_md_links_is_index(self):
+        """Parent whose content is just .md links is index-only."""
+        child = ParsedPage(
+            title="Child",
+            content="content",
+            original_path="c.md",
+            source_hash="def",
+        )
+        page = ParsedPage(
+            title="Parent",
+            content="[Child](Child%20def.md)\n\n[Other](Other%20ghi.md)",
+            original_path="p.md",
+            source_hash="abc",
+            children=[child],
+        )
+        self.assertTrue(_is_index_only_page(page))
+
+    def test_parent_with_only_csv_links_is_index(self):
+        """Parent whose content is just .csv links is index-only."""
+        child = ParsedPage(
+            title="DB",
+            content="csv data",
+            original_path="db.csv",
+            source_hash="def",
+            filetype="csv",
+        )
+        page = ParsedPage(
+            title="Parent",
+            content="[Database](Database%20def.csv)",
+            original_path="p.md",
+            source_hash="abc",
+            children=[child],
+        )
+        self.assertTrue(_is_index_only_page(page))
+
+    def test_parent_with_real_text_is_not_index(self):
+        """Parent with text beyond links is NOT index-only."""
+        child = ParsedPage(
+            title="Child",
+            content="content",
+            original_path="c.md",
+            source_hash="def",
+        )
+        page = ParsedPage(
+            title="Parent",
+            content="Welcome to this project.\n\n[Child](Child%20def.md)",
+            original_path="p.md",
+            source_hash="abc",
+            children=[child],
+        )
+        self.assertFalse(_is_index_only_page(page))
+
+    def test_parent_with_heading_and_links_is_not_index(self):
+        """Parent with a heading plus links has real content."""
+        child = ParsedPage(
+            title="Child",
+            content="content",
+            original_path="c.md",
+            source_hash="def",
+        )
+        page = ParsedPage(
+            title="Parent",
+            content="## Contents\n\n[Child](Child%20def.md)",
+            original_path="p.md",
+            source_hash="abc",
+            children=[child],
+        )
+        self.assertFalse(_is_index_only_page(page))
+
+    def test_parent_with_empty_content_is_index(self):
+        """Parent with empty content is index-only."""
+        child = ParsedPage(
+            title="Child",
+            content="content",
+            original_path="c.md",
+            source_hash="def",
+        )
+        page = ParsedPage(
+            title="Parent",
+            content="",
+            original_path="p.md",
+            source_hash="abc",
+            children=[child],
+        )
+        self.assertTrue(_is_index_only_page(page))
+
+    def test_parent_with_whitespace_only_is_index(self):
+        """Parent with only whitespace is index-only."""
+        child = ParsedPage(
+            title="Child",
+            content="content",
+            original_path="c.md",
+            source_hash="def",
+        )
+        page = ParsedPage(
+            title="Parent",
+            content="   \n\n  \n",
+            original_path="p.md",
+            source_hash="abc",
+            children=[child],
+        )
+        self.assertTrue(_is_index_only_page(page))
+
+    def test_parent_with_links_and_whitespace_is_index(self):
+        """Parent with links separated by blank lines is still index-only."""
+        child = ParsedPage(
+            title="Child",
+            content="content",
+            original_path="c.md",
+            source_hash="def",
+        )
+        page = ParsedPage(
+            title="Parent",
+            content="\n\n[Child](Child%20def.md)\n\n\n[Other](Other%20ghi.md)\n\n",
+            original_path="p.md",
+            source_hash="abc",
+            children=[child],
+        )
+        self.assertTrue(_is_index_only_page(page))
+
+    def test_parent_with_external_link_is_not_index(self):
+        """Parent with an external link (not .md/.csv) has real content."""
+        child = ParsedPage(
+            title="Child",
+            content="content",
+            original_path="c.md",
+            source_hash="def",
+        )
+        page = ParsedPage(
+            title="Parent",
+            content="[Google](https://google.com)\n\n[Child](Child%20def.md)",
+            original_path="p.md",
+            source_hash="abc",
+            children=[child],
+        )
+        # "[Google](https://google.com)" remains after stripping .md links
+        self.assertFalse(_is_index_only_page(page))

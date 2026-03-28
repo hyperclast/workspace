@@ -824,6 +824,44 @@ def flatten_page_tree(pages: list[ParsedPage]) -> list[ParsedPage]:
     return result
 
 
+def _is_index_only_page(parsed_page: ParsedPage) -> bool:
+    """
+    Detect whether a parent page is a pure index — its content is only
+    links to child pages (and optional whitespace/blank lines).
+
+    In Notion, a page that serves only as a container for child pages
+    exports as a markdown file whose body is just a list of internal
+    links like ``[Child](Child%20Page%20hash.md)``. When importing into
+    Hyperclast, the folder already represents this navigational structure,
+    so creating a duplicate page adds clutter without value.
+
+    A page is considered index-only when:
+    1. It has children (it's a parent page that maps to a folder).
+    2. After removing all internal Notion links (`[text](*.md)` /
+       `[text](*.csv)`), the remaining text is empty or whitespace-only.
+
+    Args:
+        parsed_page: A ParsedPage with children.
+
+    Returns:
+        True if the page content is purely navigational links.
+    """
+    if not parsed_page.children:
+        return False
+
+    content = parsed_page.content
+    if not content or not content.strip():
+        # Empty content with children — the folder alone is sufficient.
+        return True
+
+    # Strip all internal Notion links (markdown links to .md/.csv files).
+    # These are the exact links that extract_notion_links() would find.
+    stripped = re.sub(r"\[([^\]]+)\]\([^)]+\.(?:md|csv)\)", "", content)
+
+    # If nothing meaningful remains, this is an index-only page.
+    return not stripped.strip()
+
+
 def _sanitize_folder_name(name: str) -> str:
     """
     Sanitize a folder name for use during import.
@@ -913,6 +951,9 @@ def _create_folders_from_tree(parsed_pages: list[ParsedPage], project, max_depth
                 else:
                     # Depth exceeded or limit reached — flatten
                     folder = parent_folder
+
+                # Parent page goes into its own folder (alongside children)
+                page_folder_map[id(page)] = folder
 
                 # Children go into this folder
                 for child in page.children:
@@ -1011,6 +1052,13 @@ def create_import_pages(parsed_pages: list[ParsedPage], project, user, import_jo
         # Skip if this page's source_hash already exists in the project
         # (Only check against incoming_hashes, not linked hashes)
         if parsed_page.source_hash and parsed_page.source_hash in existing_page_hashes:
+            skipped_count += 1
+            continue
+
+        # Skip index-only parent pages — their folder already represents
+        # the navigational structure, so creating a duplicate page with
+        # the same name adds clutter without value.
+        if _is_index_only_page(parsed_page):
             skipped_count += 1
             continue
 
