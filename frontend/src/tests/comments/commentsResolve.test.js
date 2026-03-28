@@ -110,18 +110,30 @@ describe("CommentsTab resolve — source patterns", () => {
     expect(source).toMatch(replyBtnPattern);
   });
 
-  test("handleResolve shows specific 403 toast", () => {
+  test("handleResolve shows specific 403 toast using 'discussions' terminology", () => {
     const resolveFn = source.match(/async function handleResolve[\s\S]*?^  \}/m);
     expect(resolveFn).not.toBeNull();
     expect(resolveFn[0]).toContain("e.status === 403");
-    expect(resolveFn[0]).toContain("edit access to resolve");
+    expect(resolveFn[0]).toContain("edit access to resolve discussions");
   });
 
-  test("handleUnresolve shows specific 403 toast with 'unresolve' wording", () => {
+  test("handleResolve generic error toast uses 'discussion' terminology", () => {
+    const resolveFn = source.match(/async function handleResolve[\s\S]*?^  \}/m);
+    expect(resolveFn).not.toBeNull();
+    expect(resolveFn[0]).toContain("resolve the discussion");
+  });
+
+  test("handleUnresolve shows specific 403 toast using 'discussions' terminology", () => {
     const unresolveFn = source.match(/async function handleUnresolve[\s\S]*?^  \}/m);
     expect(unresolveFn).not.toBeNull();
     expect(unresolveFn[0]).toContain("e.status === 403");
-    expect(unresolveFn[0]).toContain("edit access to unresolve");
+    expect(unresolveFn[0]).toContain("edit access to unresolve discussions");
+  });
+
+  test("handleUnresolve generic error toast uses 'discussion' terminology", () => {
+    const unresolveFn = source.match(/async function handleUnresolve[\s\S]*?^  \}/m);
+    expect(unresolveFn).not.toBeNull();
+    expect(unresolveFn[0]).toContain("unresolve the discussion");
   });
 });
 

@@ -269,9 +269,9 @@
     } catch (e) {
       console.error("Error resolving comment:", e);
       if (e.status === 403) {
-        showToast("You need edit access to resolve comments.", "error");
+        showToast("You need edit access to resolve discussions.", "error");
       } else {
-        showToast("Couldn't resolve the comment at this time.", "error");
+        showToast("Couldn't resolve the discussion at this time.", "error");
       }
     }
   }
@@ -285,9 +285,9 @@
     } catch (e) {
       console.error("Error unresolving comment:", e);
       if (e.status === 403) {
-        showToast("You need edit access to unresolve comments.", "error");
+        showToast("You need edit access to unresolve discussions.", "error");
       } else {
-        showToast("Couldn't unresolve the comment at this time.", "error");
+        showToast("Couldn't unresolve the discussion at this time.", "error");
       }
     }
   }
@@ -571,7 +571,7 @@
 <div class="comments-content">
   {#if isRewindMode}
     <div class="comments-rewind-notice">
-      <p>Comments are hidden during Rewind mode.</p>
+      <p>Discussions are hidden during Rewind mode.</p>
       <button class="comment-submit-btn" onclick={() => exitRewindMode()}>Exit Rewind</button>
     </div>
   {:else if loading}
@@ -579,7 +579,7 @@
   {:else}
     <div class="comments-ai-triggers">
       {#each Object.entries(PERSONAS) as [key, persona]}
-        <button class="ai-trigger-btn" class:ai-trigger-pending={pendingPersonas.has(key)} title="{persona.name} — {hasEditorSelection ? 'Review selection' : persona.subtitle}" disabled={pendingPersonas.has(key)} onclick={() => handleTriggerAIReview(key)}>
+        <button class="ai-trigger-btn" class:ai-trigger-pending={pendingPersonas.has(key)} title="{persona.name}: {hasEditorSelection ? 'Review selection' : persona.subtitle}" disabled={pendingPersonas.has(key)} onclick={() => handleTriggerAIReview(key)}>
           <span class="ai-trigger-img" style="background-image: url({PERSONA_SPRITE_URL}); background-position: {persona.bgPosition}; background-size: 200% 200%;"></span>
           <span class="ai-trigger-label">{persona.name}</span>
         </button>
@@ -606,12 +606,12 @@
 
     {#if comments.length === 0}
       <div class="comments-empty">
-        <p class="comments-empty-text">No comments yet</p>
-        <p class="comments-empty-hint">Select text in the editor and add a comment</p>
+        <p class="comments-empty-text">No discussions yet</p>
+        <p class="comments-empty-hint">Select text in the editor to start a discussion</p>
       </div>
     {:else if getVisibleComments().length === 0}
       <div class="comments-empty">
-        <p class="comments-empty-text">All comments resolved</p>
+        <p class="comments-empty-text">All discussions resolved</p>
         <p class="comments-empty-hint">
           <button class="comments-resolved-toggle" onclick={() => toggleShowResolved()}>Show resolved</button>
         </p>

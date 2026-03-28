@@ -235,7 +235,7 @@
     font-size: 0.8rem;
     font-weight: 500;
     color: #92400e;
-    background: white;
+    background: var(--bg-primary, white);
     border: 1px solid #fbbf24;
     border-radius: 6px;
     cursor: pointer;
@@ -243,7 +243,7 @@
   }
 
   .remove-link-btn:hover {
-    background: #fffbeb;
+    background: rgba(251, 191, 36, 0.1);
     border-color: #f59e0b;
   }
 

@@ -555,10 +555,10 @@
 
   .import-error {
     padding: 0.625rem 0.75rem;
-    background: #fef2f2;
-    border: 1px solid #fecaca;
+    background: rgba(235, 87, 87, 0.08);
+    border: 1px solid rgba(235, 87, 87, 0.25);
     border-radius: 6px;
-    color: #dc2626;
+    color: var(--danger-color, #dc2626);
     font-size: 0.875rem;
   }
 </style>
