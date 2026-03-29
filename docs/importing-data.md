@@ -4,11 +4,12 @@ This document describes the architecture and design of the data import feature i
 
 ## Overview
 
-The `imports` app enables users to migrate content from external note-taking applications into Hyperclast projects. The system is designed to be provider-agnostic, currently supporting Notion with plans for Obsidian.
+The `imports` app enables users to migrate content from external sources into Hyperclast projects. The system supports bulk imports from note-taking applications (Notion, future: Obsidian) and single-file PDF imports with client-side text extraction.
 
 **Supported Providers:**
 
-- **Notion** - Markdown & CSV export format
+- **Notion** - Markdown & CSV export format (async, background processing)
+- **PDF** - Single PDF import with client-side text extraction (synchronous)
 - **Obsidian** - Planned (vault export)
 
 ## Access Control
@@ -319,6 +320,7 @@ When thresholds are exceeded within the configured window (default: 7 days):
 | -------------------------- | ------ | ------------------- |
 | `/api/imports/`            | GET    | List import jobs    |
 | `/api/imports/notion/`     | POST   | Start Notion import |
+| `/api/imports/pdf/`        | POST   | Import PDF as page  |
 | `/api/imports/{id}/`       | GET    | Get job status      |
 | `/api/imports/{id}/pages/` | GET    | List imported pages |
 | `/api/imports/{id}/`       | DELETE | Delete job record   |
@@ -354,12 +356,85 @@ The separate queue prevents large imports from blocking other background tasks.
 An import job is marked as failed (not completed) when the archive contains no importable content. This occurs when:
 
 - The zip file is completely empty (no files)
-- The zip contains only unsupported file types (e.g., images, PDFs, plain text files)
+- The zip contains only unsupported file types (e.g., images, plain text files)
 - No markdown (.md) or CSV (.csv) files are found
 
 This ensures users receive clear feedback when they accidentally upload an incorrect export or empty archive. Note that re-importing the same content (full deduplication) is still considered successful, since the system found valid content that was already imported.
 
 The system is designed to be resilient - individual page failures don't stop the entire import. Security violations result in immediate failure and abuse tracking.
+
+## PDF Import
+
+PDF import is a synchronous, single-file import that creates one page per PDF. Unlike Notion import (which uses background processing), PDF import completes within the HTTP request.
+
+### Flow
+
+```
+┌───────────────────────────────────────────┐
+│                  Client                   │
+├───────────────────────────────────────────┤
+│  1. User picks PDF file                  │
+│  2. PDF.js extracts text (client-side)    │
+│  3. POST /api/imports/pdf/                │
+│     multipart: project_id, title,         │
+│                content, file              │
+└────────────────────┬──────────────────────┘
+                     ▼
+┌───────────────────────────────────────────┐
+│                  Server                   │
+├───────────────────────────────────────────┤
+│  4. Validate (type, size, content, perms) │
+│  5. Store PDF as FileUpload via FileHub   │
+│  6. Create page with extracted text       │
+│     + link to original PDF at top         │
+│  7. Return 201 with page/file IDs        │
+└───────────────────────────────────────────┘
+```
+
+### Key Differences from Notion Import
+
+| Aspect            | Notion Import                  | PDF Import                            |
+| ----------------- | ------------------------------ | ------------------------------------- |
+| Processing        | Async (RQ background job)      | Synchronous (inline)                  |
+| Text extraction   | Server-side (markdown parsing) | Client-side (PDF.js)                  |
+| Pages per import  | Many (from zip archive)        | One                                   |
+| Creates ImportJob | Yes                            | No                                    |
+| File storage      | Archive stored in R2 for audit | Original PDF stored as FileUpload     |
+| Deduplication     | source_hash based              | None (each import creates a new page) |
+
+### Page Content Structure
+
+The created page contains:
+
+```markdown
+[filename.pdf](/files/project-id/file-id/token/)
+
+---
+
+Extracted text from the PDF...
+```
+
+- **PDF link**: Markdown link to the original file at the top, with filename escaped to prevent markdown injection
+- **Separator**: Horizontal rule separating the link from content
+- **Extracted text**: Client-side extracted text, stripped of leading/trailing whitespace
+
+### Validation
+
+| Check         | Limit                                                | Error                      |
+| ------------- | ---------------------------------------------------- | -------------------------- |
+| Content type  | `application/pdf`, `application/x-pdf`               | 400 `invalid_content_type` |
+| File size     | `WS_IMPORTS_PDF_MAX_FILE_SIZE_BYTES` (default: 20MB) | 413 `file_too_large`       |
+| Content size  | 10MB (UTF-8 encoded)                                 | 413 `content_too_large`    |
+| Empty content | Must have non-whitespace text                        | 400 `no_content`           |
+| Empty title   | Must have non-whitespace title                       | 400 `invalid_title`        |
+| Permissions   | `user_can_edit_in_project()`                         | 403 `forbidden`            |
+| Abuse check   | `should_block_user()`                                | 429 `temporarily_blocked`  |
+
+### Configuration
+
+| Variable                             | Default         | Description           |
+| ------------------------------------ | --------------- | --------------------- |
+| `WS_IMPORTS_PDF_MAX_FILE_SIZE_BYTES` | 20971520 (20MB) | Maximum PDF file size |
 
 ## Future: Obsidian Support
 
@@ -390,6 +465,7 @@ See `CLAUDE.obsidian_dedupe.md` for deduplication strategy details.
 | `imports/models/bans.py`             | ImportBannedUser for permanent bans  |
 | `imports/api/imports.py`             | REST API endpoints                   |
 | `imports/services/notion.py`         | Notion parsing and transformation    |
+| `imports/services/pdf.py`            | PDF file storage and markdown escape |
 | `imports/services/archive_safety.py` | Archive inspection and validation    |
 | `imports/services/abuse.py`          | Abuse tracking and ban enforcement   |
 | `imports/tasks.py`                   | Background job processing            |

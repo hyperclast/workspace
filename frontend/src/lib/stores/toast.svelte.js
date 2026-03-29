@@ -26,6 +26,8 @@ export function showToast(message, type = "success", options = {}) {
       removeToast(id);
     }, duration);
   }
+
+  return id;
 }
 
 export function removeToast(id) {

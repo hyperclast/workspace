@@ -829,3 +829,48 @@ export async function triggerAIReview(pageExternalId, persona, selectionText) {
   }
   return response.json();
 }
+
+// PDF Import API
+
+/**
+ * Import a PDF as a page. Text extraction happens client-side via PDF.js;
+ * the backend stores the original PDF and creates a page with the extracted text.
+ * @param {string} projectId - External ID of the project
+ * @param {File} file - The PDF file
+ * @returns {Promise<Object>} { page_external_id, page_title, file_external_id, file_download_url }
+ */
+export async function importPdf(projectId, file) {
+  const MAX_PDF_SIZE = 20 * 1024 * 1024; // 20MB — must match backend WS_IMPORTS_PDF_MAX_FILE_SIZE_BYTES
+  if (file.size > MAX_PDF_SIZE) {
+    throw new Error(`PDF exceeds maximum size of ${MAX_PDF_SIZE / (1024 * 1024)}MB`);
+  }
+
+  const { extractTextFromPdf } = await import("./pdf/pdfLoader.js");
+
+  const arrayBuffer = await file.arrayBuffer();
+  const { title, content } = await extractTextFromPdf(arrayBuffer);
+
+  if (!content.trim()) {
+    throw new Error("No text could be extracted from this PDF. It may be a scanned document.");
+  }
+
+  const pageTitle = title || file.name.replace(/\.pdf$/i, "");
+
+  const formData = new FormData();
+  formData.append("project_id", projectId);
+  formData.append("title", pageTitle);
+  formData.append("content", content);
+  formData.append("file", file);
+
+  const response = await csrfFetch(`${API_BASE}/imports/pdf/`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const err = new Error(data.message || `Failed to import PDF: ${response.statusText}`);
+    err.status = response.status;
+    throw err;
+  }
+  return response.json();
+}

@@ -3,7 +3,7 @@
   import { csrfFetch } from "../../csrf.js";
   import { formatFileSize } from "../utils/formatFileSize.js";
   import { confirm, prompt, shareProject, changePageType, sharePage, importModal, movePageModal } from "../modal.js";
-  import { showToast } from "../toast.js";
+  import { showToast, removeToast } from "../toast.js";
   import { broadcastSidenavChanged } from "../sidenavBroadcast.js";
   import { validateProjectName } from "../validation.js";
   import { isDemoMode } from "../../demo/index.js";
@@ -78,6 +78,7 @@
   let openPageMenuId = $state(null);
   let openFileMenuId = $state(null);
   let openFolderMenuId = $state(null);
+  let pdfImportingProjectId = $state(null);
 
   // Derived state using getters
   let projects = $derived(getProjects());
@@ -250,6 +251,39 @@
         window.location.reload();
       },
     });
+  }
+
+  function handleImportPdf(e, projectId) {
+    e.stopPropagation();
+    closeAllMenus();
+    if (isDemoMode()) {
+      showToast("Not available in demo", "error");
+      return;
+    }
+    if (pdfImportingProjectId) return; // Already importing
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".pdf,application/pdf";
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      pdfImportingProjectId = projectId;
+      const toastId = showToast("Importing PDF...", "info", { duration: 0 });
+      try {
+        const { importPdf } = await import("../../api.js");
+        const result = await importPdf(projectId, file);
+        removeToast(toastId);
+        showToast("PDF imported successfully!");
+        window.location.href = `/pages/${result.page_external_id}/`;
+      } catch (err) {
+        console.error("PDF import failed:", err);
+        removeToast(toastId);
+        showToast(err.message || "Failed to import PDF", "error");
+      } finally {
+        pdfImportingProjectId = null;
+      }
+    });
+    input.click();
   }
 
   function handlePageDownload(e, pageId) {
@@ -801,7 +835,15 @@
                 onclick={(e) => handleImport(e, project.external_id, project.name)}
               >
                 {@html importIcon}
-                Notion &rsaquo; Import
+                Import &rsaquo; Notion
+              </button>
+              <button
+                class="project-menu-item"
+                disabled={pdfImportingProjectId != null}
+                onclick={(e) => handleImportPdf(e, project.external_id)}
+              >
+                {@html importIcon}
+                {pdfImportingProjectId === project.external_id ? "Importing PDF..." : "Import \u203a PDF"}
               </button>
               <button
                 class="project-menu-item project-menu-delete"

@@ -7,6 +7,7 @@ import {
   fetchPage,
   resolveComment,
   unresolveComment,
+  importPdf,
 } from "../api.js";
 
 // Mock csrfFetch
@@ -316,6 +317,43 @@ describe("API Service", () => {
         expect(e.message).toContain("Failed to unresolve comment");
         expect(e.status).toBe(403);
       }
+    });
+  });
+
+  describe("importPdf", () => {
+    it("rejects files exceeding 20MB before extraction", async () => {
+      const oversizedFile = new File(["x"], "huge.pdf", { type: "application/pdf" });
+      // Override size since File constructor sets it from content
+      Object.defineProperty(oversizedFile, "size", { value: 21 * 1024 * 1024 });
+
+      await expect(importPdf("proj1", oversizedFile)).rejects.toThrow(
+        "PDF exceeds maximum size of 20MB"
+      );
+
+      // csrfFetch should never be called — rejected before network request
+      expect(csrfFetch).not.toHaveBeenCalled();
+    });
+
+    it("allows files at exactly 20MB", async () => {
+      const file = new File(["x"], "exact.pdf", { type: "application/pdf" });
+      Object.defineProperty(file, "size", { value: 20 * 1024 * 1024 });
+
+      // Mock the dynamic import of pdfLoader
+      vi.mock("../pdf/pdfLoader.js", () => ({
+        extractTextFromPdf: vi.fn().mockResolvedValue({
+          title: "Test",
+          content: "Some text",
+        }),
+      }));
+
+      csrfFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ page_external_id: "p1" }),
+      });
+
+      // Should not throw — 20MB is exactly at the limit, not over
+      const result = await importPdf("proj1", file);
+      expect(result).toEqual({ page_external_id: "p1" });
     });
   });
 });

@@ -7,7 +7,7 @@ from django.conf import settings
 from django.db import transaction
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
-from ninja import File, Form, Query, Router
+from ninja import File, Form, Query, Router, Schema
 from ninja.errors import HttpError
 from ninja.files import UploadedFile
 from ninja.pagination import paginate
@@ -25,9 +25,10 @@ from imports.schemas import (
     NotionImportOut,
 )
 from imports.services.abuse import should_block_user
+from imports.services.pdf import escape_markdown_link_text, store_pdf_as_file
 from imports.tasks import process_notion_import
 from imports.throttling import ImportCreationThrottle
-from pages.models import Project
+from pages.models import Page, Project
 from pages.permissions import user_can_edit_in_project
 
 logger = logging.getLogger(__name__)
@@ -180,6 +181,117 @@ def start_notion_import(
         "job": import_job,
         "message": "Import job started. Processing will continue in the background.",
     }
+
+
+# --- PDF Import ---
+# Must be defined before /{external_id}/ routes to avoid path conflict.
+
+PDF_ALLOWED_CONTENT_TYPES = ["application/pdf", "application/x-pdf"]
+PDF_MAX_FILE_SIZE = getattr(settings, "WS_IMPORTS_PDF_MAX_FILE_SIZE_BYTES", 20 * 1024 * 1024)
+PDF_MAX_CONTENT_SIZE = 10 * 1024 * 1024  # 10MB — page content limit
+
+
+class PdfImportOut(Schema):
+    page_external_id: str
+    page_title: str
+    file_external_id: str
+    file_download_url: str
+
+
+@imports_router.post(
+    "/pdf/",
+    response={201: PdfImportOut, 400: dict, 403: dict, 404: dict, 413: dict, 429: dict},
+    throttle=[ImportCreationThrottle()],
+)
+def import_pdf(
+    request: HttpRequest,
+    project_id: str = Form(...),
+    title: str = Form(...),
+    content: str = Form(...),
+    file: UploadedFile = File(...),
+):
+    """Import a PDF as a page with the original PDF stored as a project file.
+
+    Text extraction happens client-side (via PDF.js). The client sends the
+    extracted text alongside the original PDF file. The backend stores the
+    PDF and creates a page — no server-side PDF parsing needed.
+    """
+    # Check if user is blocked due to abuse
+    blocked, block_reason = should_block_user(request.user)
+    if blocked:
+        return 429, {
+            "error": "temporarily_blocked",
+            "message": "Import temporarily unavailable. Please try again later.",
+        }
+
+    if file.content_type not in PDF_ALLOWED_CONTENT_TYPES:
+        return 400, {
+            "error": "invalid_content_type",
+            "message": f"Expected a PDF file, got {file.content_type}",
+        }
+
+    if file.size > PDF_MAX_FILE_SIZE:
+        return 413, {
+            "error": "file_too_large",
+            "message": f"PDF exceeds maximum size of {PDF_MAX_FILE_SIZE // (1024 * 1024)}MB",
+        }
+
+    if not content.strip():
+        return 400, {
+            "error": "no_content",
+            "message": "No text could be extracted from this PDF. It may be a scanned document.",
+        }
+
+    if len(content.encode("utf-8")) > PDF_MAX_CONTENT_SIZE:
+        return 413, {
+            "error": "content_too_large",
+            "message": "Extracted text exceeds maximum page size.",
+        }
+
+    if not title.strip():
+        return 400, {"error": "invalid_title", "message": "Title is required."}
+
+    project = get_object_or_404(
+        Project.objects.filter(is_deleted=False),
+        external_id=project_id,
+    )
+
+    if not user_can_edit_in_project(request.user, project):
+        return 403, {"error": "forbidden", "message": "You do not have permission to import into this project"}
+
+    file_bytes = file.read()
+    filename = file.name or "document.pdf"
+
+    # Store original PDF as a project file
+    file_upload = store_pdf_as_file(project, request.user, filename, file_bytes)
+
+    # Build page content with link to original PDF at top
+    pdf_link = f"[{escape_markdown_link_text(filename)}]({file_upload.download_url})"
+    page_content = f"{pdf_link}\n\n---\n\n{content.strip()}"
+
+    # Create page — if this fails, clean up the FileUpload to avoid orphans
+    clean_title = title.strip()[:100]
+    try:
+        page = Page.objects.create_with_owner(
+            user=request.user,
+            project=project,
+            title=clean_title,
+            details={"content": page_content, "filetype": "md", "schema_version": 1},
+        )
+    except Exception:
+        logger.exception("Failed to create page for PDF import, cleaning up file upload %s", file_upload.external_id)
+        file_upload.delete()  # Cascades to blob; storage object cleaned by cleanup_stale_uploads
+        raise HttpError(500, "Failed to import PDF. Please try again later.")
+
+    return 201, PdfImportOut(
+        page_external_id=str(page.external_id),
+        page_title=page.title,
+        file_external_id=str(file_upload.external_id),
+        file_download_url=file_upload.download_url or "",
+    )
+
+
+# --- Import Job CRUD (parameterized routes must come after literal ones) ---
 
 
 @imports_router.get(

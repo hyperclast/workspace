@@ -300,3 +300,10 @@ export async function unresolveComment(_pageId, _commentId) {
 export async function triggerAIReview(_pageId, _persona, _selectionText) {
   throw new DemoModeError("use AI review");
 }
+
+/**
+ * Import PDF - not available in demo mode
+ */
+export async function importPdf(_projectId, _file) {
+  throw new DemoModeError("import PDFs");
+}

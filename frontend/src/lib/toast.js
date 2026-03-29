@@ -1,6 +1,8 @@
 import { mount } from "svelte";
 import Toast from "./components/Toast.svelte";
-import { showToast as _showToast } from "./stores/toast.svelte.js";
+import { showToast as _showToast, removeToast } from "./stores/toast.svelte.js";
+
+export { removeToast };
 
 let mounted = false;
 
@@ -24,5 +26,5 @@ export function initToast() {
 
 export function showToast(message, type = "success", options = {}) {
   initToast();
-  _showToast(message, type, options);
+  return _showToast(message, type, options);
 }

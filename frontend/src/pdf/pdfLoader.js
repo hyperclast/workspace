@@ -99,6 +99,66 @@ export async function getTextContent(page) {
 }
 
 /**
+ * Extract text from a PDF file as markdown with page separators.
+ * Runs entirely client-side — no server-side parsing needed.
+ * @param {ArrayBuffer} data - The PDF file contents
+ * @returns {Promise<{title: string, content: string}>}
+ */
+export async function extractTextFromPdf(data) {
+  const pdfjs = await initPdfJs();
+
+  const doc = await pdfjs.getDocument({
+    data,
+    cMapUrl: "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.8.69/cmaps/",
+    cMapPacked: true,
+  }).promise;
+
+  // Try to get title from PDF metadata
+  const metadata = await doc.getMetadata().catch(() => null);
+  const metaTitle = (metadata?.info?.Title || "").trim();
+
+  const pageTexts = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i);
+    const textContent = await page.getTextContent();
+
+    // Join text items, preserving line breaks where items are on different lines.
+    // When items are on the same line, insert a space between them if neither
+    // side already has whitespace — many PDFs emit each word as a separate item.
+    let lastY = null;
+    let lastHadEOL = false;
+    const parts = [];
+    for (const item of textContent.items) {
+      if (!item.str) continue;
+      const y = item.transform[5];
+      if (lastHadEOL || (lastY !== null && Math.abs(y - lastY) > 2)) {
+        parts.push("\n");
+      } else if (parts.length > 0) {
+        const prev = parts[parts.length - 1];
+        if (!/\s$/.test(prev) && !/^\s/.test(item.str)) {
+          parts.push(" ");
+        }
+      }
+      parts.push(item.str);
+      lastY = y;
+      lastHadEOL = !!item.hasEOL;
+    }
+
+    const text = parts.join("").trim();
+    if (text) {
+      pageTexts.push(`# Page ${i}\n\n${text}`);
+    }
+  }
+
+  doc.destroy();
+
+  return {
+    title: metaTitle,
+    content: pageTexts.join("\n\n"),
+  };
+}
+
+/**
  * Create a text layer div with selectable text.
  * @param {import('pdfjs-dist').TextContent} textContent - Text content from getTextContent
  * @param {HTMLDivElement} container - Container div for the text layer
