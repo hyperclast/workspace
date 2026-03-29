@@ -444,6 +444,51 @@ export function showCodePasteModal(options) {
 }
 
 /**
+ * Transform pasted text by wrapping bare URLs in markdown links.
+ * Returns the transformed text, or null if no transformation should be applied.
+ *
+ * Errs on the side of caution — returns null when the text already
+ * contains markdown formatting or when no bare URLs are found.
+ *
+ * @param {string} text - The pasted text
+ * @returns {string|null} - Transformed text or null if no change needed
+ */
+export function transformPastedUrls(text) {
+  if (!text || typeof text !== "string") return null;
+
+  // Don't transform if text already contains markdown link syntax
+  if (/\[.*?\]\(.*?\)/.test(text)) return null;
+
+  // Don't transform if text contains angle-bracket links
+  if (/<https?:\/\//.test(text)) return null;
+
+  // Don't transform if text contains markdown image syntax
+  if (/!\[.*?\]\(.*?\)/.test(text)) return null;
+
+  let result = text;
+  let transformed = false;
+
+  // Match backtick spans first (to skip them), then bare URLs.
+  // The regex engine tries alternatives left-to-right, so backtick
+  // spans are consumed before the URL pattern can see inside them.
+  result = result.replace(/`[^`]+`|https?:\/\/[^\s<>\[\]"']+[^\s<>\[\]"'.,;:!?)}\]]/g, (match) => {
+    if (match.startsWith("`")) return match;
+    transformed = true;
+    return `[${match}](${match})`;
+  });
+
+  if (!transformed) return null;
+
+  // If the result ends with a markdown link, append a space so the
+  // link decoration renders (CodeMirror needs a char after the closing paren).
+  if (result.endsWith(")")) {
+    result += " ";
+  }
+
+  return result;
+}
+
+/**
  * CodeMirror extension to detect code on paste and prompt user.
  * Only active for markdown files (not txt).
  */
@@ -459,8 +504,19 @@ export const pasteCodeDetection = EditorView.domEventHandlers({
       return false;
     }
 
-    // Skip if doesn't look like code
+    // Try URL auto-linking first (before code detection, since code
+    // detection would swallow text that merely contains a URL).
+    // But code detection takes priority when the text is actually code.
     if (!looksLikeCode(text)) {
+      const urlTransformed = transformPastedUrls(text);
+      if (urlTransformed) {
+        event.preventDefault();
+        view.dispatch({
+          changes: { from: pos, insert: urlTransformed },
+          selection: { anchor: pos + urlTransformed.length },
+        });
+        return true;
+      }
       return false;
     }
 

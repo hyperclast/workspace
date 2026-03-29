@@ -6,7 +6,12 @@
  */
 
 import { describe, test, expect } from "vitest";
-import { looksLikeCode, detectLanguage, isInsideCodeBlock } from "../../pasteCodeDetection.js";
+import {
+  looksLikeCode,
+  detectLanguage,
+  isInsideCodeBlock,
+  transformPastedUrls,
+} from "../../pasteCodeDetection.js";
 import { EditorState } from "@codemirror/state";
 import { codeFenceField } from "../../decorateFormatting.js";
 
@@ -357,5 +362,109 @@ describe("isInsideCodeBlock", () => {
     // Position on the "After" line
     const afterLine = state.doc.line(4).from;
     expect(isInsideCodeBlock(state, afterLine)).toBe(false);
+  });
+});
+
+describe("transformPastedUrls", () => {
+  describe("should transform bare URLs", () => {
+    test("single URL", () => {
+      expect(transformPastedUrls("https://example.com")).toBe(
+        "[https://example.com](https://example.com) "
+      );
+    });
+
+    test("URL with path", () => {
+      expect(transformPastedUrls("https://example.com/path/to/page")).toBe(
+        "[https://example.com/path/to/page](https://example.com/path/to/page) "
+      );
+    });
+
+    test("URL with query string", () => {
+      expect(transformPastedUrls("https://example.com/search?q=hello&lang=en")).toBe(
+        "[https://example.com/search?q=hello&lang=en](https://example.com/search?q=hello&lang=en) "
+      );
+    });
+
+    test("URL with fragment", () => {
+      expect(transformPastedUrls("https://example.com/page#section")).toBe(
+        "[https://example.com/page#section](https://example.com/page#section) "
+      );
+    });
+
+    test("http URL", () => {
+      expect(transformPastedUrls("http://example.com")).toBe(
+        "[http://example.com](http://example.com) "
+      );
+    });
+
+    test("URL embedded in text", () => {
+      expect(transformPastedUrls("Check out https://example.com for more info")).toBe(
+        "Check out [https://example.com](https://example.com) for more info"
+      );
+    });
+
+    test("multiple URLs in text", () => {
+      const input = "See https://one.com and https://two.com for details";
+      const expected =
+        "See [https://one.com](https://one.com) and [https://two.com](https://two.com) for details";
+      expect(transformPastedUrls(input)).toBe(expected);
+    });
+
+    test("URL followed by period (sentence ending)", () => {
+      expect(transformPastedUrls("Visit https://example.com.")).toBe(
+        "Visit [https://example.com](https://example.com)."
+      );
+    });
+
+    test("URL followed by comma", () => {
+      expect(transformPastedUrls("See https://example.com, then continue")).toBe(
+        "See [https://example.com](https://example.com), then continue"
+      );
+    });
+  });
+
+  describe("should NOT transform", () => {
+    test("text without URLs", () => {
+      expect(transformPastedUrls("Just some plain text")).toBeNull();
+    });
+
+    test("text with existing markdown links", () => {
+      expect(transformPastedUrls("Check [this](https://example.com) out")).toBeNull();
+    });
+
+    test("text with angle-bracket links", () => {
+      expect(transformPastedUrls("See <https://example.com> for details")).toBeNull();
+    });
+
+    test("text with markdown image syntax", () => {
+      expect(transformPastedUrls("![alt](https://example.com/img.png)")).toBeNull();
+    });
+
+    test("empty string", () => {
+      expect(transformPastedUrls("")).toBeNull();
+    });
+
+    test("null/undefined", () => {
+      expect(transformPastedUrls(null)).toBeNull();
+      expect(transformPastedUrls(undefined)).toBeNull();
+    });
+
+    test("URL inside backticks", () => {
+      expect(transformPastedUrls("`https://example.com`")).toBeNull();
+    });
+
+    test("URL inside backticks with surrounding text", () => {
+      expect(transformPastedUrls("Use `https://api.example.com/v1` as the base")).toBeNull();
+    });
+  });
+
+  describe("mixed backtick and bare URLs", () => {
+    test("transforms bare URL but skips backtick-wrapped URL", () => {
+      expect(
+        transformPastedUrls("See `https://api.example.com` and visit https://docs.example.com")
+      ).toBe(
+        "See `https://api.example.com` and visit [https://docs.example.com](https://docs.example.com) "
+      );
+    });
   });
 });
