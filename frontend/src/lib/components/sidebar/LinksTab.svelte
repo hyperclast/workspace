@@ -97,6 +97,11 @@
   }
 
   let displayOutgoingLinks = $derived(() => {
+    // When editor isn't ready yet (page refresh), localOutgoingLinks is empty.
+    // Fall back to server data so links aren't invisible until the editor loads.
+    if (localOutgoingLinks.length === 0 && serverOutgoingLinks.length > 0) {
+      return serverOutgoingLinks.map(link => ({ ...link, serverConfirmed: true }));
+    }
     const serverMap = new Map();
     for (const link of serverOutgoingLinks) {
       serverMap.set(link.external_id, link);
