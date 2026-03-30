@@ -3,6 +3,7 @@
   import { flip } from "svelte/animate";
   import { slide } from "svelte/transition";
   import { PERSONAS, PERSONA_SPRITE_URL } from "../../personaImages.js";
+  import { formatCommentBody } from "../../utils/formatComment.js";
   import { registerTabHandler, registerPageChangeHandler, getState, openSidebar, setActiveTab } from "../../stores/sidebar.svelte.js";
   import {
     fetchComments as apiFetchComments,
@@ -40,20 +41,6 @@
     return isDemoMode()
       ? { fetchComments: demoFetchComments, createComment: demoCreateComment, deleteComment: demoDeleteComment, resolveComment: demoResolveComment, unresolveComment: demoUnresolveComment, triggerAIReview: demoTriggerAIReview }
       : { fetchComments: apiFetchComments, createComment: apiCreateComment, deleteComment: apiDeleteComment, resolveComment: apiResolveComment, unresolveComment: apiUnresolveComment, triggerAIReview: apiTriggerAIReview };
-  }
-
-  function escapeHtml(text) {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
-  function formatCommentBody(content) {
-    const escaped = escapeHtml(content);
-    return escaped
-      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g, '<a class="comment-link" href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
-      .replace(/\n/g, "<br>");
   }
 
   let comments = $state([]);
