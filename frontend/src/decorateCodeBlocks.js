@@ -9,6 +9,7 @@ import {
   languageDisplayNames,
   languageOptions,
 } from "./codeSyntax/languageLoader.js";
+import { codeFenceField } from "./decorateFormatting.js";
 
 const CODE_FENCE_REGEX = /^```(\w*)$/;
 
@@ -254,14 +255,25 @@ function extractCodeContent(view, startLine, endLine, unclosed) {
 
 async function handleCopyClick(btn) {
   const startLine = parseInt(btn.dataset.codeBlockStart, 10);
-  const endLine = parseInt(btn.dataset.codeBlockEnd, 10);
-  const unclosed = btn.dataset.unclosed === "true";
+  let endLine = parseInt(btn.dataset.codeBlockEnd, 10);
+  let unclosed = btn.dataset.unclosed === "true";
 
   const cmContent = btn.closest(".cm-content");
   if (!cmContent) return;
 
   const editorView = EditorView.findFromDOM(cmContent);
   if (!editorView) return;
+
+  // The widget's data attributes may reflect viewport-limited boundaries.
+  // Look up the full block from codeFenceField for accurate end line.
+  const fences = editorView.state.field(codeFenceField, false);
+  if (fences) {
+    const fullBlock = fences.find((f) => f.start === startLine);
+    if (fullBlock) {
+      endLine = fullBlock.end;
+      unclosed = fullBlock.unclosed;
+    }
+  }
 
   const code = extractCodeContent(editorView, startLine, endLine, unclosed);
 
