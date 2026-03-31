@@ -401,6 +401,106 @@ class TestSyncSnapshotBroadcastsLinksUpdated(TestCase):
         mocked_broadcast.assert_called_once_with(room_id, page.external_id)
 
 
+@override_settings(ASK_FEATURE_ENABLED=True, REWIND_ENABLED=True)
+@patch("collab.tasks.update_page_embedding")
+class TestSyncSnapshotContentOnly(TestCase):
+    """Test the content_only mode of sync_snapshot_with_page."""
+
+    def _make_snapshot(self, room_id, content):
+        doc = Doc()
+        ytext = Text()
+        doc["codemirror"] = ytext
+        ytext += content
+        return YSnapshot.objects.create(
+            room_id=room_id,
+            snapshot=doc.get_update(),
+            last_update_id=1,
+        )
+
+    def test_content_only_updates_page_details(self, mocked_compute):
+        """content_only=True still hydrates page.details with content and hash."""
+        page = PageFactory()
+        room_id = f"page_{page.external_id}"
+        self._make_snapshot(room_id, "Hello content_only")
+
+        sync_snapshot_with_page(room_id, content_only=True)
+        page.refresh_from_db()
+
+        self.assertEqual(page.details["content"], "Hello content_only")
+        self.assertEqual(page.details["content_hash"], hashify("Hello content_only"))
+
+    def test_content_only_skips_embedding(self, mocked_compute):
+        """content_only=True does not enqueue embedding computation."""
+        page = PageFactory()
+        room_id = f"page_{page.external_id}"
+        self._make_snapshot(room_id, "Some text")
+
+        sync_snapshot_with_page(room_id, content_only=True)
+
+        mocked_compute.enqueue.assert_not_called()
+
+    @patch("collab.tasks.PageLink")
+    def test_content_only_skips_link_sync(self, mocked_page_link, mocked_compute):
+        """content_only=True does not call sync_links_for_page."""
+        page = PageFactory()
+        room_id = f"page_{page.external_id}"
+        self._make_snapshot(room_id, "Some text")
+
+        sync_snapshot_with_page(room_id, content_only=True)
+
+        mocked_page_link.objects.sync_links_for_page.assert_not_called()
+
+    @patch("collab.tasks.PageMention")
+    def test_content_only_skips_mention_sync(self, mocked_mention, mocked_compute):
+        """content_only=True does not call sync_mentions_for_page."""
+        page = PageFactory()
+        room_id = f"page_{page.external_id}"
+        self._make_snapshot(room_id, "Some text")
+
+        sync_snapshot_with_page(room_id, content_only=True)
+
+        mocked_mention.objects.sync_mentions_for_page.assert_not_called()
+
+    @patch("collab.tasks.FileLink")
+    def test_content_only_skips_file_link_sync(self, mocked_file_link, mocked_compute):
+        """content_only=True does not call FileLink.objects.sync_links_for_page."""
+        page = PageFactory()
+        room_id = f"page_{page.external_id}"
+        self._make_snapshot(room_id, "Some text")
+
+        sync_snapshot_with_page(room_id, content_only=True)
+
+        mocked_file_link.objects.sync_links_for_page.assert_not_called()
+
+    @patch("pages.services.rewind.maybe_create_rewind")
+    def test_content_only_skips_rewind_creation(self, mocked_rewind, mocked_compute):
+        """content_only=True does not call maybe_create_rewind."""
+        page = PageFactory()
+        room_id = f"page_{page.external_id}"
+        self._make_snapshot(room_id, "Some text")
+
+        sync_snapshot_with_page(room_id, content_only=True)
+
+        mocked_rewind.assert_not_called()
+
+    def test_content_only_false_still_runs_side_effects(self, mocked_compute):
+        """content_only=False (default) still enqueues embedding as before."""
+        page = PageFactory()
+        room_id = f"page_{page.external_id}"
+        self._make_snapshot(room_id, "Some text")
+
+        sync_snapshot_with_page(room_id, content_only=False)
+        page.refresh_from_db()
+
+        self.assertEqual(page.details["content"], "Some text")
+        mocked_compute.enqueue.assert_called_once_with(page_id=page.external_id)
+
+    def test_content_only_handles_missing_snapshot(self, mocked_compute):
+        """content_only=True handles missing snapshot gracefully (no crash)."""
+        sync_snapshot_with_page("page_nonexistent", content_only=True)
+        mocked_compute.enqueue.assert_not_called()
+
+
 @override_settings(ASK_FEATURE_ENABLED=False)
 @patch("collab.tasks.update_page_embedding")
 class TestSyncSnapshotWithPageFeatureDisabled(TestCase):

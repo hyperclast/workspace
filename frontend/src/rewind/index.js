@@ -238,7 +238,10 @@ export function setupRewind() {
     if (pageId) loadEntries();
   });
 
-  // Live-update timeline when a new rewind is created via WebSocket
+  // Live-update timeline when a new rewind is created via WebSocket.
+  // The `rewind` object must contain all fields expected by RewindTab.svelte:
+  // external_id, rewind_number, title, content_size_bytes, editors, label,
+  // lines_added, lines_deleted, is_compacted, compacted_from_count, created
   window.addEventListener("rewindCreated", (event) => {
     const { pageId, rewind } = event.detail;
     if (pageId !== currentPageId) return;

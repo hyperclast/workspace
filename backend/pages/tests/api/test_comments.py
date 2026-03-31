@@ -564,7 +564,7 @@ class TestAIReview(CommentsTestMixin, BaseAuthenticatedViewTestCase):
         url = f"/api/pages/{self.page.external_id}/comments/ai-review/"
         self.send_api_request(url=url, method="post", data={"persona": "einstein"})
 
-        mock_sync.assert_called_once_with(f"page_{self.page.external_id}")
+        mock_sync.assert_called_once_with(f"page_{self.page.external_id}", content_only=True)
 
     def test_ai_review_as_viewer_fails(self):
         """Project viewers cannot trigger AI review (org_members_can_access=False so Tier 1 doesn't grant edit)."""
@@ -876,3 +876,129 @@ class TestCommentFactory(CommentsTestMixin, BaseAuthenticatedViewTestCase):
         reply = CommentFactory(page=self.page, author=self.user, parent=root)
         self.assertIsNone(reply.anchor_from)
         self.assertIsNone(reply.anchor_to)
+
+
+@patch("collab.tasks.sync_snapshot_with_page")
+class TestGenerateEdit(CommentsTestMixin, BaseAuthenticatedViewTestCase):
+    """Tests for the generate-edit endpoint."""
+
+    def tearDown(self):
+        cache.clear()
+        super().tearDown()
+
+    def _url(self, comment_id, page=None):
+        page = page or self.page
+        return f"/api/pages/{page.external_id}/comments/{comment_id}/generate-edit/"
+
+    @patch("pages.api.comments.generate_edit_from_comment", side_effect=Exception("API key invalid: sk-abc123"))
+    def test_error_response_does_not_leak_exception_details(self, mock_generate, mock_sync):
+        """SEC-1: LLM errors must not be forwarded to the client."""
+        comment = CommentFactory(
+            page=self.page,
+            author=None,
+            ai_persona="dewey",
+            anchor_text="some anchor",
+            requester=self.user,
+        )
+
+        response = self.send_api_request(url=self._url(comment.external_id), method="post")
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+
+        detail = response.json()["detail"]
+        self.assertEqual(detail, "Failed to generate edit. Please try again.")
+        self.assertNotIn("sk-abc123", detail)
+        self.assertNotIn("API key", detail)
+
+    @patch("pages.api.comments.generate_edit_from_comment", return_value="Here is a suggestion.")
+    def test_success_returns_generated_text(self, mock_generate, mock_sync):
+        comment = CommentFactory(
+            page=self.page,
+            author=None,
+            ai_persona="dewey",
+            anchor_text="some anchor",
+            requester=self.user,
+        )
+
+        response = self.send_api_request(url=self._url(comment.external_id), method="post")
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.json()["text"], "Here is a suggestion.")
+
+    def test_human_comment_rejected(self, mock_sync):
+        comment = CommentFactory(page=self.page, author=self.user, anchor_text="text")
+
+        response = self.send_api_request(url=self._url(comment.external_id), method="post")
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        self.assertIn("Only AI comments", response.json()["detail"])
+
+    def test_comment_without_anchor_rejected(self, mock_sync):
+        comment = CommentFactory(
+            page=self.page,
+            author=None,
+            ai_persona="dewey",
+            anchor_text="",
+            requester=self.user,
+        )
+
+        response = self.send_api_request(url=self._url(comment.external_id), method="post")
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        self.assertIn("no anchor text", response.json()["detail"])
+
+    def test_unauthenticated_returns_401(self, mock_sync):
+        comment = CommentFactory(
+            page=self.page,
+            author=None,
+            ai_persona="dewey",
+            anchor_text="some anchor",
+            requester=self.user,
+        )
+        self.client.logout()
+        response = self.send_api_request(url=self._url(comment.external_id), method="post")
+        self.assertIn(response.status_code, [HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN])
+
+    def test_viewer_cannot_generate_edit(self, mock_sync):
+        """Project viewers cannot trigger generate-edit."""
+        restricted = ProjectFactory(org=self.org, creator=self.user, org_members_can_access=False)
+        page = PageFactory(project=restricted, creator=self.user)
+        viewer = UserFactory()
+        OrgMemberFactory(org=self.org, user=viewer, role=OrgMemberRole.MEMBER.value)
+        restricted.add_viewer(viewer)
+
+        comment = CommentFactory(
+            page=page,
+            author=None,
+            ai_persona="dewey",
+            anchor_text="some anchor",
+            requester=self.user,
+        )
+
+        self.login(viewer)
+        response = self.send_api_request(url=self._url(comment.external_id, page=page), method="post")
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+
+    def test_dedup_returns_409_on_concurrent_request(self, mock_sync):
+        """Concurrent generate-edit requests for the same comment return 409."""
+        comment = CommentFactory(
+            page=self.page,
+            author=None,
+            ai_persona="dewey",
+            anchor_text="some anchor",
+            requester=self.user,
+        )
+
+        # Simulate an in-progress request by pre-setting the cache key
+        cache.set(f"generate_edit:{comment.id}", 1, timeout=120)
+
+        response = self.send_api_request(url=self._url(comment.external_id), method="post")
+        self.assertEqual(response.status_code, HTTPStatus.CONFLICT)
+        self.assertIn("already being generated", response.json()["detail"])
+
+    def test_nonexistent_comment_returns_404(self, mock_sync):
+        response = self.send_api_request(url=self._url("nonexistent-id"), method="post")
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+    def test_nonexistent_page_returns_404(self, mock_sync):
+        response = self.send_api_request(
+            url="/api/pages/nonexistent-page/comments/some-comment/generate-edit/",
+            method="post",
+        )
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)

@@ -392,6 +392,18 @@ class RewindUpdateIn(Schema):
     label: str = Field(..., max_length=255)
 
 
+class RewindCheckpointIn(Schema):
+    """Request body for creating a labeled rewind checkpoint."""
+
+    label: str = Field(..., max_length=255)
+
+
+class GenerateEditOut(Schema):
+    """Response for LLM-generated insertion text from an AI comment suggestion."""
+
+    text: str
+
+
 # ========================================
 # Folder Schemas
 # ========================================

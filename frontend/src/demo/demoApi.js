@@ -302,6 +302,20 @@ export async function triggerAIReview(_pageId, _persona, _selectionText) {
 }
 
 /**
+ * Create rewind checkpoint - not available in demo mode
+ */
+export async function createRewindCheckpoint(_pageId, _label) {
+  throw new DemoModeError("create rewind checkpoints");
+}
+
+/**
+ * Generate comment edit - not available in demo mode
+ */
+export async function generateCommentEdit(_pageId, _commentId) {
+  throw new DemoModeError("generate AI edits");
+}
+
+/**
  * Import PDF - not available in demo mode
  */
 export async function importPdf(_projectId, _file) {

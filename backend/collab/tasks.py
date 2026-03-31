@@ -12,7 +12,25 @@ from .models import YSnapshot
 
 
 def broadcast_rewind_created(room_id: str, page_id: str, rewind_data: dict):
-    """Broadcast rewind_created event to all WebSocket clients."""
+    """Broadcast rewind_created event to all WebSocket clients.
+
+    Args:
+        room_id: The collaboration room ID.
+        page_id: The page external_id.
+        rewind_data: Dict with the following required fields (consumed by
+            frontend/src/rewind/index.js and RewindTab.svelte):
+            - external_id (str)
+            - rewind_number (int)
+            - title (str)
+            - content_size_bytes (int)
+            - editors (list[str])
+            - label (str)
+            - lines_added (int)
+            - lines_deleted (int)
+            - is_compacted (bool)
+            - compacted_from_count (int)
+            - created (str, ISO 8601)
+    """
     try:
         channel_layer = get_channel_layer()
         if channel_layer is None:
@@ -54,7 +72,14 @@ def broadcast_links_updated(room_id: str, page_id: str):
 
 
 @task(settings.JOB_INTERNAL_QUEUE)
-def sync_snapshot_with_page(room_id: str, is_session_end: bool = False):
+def sync_snapshot_with_page(room_id: str, is_session_end: bool = False, content_only: bool = False):
+    """Hydrate page.details from the latest Yjs snapshot.
+
+    When content_only=True, only update page.details (content + hash) and
+    return immediately — skip rewind creation, link/mention/file-link sync,
+    and embedding enqueue. Use this for synchronous callers that just need
+    fresh content (e.g. AI review, generate-edit, checkpoint creation).
+    """
     try:
         snapshot = YSnapshot.objects.get(room_id=room_id)
         page_id = room_id.split("_")[-1]
@@ -62,6 +87,9 @@ def sync_snapshot_with_page(room_id: str, is_session_end: bool = False):
         page.update_details_from_snapshot(snapshot=snapshot)
 
         log_info("Synced snapshot for %s", room_id)
+
+        if content_only:
+            return
 
         content = snapshot.content or ""
 

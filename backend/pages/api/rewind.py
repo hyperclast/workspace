@@ -20,6 +20,7 @@ from pages.models.rewind import Rewind
 from pages.permissions import user_can_access_page, user_can_edit_in_page
 from pages.services.rewind import _compute_line_diff
 from pages.schemas import (
+    RewindCheckpointIn,
     RewindListQuery,
     RewindOut,
     RewindSummaryOut,
@@ -52,6 +53,102 @@ def list_rewinds(request: HttpRequest, external_id: str, query: RewindListQuery 
         qs = qs.filter(label__icontains=query.label)
 
     return qs.defer("content")
+
+
+@rewind_router.post(
+    "/{external_id}/rewind/checkpoint/",
+    response={200: RewindSummaryOut, 404: dict},
+)
+def create_rewind_checkpoint(
+    request: HttpRequest,
+    external_id: str,
+    payload: RewindCheckpointIn,
+):
+    """Create a labeled rewind checkpoint of the current page state.
+
+    Unlike restore, this does NOT reset CRDT state or disconnect clients —
+    it simply snapshots the current content with a label so the user can
+    rewind to this exact point later.
+    """
+    if not settings.REWIND_ENABLED:
+        raise Http404
+
+    page = get_object_or_404(Page, external_id=external_id, is_deleted=False)
+
+    if not user_can_edit_in_page(request.user, page):
+        raise Http404
+
+    # Sync latest Yjs snapshot to page.details before snapshotting
+    try:
+        from collab.tasks import sync_snapshot_with_page
+
+        room_id = f"page_{external_id}"
+        sync_snapshot_with_page(room_id, content_only=True)
+        page.refresh_from_db(fields=["details"])
+    except Exception:
+        logger.warning("Failed to sync Yjs snapshot before checkpoint for page %s", external_id)
+
+    content = page.details.get("content", "")
+    content_hash = hashify(content)
+
+    # Always create the labeled checkpoint — the user explicitly requested it.
+    # Content dedup is intentionally skipped: the label is the point of a
+    # checkpoint, even if content hasn't changed since the last rewind.
+    latest = Rewind.objects.filter(page=page).order_by("-rewind_number").values("content").first()
+
+    content_size = len(content.encode("utf-8"))
+    lines_added, lines_deleted = (
+        _compute_line_diff(latest["content"], content) if latest else (len(content.splitlines()), 0)
+    )
+
+    with transaction.atomic():
+        page = Page.objects.select_for_update().get(id=page.id)
+        Page.objects.filter(id=page.id).update(current_rewind_number=F("current_rewind_number") + 1)
+        new_rewind_number = Page.objects.values_list("current_rewind_number", flat=True).get(id=page.id)
+
+        rewind = Rewind.objects.create(
+            page=page,
+            content=content,
+            content_hash=content_hash,
+            title=page.title,
+            content_size_bytes=content_size,
+            rewind_number=new_rewind_number,
+            editors=[str(request.user.external_id)],
+            label=payload.label,
+            lines_added=lines_added,
+            lines_deleted=lines_deleted,
+        )
+
+    # Broadcast so rewind timeline updates live
+    from collab.tasks import broadcast_rewind_created
+
+    room_id = f"page_{page.external_id}"
+    broadcast_rewind_created(
+        room_id,
+        str(page.external_id),
+        {
+            "external_id": str(rewind.external_id),
+            "rewind_number": rewind.rewind_number,
+            "title": rewind.title,
+            "content_size_bytes": rewind.content_size_bytes,
+            "editors": rewind.editors,
+            "label": rewind.label,
+            "lines_added": rewind.lines_added,
+            "lines_deleted": rewind.lines_deleted,
+            "is_compacted": rewind.is_compacted,
+            "compacted_from_count": rewind.compacted_from_count,
+            "created": rewind.created.isoformat(),
+        },
+    )
+
+    log_info(
+        "Created checkpoint rewind %d for page %s: '%s'",
+        rewind.rewind_number,
+        page.external_id,
+        payload.label,
+    )
+
+    return rewind
 
 
 @rewind_router.get(

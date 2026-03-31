@@ -765,6 +765,213 @@ class TestUpdateRewindLabelAccessControl(RewindAPITestBase):
 
 
 # ============================================================
+# CHECKPOINT
+# ============================================================
+
+
+@override_settings(REWIND_ENABLED=True)
+@patch("collab.tasks.sync_snapshot_with_page")
+class TestCreateRewindCheckpoint(RewindAPITestBase):
+    """Test the create_rewind_checkpoint endpoint."""
+
+    def _checkpoint_url(self, page=None):
+        page = page or self.page
+        return f"/api/pages/{page.external_id}/rewind/checkpoint/"
+
+    def test_creates_labeled_checkpoint(self, mock_sync):
+        self.page.details = {"content": "Hello world", "content_hash": hashify("Hello world")}
+        self.page.save(update_fields=["details"])
+
+        response = self.send_api_request(
+            url=self._checkpoint_url(),
+            method="post",
+            data={"label": "Before applying suggestion"},
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        data = response.json()
+        self.assertEqual(data["label"], "Before applying suggestion")
+        self.assertEqual(data["rewind_number"], 1)
+
+    def test_label_preserved_when_content_unchanged(self, mock_sync):
+        """Even when content matches the latest rewind, the labeled checkpoint is still created."""
+        self.page.details = {"content": "Same content", "content_hash": hashify("Same content")}
+        self.page.save(update_fields=["details"])
+
+        # Create an existing rewind with identical content
+        self._create_rewind("Same content")
+
+        response = self.send_api_request(
+            url=self._checkpoint_url(),
+            method="post",
+            data={"label": "Applied Dewey's suggestion"},
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        data = response.json()
+        # A NEW rewind is created with the label, not the old one returned
+        self.assertEqual(data["label"], "Applied Dewey's suggestion")
+        self.assertEqual(data["rewind_number"], 2)
+        self.assertEqual(Rewind.objects.filter(page=self.page).count(), 2)
+
+    def test_syncs_snapshot_with_content_only(self, mock_sync):
+        """Checkpoint calls sync_snapshot_with_page(content_only=True)."""
+        self.page.details = {"content": "Text", "content_hash": hashify("Text")}
+        self.page.save(update_fields=["details"])
+
+        self.send_api_request(
+            url=self._checkpoint_url(),
+            method="post",
+            data={"label": "My checkpoint"},
+        )
+        mock_sync.assert_called_once_with(f"page_{self.page.external_id}", content_only=True)
+
+    def test_checkpoint_computes_line_diff(self, mock_sync):
+        """Line diff is computed against the previous rewind."""
+        self.page.details = {"content": "line1", "content_hash": hashify("line1")}
+        self.page.save(update_fields=["details"])
+        self._create_rewind("line1")
+
+        # Update content for the checkpoint
+        self.page.details = {"content": "line1\nline2\nline3", "content_hash": hashify("line1\nline2\nline3")}
+        self.page.save(update_fields=["details"])
+
+        response = self.send_api_request(
+            url=self._checkpoint_url(),
+            method="post",
+            data={"label": "Added lines"},
+        )
+        data = response.json()
+        self.assertEqual(data["lines_added"], 2)
+        self.assertEqual(data["lines_deleted"], 0)
+
+    def test_first_checkpoint_no_previous_rewind(self, mock_sync):
+        """First checkpoint when no previous rewind exists."""
+        self.page.details = {"content": "line1\nline2", "content_hash": hashify("line1\nline2")}
+        self.page.save(update_fields=["details"])
+
+        response = self.send_api_request(
+            url=self._checkpoint_url(),
+            method="post",
+            data={"label": "First"},
+        )
+        data = response.json()
+        self.assertEqual(data["lines_added"], 2)
+        self.assertEqual(data["lines_deleted"], 0)
+
+    @patch("collab.tasks.broadcast_rewind_created")
+    def test_broadcast_sends_complete_rewind_data(self, mock_broadcast, mock_sync):
+        """Checkpoint broadcast must include all 11 fields expected by the frontend."""
+        self.page.details = {"content": "Hello", "content_hash": hashify("Hello")}
+        self.page.save(update_fields=["details"])
+
+        self.send_api_request(
+            url=self._checkpoint_url(),
+            method="post",
+            data={"label": "My checkpoint"},
+        )
+
+        mock_broadcast.assert_called_once()
+        _, _, rewind_data = mock_broadcast.call_args[0]
+
+        expected_keys = {
+            "external_id",
+            "rewind_number",
+            "title",
+            "content_size_bytes",
+            "editors",
+            "label",
+            "lines_added",
+            "lines_deleted",
+            "is_compacted",
+            "compacted_from_count",
+            "created",
+        }
+        self.assertEqual(set(rewind_data.keys()), expected_keys)
+        self.assertEqual(rewind_data["label"], "My checkpoint")
+        self.assertEqual(rewind_data["title"], self.page.title)
+        self.assertIsInstance(rewind_data["created"], str)
+
+    def test_viewer_cannot_create_checkpoint(self, mock_sync):
+        viewer = UserFactory()
+        PageEditorFactory(user=viewer, page=self.page, role=PageEditorRole.VIEWER.value)
+
+        self.login(viewer)
+        response = self.send_api_request(
+            url=self._checkpoint_url(),
+            method="post",
+            data={"label": "Nope"},
+        )
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+    def test_editor_can_create_checkpoint(self, mock_sync):
+        editor = UserFactory()
+        PageEditorFactory(user=editor, page=self.page, role=PageEditorRole.EDITOR.value)
+
+        self.page.details = {"content": "Content", "content_hash": hashify("Content")}
+        self.page.save(update_fields=["details"])
+
+        self.login(editor)
+        response = self.send_api_request(
+            url=self._checkpoint_url(),
+            method="post",
+            data={"label": "Editor checkpoint"},
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+    def test_no_access_user_gets_404(self, mock_sync):
+        stranger = UserFactory()
+        self.login(stranger)
+        response = self.send_api_request(
+            url=self._checkpoint_url(),
+            method="post",
+            data={"label": "Nope"},
+        )
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+    def test_unauthenticated_returns_401(self, mock_sync):
+        self.client.logout()
+        response = self.send_api_request(
+            url=self._checkpoint_url(),
+            method="post",
+            data={"label": "Nope"},
+        )
+        self.assertIn(response.status_code, [HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN])
+
+    def test_project_viewer_cannot_create_checkpoint(self, mock_sync):
+        """Project-level viewers cannot create checkpoints."""
+        viewer = UserFactory()
+        ProjectEditorFactory(user=viewer, project=self.project, role=ProjectEditorRole.VIEWER.value)
+
+        self.login(viewer)
+        response = self.send_api_request(
+            url=self._checkpoint_url(),
+            method="post",
+            data={"label": "Nope"},
+        )
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+    def test_deleted_page_returns_404(self, mock_sync):
+        self.page.mark_as_deleted()
+        response = self.send_api_request(
+            url=self._checkpoint_url(),
+            method="post",
+            data={"label": "Nope"},
+        )
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+
+@override_settings(REWIND_ENABLED=False)
+@patch("collab.tasks.sync_snapshot_with_page")
+class TestCheckpointFeatureDisabled(RewindAPITestBase):
+    def test_checkpoint_returns_404_when_disabled(self, mock_sync):
+        response = self.send_api_request(
+            url=f"/api/pages/{self.page.external_id}/rewind/checkpoint/",
+            method="post",
+            data={"label": "Nope"},
+        )
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+
+# ============================================================
 # FEATURE FLAG
 # ============================================================
 

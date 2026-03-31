@@ -16,7 +16,8 @@ from collab.utils import notify_comments_updated
 from core.authentication import session_auth, token_auth
 from pages.models import AIPersona, Comment, Page
 from pages.permissions import user_can_edit_in_page
-from pages.tasks import run_ai_reply, run_ai_review
+from pages.schemas import GenerateEditOut
+from pages.tasks import generate_edit_from_comment, run_ai_reply, run_ai_review
 from pages.throttling import AIReviewThrottle, CommentCreationThrottle
 
 
@@ -352,7 +353,7 @@ def trigger_ai_review(request: HttpRequest, external_id: str, payload: AIReviewI
         from collab.tasks import sync_snapshot_with_page
 
         room_id = f"page_{external_id}"
-        sync_snapshot_with_page(room_id)
+        sync_snapshot_with_page(room_id, content_only=True)
         page.refresh_from_db(fields=["details"])
     except Exception:
         log_warning("Failed to sync Yjs snapshot before AI review for page %s", external_id)
@@ -525,3 +526,60 @@ def unresolve_comment(request: HttpRequest, external_id: str, comment_id: str):
         notify_comments_updated(str(page.external_id))
 
     return 200, _comment_to_out(comment)
+
+
+GENERATE_EDIT_DEDUP_TIMEOUT = 120  # seconds
+
+
+@comments_router.post(
+    "/{external_id}/comments/{comment_id}/generate-edit/",
+    response={200: GenerateEditOut, 400: dict, 403: dict, 404: dict, 409: dict, 429: dict},
+    throttle=[AIReviewThrottle()],
+)
+def generate_edit(request: HttpRequest, external_id: str, comment_id: str):
+    """Generate LLM-powered insertion text from an AI comment's suggestion.
+
+    Synchronous — blocks until the LLM responds (typically a few seconds).
+    Returns the text to insert after the commented passage.
+    """
+    page = get_object_or_404(
+        Page.objects.get_user_accessible_pages(request.user),
+        external_id=external_id,
+    )
+
+    if not user_can_edit_in_page(request.user, page):
+        return 403, {"detail": "You do not have edit access to this page."}
+
+    comment = get_object_or_404(Comment, page=page, external_id=comment_id)
+
+    if not comment.ai_persona:
+        return 400, {"detail": "Only AI comments can generate edits."}
+
+    if not comment.anchor_text:
+        return 400, {"detail": "Comment has no anchor text to locate in the document."}
+
+    # Dedup
+    dedup_key = f"generate_edit:{comment.id}"
+    if not cache.add(dedup_key, 1, timeout=GENERATE_EDIT_DEDUP_TIMEOUT):
+        return 409, {"detail": "An edit is already being generated for this comment."}
+
+    # Sync latest Yjs snapshot
+    try:
+        from collab.tasks import sync_snapshot_with_page
+
+        room_id = f"page_{external_id}"
+        sync_snapshot_with_page(room_id, content_only=True)
+        page.refresh_from_db(fields=["details"])
+    except Exception:
+        log_warning("Failed to sync Yjs snapshot before generate-edit for page %s", external_id)
+
+    try:
+        text = generate_edit_from_comment(comment, page, request.user)
+    except Exception as e:
+        cache.delete(dedup_key)
+        log_warning("generate-edit LLM call failed for comment %s: %s", comment_id, e)
+        return 400, {"detail": "Failed to generate edit. Please try again."}
+
+    cache.delete(dedup_key)
+
+    return 200, GenerateEditOut(text=text)

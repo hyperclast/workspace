@@ -336,6 +336,75 @@ def run_ai_review(page_id: int, page_external_id: str, persona: str, requester_i
     cache.delete(cache_key)
 
 
+# --- AI Edit Generation ---
+
+EDIT_SYSTEM_PROMPT = (
+    "You are an editor. Based on a review comment about a passage in a document, "
+    "generate text to INSERT into the document right after the commented passage.\n\n"
+    "Rules:\n"
+    "- Return ONLY the text to insert — no explanations, no markdown fences, no tags.\n"
+    "- The text will be inserted on a new line after the paragraph the comment refers to.\n"
+    "- Match the document's writing style, tone, and formatting.\n"
+    "- Be concise and actionable. Integrate suggestions naturally.\n"
+    "- If the comment suggests references or links, format them clearly.\n"
+    "- Do NOT repeat or rewrite existing content from the passage."
+)
+
+
+def _extract_context_window(content, anchor_text, context_lines=50):
+    """Extract ~context_lines before/after the anchor for LLM context."""
+    anchor_start = content.find(anchor_text)
+    if anchor_start == -1:
+        # Anchor not found — return truncated content as fallback context.
+        # Matches the per-page cap used in _build_context_pages() and run_ai_reply().
+        return content[:MAX_CHARS_PER_PAGE]
+
+    anchor_line = content[:anchor_start].count("\n")
+    lines = content.split("\n")
+    start = max(0, anchor_line - context_lines)
+    end = min(len(lines), anchor_line + context_lines + 1)
+    return "\n".join(lines[start:end])
+
+
+def generate_edit_from_comment(comment, page, requester):
+    """Call LLM to generate insertion text from an AI comment suggestion.
+
+    Returns the text to insert (string).
+    """
+    content = page.details.get("content", "")
+    context = _extract_context_window(content, comment.anchor_text)
+
+    # Build the comment thread
+    thread = comment.get_thread()
+    thread_text = _format_thread_for_prompt(thread)
+
+    # Resolve model
+    try:
+        config = get_ai_config_for_user(requester)
+        review_model = None
+        if not config.model_name and config.provider != AIProvider.CUSTOM.value:
+            review_model = REVIEW_MODELS.get(config.provider)
+    except AIKeyNotConfiguredError:
+        review_model = None
+
+    user_content = (
+        f'Document title: "{html_escape(page.title)}"\n\n'
+        f"<passage>\n{context}\n</passage>\n\n"
+        f'The comment is anchored to this text: "{comment.anchor_text}"\n\n'
+        f"Review comment thread:\n\n{thread_text}"
+    )
+
+    messages = [
+        {"role": "system", "content": EDIT_SYSTEM_PROMPT},
+        {"role": "user", "content": user_content},
+    ]
+
+    response = create_chat_completion(messages=messages, user=requester, model=review_model, max_tokens=4096)
+    edited = response["choices"][0]["message"]["content"].strip()
+
+    return edited
+
+
 # --- AI Reply ---
 
 REPLY_INSTRUCTION = (

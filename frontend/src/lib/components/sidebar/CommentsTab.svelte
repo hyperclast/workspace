@@ -4,6 +4,7 @@
   import { slide } from "svelte/transition";
   import { PERSONAS, PERSONA_SPRITE_URL } from "../../personaImages.js";
   import { formatCommentBody } from "../../utils/formatComment.js";
+  import { resolveAnchorRange, buildSuggestionChange } from "../../utils/applySuggestion.js";
   import { registerTabHandler, registerPageChangeHandler, getState, openSidebar, setActiveTab } from "../../stores/sidebar.svelte.js";
   import {
     fetchComments as apiFetchComments,
@@ -12,6 +13,8 @@
     resolveComment as apiResolveComment,
     unresolveComment as apiUnresolveComment,
     triggerAIReview as apiTriggerAIReview,
+    createRewindCheckpoint as apiCreateRewindCheckpoint,
+    generateCommentEdit as apiGenerateCommentEdit,
   } from "../../../api.js";
   import { isDemoMode } from "../../../demo/index.js";
   import {
@@ -21,6 +24,8 @@
     resolveComment as demoResolveComment,
     unresolveComment as demoUnresolveComment,
     triggerAIReview as demoTriggerAIReview,
+    createRewindCheckpoint as demoCreateRewindCheckpoint,
+    generateCommentEdit as demoGenerateCommentEdit,
   } from "../../../demo/demoApi.js";
   import {
     resolveCommentAnchors,
@@ -39,8 +44,8 @@
 
   function getApi() {
     return isDemoMode()
-      ? { fetchComments: demoFetchComments, createComment: demoCreateComment, deleteComment: demoDeleteComment, resolveComment: demoResolveComment, unresolveComment: demoUnresolveComment, triggerAIReview: demoTriggerAIReview }
-      : { fetchComments: apiFetchComments, createComment: apiCreateComment, deleteComment: apiDeleteComment, resolveComment: apiResolveComment, unresolveComment: apiUnresolveComment, triggerAIReview: apiTriggerAIReview };
+      ? { fetchComments: demoFetchComments, createComment: demoCreateComment, deleteComment: demoDeleteComment, resolveComment: demoResolveComment, unresolveComment: demoUnresolveComment, triggerAIReview: demoTriggerAIReview, createRewindCheckpoint: demoCreateRewindCheckpoint, generateCommentEdit: demoGenerateCommentEdit }
+      : { fetchComments: apiFetchComments, createComment: apiCreateComment, deleteComment: apiDeleteComment, resolveComment: apiResolveComment, unresolveComment: apiUnresolveComment, triggerAIReview: apiTriggerAIReview, createRewindCheckpoint: apiCreateRewindCheckpoint, generateCommentEdit: apiGenerateCommentEdit };
   }
 
   let comments = $state([]);
@@ -50,6 +55,7 @@
   let replyingTo = $state(null); // external_id of comment being replied to
   let pageCommentBody = $state("");
   let replyBody = $state("");
+  let applyingComment = $state(null);
 
   async function startReply(commentId) {
     if (replyingTo === commentId) {
@@ -299,6 +305,9 @@
     try {
       const { triggerAIReview } = getApi();
       await triggerAIReview(currentPageId, persona, selectionText || undefined);
+      const personaName = persona.charAt(0).toUpperCase() + persona.slice(1);
+      const scope = selectionText ? "selection" : "page";
+      showToast(`${personaName} is reviewing your ${scope}...`);
       // Comments will arrive via WebSocket commentsUpdated event
     } catch (e) {
       console.error("Error triggering AI review:", e);
@@ -341,6 +350,100 @@
 
   function canResolve() {
     return currentPageRole === "admin" || currentPageRole === "editor";
+  }
+
+  async function handleApplySuggestion(comment) {
+    if (!currentPageId || applyingComment) return;
+
+    const view = window.editorView;
+    if (!view) return;
+
+    const field = view.state.field(commentHighlightField);
+    const range = resolveAnchorRange(view.state, field.ranges, comment);
+
+    if (!range) {
+      showToast("Cannot locate the referenced text in the document");
+      return;
+    }
+
+    applyingComment = comment.external_id;
+    const personaName =
+      comment.ai_persona.charAt(0).toUpperCase() + comment.ai_persona.slice(1);
+    showToast(`Generating ${personaName}'s suggestion...`);
+
+    try {
+      // Call LLM to generate insertion text
+      const { generateCommentEdit, createRewindCheckpoint } = getApi();
+      const result = await generateCommentEdit(currentPageId, comment.external_id);
+      const insertionText = result.text?.trim();
+
+      if (!insertionText) {
+        showToast(`${personaName} has nothing to add`);
+        applyingComment = null;
+        return;
+      }
+
+      // Create rewind checkpoint (pre-edit state)
+      await createRewindCheckpoint(
+        currentPageId,
+        `Applied ${personaName}'s suggestion`,
+      );
+
+      // Re-resolve anchor range — the document may have changed during the
+      // async LLM call and checkpoint request (local or remote edits shift offsets).
+      const latestField = view.state.field(commentHighlightField);
+      const latestRange = resolveAnchorRange(view.state, latestField.ranges, comment);
+      if (!latestRange) {
+        showToast("Anchor moved during generation — edit not applied");
+        applyingComment = null;
+        return;
+      }
+
+      // Insert after the paragraph containing the anchor
+      const change = buildSuggestionChange(view.state, latestRange, insertionText);
+      view.dispatch({ changes: change });
+
+      // Temporarily highlight the inserted text
+      const insertStart = change.from + 2; // skip the \n\n prefix
+      const insertEnd = insertStart + insertionText.length;
+      highlightInsertedText(view, insertStart, insertEnd);
+
+      view.focus();
+
+      // Auto-resolve the comment — call the API directly so we can detect failure
+      // (handleResolve swallows errors and shows its own toast).
+      let resolveSucceeded = false;
+      try {
+        const { resolveComment } = getApi();
+        await resolveComment(currentPageId, comment.external_id);
+        resolveSucceeded = true;
+        await loadComments();
+      } catch (e) {
+        console.error("Error resolving after apply:", e);
+      }
+
+      showToast(
+        resolveSucceeded
+          ? `Applied ${personaName}'s suggestion. Discussion marked resolved`
+          : `Applied ${personaName}'s suggestion`,
+      );
+    } catch (e) {
+      console.error("Error applying AI suggestion:", e);
+      showToast("Failed to apply suggestion");
+    }
+
+    applyingComment = null;
+  }
+
+  function highlightInsertedText(view, from, to) {
+    // Select the inserted text so it's visually highlighted, then scroll to it.
+    // This uses CodeMirror's native selection highlight which works correctly
+    // with virtualized rendering (unlike direct DOM manipulation).
+    const clampedTo = Math.min(to, view.state.doc.length);
+    view.dispatch({
+      selection: { anchor: from, head: clampedTo },
+      effects: EditorView.scrollIntoView(from, { y: "center" }),
+    });
   }
 
   function handleCommentClick(commentId) {
@@ -646,6 +749,15 @@
             <div class="comment-body">{@html formatCommentBody(comment.body)}</div>
 
             <div class="comment-actions">
+              {#if comment.ai_persona && !comment.parent_id && !comment.is_resolved && comment.anchor_text && canResolve()}
+                <button
+                  class="comment-action-btn"
+                  disabled={applyingComment === comment.external_id}
+                  onclick={(e) => { e.stopPropagation(); handleApplySuggestion(comment); }}
+                >
+                  {applyingComment === comment.external_id ? "Applying..." : "Apply"}
+                </button>
+              {/if}
               <button class="comment-action-btn" disabled={comment.is_resolved || comment.can_reply === false} title={comment.is_resolved ? "Thread is resolved" : comment.can_reply === false ? "Maximum thread depth reached" : ""} onclick={() => startReply(comment.external_id)}>
                 Reply
               </button>
@@ -855,8 +967,16 @@
 
   .comment-actions {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.25rem;
+    align-items: center;
     margin-top: 0.375rem;
+  }
+
+  .comment-actions .comment-action-btn + .comment-action-btn::before {
+    content: "\00b7";
+    margin-right: 0.25rem;
+    color: var(--text-tertiary, #aaa);
+    pointer-events: none;
   }
 
   .comment-action-btn {

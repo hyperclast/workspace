@@ -669,7 +669,43 @@ export async function fetchRewindDetail(pageExternalId, rewindExternalId) {
   return response.json();
 }
 
+/**
+ * Create a labeled rewind checkpoint of the current page state.
+ * @param {string} pageExternalId - External ID of the page
+ * @param {string} label - Label for the checkpoint (e.g. "Applied Dewey's suggestion")
+ * @returns {Promise<Object>} RewindSummaryOut
+ */
+export async function createRewindCheckpoint(pageExternalId, label) {
+  const response = await csrfFetch(`${API_BASE}/pages/${pageExternalId}/rewind/checkpoint/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ label }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to create rewind checkpoint: ${response.statusText}`);
+  }
+  return response.json();
+}
+
 // Comments API
+
+/**
+ * Generate an LLM-powered edit from an AI comment suggestion.
+ * @param {string} pageExternalId - External ID of the page
+ * @param {string} commentExternalId - External ID of the AI comment
+ * @returns {Promise<{text: string}>}
+ */
+export async function generateCommentEdit(pageExternalId, commentExternalId) {
+  const response = await csrfFetch(
+    `${API_BASE}/pages/${pageExternalId}/comments/${commentExternalId}/generate-edit/`,
+    { method: "POST" }
+  );
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.detail || `Failed to generate edit: ${response.statusText}`);
+  }
+  return response.json();
+}
 
 /**
  * Fetch comments for a page.
