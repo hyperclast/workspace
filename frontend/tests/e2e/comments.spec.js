@@ -18,7 +18,7 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { dismissSocratesPanel } from "./helpers.js";
+import { dismissSocratesPanel, waitForEditorContent } from "./helpers.js";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:9800";
 const TEST_EMAIL = process.env.TEST_EMAIL || "dev@localhost";
@@ -50,28 +50,24 @@ async function createPageWithContent(page, title, content) {
   await page.waitForSelector(".sidebar-item.active", { timeout: 10000 });
   await page.waitForSelector(".cm-content", { timeout: 10000 });
 
-  // Wait for page to be fully loaded
+  // Wait for page to be fully loaded (getCurrentPage is a function, not a property)
   const pageId = await page.evaluate(async (expectedTitle) => {
     for (let i = 0; i < 20; i++) {
-      if (
-        window.currentPage?.title === expectedTitle ||
-        window.currentPage?.details?.title === expectedTitle
-      ) {
-        return window.currentPage.external_id;
+      const cp = window.getCurrentPage?.();
+      if (cp?.title === expectedTitle || cp?.details?.title === expectedTitle) {
+        return cp.external_id;
       }
       await new Promise((r) => setTimeout(r, 250));
     }
-    return window.currentPage?.external_id || "";
+    return window.getCurrentPage?.()?.external_id || "";
   }, title);
 
   // Type content into the editor
   await page.click(".cm-content");
   await page.keyboard.type(content);
 
-  // Wait for collab sync
-  await page.waitForFunction(() => window.isCollabSynced?.() === true, {
-    timeout: 15000,
-  });
+  // Wait for typed content to appear in the editor
+  await waitForEditorContent(page, content.substring(0, 30));
 
   return pageId;
 }
@@ -418,16 +414,11 @@ test.describe("Comments", () => {
     await page.waitForSelector(".cm-content", { timeout: 20000 });
     console.log("Page reloaded, editor visible");
 
-    // Wait for collaboration to sync (ydoc/ytext must be ready for anchor resolution)
-    await page.waitForFunction(() => window.isCollabSynced?.() === true, {
-      timeout: 15000,
-    });
-    console.log("Collab synced after reload");
-
-    // DO NOT open the comments tab — bars should appear automatically
-    // Wait for bars — use Playwright's auto-retry polling (no waitForTimeout)
+    // DO NOT open the comments tab — bars should appear automatically.
+    // Bars require Yjs anchor resolution (which happens after collab sync),
+    // so give a generous timeout instead of blocking on isCollabSynced.
     const anchorBar = page.locator(".cm-comment-bar");
-    await expect(anchorBar).toBeVisible({ timeout: 15000 });
+    await expect(anchorBar).toBeVisible({ timeout: 30000 });
     console.log("TEST PASSED: Bars appear after reload without opening comments tab");
   });
 

@@ -12,7 +12,7 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { dismissSocratesPanel } from "./helpers.js";
+import { dismissSocratesPanel, waitForEditorContent } from "./helpers.js";
 import path from "path";
 import fs from "fs";
 
@@ -148,12 +148,9 @@ test.describe("PDF Import", () => {
     await page.goto(`${BASE_URL}/pages/${data.page_external_id}/`);
     await page.waitForSelector(".cm-content", { timeout: 15000 });
 
-    await page.waitForFunction(
-      () =>
-        window.isCollabSynced?.() === true &&
-        (window.editorView?.state?.doc?.toString() || "").includes("Machine learning"),
-      { timeout: 20000 }
-    );
+    // Wait for editor content to load (don't block on collab sync — the app
+    // renders REST content first and upgrades to collaboration later)
+    await waitForEditorContent(page, "Machine learning", 20000);
 
     // Select text and add a comment
     await page.evaluate(() => {

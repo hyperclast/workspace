@@ -343,6 +343,22 @@ run_e2e_tests() {
     fi
 
     export TEST_BASE_URL="http://localhost:$TEST_PORT"
+
+    # Auto-detect Docker container for tests that need `docker exec`
+    # (e.g. apply-suggestion.spec.js creates AI comments via Django shell)
+    if [ -z "$TEST_DOCKER_CONTAINER" ]; then
+        local detected
+        detected=$(get_web_container)
+        if [ -n "$detected" ]; then
+            export TEST_DOCKER_CONTAINER="$detected"
+            log_info "Docker container: $TEST_DOCKER_CONTAINER (auto-detected)"
+        else
+            log_warn "No web container found — tests requiring docker exec will be skipped"
+        fi
+    else
+        log_info "Docker container: $TEST_DOCKER_CONTAINER (from env)"
+    fi
+
     log_info "Base URL: $TEST_BASE_URL"
     log_info "Command: $cmd"
 

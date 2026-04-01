@@ -23,6 +23,23 @@ export async function dismissSocratesPanel(page) {
 }
 
 /**
+ * Wait for the CodeMirror editor to contain expected text.
+ * Works regardless of whether collab sync has completed — the app loads
+ * content via REST first and upgrades to collaboration later.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {string} expectedText - Text that should appear in the editor
+ * @param {number} [timeout=15000] - Maximum wait time in ms
+ */
+export async function waitForEditorContent(page, expectedText, timeout = 15000) {
+  await page.waitForFunction(
+    (expected) => (window.editorView?.state?.doc?.toString() || "").includes(expected),
+    expectedText,
+    { timeout }
+  );
+}
+
+/**
  * Click a toolbar button by title, handling the case where the button
  * may have been moved to the overflow menu at narrower viewport widths.
  *

@@ -11,11 +11,13 @@
 
 import { test, expect } from "@playwright/test";
 import { execSync } from "child_process";
-import { dismissSocratesPanel } from "./helpers.js";
+import { dismissSocratesPanel, waitForEditorContent } from "./helpers.js";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:9800";
 const TEST_EMAIL = process.env.TEST_EMAIL || "dev@localhost";
 const TEST_PASSWORD = process.env.TEST_PASSWORD || "dev";
+const DOCKER_CONTAINER =
+  process.env.TEST_DOCKER_CONTAINER || "backend-workspace-internal-9800-ws-web-1";
 
 async function login(page) {
   await page.goto(`${BASE_URL}/login`);
@@ -47,9 +49,7 @@ async function createPageWithContent(page, title, content) {
   await page.click(".cm-content");
   await page.keyboard.type(content);
 
-  await page.waitForFunction(() => window.isCollabSynced?.() === true, {
-    timeout: 15000,
-  });
+  await waitForEditorContent(page, content.substring(0, 30));
 
   return pageId;
 }
@@ -61,10 +61,26 @@ async function openCommentsTab(page) {
 }
 
 /**
+ * Check if the Docker container is reachable.
+ */
+function isDockerContainerAvailable() {
+  try {
+    execSync(`docker inspect ${DOCKER_CONTAINER}`, {
+      encoding: "utf-8",
+      timeout: 5000,
+      stdio: "pipe",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Create an AI comment via Django shell in Docker (bypasses API schema limits).
  */
 function createAIComment(pageId, anchorText, body, persona = "dewey") {
-  const cmd = `docker exec backend-workspace-internal-9800-ws-web-1 python manage.py shell -c "
+  const cmd = `docker exec ${DOCKER_CONTAINER} python manage.py shell -c "
 from pages.models import Page, Comment
 page = Page.objects.get(external_id='${pageId}')
 Comment.objects.create(page=page, ai_persona='${persona}', anchor_text='''${anchorText}''', body='''${body}''')
@@ -80,6 +96,8 @@ test.describe("Apply AI Suggestion", () => {
   test.setTimeout(120000);
 
   test("Apply button appears on AI comments and recovers from errors", async ({ page }) => {
+    test.skip(!isDockerContainerAvailable(), `Docker container ${DOCKER_CONTAINER} not found`);
+
     // Collect console errors
     const consoleErrors = [];
     page.on("console", (msg) => {
@@ -114,9 +132,7 @@ test.describe("Apply AI Suggestion", () => {
     // Navigate to the page directly to trigger a fresh load with comments
     await page.goto(`${BASE_URL}/pages/${pageId}/`);
     await page.waitForSelector(".cm-content", { timeout: 20000 });
-    await page.waitForFunction(() => window.isCollabSynced?.() === true, {
-      timeout: 15000,
-    });
+    await waitForEditorContent(page, "hyperparameter");
     await dismissSocratesPanel(page);
     await openCommentsTab(page);
     await page.waitForTimeout(2000);

@@ -930,6 +930,7 @@
               class="sidebar-item"
               class:active={page.external_id === activePageId}
               aria-current={page.external_id === activePageId ? "page" : undefined}
+              data-page-id={page.external_id}
               role="button"
               tabindex="0"
               style="--folder-depth: {depth}"

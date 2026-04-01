@@ -88,8 +88,9 @@ test.describe("Code block copy button", () => {
 
     await copyBtn.click();
 
-    // Verify the success toast appears
-    await expect(page.locator(".toast")).toContainText("Copied to clipboard", {
+    // Verify the success toast appears (use .toast-success to avoid strict-mode
+    // violations when unrelated warning toasts are also visible)
+    await expect(page.locator(".toast-success").first()).toContainText("Copied to clipboard", {
       timeout: 3000,
     });
 

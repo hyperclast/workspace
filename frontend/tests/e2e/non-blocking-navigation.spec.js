@@ -30,6 +30,48 @@ function getPageIdFromUrl(url) {
   return match ? match[1] : null;
 }
 
+/**
+ * Ensure at least `needed` non-active sidebar items exist, creating pages
+ * if necessary. Returns an array of { id, title, locator } for each
+ * non-active item, snapshotted *before* any clicks so positions are stable.
+ */
+async function ensureOtherPages(page, needed) {
+  const otherItems = page.locator(`.sidebar-item:not(.active)`);
+  const otherCount = await otherItems.count();
+
+  if (otherCount < needed) {
+    for (let i = otherCount; i < needed; i++) {
+      const newPageBtn = page.locator(".sidebar-new-page-btn").first();
+      await newPageBtn.click();
+      const modal = page.locator(".modal");
+      await modal.waitFor({ state: "visible", timeout: 5000 });
+      await page.locator("#page-title-input").fill(`Nav Test ${Date.now()}-${i}`);
+      await page.locator(".modal-btn-primary").click();
+      await page.waitForSelector(".cm-content", { timeout: 10000 });
+    }
+  }
+
+  // Snapshot page IDs and titles from the non-active items *now*, before any
+  // clicks change the active state and shift positional locators.
+  const items = page.locator(`.sidebar-item:not(.active)`);
+  const count = await items.count();
+  expect(count).toBeGreaterThanOrEqual(needed);
+
+  const result = [];
+  for (let i = 0; i < needed; i++) {
+    const item = items.nth(i);
+    const id = await item.getAttribute("data-page-id");
+    const title = await item.locator(".page-title").textContent();
+    // Build a locator by data-page-id — this selector is stable across re-renders
+    result.push({
+      id,
+      title,
+      locator: page.locator(`.sidebar-item[data-page-id="${id}"]`),
+    });
+  }
+  return result;
+}
+
 test.describe("Non-blocking page navigation", () => {
   test.beforeEach(async ({ page }) => {
     test.skip(!TEST_EMAIL || !TEST_PASSWORD, "TEST_EMAIL and TEST_PASSWORD required");
@@ -42,28 +84,9 @@ test.describe("Non-blocking page navigation", () => {
 
     const initialPageId = getPageIdFromUrl(page.url());
 
-    // Ensure we have at least two other pages to click.
-    const otherItems = page.locator(`.sidebar-item:not(.active)`);
-    const otherCount = await otherItems.count();
-
-    if (otherCount < 2) {
-      for (let i = otherCount; i < 2; i++) {
-        const newPageBtn = page.locator(".sidebar-new-page-btn").first();
-        await newPageBtn.click();
-        const modal = page.locator(".modal");
-        await modal.waitFor({ state: "visible", timeout: 5000 });
-        await page.locator("#page-title-input").fill(`Nav Test ${Date.now()}-${i}`);
-        await page.locator(".modal-btn-primary").click();
-        await page.waitForSelector(".cm-content", { timeout: 10000 });
-      }
-    }
-
-    const items = page.locator(`.sidebar-item:not(.active)`);
-    const count = await items.count();
-    expect(count).toBeGreaterThanOrEqual(2);
-
-    const firstItem = items.nth(0);
-    const secondItem = items.nth(1);
+    const others = await ensureOtherPages(page, 2);
+    const first = others[0];
+    const second = others[1];
 
     // Intercept page fetch API to make the FIRST click slow
     let interceptCount = 0;
@@ -84,7 +107,7 @@ test.describe("Non-blocking page navigation", () => {
     });
 
     // Click the first non-active page (this will be slow)
-    await firstItem.click();
+    await first.locator.click();
     await page.waitForTimeout(500);
 
     // Verify loading state
@@ -93,13 +116,14 @@ test.describe("Non-blocking page navigation", () => {
     console.log(`Title during load: "${titleValue}"`);
 
     // Click the second page — should abort the first
-    await secondItem.click();
+    await second.locator.click();
 
     // The second page should load successfully
     await page.waitForSelector(".cm-content", { timeout: 10000 });
 
     const finalPageId = getPageIdFromUrl(page.url());
     expect(finalPageId).not.toBe(initialPageId);
+    expect(finalPageId).toBe(second.id);
 
     await expect(page.locator(".cm-content")).toBeVisible();
 
@@ -113,28 +137,9 @@ test.describe("Non-blocking page navigation", () => {
 
     await login(page);
 
-    // Ensure we have at least two other pages to click.
-    const otherItems = page.locator(`.sidebar-item:not(.active)`);
-    const otherCount = await otherItems.count();
-
-    if (otherCount < 2) {
-      for (let i = otherCount; i < 2; i++) {
-        const newPageBtn = page.locator(".sidebar-new-page-btn").first();
-        await newPageBtn.click();
-        const modal = page.locator(".modal");
-        await modal.waitFor({ state: "visible", timeout: 5000 });
-        await page.locator("#page-title-input").fill(`Large Doc Test ${Date.now()}-${i}`);
-        await page.locator(".modal-btn-primary").click();
-        await page.waitForSelector(".cm-content", { timeout: 10000 });
-      }
-    }
-
-    const items = page.locator(`.sidebar-item:not(.active)`);
-    expect(await items.count()).toBeGreaterThanOrEqual(2);
-
-    const firstItem = items.nth(0);
-    const secondItem = items.nth(1);
-    const secondTitle = await secondItem.locator(".page-title").textContent();
+    const others = await ensureOtherPages(page, 2);
+    const first = others[0];
+    const second = others[1];
 
     // Generate a large document (5MB of markdown content).
     // This will cause initializeEditor to block the main thread
@@ -184,7 +189,7 @@ test.describe("Non-blocking page navigation", () => {
 
     console.log("Clicking first page (will render 5MB document)...");
     const clickTime = Date.now();
-    await firstItem.click();
+    await first.locator.click();
 
     // Wait for the fetch to complete (route.fetch + fulfill is ~instant)
     // then the rAF yield fires, then initializeEditor blocks.
@@ -196,7 +201,7 @@ test.describe("Non-blocking page navigation", () => {
     console.log(
       `Clicking second page after ${Date.now() - clickTime}ms (during large doc init)...`
     );
-    await secondItem.click();
+    await second.locator.click();
 
     // The second page should eventually load.
     // After the first page's init block ends, the queued click fires,
@@ -211,11 +216,11 @@ test.describe("Non-blocking page navigation", () => {
     const loadedTitle = await page.locator("#note-title-input").inputValue();
     const totalTime = Date.now() - clickTime;
 
-    console.log(`Expected: "${secondTitle}", Got: "${loadedTitle}"`);
+    console.log(`Expected: "${second.title}", Got: "${loadedTitle}"`);
     console.log(`Total navigation time: ${totalTime}ms`);
 
     // The second page should have loaded, not the large first page
-    expect(loadedTitle).toBe(secondTitle);
+    expect(loadedTitle).toBe(second.title);
 
     await page.unroute("**/api/v1/pages/*/");
   });
@@ -223,31 +228,11 @@ test.describe("Non-blocking page navigation", () => {
   test("clicking another page while a large page is loading end-to-end", async ({ page }) => {
     await login(page);
 
-    // Ensure we have at least two other pages to click.
-    const otherItems = page.locator(`.sidebar-item:not(.active)`);
-    const otherCount = await otherItems.count();
+    const others = await ensureOtherPages(page, 2);
+    const first = others[0];
+    const second = others[1];
 
-    if (otherCount < 2) {
-      for (let i = otherCount; i < 2; i++) {
-        const newPageBtn = page.locator(".sidebar-new-page-btn").first();
-        await newPageBtn.click();
-        const modal = page.locator(".modal");
-        await modal.waitFor({ state: "visible", timeout: 5000 });
-        await page.locator("#page-title-input").fill(`Large Test ${Date.now()}-${i}`);
-        await page.locator(".modal-btn-primary").click();
-        await page.waitForSelector(".cm-content", { timeout: 10000 });
-      }
-    }
-
-    const items = page.locator(`.sidebar-item:not(.active)`);
-    expect(await items.count()).toBeGreaterThanOrEqual(2);
-
-    const firstItem = items.nth(0);
-    const secondItem = items.nth(1);
-    const firstTitle = await firstItem.locator(".page-title").textContent();
-    const secondTitle = await secondItem.locator(".page-title").textContent();
-
-    console.log(`Will click: "${firstTitle}" then quickly "${secondTitle}"`);
+    console.log(`Will click: "${first.title}" then quickly "${second.title}"`);
 
     // Add instrumentation to track what happens in the browser
     await page.evaluate(() => {
@@ -263,14 +248,14 @@ test.describe("Non-blocking page navigation", () => {
 
     // Click the first page
     console.log("Clicking first page...");
-    await firstItem.click();
+    await first.locator.click();
 
     // Wait a short time, then click the second page
     // This simulates the user clicking quickly while the first page is loading
     // (Yjs sync in progress, or collab upgrade happening)
     await page.waitForTimeout(100);
     console.log("Clicking second page...");
-    await secondItem.click();
+    await second.locator.click();
 
     // Wait for the page to settle
     await page.waitForSelector(".cm-content", { timeout: 30000 });
@@ -285,29 +270,18 @@ test.describe("Non-blocking page navigation", () => {
     const currentPageId = getPageIdFromUrl(currentUrl);
 
     console.log(`Navigation log:`, JSON.stringify(navLog, null, 2));
-    console.log(`Expected: "${secondTitle}", Got: "${loadedTitle}"`);
+    console.log(`Expected: "${second.title}", Got: "${loadedTitle}"`);
     console.log(`Final URL page ID: ${currentPageId}`);
 
     // Check if the second page ended up loading
     // This is the assertion that may fail — revealing the bug
-    expect(loadedTitle).toBe(secondTitle);
+    expect(loadedTitle).toBe(second.title);
   });
 
   test("sidenav remains clickable while a page is loading", async ({ page }) => {
     await login(page);
 
-    const otherItems = page.locator(`.sidebar-item:not(.active)`);
-    const otherCount = await otherItems.count();
-
-    if (otherCount < 1) {
-      const newPageBtn = page.locator(".sidebar-new-page-btn").first();
-      await newPageBtn.click();
-      const modal = page.locator(".modal");
-      await modal.waitFor({ state: "visible", timeout: 5000 });
-      await page.locator("#page-title-input").fill(`Click Test ${Date.now()}`);
-      await page.locator(".modal-btn-primary").click();
-      await page.waitForSelector(".cm-content", { timeout: 10000 });
-    }
+    const others = await ensureOtherPages(page, 1);
 
     // Set up a very slow page fetch
     await page.route("**/api/v1/pages/*/", async (route) => {
@@ -319,11 +293,8 @@ test.describe("Non-blocking page navigation", () => {
       }
     });
 
-    const items = page.locator(`.sidebar-item:not(.active)`);
-    const firstItem = items.nth(0);
-
     // Click a page — it will be stuck loading
-    await firstItem.click();
+    await others[0].locator.click();
     await page.waitForTimeout(500);
 
     // Verify the sidenav items are still clickable (not disabled, no pointer-events: none)
@@ -344,7 +315,7 @@ test.describe("Non-blocking page navigation", () => {
     }
 
     // Verify we can actually click another item and it responds
-    const clickReceived = await firstItem.evaluate((el) => {
+    const clickReceived = await others[0].locator.evaluate((el) => {
       return new Promise((resolve) => {
         el.addEventListener("click", () => resolve(true), { once: true });
         el.click();
