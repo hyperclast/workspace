@@ -1,8 +1,12 @@
 <script>
   import Modal from './Modal.svelte';
   import { startNotionImport, getImportStatus } from '../../api.js';
+  import { getAppConfig } from '../../config.js';
   import { showToast } from '../toast.js';
   import { closeImport } from '../stores/modal.svelte.js';
+
+  const maxImportSize = getAppConfig().imports?.maxFileSize ?? 100 * 1024 * 1024;
+  const maxImportSizeMB = Math.round(maxImportSize / (1024 * 1024));
 
   let {
     open = $bindable(false),
@@ -91,10 +95,9 @@
       return;
     }
 
-    // Check file size (100MB max)
-    const maxSize = 100 * 1024 * 1024;
-    if (selectedFile.size > maxSize) {
-      error = 'File size exceeds 100MB limit';
+    // Check file size
+    if (selectedFile.size > maxImportSize) {
+      error = `File size exceeds ${maxImportSizeMB}MB limit`;
       return;
     }
 
@@ -252,7 +255,7 @@
             <span class="drop-zone-text">
               Drop your Notion export here or <button type="button" class="browse-link">browse</button>
             </span>
-            <span class="drop-zone-hint">Zip files up to 100MB</span>
+            <span class="drop-zone-hint">Zip files up to {maxImportSizeMB}MB</span>
           </div>
         {/if}
       </div>

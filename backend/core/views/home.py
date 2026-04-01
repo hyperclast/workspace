@@ -10,6 +10,19 @@ def get_brand_name():
     return settings.BRAND_NAME
 
 
+def get_app_config():
+    """Return application configuration limits for the frontend."""
+    return {
+        "imports": {
+            "pdfMaxFileSize": settings.WS_IMPORTS_PDF_MAX_FILE_SIZE_BYTES,
+            "maxFileSize": settings.WS_IMPORTS_MAX_FILE_SIZE_BYTES,
+        },
+        "filehub": {
+            "maxFileSize": settings.WS_FILEHUB_MAX_FILE_SIZE_BYTES,
+        },
+    }
+
+
 def get_feature_flags():
     """Return feature flags to pass to the frontend."""
     return {
@@ -49,6 +62,7 @@ def spa(request, **kwargs):
 
     context = {
         "feature_flags": get_feature_flags(),
+        "app_config": get_app_config(),
         "is_demo_mode": is_demo,
         "previewable_image_types": get_previewable_image_types(),
     }
@@ -62,6 +76,7 @@ def demo(request):
 
     context = {
         "feature_flags": get_feature_flags(),
+        "app_config": get_app_config(),
         "is_demo_mode": True,
         "previewable_image_types": get_previewable_image_types(),
     }

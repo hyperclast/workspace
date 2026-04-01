@@ -187,7 +187,6 @@ def start_notion_import(
 # Must be defined before /{external_id}/ routes to avoid path conflict.
 
 PDF_ALLOWED_CONTENT_TYPES = ["application/pdf", "application/x-pdf"]
-PDF_MAX_FILE_SIZE = getattr(settings, "WS_IMPORTS_PDF_MAX_FILE_SIZE_BYTES", 20 * 1024 * 1024)
 PDF_MAX_CONTENT_SIZE = 10 * 1024 * 1024  # 10MB — page content limit
 
 
@@ -230,10 +229,11 @@ def import_pdf(
             "message": f"Expected a PDF file, got {file.content_type}",
         }
 
-    if file.size > PDF_MAX_FILE_SIZE:
+    pdf_max_file_size = settings.WS_IMPORTS_PDF_MAX_FILE_SIZE_BYTES
+    if file.size > pdf_max_file_size:
         return 413, {
             "error": "file_too_large",
-            "message": f"PDF exceeds maximum size of {PDF_MAX_FILE_SIZE // (1024 * 1024)}MB",
+            "message": f"PDF exceeds maximum size of {pdf_max_file_size // (1024 * 1024)}MB",
         }
 
     if not content.strip():

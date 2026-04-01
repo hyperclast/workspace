@@ -572,6 +572,11 @@ WS_IMPORTS_TEMP_DIR = config("WS_IMPORTS_TEMP_DIR", default="/tmp")
 # Import archive size limits (to upload)
 WS_IMPORTS_MAX_FILE_SIZE_BYTES = config("WS_IMPORTS_MAX_FILE_SIZE_BYTES", default=104857600, cast=int)  # 100MB
 
+# PDF import max file size
+WS_IMPORTS_PDF_MAX_FILE_SIZE_BYTES = config(
+    "WS_IMPORTS_PDF_MAX_FILE_SIZE_BYTES", default=20 * 1024 * 1024, cast=int
+)  # 20MB
+
 # Import Rate Limiting
 WS_IMPORTS_RATE_LIMIT_REQUESTS = config("WS_IMPORTS_RATE_LIMIT_REQUESTS", default=10, cast=int)
 WS_IMPORTS_RATE_LIMIT_WINDOW_SECONDS = config("WS_IMPORTS_RATE_LIMIT_WINDOW_SECONDS", default=3600, cast=int)

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { startNotionImport, getImportStatus, getImportedPages } from "../api.js";
+import { getAppConfig } from "../config.js";
 
 // Mock csrfFetch
 vi.mock("../csrf.js", () => ({
@@ -245,8 +246,8 @@ describe("Import File Validation", () => {
     expect(file.name.endsWith(".zip")).toBe(true);
   });
 
-  it("validates file size under 100MB", () => {
-    const maxSize = 100 * 1024 * 1024; // 100MB
+  it("validates file size under 100MB (default)", () => {
+    const maxSize = 100 * 1024 * 1024; // 100MB default
 
     // Small file - valid
     const smallFile = new File(["x".repeat(1000)], "small.zip", {
@@ -257,6 +258,36 @@ describe("Import File Validation", () => {
     // Note: Can't easily create a 100MB+ file in tests, but we verify the logic
     const mockLargeSize = 150 * 1024 * 1024;
     expect(mockLargeSize > maxSize).toBe(true);
+  });
+
+  it("respects custom import size limit from appConfig", () => {
+    const originalAppConfig = window._appConfig;
+    window._appConfig = { imports: { maxFileSize: 50 * 1024 * 1024 } };
+
+    try {
+      const maxSize = getAppConfig().imports?.maxFileSize ?? 100 * 1024 * 1024;
+
+      expect(maxSize).toBe(50 * 1024 * 1024);
+
+      // 75MB file — under default 100MB but over custom 50MB
+      const mockLargeSize = 75 * 1024 * 1024;
+      expect(mockLargeSize > maxSize).toBe(true);
+    } finally {
+      window._appConfig = originalAppConfig;
+    }
+  });
+
+  it("falls back to 100MB when appConfig is not set", () => {
+    const originalAppConfig = window._appConfig;
+    delete window._appConfig;
+
+    try {
+      const maxSize = getAppConfig().imports?.maxFileSize ?? 100 * 1024 * 1024;
+
+      expect(maxSize).toBe(100 * 1024 * 1024);
+    } finally {
+      window._appConfig = originalAppConfig;
+    }
   });
 });
 

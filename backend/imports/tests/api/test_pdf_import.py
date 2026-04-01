@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError
+from django.test import override_settings
 
 from core.tests.common import BaseAuthenticatedViewTestCase
 from imports.tests.factories import ImportBannedUserFactory
@@ -242,7 +243,7 @@ class TestPdfImportValidation(BaseAuthenticatedViewTestCase):
 
         self.assertEqual(resp.status_code, HTTPStatus.CREATED)
 
-    @patch("imports.api.imports.PDF_MAX_FILE_SIZE", 10)
+    @override_settings(WS_IMPORTS_PDF_MAX_FILE_SIZE_BYTES=10)
     def test_file_too_large_returns_413(self):
         """File exceeding size limit is rejected."""
         file = SimpleUploadedFile("big.pdf", b"x" * 20, content_type="application/pdf")
@@ -250,6 +251,17 @@ class TestPdfImportValidation(BaseAuthenticatedViewTestCase):
 
         self.assertEqual(resp.status_code, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
         self.assertEqual(resp.json()["error"], "file_too_large")
+
+    @override_settings(WS_IMPORTS_PDF_MAX_FILE_SIZE_BYTES=1024)
+    def test_file_too_large_respects_custom_setting(self):
+        """Custom PDF size limit from settings is enforced and reflected in the error message."""
+        file = SimpleUploadedFile("big.pdf", b"x" * 2048, content_type="application/pdf")
+
+        resp = self._post(file=file)
+
+        self.assertEqual(resp.status_code, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+        body = resp.json()
+        self.assertEqual(body["error"], "file_too_large")
 
     def test_empty_content_returns_400(self):
         """Empty extracted text is rejected (likely a scanned PDF)."""

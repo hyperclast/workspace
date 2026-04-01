@@ -1,6 +1,9 @@
 from http import HTTPStatus
 
+from django.test import TestCase, override_settings
+
 from core.tests.common import BaseAuthenticatedViewTestCase, BaseViewTestCase
+from core.views.home import get_app_config
 
 
 class TestHomepageUnauthenticated(BaseViewTestCase):
@@ -109,3 +112,67 @@ class TestTrailingSlashRedirects(BaseViewTestCase):
         response = self.client.get("/unknown-route/")
 
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+
+class TestGetAppConfig(TestCase):
+    """Test get_app_config() returns correct configuration values."""
+
+    def test_default_values(self):
+        """Returns expected defaults when no env vars override."""
+        config = get_app_config()
+
+        self.assertEqual(config["imports"]["pdfMaxFileSize"], 20 * 1024 * 1024)
+        self.assertEqual(config["imports"]["maxFileSize"], 104857600)
+        self.assertEqual(config["filehub"]["maxFileSize"], 10485760)
+
+    @override_settings(WS_IMPORTS_PDF_MAX_FILE_SIZE_BYTES=50 * 1024 * 1024)
+    def test_custom_pdf_max_size(self):
+        """Custom PDF max size flows through."""
+        config = get_app_config()
+
+        self.assertEqual(config["imports"]["pdfMaxFileSize"], 50 * 1024 * 1024)
+
+    @override_settings(WS_IMPORTS_MAX_FILE_SIZE_BYTES=200 * 1024 * 1024)
+    def test_custom_import_max_size(self):
+        """Custom import max size flows through."""
+        config = get_app_config()
+
+        self.assertEqual(config["imports"]["maxFileSize"], 200 * 1024 * 1024)
+
+    @override_settings(WS_FILEHUB_MAX_FILE_SIZE_BYTES=25 * 1024 * 1024)
+    def test_custom_filehub_max_size(self):
+        """Custom filehub max size flows through."""
+        config = get_app_config()
+
+        self.assertEqual(config["filehub"]["maxFileSize"], 25 * 1024 * 1024)
+
+    def test_structure(self):
+        """Config has the expected top-level keys."""
+        config = get_app_config()
+
+        self.assertIn("imports", config)
+        self.assertIn("filehub", config)
+        self.assertIn("pdfMaxFileSize", config["imports"])
+        self.assertIn("maxFileSize", config["imports"])
+        self.assertIn("maxFileSize", config["filehub"])
+
+
+class TestSPAAppConfigContext(BaseViewTestCase):
+    """Test that app_config is included in SPA template context."""
+
+    def test_spa_includes_app_config(self):
+        """SPA view passes app_config to the template."""
+        response = self.client.get("/login/")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertIn("app_config", response.context)
+        self.assertIn("imports", response.context["app_config"])
+        self.assertIn("filehub", response.context["app_config"])
+
+    def test_app_config_rendered_in_html(self):
+        """app-config JSON script tag is present in response HTML."""
+        response = self.client.get("/login/")
+
+        self.assertContains(response, 'id="app-config"')
+        self.assertContains(response, "pdfMaxFileSize")
+        self.assertContains(response, "window._appConfig")

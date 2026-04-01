@@ -355,5 +355,21 @@ describe("API Service", () => {
       const result = await importPdf("proj1", file);
       expect(result).toEqual({ page_external_id: "p1" });
     });
+
+    it("respects custom PDF size limit from appConfig", async () => {
+      const originalAppConfig = window._appConfig;
+      window._appConfig = { imports: { pdfMaxFileSize: 5 * 1024 * 1024 } };
+
+      try {
+        const file = new File(["x"], "medium.pdf", { type: "application/pdf" });
+        // 6MB — under default 20MB but over custom 5MB
+        Object.defineProperty(file, "size", { value: 6 * 1024 * 1024 });
+
+        await expect(importPdf("proj1", file)).rejects.toThrow("PDF exceeds maximum size of 5MB");
+        expect(csrfFetch).not.toHaveBeenCalled();
+      } finally {
+        window._appConfig = originalAppConfig;
+      }
+    });
   });
 });

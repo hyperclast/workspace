@@ -4,6 +4,7 @@
  */
 
 import { csrfFetch } from "./csrf.js";
+import { getAppConfig } from "./config.js";
 
 const API_BASE = "/api/v1";
 
@@ -876,7 +877,7 @@ export async function triggerAIReview(pageExternalId, persona, selectionText) {
  * @returns {Promise<Object>} { page_external_id, page_title, file_external_id, file_download_url }
  */
 export async function importPdf(projectId, file) {
-  const MAX_PDF_SIZE = 20 * 1024 * 1024; // 20MB — must match backend WS_IMPORTS_PDF_MAX_FILE_SIZE_BYTES
+  const MAX_PDF_SIZE = getAppConfig().imports?.pdfMaxFileSize ?? 20 * 1024 * 1024;
   if (file.size > MAX_PDF_SIZE) {
     throw new Error(`PDF exceeds maximum size of ${MAX_PDF_SIZE / (1024 * 1024)}MB`);
   }

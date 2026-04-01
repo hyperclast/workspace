@@ -34,6 +34,7 @@
     {% endif %}
     {{ feature_flags|json_script:"feature-flags" }}
     {{ previewable_image_types|json_script:"previewable-image-types" }}
+    {{ app_config|json_script:"app-config" }}
     {% csrf_token %}
 
     <script>
@@ -65,6 +66,10 @@
       // Previewable image types - set from backend (see filehub/schemas.py:get_previewable_image_types)
       const previewableImageTypesEl = document.getElementById('previewable-image-types');
       window._previewableImageTypes = previewableImageTypesEl ? JSON.parse(previewableImageTypesEl.textContent) : [];
+
+      // App config (limits, sizes) from Django settings
+      const appConfigEl = document.getElementById('app-config');
+      window._appConfig = appConfigEl ? JSON.parse(appConfigEl.textContent) : {};
 
       // Demo mode flag (set by /demo/ route)
       window._isDemoMode = {{ is_demo_mode|yesno:"true,false" }};

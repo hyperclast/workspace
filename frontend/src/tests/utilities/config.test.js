@@ -1,5 +1,12 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import { API_BASE_URL, WS_BASE_URL, WS_HOST, getCsrfToken, getUserInfo } from "../../config.js";
+import {
+  API_BASE_URL,
+  WS_BASE_URL,
+  WS_HOST,
+  getCsrfToken,
+  getUserInfo,
+  getAppConfig,
+} from "../../config.js";
 
 describe("config - constants", () => {
   test("API_BASE_URL is defined and is empty string for single-origin setup", () => {
@@ -159,5 +166,46 @@ describe("config - getUserInfo", () => {
 
     expect(userInfo.isAuthenticated).toBe(true);
     expect(userInfo.user).toEqual({ id: 1 });
+  });
+});
+
+describe("config - getAppConfig", () => {
+  let originalAppConfig;
+
+  beforeEach(() => {
+    originalAppConfig = window._appConfig;
+  });
+
+  afterEach(() => {
+    window._appConfig = originalAppConfig;
+  });
+
+  test("returns empty object when window._appConfig is not set", () => {
+    delete window._appConfig;
+
+    const config = getAppConfig();
+
+    expect(config).toEqual({});
+  });
+
+  test("returns config when set", () => {
+    window._appConfig = {
+      imports: { pdfMaxFileSize: 20971520, maxFileSize: 104857600 },
+      filehub: { maxFileSize: 10485760 },
+    };
+
+    const config = getAppConfig();
+
+    expect(config.imports.pdfMaxFileSize).toBe(20971520);
+    expect(config.imports.maxFileSize).toBe(104857600);
+    expect(config.filehub.maxFileSize).toBe(10485760);
+  });
+
+  test("returns empty object when window._appConfig is undefined", () => {
+    window._appConfig = undefined;
+
+    const config = getAppConfig();
+
+    expect(config).toEqual({});
   });
 });

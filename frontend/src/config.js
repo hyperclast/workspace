@@ -61,3 +61,8 @@ export function getBrandName() {
   const flags = getFeatureFlags();
   return flags.brandName || "Hyperclast";
 }
+
+// Application config (limits, sizes) from Django settings
+export function getAppConfig() {
+  return window._appConfig || {};
+}
