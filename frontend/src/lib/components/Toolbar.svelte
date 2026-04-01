@@ -502,7 +502,7 @@
   .toolbar {
     max-width: var(--max-content-width, 900px);
     margin: 0 auto;
-    padding-left: 8px;
+    padding-left: 16px;
   }
 
   .toolbar-container {

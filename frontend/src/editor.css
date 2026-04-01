@@ -193,6 +193,7 @@
   background-color: transparent !important;
   border: none !important;
   pointer-events: none;
+  margin-left: -8px;
 }
 
 .cm-gutter.cm-foldGutter {
@@ -408,6 +409,10 @@
 .format-ordered-item {
   padding-left: 24px !important;
   line-height: 1.5;
+  margin-left: -24px;
+}
+.format-ordered-item.format-list-raw {
+  margin-left: 0;
 }
 
 .format-ordered-item.format-indent-1 {
@@ -434,6 +439,15 @@
   font-size: 0.8125em;
   letter-spacing: -0.5px;
   color: var(--text-muted, #888);
+}
+
+.format-ordered-item .format-list-syntax {
+  display: inline-block;
+  width: 24px;
+  margin-left: -24px;
+  text-align: right;
+  padding-right: 4px;
+  box-sizing: border-box;
 }
 
 .cm-line.format-checkbox-item.format-list-raw {
