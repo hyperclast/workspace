@@ -28,6 +28,10 @@ PORT="${PORT:-9800}"
 
 export WS_WEB_EXTERNAL_PORT="$PORT"
 
+# Derive MinIO ports from the stack port to allow multiple stacks
+export WS_MINIO_API_PORT=$((PORT + 100))
+export WS_MINIO_CONSOLE_PORT=$((PORT + 101))
+
 WORKTREE_NAME=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "default")")
 PROJECT_NAME="backend-${WORKTREE_NAME}-${PORT}"
 
@@ -50,7 +54,7 @@ if [[ "$USE_SOCRATIC" == "true" ]]; then
 fi
 
 if [[ "$USE_MINIO" == "true" ]]; then
-    echo "MinIO: enabled (S3 API on 9000, console on 9001)"
+    echo "MinIO: enabled (S3 API on $WS_MINIO_API_PORT, console on $WS_MINIO_CONSOLE_PORT)"
 else
     echo "MinIO: disabled (use default to enable)"
 fi

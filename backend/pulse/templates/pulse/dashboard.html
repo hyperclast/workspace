@@ -261,6 +261,41 @@
         color: var(--warning-color);
       }
 
+      .hijack-form {
+        display: inline;
+      }
+
+      .hijack-btn {
+        background: none;
+        border: none;
+        padding: 0.15rem 0.4rem;
+        color: var(--text-color);
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.85em;
+        font-weight: 600;
+        text-decoration: none;
+        border-radius: 4px;
+        border-bottom: 1.5px dashed #b07cc5;
+        transition: all 0.15s ease;
+      }
+
+      .hijack-btn::after {
+        content: " \2192";
+      }
+
+      .hijack-btn:hover {
+        background: rgba(118, 75, 162, 0.12);
+        color: #764ba2;
+        border-bottom-color: #764ba2;
+      }
+
+      [data-theme="dark"] .hijack-btn:hover {
+        background: rgba(180, 130, 220, 0.15);
+        color: #d4a5f0;
+        border-bottom-color: #d4a5f0;
+      }
+
       .empty-state {
         text-align: center;
         padding: 2rem;
@@ -376,6 +411,7 @@
           <a href="#mau">Monthly Active Users</a>
           <a href="#signups">New Signups</a>
           <a href="#new-users">New Users</a>
+          <a href="#weekly-active">Weekly Active</a>
           <a href="#inactive-users">Inactive Users</a>
           <a href="#dau">Daily Active Users</a>
         </div>
@@ -495,7 +531,13 @@
                   {% for user in new_users %}
                     <tr>
                       <td>{{ user.email }}</td>
-                      <td>{{ user.username }}</td>
+                      <td>
+                        <form class="hijack-form" method="POST" action="/hijack/acquire/">
+                          {% csrf_token %}
+                          <input type="hidden" name="user_pk" value="{{ user.pk }}">
+                          <button type="submit" class="hijack-btn" title="Impersonate {{ user.username }}">{{ user.username }}</button>
+                        </form>
+                      </td>
                       <td>
                         {% if user.tried_demo %}
                           <span class="badge badge-success">Yes</span>
@@ -521,6 +563,62 @@
           {% else %}
             <div class="empty-state">
               <p>No new users in the last 7 days.</p>
+            </div>
+          {% endif %}
+        </section>
+
+        <!-- Weekly Active Users Section -->
+        <section class="section" id="weekly-active">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Weekly Active Users <span class="count-badge">{{ weekly_active_users|length }}</span></h2>
+              <p class="section-meta">Active in last 7 days (excluding new signups)</p>
+            </div>
+          </div>
+          {% if weekly_active_users %}
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Username</th>
+                    <th>Name</th>
+                    <th>Verified</th>
+                    <th>Projects</th>
+                    <th>Pages</th>
+                    <th>Last Active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for user in weekly_active_users %}
+                    <tr>
+                      <td>{{ user.email }}</td>
+                      <td>
+                        <form class="hijack-form" method="POST" action="/hijack/acquire/">
+                          {% csrf_token %}
+                          <input type="hidden" name="user_pk" value="{{ user.pk }}">
+                          <button type="submit" class="hijack-btn" title="Impersonate {{ user.username }}">{{ user.username }}</button>
+                        </form>
+                      </td>
+                      <td>{{ user.first_name }} {{ user.last_name }}</td>
+                      <td>
+                        {% if user.email_verified %}
+                          <span class="badge badge-success">Yes</span>
+                        {% else %}
+                          <span class="badge badge-warning">No</span>
+                        {% endif %}
+                      </td>
+                      <td>{{ user.num_projects }}</td>
+                      <td>{{ user.num_pages }}</td>
+                      <td>{{ user.last_active }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="empty-state">
+              <p>No active users this week (besides new signups).</p>
             </div>
           {% endif %}
         </section>
@@ -551,7 +649,13 @@
                   {% for user in inactive_users %}
                     <tr>
                       <td>{{ user.email }}</td>
-                      <td>{{ user.username }}</td>
+                      <td>
+                        <form class="hijack-form" method="POST" action="/hijack/acquire/">
+                          {% csrf_token %}
+                          <input type="hidden" name="user_pk" value="{{ user.pk }}">
+                          <button type="submit" class="hijack-btn" title="Impersonate {{ user.username }}">{{ user.username }}</button>
+                        </form>
+                      </td>
                       <td>{{ user.first_name }} {{ user.last_name }}</td>
                       <td>
                         {% if user.email_verified %}

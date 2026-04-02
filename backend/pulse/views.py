@@ -86,6 +86,7 @@ def dashboard(request):
         )
         .order_by("-date_joined")
         .values(
+            "pk",
             "email",
             "username",
             "email_verified",
@@ -102,6 +103,35 @@ def dashboard(request):
         demo_visits = user.pop("profile__demo_visits")
         user["tried_demo"] = bool(demo_visits and len(demo_visits) > 0)
 
+    # Weekly active users: active in last 7 days but NOT new (joined before 7 days ago)
+    weekly_active_users = list(
+        User.objects.filter(
+            profile__last_active__gte=seven_days_ago,
+            date_joined__lt=seven_days_ago,
+        )
+        .annotate(
+            email_verified=Exists(verified_email_subquery),
+            num_projects=Count("project", distinct=True),
+            num_pages=Count("created_pages", distinct=True),
+        )
+        .order_by("-profile__last_active")
+        .values(
+            "pk",
+            "email",
+            "username",
+            "first_name",
+            "last_name",
+            "email_verified",
+            "num_projects",
+            "num_pages",
+            "profile__last_active",
+        )
+    )
+
+    for user in weekly_active_users:
+        last_active = user.pop("profile__last_active")
+        user["last_active"] = last_active.strftime("%Y-%m-%d %H:%M") if last_active else "Never"
+
     # Inactive users: active in last 90 days but NOT in last 7 days
     inactive_users = list(
         User.objects.filter(
@@ -115,6 +145,7 @@ def dashboard(request):
         )
         .order_by("-profile__last_active")
         .values(
+            "pk",
             "email",
             "username",
             "first_name",
@@ -140,6 +171,7 @@ def dashboard(request):
         "dau_mau_ratio": dau_mau_ratio,
         "last_computed": last_computed,
         "new_users": new_users,
+        "weekly_active_users": weekly_active_users,
         "inactive_users": inactive_users,
     }
     return render(request, "pulse/dashboard.html", context)
