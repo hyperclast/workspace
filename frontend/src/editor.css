@@ -264,6 +264,10 @@
   padding: 2px 0 2px 0 !important;
 }
 
+.cm-line:has(> br:only-child) {
+  line-height: 0.6;
+}
+
 /* ============================================================================
    Text Formatting (Headings, Bold, Underline, etc.)
    ============================================================================ */
@@ -574,7 +578,7 @@
 .format-blockquote {
   border-left: 4px solid var(--blockquote-border);
   padding-left: 1em !important;
-  margin-left: 0.5em;
+  margin-left: 0;
   color: var(--text-secondary);
   line-height: 1.3;
 }

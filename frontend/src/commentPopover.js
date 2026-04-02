@@ -69,7 +69,7 @@ function createButtonTooltip(view) {
     if (window.ydoc && window.ytext) {
       try {
         const fromRelPos = Y.createRelativePositionFromTypeIndex(window.ytext, sel.from);
-        const toRelPos = Y.createRelativePositionFromTypeIndex(window.ytext, sel.to);
+        const toRelPos = Y.createRelativePositionFromTypeIndex(window.ytext, sel.to, -1);
         anchorFromB64 = btoa(String.fromCharCode(...Y.encodeRelativePosition(fromRelPos)));
         anchorToB64 = btoa(String.fromCharCode(...Y.encodeRelativePosition(toRelPos)));
       } catch (e) {
@@ -570,7 +570,7 @@ function openCommentFormCommand(view) {
   if (window.ydoc && window.ytext) {
     try {
       const fromRelPos = Y.createRelativePositionFromTypeIndex(window.ytext, sel.from);
-      const toRelPos = Y.createRelativePositionFromTypeIndex(window.ytext, sel.to);
+      const toRelPos = Y.createRelativePositionFromTypeIndex(window.ytext, sel.to, -1);
       anchorFromB64 = btoa(String.fromCharCode(...Y.encodeRelativePosition(fromRelPos)));
       anchorToB64 = btoa(String.fromCharCode(...Y.encodeRelativePosition(toRelPos)));
     } catch (e) {

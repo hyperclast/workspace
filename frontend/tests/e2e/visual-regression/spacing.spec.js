@@ -101,8 +101,8 @@ test.describe("Spacing Measurements", () => {
     for (const line of lineHeights) {
       if (line.lineHeight === "normal") continue;
 
-      // Skip empty lines with intentionally small line-heights (e.g., HR-adjacent blanks)
-      if (!line.text.trim() && line.className.includes("format-hr")) continue;
+      // Skip empty lines with intentionally small line-heights
+      if (!line.text.trim()) continue;
 
       const numericLineHeight = parseFloat(line.lineHeight);
 

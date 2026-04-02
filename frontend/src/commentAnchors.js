@@ -52,7 +52,7 @@ function findAnchorTextInDoc(anchorText, doc) {
  */
 function createRelativePositions(from, to, ytext) {
   const fromRelPos = Y.createRelativePositionFromTypeIndex(ytext, from);
-  const toRelPos = Y.createRelativePositionFromTypeIndex(ytext, to);
+  const toRelPos = Y.createRelativePositionFromTypeIndex(ytext, to, -1);
   const fromB64 = btoa(String.fromCharCode(...Y.encodeRelativePosition(fromRelPos)));
   const toB64 = btoa(String.fromCharCode(...Y.encodeRelativePosition(toRelPos)));
   return { fromB64, toB64 };

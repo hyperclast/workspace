@@ -2,13 +2,15 @@
  * End-to-end tests for the comments feature.
  *
  * Tests critical comment flows:
- * 1. Create a comment via inline popover and verify anchor bar appears
- * 2. Reply to a comment and delete the root (cascade deletes reply too)
- * 3. Submitting oversized comment body shows error in popover
- * 4. Bidirectional click-to-scroll between sidebar and editor
- * 5. Bars persist after page reload
- * 6. Clicking a bar opens the sidebar to comments tab
- * 7. Arbitrary nesting: reply-to-reply via API + cascade delete
+ * 1. Cmd+Alt+M keyboard shortcut opens comment form
+ * 2. Create a comment via inline popover and verify anchor bar appears
+ * 3. Reply to a comment and delete the root (cascade deletes reply too)
+ * 4. Submitting oversized comment body shows error in popover
+ * 5. Bidirectional click-to-scroll between sidebar and editor
+ * 6. Bars persist after page reload
+ * 7. Clicking a bar opens the sidebar to comments tab
+ * 8. Arbitrary nesting: reply-to-reply via UI + cascade delete
+ * 9. Comment range does not expand when typing at boundary (regression)
  *
  * Run with:
  *   npx playwright test comments.spec.js --headed
@@ -24,6 +26,10 @@ const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:9800";
 const TEST_EMAIL = process.env.TEST_EMAIL || "dev@localhost";
 const TEST_PASSWORD = process.env.TEST_PASSWORD || "dev";
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 async function login(page) {
   await page.goto(`${BASE_URL}/login`);
   await page.waitForSelector("#login-email", { timeout: 10000 });
@@ -36,7 +42,21 @@ async function login(page) {
 }
 
 /**
+ * Wait for the Yjs collaboration layer to be synced.
+ * Polls window.isCollabSynced (set by the collab module) with a fallback timeout.
+ */
+async function waitForCollabSync(page, timeout = 10000) {
+  try {
+    await page.waitForFunction(() => window.isCollabSynced?.() === true, { timeout });
+  } catch {
+    // Fallback: if isCollabSynced isn't exposed, just wait a bit
+    await page.waitForTimeout(2000);
+  }
+}
+
+/**
  * Create a new page with some content and return its external_id.
+ * Waits for collab sync before typing to avoid Yjs overwriting content.
  */
 async function createPageWithContent(page, title, content) {
   const newPageBtn = page.locator(".sidebar-new-page-btn").first();
@@ -61,6 +81,9 @@ async function createPageWithContent(page, title, content) {
     }
     return window.getCurrentPage?.()?.external_id || "";
   }, title);
+
+  // Wait for collab sync BEFORE typing — avoids Yjs overwriting typed content
+  await waitForCollabSync(page);
 
   // Type content into the editor
   await page.click(".cm-content");
@@ -105,6 +128,10 @@ async function selectTextInEditor(page, text) {
 /**
  * Create an anchored comment via the inline popover.
  * Selects text, opens the popover, fills the body, and submits.
+ *
+ * Uses page.evaluate for the submit click to avoid Playwright's viewport
+ * check — the popover can be positioned below the fold when the selection
+ * spans multiple lines.
  */
 async function createCommentViaPopover(page, textToSelect, commentBody) {
   await selectTextInEditor(page, textToSelect);
@@ -117,8 +144,28 @@ async function createCommentViaPopover(page, textToSelect, commentBody) {
   await expect(textarea).toBeVisible({ timeout: 5000 });
   await textarea.fill(commentBody);
 
-  await page.locator(".cm-comment-popover-submit").click();
+  // Use JS click — the submit button may be outside the viewport when the
+  // popover is anchored to a multi-line selection near the bottom of the editor.
+  await page.evaluate(() => {
+    const btn = document.querySelector(".cm-comment-popover-submit");
+    if (!btn) throw new Error("Submit button not found");
+    btn.click();
+  });
 }
+
+/**
+ * Get text of lines that have comment bar decorations (.cm-comment-bar).
+ */
+async function getBarLines(page) {
+  return page.evaluate(() => {
+    const bars = document.querySelectorAll(".cm-comment-bar");
+    return Array.from(bars).map((el) => el.textContent.trim());
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
 
 test.describe("Comments", () => {
   test.setTimeout(120000);
@@ -297,9 +344,12 @@ test.describe("Comments", () => {
     const oversizedBody = "x".repeat(10_001);
     await textarea.fill(oversizedBody);
 
-    // Submit the comment
-    const submitBtn = page.locator(".cm-comment-popover-submit");
-    await submitBtn.click();
+    // Submit via JS click (may be off-viewport)
+    await page.evaluate(() => {
+      const btn = document.querySelector(".cm-comment-popover-submit");
+      if (!btn) throw new Error("Submit button not found");
+      btn.click();
+    });
 
     // Verify the popover's inline error message appears
     const errorEl = page.locator(".cm-comment-popover-error");
@@ -412,13 +462,13 @@ test.describe("Comments", () => {
     // Reload the page
     await page.reload();
     await page.waitForSelector(".cm-content", { timeout: 20000 });
+    await waitForCollabSync(page);
     console.log("Page reloaded, editor visible");
 
     // DO NOT open the comments tab — bars should appear automatically.
-    // Bars require Yjs anchor resolution (which happens after collab sync),
-    // so give a generous timeout instead of blocking on isCollabSynced.
+    // Bars require Yjs anchor resolution (which happens after collab sync).
     const anchorBar = page.locator(".cm-comment-bar");
-    await expect(anchorBar).toBeVisible({ timeout: 30000 });
+    await expect(anchorBar).toBeVisible({ timeout: 15000 });
     console.log("TEST PASSED: Bars appear after reload without opening comments tab");
   });
 
@@ -546,5 +596,102 @@ test.describe("Comments", () => {
     // All replies should be gone
     await expect(commentCard.locator(".comment-reply")).toHaveCount(0, { timeout: 10000 });
     console.log("TEST PASSED: Arbitrary nesting via UI + cascade delete works");
+  });
+
+  test("comment range does not expand when typing at end of range", async ({ page }) => {
+    await login(page);
+    console.log("Logged in");
+
+    await createPageWithContent(
+      page,
+      `Range Test ${Date.now()}`,
+      "Alpha paragraph.\n\nBeta paragraph.\n\nGamma paragraph."
+    );
+    console.log("Created page with three paragraphs");
+
+    await openCommentsTab(page);
+    await page.waitForTimeout(500);
+
+    // Comment on "Alpha paragraph." through "Beta paragraph."
+    await createCommentViaPopover(
+      page,
+      "Alpha paragraph.\n\nBeta paragraph.",
+      "Range expansion test"
+    );
+    console.log("Comment created on Alpha + Beta");
+
+    // Wait for comment bars to render
+    await page.waitForTimeout(2000);
+    const initial = await getBarLines(page);
+    console.log("Initial bars:", initial);
+    expect(initial.length, "Comment bars should be present after creation").toBeGreaterThan(0);
+
+    // Verify Alpha and Beta are in range
+    expect(initial.some((l) => l.includes("Alpha"))).toBe(true);
+    expect(initial.some((l) => l.includes("Beta"))).toBe(true);
+
+    // --- Test 1: Insert AFTER the commented range (after "Gamma paragraph.") ---
+    await page.evaluate(() => {
+      const view = window.editorView;
+      const doc = view.state.doc.toString();
+      const pos = doc.indexOf("Gamma paragraph.") + "Gamma paragraph.".length;
+      view.dispatch({ selection: { anchor: pos } });
+      view.focus();
+    });
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("Delta after range.");
+    await page.waitForTimeout(1000);
+
+    const afterDelta = await getBarLines(page);
+    console.log("After Delta (AFTER range):", afterDelta);
+    expect(
+      afterDelta.some((l) => l.includes("Delta")),
+      "Text inserted AFTER the range should NOT be in the comment range"
+    ).toBe(false);
+
+    // --- Test 2: Insert at the END of the comment range (after "Beta paragraph.") ---
+    // This is the key regression test: with the old right-associating anchor,
+    // text typed here would expand the range. With assoc: -1, it should not.
+    await page.evaluate(() => {
+      const view = window.editorView;
+      const doc = view.state.doc.toString();
+      const pos = doc.indexOf("Beta paragraph.") + "Beta paragraph.".length;
+      view.dispatch({ selection: { anchor: pos } });
+      view.focus();
+    });
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("Epsilon at boundary.");
+    await page.waitForTimeout(1000);
+
+    const afterEpsilon = await getBarLines(page);
+    console.log("After Epsilon (at END boundary):", afterEpsilon);
+    expect(
+      afterEpsilon.some((l) => l.includes("Epsilon")),
+      "Text inserted at the end boundary should NOT expand the comment range"
+    ).toBe(false);
+
+    // --- Test 3: Insert BETWEEN Alpha and Beta (should be included) ---
+    await page.evaluate(() => {
+      const view = window.editorView;
+      const doc = view.state.doc.toString();
+      const pos = doc.indexOf("Alpha paragraph.") + "Alpha paragraph.".length;
+      view.dispatch({ selection: { anchor: pos } });
+      view.focus();
+    });
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("Zeta between.");
+    await page.waitForTimeout(1000);
+
+    const afterZeta = await getBarLines(page);
+    console.log("After Zeta (BETWEEN Alpha/Beta):", afterZeta);
+    expect(
+      afterZeta.some((l) => l.includes("Zeta")),
+      "Text inserted BETWEEN commented paragraphs should be in the range"
+    ).toBe(true);
+
+    console.log("TEST PASSED: Comment range does not expand at boundary");
   });
 });

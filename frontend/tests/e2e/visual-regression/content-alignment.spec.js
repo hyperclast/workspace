@@ -248,4 +248,96 @@ test.describe("Content Left-Alignment", () => {
       ).toBeGreaterThanOrEqual(positions.paraX - 2); // 2px tolerance
     }
   });
+
+  // Responsive alignment: verify flush alignment holds at all breakpoints
+  // --page-padding: 48px (>900), 32px (≤900), 20px (≤700), 16px (≤640)
+  for (const width of [900, 700, 640]) {
+    test(`alignment holds at ${width}px viewport`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await setupTestPage(page, FIXTURES.mixedContent, `Responsive ${width}`);
+      await page.waitForSelector(".cm-line", { timeout: 10000 });
+      await page.waitForTimeout(500);
+
+      const positions = await page.evaluate(() => {
+        function getTextStartX(el) {
+          const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+          let node;
+          while ((node = walker.nextNode())) {
+            if (node.textContent.trim()) {
+              const trimStart = node.textContent.search(/\S/);
+              if (trimStart >= 0 && trimStart < node.textContent.length) {
+                const range = document.createRange();
+                range.setStart(node, trimStart);
+                range.setEnd(node, trimStart + 1);
+                return range.getBoundingClientRect().left;
+              }
+            }
+          }
+          const rect = el.getBoundingClientRect();
+          const style = getComputedStyle(el);
+          return rect.left + parseFloat(style.paddingLeft);
+        }
+
+        const breadcrumb = document.querySelector(".breadcrumb-row");
+        const breadcrumbX = breadcrumb ? getTextStartX(breadcrumb) : null;
+
+        const toolbarBtn = document.querySelector(".toolbar-container .toolbar-btn");
+        const toolbarX = toolbarBtn ? toolbarBtn.getBoundingClientRect().left : null;
+
+        const titleInput = document.querySelector(".note-title-input");
+        let titleX = null;
+        if (titleInput) {
+          const rect = titleInput.getBoundingClientRect();
+          const style = getComputedStyle(titleInput);
+          titleX = rect.left + parseFloat(style.paddingLeft);
+        }
+
+        const cmLines = document.querySelectorAll(".cm-line");
+        let contentX = null;
+        for (const line of cmLines) {
+          if (line.textContent.trim()) {
+            contentX = getTextStartX(line);
+            break;
+          }
+        }
+
+        return {
+          breadcrumbX: breadcrumbX ? Math.round(breadcrumbX * 10) / 10 : null,
+          toolbarX: toolbarX ? Math.round(toolbarX * 10) / 10 : null,
+          titleX: titleX ? Math.round(titleX * 10) / 10 : null,
+          contentX: contentX ? Math.round(contentX * 10) / 10 : null,
+        };
+      });
+
+      console.log(`Alignment at ${width}px:`);
+      console.log(`  Breadcrumb: ${positions.breadcrumbX}px`);
+      console.log(`  Toolbar:    ${positions.toolbarX}px`);
+      console.log(`  Title:      ${positions.titleX}px`);
+      console.log(`  Content:    ${positions.contentX}px`);
+
+      expect(positions.breadcrumbX, "Breadcrumb not found").not.toBeNull();
+      expect(positions.contentX, "Content not found").not.toBeNull();
+
+      const reference = positions.breadcrumbX;
+
+      if (positions.toolbarX !== null) {
+        expect(
+          Math.abs(positions.toolbarX - reference),
+          `@${width}px: Toolbar (${positions.toolbarX}px) misaligned with breadcrumb (${reference}px)`
+        ).toBeLessThanOrEqual(ALIGNMENT_TOLERANCE);
+      }
+
+      if (positions.titleX !== null) {
+        expect(
+          Math.abs(positions.titleX - reference),
+          `@${width}px: Title (${positions.titleX}px) misaligned with breadcrumb (${reference}px)`
+        ).toBeLessThanOrEqual(ALIGNMENT_TOLERANCE);
+      }
+
+      expect(
+        Math.abs(positions.contentX - reference),
+        `@${width}px: Content (${positions.contentX}px) misaligned with breadcrumb (${reference}px)`
+      ).toBeLessThanOrEqual(ALIGNMENT_TOLERANCE);
+    });
+  }
 });
