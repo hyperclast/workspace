@@ -120,6 +120,38 @@ class HyperclastClient:
         resp = await self._request("GET", f"/projects/{project_id}/", params={"details": "full"})
         return resp.json()
 
+    async def create_project(
+        self,
+        org_id: str,
+        name: str,
+        description: str | None = None,
+    ) -> dict[str, Any]:
+        _validate_id(org_id, "org_id")
+        body: dict[str, Any] = {"org_id": org_id, "name": name}
+        if description is not None:
+            body["description"] = description
+        resp = await self._request("POST", "/projects/", json=body)
+        return resp.json()
+
+    async def update_project(
+        self,
+        project_id: str,
+        name: str | None = None,
+        description: str | None = None,
+    ) -> dict[str, Any]:
+        _validate_id(project_id, "project_id")
+        body: dict[str, Any] = {}
+        if name is not None:
+            body["name"] = name
+        if description is not None:
+            body["description"] = description
+        resp = await self._request("PATCH", f"/projects/{project_id}/", json=body)
+        return resp.json()
+
+    async def delete_project(self, project_id: str) -> None:
+        _validate_id(project_id, "project_id")
+        await self._request("DELETE", f"/projects/{project_id}/")
+
     # -- pages -------------------------------------------------------------
 
     async def list_pages(self, limit: int = 100, offset: int = 0) -> dict[str, Any]:

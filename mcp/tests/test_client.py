@@ -121,6 +121,24 @@ class TestIdValidationInMethods:
             await client.delete_page("id?admin=true")
 
     @pytest.mark.asyncio
+    async def test_create_project_rejects_bad_org_id(self):
+        client = _make_client(_noop_handler)
+        with pytest.raises(ValueError, match="org_id"):
+            await client.create_project("../../admin", "Project")
+
+    @pytest.mark.asyncio
+    async def test_update_project_rejects_bad_id(self):
+        client = _make_client(_noop_handler)
+        with pytest.raises(ValueError, match="project_id"):
+            await client.update_project("../../admin", name="X")
+
+    @pytest.mark.asyncio
+    async def test_delete_project_rejects_bad_id(self):
+        client = _make_client(_noop_handler)
+        with pytest.raises(ValueError, match="project_id"):
+            await client.delete_project("../../admin")
+
+    @pytest.mark.asyncio
     async def test_list_projects_rejects_bad_org_id(self):
         client = _make_client(_noop_handler)
         with pytest.raises(ValueError, match="org_id"):
@@ -331,6 +349,93 @@ class TestGetProject:
         client = _make_client(handler)
         result = await client.get_project("proj1")
         assert result == project
+
+
+class TestCreateProject:
+    @pytest.mark.asyncio
+    async def test_create_without_description(self):
+        def handler(request):
+            body = json.loads(request.content)
+            assert body == {"org_id": "org1", "name": "New Project"}
+            return _json_response({"external_id": "proj1", "name": "New Project"}, 201)
+
+        client = _make_client(handler)
+        result = await client.create_project("org1", "New Project")
+        assert result["name"] == "New Project"
+
+    @pytest.mark.asyncio
+    async def test_create_with_description(self):
+        def handler(request):
+            body = json.loads(request.content)
+            assert body == {"org_id": "org1", "name": "Project", "description": "A desc"}
+            return _json_response({"external_id": "proj1", "name": "Project"}, 201)
+
+        client = _make_client(handler)
+        await client.create_project("org1", "Project", description="A desc")
+
+    @pytest.mark.asyncio
+    async def test_validates_org_id(self):
+        client = _make_client(_noop_handler)
+        with pytest.raises(ValueError, match="org_id"):
+            await client.create_project("../../bad", "Project")
+
+
+class TestUpdateProject:
+    @pytest.mark.asyncio
+    async def test_update_name(self):
+        def handler(request):
+            body = json.loads(request.content)
+            assert body == {"name": "Renamed"}
+            assert request.method == "PATCH"
+            assert "/projects/proj1/" in request.url.path
+            return _json_response({"external_id": "proj1", "name": "Renamed"})
+
+        client = _make_client(handler)
+        result = await client.update_project("proj1", name="Renamed")
+        assert result["name"] == "Renamed"
+
+    @pytest.mark.asyncio
+    async def test_update_description(self):
+        def handler(request):
+            body = json.loads(request.content)
+            assert body == {"description": "New desc"}
+            return _json_response({"external_id": "proj1", "name": "P"})
+
+        client = _make_client(handler)
+        await client.update_project("proj1", description="New desc")
+
+    @pytest.mark.asyncio
+    async def test_update_both(self):
+        def handler(request):
+            body = json.loads(request.content)
+            assert body == {"name": "New", "description": "Desc"}
+            return _json_response({"external_id": "proj1", "name": "New"})
+
+        client = _make_client(handler)
+        await client.update_project("proj1", name="New", description="Desc")
+
+    @pytest.mark.asyncio
+    async def test_omitted_fields_not_sent(self):
+        def handler(request):
+            body = json.loads(request.content)
+            assert "name" not in body
+            assert "description" not in body
+            return _json_response({"external_id": "proj1", "name": "P"})
+
+        client = _make_client(handler)
+        await client.update_project("proj1")
+
+
+class TestDeleteProject:
+    @pytest.mark.asyncio
+    async def test_sends_delete(self):
+        def handler(request):
+            assert request.method == "DELETE"
+            assert "/projects/proj1/" in request.url.path
+            return httpx.Response(204)
+
+        client = _make_client(handler)
+        await client.delete_project("proj1")
 
 
 # -- Pages ------------------------------------------------------------------

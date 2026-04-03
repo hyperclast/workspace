@@ -4,17 +4,20 @@
 
 ## Tools
 
-| Tool            | Description                                          |
-| --------------- | ---------------------------------------------------- |
-| `list_orgs`     | List organizations                                   |
-| `list_projects` | List projects, optionally with pages                 |
-| `get_project`   | Get a project with pages, folders, and files         |
-| `list_pages`    | List pages (paginated)                               |
-| `search_pages`  | Search pages by title                                |
-| `get_page`      | Get page content                                     |
-| `create_page`   | Create a page in a project                           |
-| `update_page`   | Update title/content (append, prepend, or overwrite) |
-| `delete_page`   | Delete a page                                        |
+| Tool             | Description                                          |
+| ---------------- | ---------------------------------------------------- |
+| `list_orgs`      | List organizations                                   |
+| `list_projects`  | List projects, optionally with pages                 |
+| `get_project`    | Get a project with pages, folders, and files         |
+| `create_project` | Create a project in an organization                  |
+| `update_project` | Update a project's name or description               |
+| `delete_project` | Delete a project (requires `confirm`, creator only)  |
+| `list_pages`     | List pages (paginated)                               |
+| `search_pages`   | Search pages by title                                |
+| `get_page`       | Get page content                                     |
+| `create_page`    | Create a page in a project                           |
+| `update_page`    | Update title/content (append, prepend, or overwrite) |
+| `delete_page`    | Delete a page                                        |
 
 ## Setup
 

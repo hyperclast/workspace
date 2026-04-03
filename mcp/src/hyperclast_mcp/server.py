@@ -96,6 +96,69 @@ async def get_project(project_id: str) -> str:
         return _format_error(e)
 
 
+@mcp.tool()
+async def create_project(
+    org_id: str,
+    name: str,
+    description: str | None = None,
+) -> str:
+    """Create a new project in an organization.
+
+    Args:
+        org_id: The organization to create the project in.
+        name: Project name (1-255 characters).
+        description: Optional project description.
+    """
+    try:
+        project = await _get_client().create_project(org_id, name, description)
+        return _pretty(project)
+    except (HyperclastAPIError, ValueError) as e:
+        return _format_error(e)
+
+
+@mcp.tool()
+async def update_project(
+    project_id: str,
+    name: str | None = None,
+    description: str | None = None,
+) -> str:
+    """Update a project's name or description.
+
+    Args:
+        project_id: The project's external id.
+        name: New name (optional, 1-255 characters).
+        description: New description (optional).
+    """
+    try:
+        project = await _get_client().update_project(project_id, name, description)
+        return _pretty(project)
+    except (HyperclastAPIError, ValueError) as e:
+        return _format_error(e)
+
+
+@mcp.tool()
+async def delete_project(
+    project_id: str,
+    confirm: bool = False,
+) -> str:
+    """Delete a project and ALL its pages (creator only, soft-delete).
+
+    THIS IS DESTRUCTIVE — every page in the project becomes inaccessible.
+    The user must explicitly ask for deletion before calling this tool.
+
+    Args:
+        project_id: The project's external id.
+        confirm: Must be true to proceed. Prevents accidental deletion.
+    """
+    if not confirm:
+        return "Error: confirm must be true. This will delete the project and ALL its pages."
+    try:
+        await _get_client().delete_project(project_id)
+        return "Project deleted."
+    except (HyperclastAPIError, ValueError) as e:
+        return _format_error(e)
+
+
 # -- Pages ------------------------------------------------------------------
 
 

@@ -104,6 +104,101 @@ class TestGetProjectTool:
         assert "Error:" in result
 
 
+class TestCreateProjectTool:
+    @pytest.mark.asyncio
+    async def test_create_with_description(self, mock_client):
+        mock_client.create_project.return_value = {
+            "external_id": "proj1",
+            "name": "New Project",
+            "description": "A description",
+        }
+        result = await server_module.create_project("org1", "New Project", description="A description")
+        parsed = _parse(result)
+        assert parsed["name"] == "New Project"
+        mock_client.create_project.assert_called_once_with("org1", "New Project", "A description")
+
+    @pytest.mark.asyncio
+    async def test_create_without_description(self, mock_client):
+        mock_client.create_project.return_value = {"external_id": "proj1", "name": "Project"}
+        await server_module.create_project("org1", "Project")
+        mock_client.create_project.assert_called_once_with("org1", "Project", None)
+
+    @pytest.mark.asyncio
+    async def test_permission_denied(self, mock_client):
+        mock_client.create_project.side_effect = HyperclastAPIError(403, "forbidden", "Permission denied.")
+        result = await server_module.create_project("org1", "Project")
+        assert "Error: Permission denied." == result
+
+    @pytest.mark.asyncio
+    async def test_validation_error_returns_message(self, mock_client):
+        mock_client.create_project.side_effect = ValueError("Invalid org_id")
+        result = await server_module.create_project("../../bad", "Project")
+        assert "Error:" in result
+
+
+class TestUpdateProjectTool:
+    @pytest.mark.asyncio
+    async def test_update_name(self, mock_client):
+        mock_client.update_project.return_value = {"external_id": "proj1", "name": "Renamed"}
+        result = await server_module.update_project("proj1", name="Renamed")
+        parsed = _parse(result)
+        assert parsed["name"] == "Renamed"
+        mock_client.update_project.assert_called_once_with("proj1", "Renamed", None)
+
+    @pytest.mark.asyncio
+    async def test_update_description(self, mock_client):
+        mock_client.update_project.return_value = {"external_id": "proj1", "name": "P"}
+        await server_module.update_project("proj1", description="New desc")
+        mock_client.update_project.assert_called_once_with("proj1", None, "New desc")
+
+    @pytest.mark.asyncio
+    async def test_error(self, mock_client):
+        mock_client.update_project.side_effect = HyperclastAPIError(403, "forbidden", "Permission denied.")
+        result = await server_module.update_project("proj1", name="X")
+        assert "Error: Permission denied." == result
+
+    @pytest.mark.asyncio
+    async def test_validation_error_returns_message(self, mock_client):
+        mock_client.update_project.side_effect = ValueError("Invalid project_id")
+        result = await server_module.update_project("../../bad", name="X")
+        assert "Error:" in result
+
+
+class TestDeleteProjectTool:
+    @pytest.mark.asyncio
+    async def test_success_with_confirm(self, mock_client):
+        mock_client.delete_project.return_value = None
+        result = await server_module.delete_project("proj1", confirm=True)
+        assert result == "Project deleted."
+        mock_client.delete_project.assert_called_once_with("proj1")
+
+    @pytest.mark.asyncio
+    async def test_rejected_without_confirm(self, mock_client):
+        result = await server_module.delete_project("proj1")
+        assert "confirm must be true" in result
+        mock_client.delete_project.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_rejected_with_confirm_false(self, mock_client):
+        result = await server_module.delete_project("proj1", confirm=False)
+        assert "confirm must be true" in result
+        mock_client.delete_project.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_not_creator(self, mock_client):
+        mock_client.delete_project.side_effect = HyperclastAPIError(
+            403, "forbidden", "Only the project creator can delete this project"
+        )
+        result = await server_module.delete_project("proj1", confirm=True)
+        assert "Error:" in result
+
+    @pytest.mark.asyncio
+    async def test_validation_error_returns_message(self, mock_client):
+        mock_client.delete_project.side_effect = ValueError("Invalid project_id")
+        result = await server_module.delete_project("../bad", confirm=True)
+        assert "Error:" in result
+
+
 # -- Pages ------------------------------------------------------------------
 
 

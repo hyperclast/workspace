@@ -1,6 +1,6 @@
 [project]
 name = "hyperclast-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "MCP server for Hyperclast — lets AI assistants read and write your pages"
 readme = "README.md"
 requires-python = ">=3.10"

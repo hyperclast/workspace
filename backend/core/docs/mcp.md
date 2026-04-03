@@ -39,23 +39,26 @@ Add to `claude_desktop_config.json`:
   </div>
 </div>
 
-That's it. Your AI assistant can now list projects, search pages, read content, and create or update pages on your behalf.
+That's it. Your AI assistant can now manage projects, search pages, read content, and create or update pages on your behalf.
 
 ---
 
 ## Available Tools
 
-| Tool            | Description                                                      |
-| --------------- | ---------------------------------------------------------------- |
-| `list_orgs`     | List your organizations                                          |
-| `list_projects` | List projects, optionally including their pages                  |
-| `get_project`   | Get a project with its pages, folders, and files                 |
-| `list_pages`    | List pages (paginated)                                           |
-| `search_pages`  | Search pages by title                                            |
-| `get_page`      | Get a page's full content                                        |
-| `create_page`   | Create a new page in a project                                   |
-| `update_page`   | Update a page's title or content (append, prepend, or overwrite) |
-| `delete_page`   | Delete a page                                                    |
+| Tool             | Description                                                      |
+| ---------------- | ---------------------------------------------------------------- |
+| `list_orgs`      | List your organizations                                          |
+| `list_projects`  | List projects, optionally including their pages                  |
+| `get_project`    | Get a project with its pages, folders, and files                 |
+| `create_project` | Create a new project in an organization                          |
+| `update_project` | Update a project's name or description                           |
+| `delete_project` | Delete a project (requires confirmation, creator only)           |
+| `list_pages`     | List pages (paginated)                                           |
+| `search_pages`   | Search pages by title                                            |
+| `get_page`       | Get a page's full content                                        |
+| `create_page`    | Create a new page in a project                                   |
+| `update_page`    | Update a page's title or content (append, prepend, or overwrite) |
+| `delete_page`    | Delete a page                                                    |
 
 ---
 
