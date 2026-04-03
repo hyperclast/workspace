@@ -3,6 +3,17 @@
 {% block docs_content %}
   <article class="markdown-content">
     {{ content|safe }}
+    {% if is_mcp_docs %}
+      <script>
+        (function() {
+          var tabs = document.querySelector('.client-tabs');
+          if (!tabs) return;
+          var p = document.createElement('p');
+          p.innerHTML = 'You can {% if user.is_authenticated %}manage{% else %}get{% endif %} your access token <a href="/settings/#developer">here</a>.';
+          tabs.parentNode.insertBefore(p, tabs.nextSibling);
+        })();
+      </script>
+    {% endif %}
   </article>
   <div class="floating-toc visible" id="floatingToc">
     <button class="floating-toc-btn" id="floatingTocBtn" type="button" aria-label="Jump to section">

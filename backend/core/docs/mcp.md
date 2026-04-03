@@ -2,25 +2,25 @@
 
 The Hyperclast MCP server lets AI assistants read and write your pages directly. It implements the [Model Context Protocol](https://modelcontextprotocol.io/) and works with any MCP-compatible client, including Claude Code and Claude Desktop.
 
-## Quick Start
+## Setup
 
-### 1. Get an access token
-
-Go to **Settings → Tokens** in Hyperclast, or use the CLI:
-
-```bash
-hyperclast token
-```
-
-### 2. Add the server to your client
-
-**Claude Code:**
+<div class="client-tabs">
+  <div class="client-tab-bar">
+    <button class="client-tab active" data-tab="claude-code">Claude Code</button>
+    <button class="client-tab" data-tab="claude-desktop">Claude Desktop</button>
+  </div>
+  <div class="client-tab-panel active" data-tab="claude-code">
 
 ```bash
-claude mcp add hyperclast -e HYPERCLAST_TOKEN=<ACCESS_TOKEN> -- uvx hyperclast-mcp
+claude mcp add hyperclast \
+  -e HYPERCLAST_TOKEN=<ACCESS_TOKEN> \
+  -- uvx hyperclast-mcp
 ```
 
-**Claude Desktop** — add to `claude_desktop_config.json`:
+  </div>
+  <div class="client-tab-panel" data-tab="claude-desktop">
+
+Add to `claude_desktop_config.json`:
 
 ```json
 {
@@ -35,6 +35,9 @@ claude mcp add hyperclast -e HYPERCLAST_TOKEN=<ACCESS_TOKEN> -- uvx hyperclast-m
   }
 }
 ```
+
+  </div>
+</div>
 
 That's it. Your AI assistant can now list projects, search pages, read content, and create or update pages on your behalf.
 
@@ -76,32 +79,3 @@ Once the server is connected, you can ask your AI assistant things like:
 - "Read the contents of my design spec"
 
 The assistant will use the appropriate MCP tools automatically.
-
----
-
-## Running from Source
-
-If you want to run the server from a local checkout instead of installing from PyPI:
-
-```bash
-claude mcp add hyperclast \
-  -e HYPERCLAST_TOKEN=<ACCESS_TOKEN> \
-  -e HYPERCLAST_URL=http://localhost:9800 \
-  -- uv run --directory /path/to/mcp hyperclast-mcp
-```
-
----
-
-## Development
-
-```bash
-cd mcp
-uv sync
-uv run hyperclast-mcp
-
-# Run tests
-uv run pytest tests/ -v
-
-# Interactive testing with the MCP Inspector
-npx @modelcontextprotocol/inspector uv run hyperclast-mcp
-```

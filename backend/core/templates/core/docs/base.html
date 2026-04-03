@@ -29,6 +29,84 @@
       background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
     }
 
+    /* Client tabs (MCP docs) */
+    .client-tabs {
+      background: var(--bg-secondary, #f8f9fa);
+      border: 1px solid var(--border-color, #dee2e6);
+      border-radius: 12px;
+      margin: 1.5rem 0;
+      overflow: hidden;
+    }
+    .client-tab-bar {
+      display: flex;
+      border-bottom: 1px solid var(--border-color, #dee2e6);
+      background: white;
+      overflow-x: auto;
+    }
+    .client-tab {
+      padding: 0.875rem 1.25rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: inherit;
+    }
+    .client-tab:hover {
+      color: var(--text-primary);
+      background: var(--bg-secondary, #f8f9fa);
+    }
+    .client-tab.active {
+      color: #667eea;
+      border-bottom-color: #667eea;
+      background: transparent;
+    }
+    .client-tab-panel {
+      display: none;
+      padding: 1.5rem;
+    }
+    .client-tab-panel.active {
+      display: block;
+    }
+    .client-tab-panel pre {
+      margin: 0;
+    }
+    .client-tab-panel p {
+      margin: 0 0 0.75rem 0;
+    }
+    :root.dark .client-tabs,
+    :root[data-theme="dark"] .client-tabs {
+      background: #2a2a2a;
+      border-color: #404040;
+    }
+    :root.dark .client-tab-bar,
+    :root[data-theme="dark"] .client-tab-bar {
+      background: #252525;
+      border-color: #404040;
+    }
+    :root.dark .client-tab,
+    :root[data-theme="dark"] .client-tab {
+      color: #a0a0a0;
+    }
+    :root.dark .client-tab:hover,
+    :root[data-theme="dark"] .client-tab:hover {
+      color: #f0f0f0;
+      background: rgba(255, 255, 255, 0.05);
+    }
+    :root.dark .client-tab.active,
+    :root[data-theme="dark"] .client-tab.active {
+      color: #8b9cf7;
+      border-bottom-color: #8b9cf7;
+      background: transparent;
+    }
+
     /* Code block copy button */
     .copy-btn {
       position: absolute;
@@ -259,6 +337,20 @@
 
     // Now run syntax highlighting
     hljs.highlightAll();
+
+    // Client tabs (MCP docs)
+    document.querySelectorAll('.client-tab').forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        var container = tab.closest('.client-tabs');
+        var target = tab.getAttribute('data-tab');
+        container.querySelectorAll('.client-tab').forEach(function(t) {
+          t.classList.toggle('active', t.getAttribute('data-tab') === target);
+        });
+        container.querySelectorAll('.client-tab-panel').forEach(function(p) {
+          p.classList.toggle('active', p.getAttribute('data-tab') === target);
+        });
+      });
+    });
 
     // Hide empty table header rows (from markdown tables with | | | header)
     document.querySelectorAll('thead').forEach(function(thead) {
