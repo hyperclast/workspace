@@ -7,7 +7,12 @@ from unittest.mock import patch
 from django.test import TestCase
 
 from imports.models import ImportJob, ImportedPage
-from imports.services.notion import ParsedPage, _is_index_only_page, create_import_pages
+from imports.services.notion import (
+    ParsedPage,
+    _cleanup_empty_folders,
+    _is_index_only_page,
+    create_import_pages,
+)
 from pages.models import Page
 from pages.models.links import PageLink
 from pages.tests.factories import ProjectFactory
@@ -1075,7 +1080,7 @@ class TestCreateImportPagesFolderCreation(TestCase):
         # Import with max_depth=3 via _create_folders_from_tree directly
         from imports.services.notion import _create_folders_from_tree
 
-        page_folder_map = _create_folders_from_tree([root_dir], self.project, max_depth=3)
+        page_folder_map, _ = _create_folders_from_tree([root_dir], self.project, max_depth=3)
 
         # Only 3 folders should be created (Root, Level1, Level2)
         # Level3 exceeds max_depth=3 and should be flattened
@@ -1318,6 +1323,463 @@ class TestCreateImportPagesFolderCreation(TestCase):
         page_titles = {p.title for p in result["pages"]}
         self.assertNotIn("Empty Parent", page_titles)
         self.assertIn("Child", page_titles)
+
+    def test_csv_database_row_pages_get_rows_subfolder(self):
+        """CSV database row pages go into a '{name} Rows' subfolder, CSV parent stays in parent folder."""
+        from pages.models import Folder
+
+        row1 = ParsedPage(
+            title="Design mockups",
+            content="Initial mockups for the new feature.",
+            original_path="Task Database/Design mockups def456abc789012345.md",
+            source_hash="def456abc789012345",
+        )
+        row2 = ParsedPage(
+            title="Write tests",
+            content="Unit and integration tests.",
+            original_path="Task Database/Write tests ghi789abc012345678.md",
+            source_hash="ghi789abc012345678",
+        )
+        csv_parent = ParsedPage(
+            title="Task Database",
+            content="Name,Status\nDesign mockups,Done\nWrite tests,Todo",
+            original_path="Task Database abc123def456789012.csv",
+            source_hash="abc123def456789012",
+            filetype="csv",
+            children=[row1, row2],
+        )
+
+        result = create_import_pages([csv_parent], self.project, self.user)
+
+        # CSV parent + 2 row pages = 3 pages created
+        self.assertEqual(result["stats"]["created"], 3)
+
+        # Two folders: "Task Database" and "Task Database Rows"
+        folders = Folder.objects.filter(project=self.project).order_by("name")
+        self.assertEqual(folders.count(), 2)
+        db_folder = folders.get(name="Task Database")
+        rows_folder = folders.get(name="Task Database Rows")
+        self.assertEqual(rows_folder.parent, db_folder)
+
+        # CSV parent page is in the database folder
+        csv_page = next(p for p in result["pages"] if p.title == "Task Database")
+        csv_page.refresh_from_db()
+        self.assertEqual(csv_page.folder, db_folder)
+
+        # Row pages are in the Rows subfolder
+        for row_title in ("Design mockups", "Write tests"):
+            row_page = next(p for p in result["pages"] if p.title == row_title)
+            row_page.refresh_from_db()
+            self.assertEqual(
+                row_page.folder,
+                rows_folder,
+                f"{row_title} should be in the Rows subfolder",
+            )
+
+    def test_csv_without_children_gets_no_rows_subfolder(self):
+        """A standalone CSV (no row pages) does not create a Rows subfolder."""
+        from pages.models import Folder
+
+        csv_page = ParsedPage(
+            title="Simple DB",
+            content="Name,Value\nA,1",
+            original_path="Simple DB abc123def456789012.csv",
+            source_hash="abc123def456789012",
+            filetype="csv",
+        )
+
+        result = create_import_pages([csv_page], self.project, self.user)
+
+        self.assertEqual(result["stats"]["created"], 1)
+        # No folders at all — standalone CSV has no children
+        self.assertEqual(Folder.objects.filter(project=self.project).count(), 0)
+
+    def test_md_parent_children_not_in_rows_subfolder(self):
+        """Non-CSV (markdown) parent pages do NOT get a Rows subfolder — children stay in parent folder."""
+        from pages.models import Folder
+
+        child = ParsedPage(
+            title="Child",
+            content="Child content",
+            original_path="parent/child.md",
+            source_hash="child_hash_1234567",
+        )
+        md_parent = ParsedPage(
+            title="Parent",
+            content="Parent content with links",
+            original_path="parent.md",
+            source_hash="parent_hash_1234567",
+            children=[child],
+        )
+
+        result = create_import_pages([md_parent], self.project, self.user)
+
+        # Only one folder — no Rows subfolder for markdown parents
+        folders = Folder.objects.filter(project=self.project)
+        self.assertEqual(folders.count(), 1)
+        folder = folders.first()
+        self.assertEqual(folder.name, "Parent")
+
+        # Both parent and child are in the same folder
+        for page in result["pages"]:
+            page.refresh_from_db()
+            self.assertEqual(page.folder, folder)
+
+    def test_csv_rows_subfolder_respects_depth_limit(self):
+        """Rows subfolder is flattened when it would exceed max depth."""
+        from pages.models import Folder
+
+        from imports.services.notion import _create_folders_from_tree
+
+        row = ParsedPage(
+            title="Row Page",
+            content="Content",
+            original_path="db/row.md",
+            source_hash="row_hash_12345678",
+        )
+        csv_parent = ParsedPage(
+            title="DB",
+            content="Col1,Col2\nA,B",
+            original_path="db.csv",
+            source_hash="db_hash_123456789",
+            filetype="csv",
+            children=[row],
+        )
+
+        # max_depth=1 means only the DB folder is created; the Rows subfolder
+        # would be depth 2 which exceeds the limit → children stay in DB folder
+        page_folder_map, created = _create_folders_from_tree([csv_parent], self.project, max_depth=1)
+
+        folders = Folder.objects.filter(project=self.project)
+        self.assertEqual(folders.count(), 1)
+        self.assertEqual(folders.first().name, "DB")
+
+        # Row page is in the DB folder (flattened, no Rows subfolder)
+        self.assertEqual(page_folder_map[id(row)], folders.first())
+
+    def test_csv_empty_rows_subfolder_cleaned_up(self):
+        """An empty Rows subfolder (all row pages skipped) is cleaned up."""
+        from pages.models import Folder
+
+        row = ParsedPage(
+            title="Row",
+            content="Content",
+            original_path="db/row.md",
+            source_hash="row_hash_12345678",
+        )
+        csv_parent = ParsedPage(
+            title="DB",
+            content="Col1\nA",
+            original_path="db.csv",
+            source_hash="db_hash_123456789",
+            filetype="csv",
+            children=[row],
+        )
+
+        # Pre-import the row page so it will be skipped as duplicate
+        pre_page = Page.objects.create(project=self.project, creator=self.user, title="Row")
+        pre_job = ImportJob.objects.create(user=self.user, project=self.project, provider="notion")
+        ImportedPage.objects.create(
+            import_job=pre_job,
+            project=self.project,
+            page=pre_page,
+            original_path="db/row.md",
+            source_hash="row_hash_12345678",
+        )
+
+        result = create_import_pages([csv_parent], self.project, self.user)
+
+        # CSV parent is created, row is skipped as duplicate
+        self.assertEqual(result["stats"]["created"], 1)
+        self.assertEqual(result["stats"]["skipped"], 1)
+
+        # Only the DB folder remains — empty Rows subfolder was cleaned up
+        folders = Folder.objects.filter(project=self.project)
+        self.assertEqual(folders.count(), 1)
+        self.assertEqual(folders.first().name, "DB")
+
+    def test_empty_folder_cleaned_after_all_children_skipped(self):
+        """Folder is deleted when all its pages are skipped as duplicates on re-import."""
+        from pages.models import Folder
+
+        child = ParsedPage(
+            title="Child",
+            content="Content",
+            original_path="parent/child.md",
+            source_hash="child_hash_1234567",
+        )
+        parent = ParsedPage(
+            title="Parent",
+            content="Parent text with [Child](Child%20child_hash_1234567.md)",
+            original_path="parent.md",
+            source_hash="parent_hash_1234567",
+            children=[child],
+        )
+
+        # First import — creates folder + pages (import_job needed for ImportedPage records)
+        job1 = ImportJob.objects.create(user=self.user, project=self.project, provider="notion")
+        result1 = create_import_pages([parent], self.project, self.user, import_job=job1)
+        self.assertEqual(result1["stats"]["created"], 2)
+        self.assertEqual(Folder.objects.filter(project=self.project).count(), 1)
+
+        # Second import with same hashes — all pages skipped, folder should be cleaned
+        child2 = ParsedPage(
+            title="Child",
+            content="Content",
+            original_path="parent/child.md",
+            source_hash="child_hash_1234567",
+        )
+        parent2 = ParsedPage(
+            title="Parent",
+            content="Parent text with [Child](Child%20child_hash_1234567.md)",
+            original_path="parent.md",
+            source_hash="parent_hash_1234567",
+            children=[child2],
+        )
+
+        result2 = create_import_pages([parent2], self.project, self.user)
+        self.assertEqual(result2["stats"]["created"], 0)
+        self.assertEqual(result2["stats"]["skipped"], 2)
+
+        # Original folder still exists because the first import's pages are in it
+        self.assertEqual(Folder.objects.filter(project=self.project).count(), 1)
+
+    def test_empty_folder_cleaned_when_index_only_parent_and_no_real_children(self):
+        """Folder is deleted when parent is index-only and its only child is also index-only."""
+        from pages.models import Folder
+
+        grandchild = ParsedPage(
+            title="Grandchild",
+            content="Real content here",
+            original_path="parent/child/gc.md",
+            source_hash="gc_hash_123456789",
+        )
+        # Child is index-only (only links to grandchild)
+        child = ParsedPage(
+            title="Child",
+            content="[Grandchild](Grandchild%20gc_hash_123456789.md)",
+            original_path="parent/child.md",
+            source_hash="child_hash_1234567",
+            children=[grandchild],
+        )
+        # Parent is index-only (only links to child)
+        parent = ParsedPage(
+            title="Parent",
+            content="[Child](Child%20child_hash_1234567.md)",
+            original_path="parent.md",
+            source_hash="parent_hash_1234567",
+            children=[child],
+        )
+
+        result = create_import_pages([parent], self.project, self.user)
+
+        # Only grandchild is created (parent and child are index-only → skipped)
+        self.assertEqual(result["stats"]["created"], 1)
+        self.assertEqual(result["stats"]["skipped"], 2)
+        self.assertEqual(result["pages"][0].title, "Grandchild")
+
+        # The "Child" folder survives (it has the grandchild page in it)
+        # The "Parent" folder is empty (child was index-only, no page created for it)
+        # BUT the "Child" subfolder is inside "Parent", so "Parent" is not empty
+        folders = Folder.objects.filter(project=self.project)
+        folder_names = set(folders.values_list("name", flat=True))
+        self.assertIn("Child", folder_names)
+        # Parent folder kept because it contains the Child subfolder
+        self.assertIn("Parent", folder_names)
+
+    def test_index_only_tree_creates_no_orphan_folders(self):
+        """A tree where all pages are index-only produces no folders or pages."""
+        from pages.models import Folder
+
+        # Innermost child is also index-only (has children, content is just links)
+        grandchild = ParsedPage(
+            title="Grandchild",
+            content="Real content here",
+            original_path="a/b/gc.md",
+            source_hash="gc_hash_123456789",
+        )
+        child = ParsedPage(
+            title="Child",
+            content="[Grandchild](Grandchild%20gc_hash_123456789.md)",
+            original_path="a/b.md",
+            source_hash="child_hash_1234567",
+            children=[grandchild],
+        )
+        # Make grandchild a duplicate by pre-importing it
+        pre_page = Page.objects.create(project=self.project, creator=self.user, title="Grandchild")
+        pre_job = ImportJob.objects.create(user=self.user, project=self.project, provider="notion")
+        ImportedPage.objects.create(
+            import_job=pre_job,
+            project=self.project,
+            page=pre_page,
+            original_path="a/b/gc.md",
+            source_hash="gc_hash_123456789",
+        )
+
+        parent = ParsedPage(
+            title="Parent",
+            content="[Child](Child%20child_hash_1234567.md)",
+            original_path="a.md",
+            source_hash="parent_hash_1234567",
+            children=[child],
+        )
+
+        result = create_import_pages([parent], self.project, self.user)
+
+        # Parent and Child are index-only → skipped
+        # Grandchild is a duplicate → skipped
+        self.assertEqual(result["stats"]["created"], 0)
+        self.assertEqual(result["stats"]["skipped"], 3)
+
+        # All folders created during this import should be cleaned up
+        # (The only pre-existing content is the pre-imported grandchild at root)
+        self.assertEqual(Folder.objects.filter(project=self.project).count(), 0)
+
+    def test_folder_with_pages_not_cleaned(self):
+        """Folders that contain pages are never deleted by cleanup."""
+        from pages.models import Folder
+
+        child = ParsedPage(
+            title="Real Child",
+            content="Real content that matters.",
+            original_path="parent/child.md",
+            source_hash="child_hash_1234567",
+        )
+        parent = ParsedPage(
+            title="Parent",
+            content="[Real Child](Real%20Child%20child_hash_1234567.md)",
+            original_path="parent.md",
+            source_hash="parent_hash_1234567",
+            children=[child],
+        )
+
+        result = create_import_pages([parent], self.project, self.user)
+
+        # Parent is index-only (skipped), child is created
+        self.assertEqual(result["stats"]["created"], 1)
+        self.assertEqual(result["stats"]["skipped"], 1)
+
+        # Folder survives because the child page is in it
+        folders = Folder.objects.filter(project=self.project)
+        self.assertEqual(folders.count(), 1)
+        self.assertEqual(folders.first().name, "Parent")
+
+    def test_reimport_does_not_delete_preexisting_empty_folder(self):
+        """Pre-existing empty folders reused via get_or_create are never deleted."""
+        from pages.models import Folder
+
+        # User manually created an empty folder before any import
+        existing = Folder.objects.create(project=self.project, name="Parent")
+
+        # Import a tree whose parent folder matches the pre-existing one
+        child = ParsedPage(
+            title="Child",
+            content="Content",
+            original_path="parent/child.md",
+            source_hash="child_hash_1234567",
+        )
+        parent = ParsedPage(
+            title="Parent",
+            content="[Child](Child%20child_hash_1234567.md)",
+            original_path="parent.md",
+            source_hash="parent_hash_1234567",
+            children=[child],
+        )
+
+        # Make child a duplicate so all pages are skipped
+        pre_page = Page.objects.create(project=self.project, creator=self.user, title="Child")
+        pre_job = ImportJob.objects.create(user=self.user, project=self.project, provider="notion")
+        ImportedPage.objects.create(
+            import_job=pre_job,
+            project=self.project,
+            page=pre_page,
+            original_path="parent/child.md",
+            source_hash="child_hash_1234567",
+        )
+
+        result = create_import_pages([parent], self.project, self.user)
+
+        # Parent is index-only → skipped, child is duplicate → skipped
+        self.assertEqual(result["stats"]["created"], 0)
+        self.assertEqual(result["stats"]["skipped"], 2)
+
+        # The pre-existing folder must survive — it was reused, not created by this import
+        self.assertTrue(
+            Folder.objects.filter(pk=existing.pk).exists(),
+            "Pre-existing folder was deleted by cleanup — this is a data loss regression",
+        )
+
+
+class TestCleanupEmptyFolders(TestCase):
+    """Unit tests for _cleanup_empty_folders()."""
+
+    def setUp(self):
+        self.org = OrgFactory()
+        self.user = UserFactory()
+        OrgMemberFactory(org=self.org, user=self.user)
+        self.project = ProjectFactory(org=self.org, creator=self.user)
+
+    def test_deletes_empty_leaf_folder(self):
+        """A folder with no pages and no subfolders is deleted."""
+        from pages.models import Folder
+
+        folder = Folder.objects.create(project=self.project, name="Empty")
+        deleted = _cleanup_empty_folders({folder})
+
+        self.assertEqual(deleted, 1)
+        self.assertEqual(Folder.objects.filter(project=self.project).count(), 0)
+
+    def test_preserves_folder_with_pages(self):
+        """A folder containing pages is not deleted."""
+        from pages.models import Folder, Page
+
+        folder = Folder.objects.create(project=self.project, name="Has Pages")
+        Page.objects.create(
+            project=self.project,
+            creator=self.user,
+            folder=folder,
+            title="A Page",
+        )
+        deleted = _cleanup_empty_folders({folder})
+
+        self.assertEqual(deleted, 0)
+        self.assertEqual(Folder.objects.filter(project=self.project).count(), 1)
+
+    def test_preserves_folder_with_subfolders(self):
+        """A folder with non-empty subfolders (outside the cleanup set) is preserved."""
+        from pages.models import Folder, Page
+
+        parent = Folder.objects.create(project=self.project, name="Parent")
+        child = Folder.objects.create(project=self.project, name="Child", parent=parent)
+        Page.objects.create(
+            project=self.project,
+            creator=self.user,
+            folder=child,
+            title="A Page",
+        )
+
+        # Only checking parent — child has a page so it's not in cleanup set
+        deleted = _cleanup_empty_folders({parent})
+
+        self.assertEqual(deleted, 0)
+        self.assertEqual(Folder.objects.filter(project=self.project).count(), 2)
+
+    def test_deletes_nested_empty_folders_bottom_up(self):
+        """Both parent and child are deleted when both are empty."""
+        from pages.models import Folder
+
+        parent = Folder.objects.create(project=self.project, name="Parent")
+        child = Folder.objects.create(project=self.project, name="Child", parent=parent)
+
+        deleted = _cleanup_empty_folders({parent, child})
+
+        self.assertEqual(deleted, 2)
+        self.assertEqual(Folder.objects.filter(project=self.project).count(), 0)
+
+    def test_empty_set_is_noop(self):
+        """Passing an empty set does nothing."""
+        deleted = _cleanup_empty_folders(set())
+        self.assertEqual(deleted, 0)
 
 
 class TestIsIndexOnlyPage(TestCase):

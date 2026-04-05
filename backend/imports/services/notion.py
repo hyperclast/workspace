@@ -426,6 +426,16 @@ def build_page_tree(extracted_path: Path) -> list[ParsedPage]:
                 original_path = os.path.join(relative_base, item.name) if relative_base else item.name
                 parsed = _parse_csv_file(item, original_path)
                 if parsed:
+                    # Check for corresponding subdirectory with database row pages
+                    # Same logic as .md files — Notion databases export row pages
+                    # as .md files inside a companion directory
+                    child_dir = _find_child_directory(dir_path, item.stem, parsed.title)
+                    if child_dir and child_dir.is_dir():
+                        child_dir_name = child_dir.name
+                        child_relative = (
+                            os.path.join(relative_base, child_dir_name) if relative_base else child_dir_name
+                        )
+                        parsed.children = process_directory(child_dir, child_relative)
                     result.append(parsed)
 
         return result
@@ -778,6 +788,10 @@ def remap_links(content: str, id_mapping: dict[str, str]) -> str:
     """
     Replace Notion internal links with Hyperclast page links.
 
+    Uses a single-pass positional replacement to avoid str.replace() pitfalls:
+    - str.replace() replaces ALL occurrences, not just the intended one
+    - If two links share a substring, an earlier replacement can corrupt a later match
+
     Args:
         content: Markdown content with Notion links.
         id_mapping: Dict mapping source_hash to hyperclast external_id.
@@ -785,19 +799,31 @@ def remap_links(content: str, id_mapping: dict[str, str]) -> str:
     Returns:
         Content with remapped links.
     """
-    links = extract_notion_links(content)
+    pattern = r"\[([^\]]+)\]\(([^)]+\.(?:md|csv))\)"
 
-    for full_match, link_text, link_target in links:
+    parts = []
+    last_end = 0
+
+    for match in re.finditer(pattern, content):
+        link_text = match.group(1)
+        link_target = unquote(match.group(2))
+
         # Extract the notion hash from the link target filename
         _, source_hash = parse_notion_filename(os.path.basename(link_target))
 
         if source_hash and source_hash in id_mapping:
             hyperclast_id = id_mapping[source_hash]
             new_link = f"[{link_text}](/pages/{hyperclast_id}/)"
-            content = content.replace(full_match, new_link)
+            parts.append(content[last_end : match.start()])
+            parts.append(new_link)
+            last_end = match.end()
         # If hash not found, leave the link as-is (will be broken but preserved)
 
-    return content
+    if not parts:
+        return content
+
+    parts.append(content[last_end:])
+    return "".join(parts)
 
 
 def flatten_page_tree(pages: list[ParsedPage]) -> list[ParsedPage]:
@@ -894,7 +920,7 @@ def _sanitize_folder_name(name: str) -> str:
     return name
 
 
-def _create_folders_from_tree(parsed_pages: list[ParsedPage], project, max_depth: int = 10) -> dict:
+def _create_folders_from_tree(parsed_pages: list[ParsedPage], project, max_depth: int = 10) -> tuple[dict, set]:
     """
     Create Folder rows from the parsed page tree's directory structure.
 
@@ -909,13 +935,17 @@ def _create_folders_from_tree(parsed_pages: list[ParsedPage], project, max_depth
         max_depth: Maximum folder nesting depth.
 
     Returns:
-        dict mapping id(parsed_page) -> Folder instance
+        Tuple of:
+            - dict mapping id(parsed_page) -> Folder instance
+            - set of Folder instances that were newly created (not reused)
     """
     from pages.models import Folder
     from pages.services.folders import MAX_FOLDERS_PER_PROJECT
 
     # Map: parsed_page id -> Folder instance
     page_folder_map = {}
+    # Track only folders created by this import (not reused via get_or_create)
+    created_folder_set = set()
 
     # Count existing folders to enforce limit
     existing_count = Folder.objects.filter(project=project).count()
@@ -939,6 +969,7 @@ def _create_folders_from_tree(parsed_pages: list[ParsedPage], project, max_depth
                     )
                     if created:
                         folders_created += 1
+                        created_folder_set.add(folder)
                 elif not limit_warned and (existing_count + folders_created) >= MAX_FOLDERS_PER_PROJECT:
                     logger.warning(
                         f"Folder limit ({MAX_FOLDERS_PER_PROJECT}) reached for project "
@@ -955,15 +986,74 @@ def _create_folders_from_tree(parsed_pages: list[ParsedPage], project, max_depth
                 # Parent page goes into its own folder (alongside children)
                 page_folder_map[id(page)] = folder
 
-                # Children go into this folder
+                # For CSV databases, create a "{title} Rows" subfolder for
+                # row pages so they don't mix with the CSV overview page.
+                children_folder = folder
+                if page.filetype == "csv" and folder is not None:
+                    rows_depth = depth + 1
+                    if rows_depth <= max_depth and (existing_count + folders_created) < MAX_FOLDERS_PER_PROJECT:
+                        rows_name = _sanitize_folder_name(f"{page.title} Rows")
+                        rows_folder, rows_created = Folder.objects.get_or_create(
+                            project=project,
+                            parent=folder,
+                            name=rows_name,
+                            defaults={},
+                        )
+                        if rows_created:
+                            folders_created += 1
+                            created_folder_set.add(rows_folder)
+                        children_folder = rows_folder
+
+                # Children go into this folder (or the Rows subfolder for CSVs)
                 for child in page.children:
-                    page_folder_map[id(child)] = folder
+                    page_folder_map[id(child)] = children_folder
 
                 # Recurse for nested children
-                process_level(page.children, folder, depth + 1)
+                process_level(page.children, children_folder, depth + 1)
 
     process_level(parsed_pages, None, 1)
-    return page_folder_map
+    return page_folder_map, created_folder_set
+
+
+def _cleanup_empty_folders(folders: set) -> int:
+    """
+    Delete folders that have no pages and no subfolders.
+
+    Processes bottom-up: deepest folders first, so that removing a leaf folder
+    can make its parent eligible for removal in the same pass.
+
+    Args:
+        folders: Set of Folder instances to check.
+
+    Returns:
+        Number of folders deleted.
+    """
+    # Sort by depth (deepest first) so leaf folders are checked before parents.
+    # Depth is determined by walking the parent chain.
+    def _depth(folder):
+        d = 0
+        current = folder
+        while current.parent_id is not None:
+            d += 1
+            current = current.parent
+        return d
+
+    sorted_folders = sorted(folders, key=_depth, reverse=True)
+
+    deleted = 0
+    deleted_ids = set()
+    for folder in sorted_folders:
+        if folder.pk in deleted_ids:
+            continue
+        has_pages = folder.pages.exists()
+        # Exclude already-deleted subfolders from the check
+        has_subfolders = folder.subfolders.exclude(pk__in=deleted_ids).exists()
+        if not has_pages and not has_subfolders:
+            deleted_ids.add(folder.pk)
+            folder.delete()
+            deleted += 1
+
+    return deleted
 
 
 def create_import_pages(parsed_pages: list[ParsedPage], project, user, import_job=None):
@@ -999,7 +1089,7 @@ def create_import_pages(parsed_pages: list[ParsedPage], project, user, import_jo
     from pages.models.links import PageLink
 
     # Step 0: Create folders from the directory structure
-    page_folder_map = _create_folders_from_tree(parsed_pages, project)
+    page_folder_map, created_folders = _create_folders_from_tree(parsed_pages, project)
 
     # Step 1: Flatten the page tree
     flat_pages = flatten_page_tree(parsed_pages)
@@ -1131,6 +1221,14 @@ def create_import_pages(parsed_pages: list[ParsedPage], project, user, import_jo
 
         with transaction.atomic():
             ImportedPage.objects.bulk_create(imported_pages)
+
+    # Step 9: Clean up empty folders created during this import
+    # A folder can end up empty if all its pages were skipped (duplicates or
+    # index-only parents). Only clean up folders that were newly created by
+    # this import — never delete pre-existing folders that were merely reused
+    # via get_or_create.
+    if created_folders:
+        _cleanup_empty_folders(created_folders)
 
     return {
         "pages": created_pages,

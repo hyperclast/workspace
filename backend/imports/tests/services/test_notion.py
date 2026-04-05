@@ -503,6 +503,70 @@ class TestBuildPageTree(TestCase):
             self.assertNotIn("Hidden", pages[0].content)
             self.assertNotIn("Secret", pages[0].content)
 
+    def test_build_tree_csv_with_child_directory(self):
+        """CSV database file discovers row pages in matching child directory."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            # CSV file for the database
+            (tmppath / "Task Database abc123def456789012.csv").write_text(
+                "Name,Status\nDesign mockups,Done\nWrite tests,Todo"
+            )
+            # Companion directory with row pages (Notion uses title-only folder names)
+            child_dir = tmppath / "Task Database"
+            child_dir.mkdir()
+            (child_dir / "Design mockups def456abc789012345.md").write_text(
+                "# Design mockups\n\nInitial mockups for the new feature."
+            )
+            (child_dir / "Write tests aaa789bbb012345678.md").write_text("# Write tests\n\nUnit and integration tests.")
+
+            pages = build_page_tree(tmppath)
+
+            self.assertEqual(len(pages), 1)
+            csv_page = pages[0]
+            self.assertEqual(csv_page.title, "Task Database")
+            self.assertEqual(csv_page.filetype, "csv")
+            # Row pages discovered as children
+            self.assertEqual(len(csv_page.children), 2)
+            child_titles = {c.title for c in csv_page.children}
+            self.assertIn("Design mockups", child_titles)
+            self.assertIn("Write tests", child_titles)
+            # Children have correct original_path (relative to export root)
+            child_paths = {c.original_path for c in csv_page.children}
+            self.assertTrue(
+                all("Task Database/" in p for p in child_paths),
+                f"Expected child paths to include 'Task Database/', got: {child_paths}",
+            )
+
+    def test_build_tree_csv_without_child_directory(self):
+        """CSV database file without companion directory has no children (unchanged behavior)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            (tmppath / "Database abc123def456789012.csv").write_text("Name,Value\nFoo,Bar")
+
+            pages = build_page_tree(tmppath)
+
+            self.assertEqual(len(pages), 1)
+            self.assertEqual(pages[0].title, "Database")
+            self.assertEqual(pages[0].filetype, "csv")
+            self.assertEqual(pages[0].children, [])
+
+    def test_build_tree_csv_child_dir_with_full_stem(self):
+        """CSV finds child directory via full stem fallback (hash included in folder name)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            (tmppath / "DB abc123def456789012.csv").write_text("Name,Val\nA,B")
+            # Some edge cases: folder uses full stem with hash
+            child_dir = tmppath / "DB abc123def456789012"
+            child_dir.mkdir()
+            (child_dir / "Row Page fff000aaa111222333.md").write_text("# Row Page\n\nContent.")
+
+            pages = build_page_tree(tmppath)
+
+            self.assertEqual(len(pages), 1)
+            self.assertEqual(pages[0].title, "DB")
+            self.assertEqual(len(pages[0].children), 1)
+            self.assertEqual(pages[0].children[0].title, "Row Page")
+
     def test_build_tree_empty_directory(self):
         """Handles empty directory gracefully."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -944,6 +1008,55 @@ class TestRemapLinks(TestCase):
         self.assertIn("[Database](/pages/uuid-db/)", result)
         self.assertNotIn(".md", result)
         self.assertNotIn(".csv", result)
+
+    def test_remap_duplicate_identical_links(self):
+        """Same link appearing twice is remapped in both occurrences."""
+        content = "See [Page](Page%20abc123def456789012.md) and " "also [Page](Page%20abc123def456789012.md) again."
+        id_mapping = {"abc123def456789012": "uuid-1"}
+
+        result = remap_links(content, id_mapping)
+
+        self.assertEqual(
+            result,
+            "See [Page](/pages/uuid-1/) and also [Page](/pages/uuid-1/) again.",
+        )
+        # No .md links remaining
+        self.assertNotIn(".md", result)
+
+    def test_remap_links_with_overlapping_substrings(self):
+        """Links where one full_match is a substring of another are both remapped correctly."""
+        # Link A: [A](Page abc123def456789012.md)
+        # Link B: [A](Page abc123def456789012.md) extra] — not a real overlap since regex
+        #   is bounded by ](...)
+        # More realistic: two links whose URL-encoded forms share a common substring
+        # e.g., "Page" appears in both link targets
+        content = "[Page](Page%20abc123def456789012.md) " "[Page Extended](Page%20Extended%20def456abc789012345.md)"
+        id_mapping = {
+            "abc123def456789012": "uuid-short",
+            "def456abc789012345": "uuid-long",
+        }
+
+        result = remap_links(content, id_mapping)
+
+        self.assertIn("[Page](/pages/uuid-short/)", result)
+        self.assertIn("[Page Extended](/pages/uuid-long/)", result)
+        self.assertNotIn(".md", result)
+
+    def test_remap_no_links(self):
+        """Content with no Notion links is returned unchanged."""
+        content = "Just plain text with no links."
+        result = remap_links(content, {})
+        self.assertEqual(result, content)
+
+    def test_remap_preserves_non_notion_markdown_links(self):
+        """Non-Notion markdown links (not .md/.csv) are left untouched."""
+        content = "[Google](https://google.com) and [Page](Page%20abc123def456789012.md)"
+        id_mapping = {"abc123def456789012": "uuid-1"}
+
+        result = remap_links(content, id_mapping)
+
+        self.assertIn("[Google](https://google.com)", result)
+        self.assertIn("[Page](/pages/uuid-1/)", result)
 
 
 class TestFlattenPageTree(TestCase):
