@@ -311,7 +311,13 @@
       // Comments will arrive via WebSocket commentsUpdated event
     } catch (e) {
       console.error("Error triggering AI review:", e);
-      showToast("Couldn't start AI review at this time.", "error");
+      if (e.code === "ai_key_not_configured") {
+        showToast("No AI provider configured. Add an API key in Settings.", "error", {
+          action: { label: "Settings", onClick: () => { window.location.href = "/settings#ai"; } },
+        });
+      } else {
+        showToast("Couldn't start AI review at this time.", "error");
+      }
       _inflight.delete(persona);
       pendingPersonas = new Set([...pendingPersonas].filter(p => p !== persona));
       delete pendingSelections[persona];
@@ -429,7 +435,13 @@
       );
     } catch (e) {
       console.error("Error applying AI suggestion:", e);
-      showToast("Failed to apply suggestion");
+      if (e.code === "ai_key_not_configured") {
+        showToast("No AI provider configured. Add an API key in Settings.", "error", {
+          action: { label: "Settings", onClick: () => { window.location.href = "/settings#ai"; } },
+        });
+      } else {
+        showToast("Failed to apply suggestion");
+      }
     }
 
     applyingComment = null;

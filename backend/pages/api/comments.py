@@ -17,6 +17,8 @@ from core.authentication import session_auth, token_auth
 from pages.models import AIPersona, Comment, Page
 from pages.permissions import user_can_edit_in_page
 from pages.schemas import GenerateEditOut
+from ask.exceptions import AIKeyNotConfiguredError
+from ask.helpers.llm import has_ai_config
 from pages.tasks import generate_edit_from_comment, run_ai_reply, run_ai_review
 from pages.throttling import AIReviewThrottle, CommentCreationThrottle
 
@@ -341,6 +343,13 @@ def trigger_ai_review(request: HttpRequest, external_id: str, payload: AIReviewI
     if payload.persona not in valid_personas:
         return 400, {"detail": f"Invalid persona. Must be one of: {', '.join(valid_personas)}"}
 
+    # Check AI provider config before enqueueing a doomed job
+    if not has_ai_config(request.user):
+        return 400, {
+            "error": "ai_key_not_configured",
+            "message": "No AI provider configured. Please add an API key in Settings.",
+        }
+
     # Atomic dedup: set a cache flag for this page+persona.
     # cache.add() is atomic — returns False if the key already exists.
     # Auto-expires after 5 minutes as a safety net if the job crashes.
@@ -558,6 +567,13 @@ def generate_edit(request: HttpRequest, external_id: str, comment_id: str):
     if not comment.anchor_text:
         return 400, {"detail": "Comment has no anchor text to locate in the document."}
 
+    # Check AI provider config before making the LLM call
+    if not has_ai_config(request.user):
+        return 400, {
+            "error": "ai_key_not_configured",
+            "message": "No AI provider configured. Please add an API key in Settings.",
+        }
+
     # Dedup
     dedup_key = f"generate_edit:{comment.id}"
     if not cache.add(dedup_key, 1, timeout=GENERATE_EDIT_DEDUP_TIMEOUT):
@@ -575,6 +591,12 @@ def generate_edit(request: HttpRequest, external_id: str, comment_id: str):
 
     try:
         text = generate_edit_from_comment(comment, page, request.user)
+    except AIKeyNotConfiguredError:
+        cache.delete(dedup_key)
+        return 400, {
+            "error": "ai_key_not_configured",
+            "message": "No AI provider configured. Please add an API key in Settings.",
+        }
     except Exception as e:
         cache.delete(dedup_key)
         log_warning("generate-edit LLM call failed for comment %s: %s", comment_id, e)

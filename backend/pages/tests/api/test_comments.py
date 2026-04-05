@@ -538,9 +538,23 @@ class TestAIReview(CommentsTestMixin, BaseAuthenticatedViewTestCase):
         cache.clear()
         super().tearDown()
 
+    def _create_ai_config(self, user=None):
+        from ask.constants import AIProvider
+        from users.models import AIProviderConfig
+
+        return AIProviderConfig.objects.create(
+            user=user or self.user,
+            provider=AIProvider.OPENAI.value,
+            api_key="sk-test-key",
+            is_enabled=True,
+            is_validated=True,
+            is_default=True,
+        )
+
     @patch("pages.api.comments.run_ai_review")
     @patch("collab.tasks.sync_snapshot_with_page")
     def test_trigger_ai_review(self, mock_sync, mock_task):
+        self._create_ai_config()
         mock_task.enqueue = lambda *args, **kwargs: None
 
         url = f"/api/pages/{self.page.external_id}/comments/ai-review/"
@@ -559,6 +573,7 @@ class TestAIReview(CommentsTestMixin, BaseAuthenticatedViewTestCase):
     @patch("pages.api.comments.run_ai_review")
     @patch("collab.tasks.sync_snapshot_with_page")
     def test_syncs_content_before_enqueue(self, mock_sync, mock_task):
+        self._create_ai_config()
         mock_task.enqueue = lambda *args, **kwargs: None
 
         url = f"/api/pages/{self.page.external_id}/comments/ai-review/"
@@ -578,6 +593,16 @@ class TestAIReview(CommentsTestMixin, BaseAuthenticatedViewTestCase):
         url = f"/api/pages/{page.external_id}/comments/ai-review/"
         response = self.send_api_request(url=url, method="post", data={"persona": "socrates"})
         self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+
+    def test_no_ai_config_returns_400(self):
+        """Users without an AI provider config get a 400 with ai_key_not_configured error."""
+        url = f"/api/pages/{self.page.external_id}/comments/ai-review/"
+        response = self.send_api_request(url=url, method="post", data={"persona": "socrates"})
+
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        payload = response.json()
+        self.assertEqual(payload["error"], "ai_key_not_configured")
+        self.assertIn("API key", payload["message"])
 
 
 class TestAIReplyTrigger(CommentsTestMixin, BaseAuthenticatedViewTestCase):
@@ -882,6 +907,20 @@ class TestCommentFactory(CommentsTestMixin, BaseAuthenticatedViewTestCase):
 class TestGenerateEdit(CommentsTestMixin, BaseAuthenticatedViewTestCase):
     """Tests for the generate-edit endpoint."""
 
+    def setUp(self):
+        from ask.constants import AIProvider
+        from users.models import AIProviderConfig
+
+        super().setUp()
+        AIProviderConfig.objects.create(
+            user=self.user,
+            provider=AIProvider.OPENAI.value,
+            api_key="sk-test-key",
+            is_enabled=True,
+            is_validated=True,
+            is_default=True,
+        )
+
     def tearDown(self):
         cache.clear()
         super().tearDown()
@@ -1002,3 +1041,23 @@ class TestGenerateEdit(CommentsTestMixin, BaseAuthenticatedViewTestCase):
             method="post",
         )
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+    def test_no_ai_config_returns_400(self, mock_sync):
+        """Users without an AI provider config get a 400 with ai_key_not_configured error."""
+        from users.models import AIProviderConfig
+
+        AIProviderConfig.objects.filter(user=self.user).delete()
+
+        comment = CommentFactory(
+            page=self.page,
+            author=None,
+            ai_persona="dewey",
+            anchor_text="some anchor",
+            requester=self.user,
+        )
+
+        response = self.send_api_request(url=self._url(comment.external_id), method="post")
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        payload = response.json()
+        self.assertEqual(payload["error"], "ai_key_not_configured")
+        self.assertIn("API key", payload["message"])

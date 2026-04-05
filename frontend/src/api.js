@@ -703,7 +703,11 @@ export async function generateCommentEdit(pageExternalId, commentExternalId) {
   );
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(data.detail || `Failed to generate edit: ${response.statusText}`);
+    const err = new Error(
+      data.message || data.detail || `Failed to generate edit: ${response.statusText}`
+    );
+    err.code = data.error || null;
+    throw err;
   }
   return response.json();
 }
@@ -862,7 +866,12 @@ export async function triggerAIReview(pageExternalId, persona, selectionText) {
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
-    throw new Error(`Failed to trigger AI review: ${response.statusText}`);
+    const data = await response.json().catch(() => ({}));
+    const err = new Error(
+      data.message || data.detail || `Failed to trigger AI review: ${response.statusText}`
+    );
+    err.code = data.error || null;
+    throw err;
   }
   return response.json();
 }

@@ -8,7 +8,7 @@ from django.core.cache import cache
 from ask.constants import AIProvider
 from ask.exceptions import AIKeyNotConfiguredError
 from ask.helpers.llm import create_chat_completion, get_ai_config_for_user
-from backend.utils import log_error, log_info
+from backend.utils import log_error, log_info, log_warning
 from collab.utils import notify_ai_review_complete, notify_comments_updated
 from core.helpers import task
 
@@ -247,7 +247,10 @@ def run_ai_review(page_id: int, page_external_id: str, persona: str, requester_i
         if not config.model_name and config.provider != AIProvider.CUSTOM.value:
             review_model = REVIEW_MODELS.get(config.provider)
     except AIKeyNotConfiguredError:
-        review_model = None
+        log_warning("AI review: user %s has no AI config, aborting", requester_id)
+        notify_ai_review_complete(page_eid, persona, 0)
+        cache.delete(cache_key)
+        return
 
     # When the user selected text, mark it in the content for the AI.
     if selection_text:
@@ -378,14 +381,11 @@ def generate_edit_from_comment(comment, page, requester):
     thread = comment.get_thread()
     thread_text = _format_thread_for_prompt(thread)
 
-    # Resolve model
-    try:
-        config = get_ai_config_for_user(requester)
-        review_model = None
-        if not config.model_name and config.provider != AIProvider.CUSTOM.value:
-            review_model = REVIEW_MODELS.get(config.provider)
-    except AIKeyNotConfiguredError:
-        review_model = None
+    # Resolve model — let AIKeyNotConfiguredError propagate to the caller
+    config = get_ai_config_for_user(requester)
+    review_model = None
+    if not config.model_name and config.provider != AIProvider.CUSTOM.value:
+        review_model = REVIEW_MODELS.get(config.provider)
 
     user_content = (
         f'Document title: "{html_escape(page.title)}"\n\n'
@@ -483,7 +483,9 @@ def run_ai_reply(reply_comment_id: int, persona: str, requester_id: int):
         if not config.model_name and config.provider != AIProvider.CUSTOM.value:
             review_model = REVIEW_MODELS.get(config.provider)
     except AIKeyNotConfiguredError:
-        review_model = None
+        log_warning("AI reply: user %s has no AI config, skipping auto-reply", requester_id)
+        cache.delete(cache_key)
+        return
 
     system_message = f"{persona_prompt}\n\n{REPLY_INSTRUCTION}"
     user_content = f"{anchor_context}\nConversation so far:\n\n{thread_text}{page_context}"

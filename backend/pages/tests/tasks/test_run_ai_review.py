@@ -60,6 +60,9 @@ class TestRunAIReviewTask(BaseAuthenticatedViewTestCase):
     """Integration tests for run_ai_review task."""
 
     def setUp(self):
+        from ask.constants import AIProvider
+        from users.models import AIProviderConfig
+
         super().setUp()
         self.org = OrgFactory()
         OrgMemberFactory(org=self.org, user=self.user, role=OrgMemberRole.MEMBER.value)
@@ -67,6 +70,14 @@ class TestRunAIReviewTask(BaseAuthenticatedViewTestCase):
         self.page = PageFactory(project=self.project, creator=self.user)
         self.page.details["content"] = "We need a scalable solution."
         self.page.save(update_fields=["details", "modified"])
+        AIProviderConfig.objects.create(
+            user=self.user,
+            provider=AIProvider.OPENAI.value,
+            api_key="sk-test-key",
+            is_enabled=True,
+            is_validated=True,
+            is_default=True,
+        )
 
     def tearDown(self):
         cache.clear()

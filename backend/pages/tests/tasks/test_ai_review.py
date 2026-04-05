@@ -220,6 +220,9 @@ class TestBuildContextPages(TestCase):
 
 class TestRunAIReview(TestCase):
     def setUp(self):
+        from ask.constants import AIProvider
+        from users.models import AIProviderConfig
+
         self.org = OrgFactory()
         self.user = UserFactory()
         OrgMemberFactory(org=self.org, user=self.user, role=OrgMemberRole.MEMBER.value)
@@ -228,6 +231,14 @@ class TestRunAIReview(TestCase):
             project=self.project,
             creator=self.user,
             details={"content": "Some document content for AI review."},
+        )
+        AIProviderConfig.objects.create(
+            user=self.user,
+            provider=AIProvider.OPENAI.value,
+            api_key="sk-test-key",
+            is_enabled=True,
+            is_validated=True,
+            is_default=True,
         )
 
     def tearDown(self):
@@ -550,18 +561,20 @@ class TestAIReviewModelSelection(TestCase):
         mock_llm.assert_called_once()
         self.assertEqual(mock_llm.call_args.kwargs["model"], REVIEW_MODELS[AIProvider.ANTHROPIC.value])
 
-    @patch("collab.utils.notify_ai_review_complete")
-    @patch("collab.utils.notify_comments_updated")
+    @patch("pages.tasks.notify_ai_review_complete")
+    @patch("pages.tasks.notify_comments_updated")
     @patch("pages.tasks.create_chat_completion")
-    def test_ai_key_not_configured_passes_none_model(self, mock_llm, mock_notify, mock_rc):
-        """When AIKeyNotConfiguredError is raised, model=None is passed."""
+    def test_ai_key_not_configured_bails_out(self, mock_llm, mock_notify, mock_rc):
+        """When AIKeyNotConfiguredError is raised, task bails out without calling LLM."""
         from ask.exceptions import AIKeyNotConfiguredError
 
-        with patch("pages.tasks.get_ai_config_for_user", side_effect=AIKeyNotConfiguredError):
-            ai_response = json.dumps([{"anchor_text": "text", "body": "comment"}])
-            mock_llm.return_value = {"choices": [{"message": {"content": ai_response}}]}
+        cache_key = f"ai_review:{self.page.id}:socrates"
+        cache.set(cache_key, 1, 300)
 
+        with patch("pages.tasks.get_ai_config_for_user", side_effect=AIKeyNotConfiguredError):
             run_ai_review(self.page.id, str(self.page.external_id), "socrates", self.user.id)
 
-            mock_llm.assert_called_once()
-            self.assertIsNone(mock_llm.call_args.kwargs["model"])
+            mock_llm.assert_not_called()
+            self.assertEqual(Comment.objects.filter(page=self.page).count(), 0)
+            mock_rc.assert_called_once_with(str(self.page.external_id), "socrates", 0)
+            self.assertIsNone(cache.get(cache_key))

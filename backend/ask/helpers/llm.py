@@ -42,6 +42,14 @@ def get_ai_config_for_user(user, provider: Optional[str] = None, config_id: Opti
     return config
 
 
+def has_ai_config(user) -> bool:
+    """Return True if the user has a valid AI provider config."""
+    from users.models import AIProviderConfig
+
+    config = AIProviderConfig.objects.get_config_for_request(user=user)
+    return config is not None
+
+
 def create_chat_completion(
     messages: List[dict],
     user=None,
