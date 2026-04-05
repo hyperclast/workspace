@@ -65,3 +65,5 @@ deployment/ansible/.env
 deployment/ansible/.env-*
 # Production secrets (contains db_password, etc.)
 deployment/ansible/inventory/production/group_vars/secrets.yml
+
+traction/

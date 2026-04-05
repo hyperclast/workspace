@@ -1,6 +1,9 @@
-# MCP Server
+# MCP
 
-The Hyperclast MCP server lets AI assistants read and write your pages directly. It implements the [Model Context Protocol](https://modelcontextprotocol.io/) and works with any MCP-compatible client, including Claude Code and Claude Desktop.
+Hyperclast MCP server lets AI assistants read and write your pages directly. It
+implements the <a href="https://modelcontextprotocol.io/" target="_blank"
+rel="noopener noreferrer">Model Context Protocol</a> and works with any
+MCP-compatible client, including Claude Code and Claude Desktop.
 
 ## Setup
 
