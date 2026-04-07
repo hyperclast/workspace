@@ -1029,13 +1029,18 @@ def _cleanup_empty_folders(folders: set) -> int:
         Number of folders deleted.
     """
     # Sort by depth (deepest first) so leaf folders are checked before parents.
-    # Depth is determined by walking the parent chain.
+    # Build an in-memory lookup to walk parent chains without N+1 queries.
+    folder_by_pk = {f.pk: f for f in folders}
+
     def _depth(folder):
         d = 0
         current = folder
         while current.parent_id is not None:
             d += 1
-            current = current.parent
+            parent = folder_by_pk.get(current.parent_id)
+            if parent is None:
+                break
+            current = parent
         return d
 
     sorted_folders = sorted(folders, key=_depth, reverse=True)

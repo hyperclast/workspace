@@ -1781,6 +1781,27 @@ class TestCleanupEmptyFolders(TestCase):
         deleted = _cleanup_empty_folders(set())
         self.assertEqual(deleted, 0)
 
+    def test_no_n_plus_1_queries_for_depth_calculation(self):
+        """Depth calculation uses in-memory lookup, not per-parent DB queries."""
+        from pages.models import Folder
+
+        root = Folder.objects.create(project=self.project, name="Root")
+        mid = Folder.objects.create(project=self.project, name="Mid", parent=root)
+        leaf = Folder.objects.create(project=self.project, name="Leaf", parent=mid)
+
+        folders = {root, mid, leaf}
+        # 3 folders at depths 0, 1, 2. Without the fix, _depth() would issue
+        # O(N*D) queries walking parent chains. With the in-memory lookup,
+        # only the exists() checks for pages/subfolders should hit the DB.
+        # Per folder: pages.exists() + subfolders.exists() + cascade collector
+        # (find child folders + unset page FKs) + DELETE = 5 queries each.
+        # 3 folders × 5 = 15 total.
+        with self.assertNumQueries(15):
+            deleted = _cleanup_empty_folders(folders)
+
+        self.assertEqual(deleted, 3)
+        self.assertEqual(Folder.objects.filter(project=self.project).count(), 0)
+
 
 class TestIsIndexOnlyPage(TestCase):
     """Unit tests for the _is_index_only_page() heuristic."""
