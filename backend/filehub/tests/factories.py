@@ -16,6 +16,7 @@ class FileUploadFactory(factory.django.DjangoModelFactory):
     filename = factory.Faker("file_name")
     content_type = "application/octet-stream"
     expected_size = factory.Faker("random_int", min=1024, max=10485760)
+    actual_size = None
     checksum_sha256 = None
     metadata_json = factory.Dict({})
 

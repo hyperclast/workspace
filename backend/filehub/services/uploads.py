@@ -185,9 +185,10 @@ def finalize_upload(
         blob.verified = datetime.now(UTC)
         blob.save()
 
-        # Update file upload status to available
+        # Update file upload status and record verified size
+        file_upload.actual_size = actual_size
         file_upload.status = FileUploadStatus.AVAILABLE
-        file_upload.save(update_fields=["status", "modified"])
+        file_upload.save(update_fields=["status", "actual_size", "modified"])
 
     except Exception:
         # Mark as failed on any error

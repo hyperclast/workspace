@@ -167,6 +167,27 @@ class TestFileUploadModel(TestCase):
 
         self.assertEqual(result, pending_blob)
 
+    def test_size_bytes_returns_expected_size_when_no_actual_size(self):
+        """Test that size_bytes falls back to expected_size when actual_size is None."""
+        upload = FileUploadFactory(expected_size=5000)
+        self.assertEqual(upload.size_bytes, 5000)
+
+    def test_size_bytes_returns_actual_size_when_set(self):
+        """Test that size_bytes prefers actual_size over expected_size."""
+        upload = FileUploadFactory(expected_size=5000, actual_size=4800)
+        self.assertEqual(upload.size_bytes, 4800)
+
+    def test_actual_size_nullable(self):
+        """Test that actual_size defaults to None."""
+        upload = FileUploadFactory()
+        self.assertIsNone(upload.actual_size)
+
+    def test_actual_size_persists(self):
+        """Test that actual_size is saved and retrieved correctly."""
+        upload = FileUploadFactory(actual_size=12345)
+        upload.refresh_from_db()
+        self.assertEqual(upload.actual_size, 12345)
+
     def test_get_blob_infos(self):
         """Test get_blob_infos returns list of blob info dicts."""
         upload = FileUploadFactory()

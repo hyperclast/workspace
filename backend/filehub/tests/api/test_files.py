@@ -298,6 +298,62 @@ class TestGetFileUploadAPI(BaseAuthenticatedViewTestCase):
 
         self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
 
+    def test_detail_response_uses_actual_size_when_set(self):
+        """GET /api/files/{id}/ should return actual_size in size_bytes when available."""
+        file_upload = FileUploadFactory(
+            uploaded_by=self.user,
+            project=self.project,
+            expected_size=5000,
+            actual_size=4800,
+            status=FileUploadStatus.AVAILABLE,
+        )
+
+        response = self.send_api_request(
+            url=f"/api/files/{file_upload.external_id}/",
+            method="get",
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.json()["size_bytes"], 4800)
+
+    def test_detail_response_falls_back_to_expected_size(self):
+        """GET /api/files/{id}/ should return expected_size when actual_size is None."""
+        file_upload = FileUploadFactory(
+            uploaded_by=self.user,
+            project=self.project,
+            expected_size=5000,
+            actual_size=None,
+            status=FileUploadStatus.PENDING_URL,
+        )
+
+        response = self.send_api_request(
+            url=f"/api/files/{file_upload.external_id}/",
+            method="get",
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.json()["size_bytes"], 5000)
+
+    def test_list_response_uses_actual_size_when_set(self):
+        """GET /api/files/projects/{id}/ should return actual_size in size_bytes."""
+        FileUploadFactory(
+            uploaded_by=self.user,
+            project=self.project,
+            expected_size=5000,
+            actual_size=4800,
+            status=FileUploadStatus.AVAILABLE,
+        )
+
+        response = self.send_api_request(
+            url=f"/api/files/projects/{self.project.external_id}/",
+            method="get",
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        items = response.json()["items"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["size_bytes"], 4800)
+
 
 class TestFinalizeFileUploadAPI(BaseAuthenticatedViewTestCase):
     """Test POST /api/files/{external_id}/finalize/ endpoint."""
@@ -343,10 +399,12 @@ class TestFinalizeFileUploadAPI(BaseAuthenticatedViewTestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
         payload = response.json()
         self.assertEqual(payload["status"], FileUploadStatus.AVAILABLE)
+        self.assertEqual(payload["size_bytes"], file_upload.expected_size)
 
         # Verify database state
         file_upload.refresh_from_db()
         self.assertEqual(file_upload.status, FileUploadStatus.AVAILABLE)
+        self.assertEqual(file_upload.actual_size, file_upload.expected_size)
         blob = file_upload.blobs.first()
         self.assertEqual(blob.status, BlobStatus.VERIFIED)
 

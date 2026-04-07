@@ -81,12 +81,13 @@ class TestStorePdfAsFile(TestCase):
 
         result = store_pdf_as_file(self.project, self.user, "test.pdf", self.pdf_bytes)
 
-        # FileUpload is AVAILABLE
+        # FileUpload is AVAILABLE with both expected and actual size
         result.refresh_from_db()
         self.assertEqual(result.status, FileUploadStatus.AVAILABLE)
         self.assertEqual(result.filename, "test.pdf")
         self.assertEqual(result.content_type, "application/pdf")
         self.assertEqual(result.expected_size, len(self.pdf_bytes))
+        self.assertEqual(result.actual_size, len(self.pdf_bytes))
         self.assertIsNotNone(result.access_token)
 
         # Blob is VERIFIED with correct metadata
@@ -97,6 +98,19 @@ class TestStorePdfAsFile(TestCase):
 
         # Storage was called
         mock_storage.put_object.assert_called_once()
+
+    @patch("imports.services.pdf.get_storage_backend")
+    def test_actual_size_set_after_storage(self, mock_get_backend):
+        """actual_size should be set from the file bytes after successful storage."""
+        mock_storage = mock_get_backend.return_value
+        mock_storage.put_object.return_value = {"etag": "x"}
+
+        result = store_pdf_as_file(self.project, self.user, "test.pdf", self.pdf_bytes)
+        result.refresh_from_db()
+
+        self.assertEqual(result.actual_size, len(self.pdf_bytes))
+        # size_bytes property should return actual_size
+        self.assertEqual(result.size_bytes, len(self.pdf_bytes))
 
     @patch("imports.services.pdf.get_storage_backend")
     def test_storage_failure_cleans_up_db_records(self, mock_get_backend):

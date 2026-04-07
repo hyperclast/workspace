@@ -433,7 +433,8 @@ See [Overview](./overview.md)
 - The `link` field contains the permanent download URL for the finalized file
 - This endpoint is idempotent - safe to call multiple times
 - Uses database locking to prevent race conditions with concurrent finalization attempts
-- Verifies the file size matches the expected size from upload creation
+- Verifies the file size matches the expected size from upload creation and stores the verified size in `actual_size`
+- The `size_bytes` field in the response reflects the verified `actual_size` after finalization
 - If replication is enabled, triggers background replication to other storage providers
 - When `mark_failed=true`:
   - Marks the upload as `failed` (unless already `available`)

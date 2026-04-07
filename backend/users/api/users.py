@@ -1,6 +1,7 @@
 from allauth.account.models import EmailAddress
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Sum
+from django.db.models.functions import Coalesce
 from django.http import HttpRequest
 from ninja import Router
 from ninja.responses import Response
@@ -175,7 +176,7 @@ def get_storage_summary(request: HttpRequest):
     result = FileUpload.objects.filter(
         uploaded_by=request.user,
         status=FileUploadStatus.AVAILABLE,
-    ).aggregate(total=Sum("expected_size"), count=Count("id"))
+    ).aggregate(total=Sum(Coalesce("actual_size", "expected_size")), count=Count("id"))
 
     return {
         "total_bytes": result["total"] or 0,

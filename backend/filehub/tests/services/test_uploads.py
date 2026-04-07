@@ -290,9 +290,47 @@ class TestFinalizeUpload(TestCase):
         blob.refresh_from_db()
 
         self.assertEqual(result.status, FileUploadStatus.AVAILABLE)
+        self.assertEqual(result.actual_size, 12345)
         self.assertEqual(blob.status, BlobStatus.VERIFIED)
         self.assertEqual(blob.size_bytes, 12345)
         self.assertIsNotNone(blob.verified)
+
+    @patch("filehub.services.uploads.get_storage_backend")
+    def test_sets_actual_size_from_storage(self, mock_get_storage):
+        """Finalization should store the verified file size from storage in actual_size."""
+        mock_storage = MagicMock()
+        mock_storage.head_object.return_value = {
+            "size_bytes": 12345,
+            "etag": '"abc123"',
+        }
+        mock_get_storage.return_value = mock_storage
+
+        file_upload, blob = self._create_upload_with_blob()
+        self.assertIsNone(file_upload.actual_size)
+
+        result = finalize_upload(file_upload)
+        result.refresh_from_db()
+
+        self.assertEqual(result.actual_size, 12345)
+        # size_bytes property should return actual_size when set
+        self.assertEqual(result.size_bytes, 12345)
+
+    @patch("filehub.services.uploads.get_storage_backend")
+    def test_actual_size_not_set_on_failure(self, mock_get_storage):
+        """actual_size should remain None when finalization fails."""
+        mock_storage = MagicMock()
+        mock_storage.head_object.return_value = {"size_bytes": 99999}
+        mock_get_storage.return_value = mock_storage
+
+        file_upload, blob = self._create_upload_with_blob()
+
+        with self.assertRaises(ValueError):
+            finalize_upload(file_upload)
+
+        file_upload.refresh_from_db()
+        self.assertIsNone(file_upload.actual_size)
+        # size_bytes property should fall back to expected_size
+        self.assertEqual(file_upload.size_bytes, 12345)
 
     @patch("filehub.services.uploads.get_storage_backend")
     def test_uses_provided_etag(self, mock_get_storage):

@@ -22,6 +22,39 @@ class TestStorageAPI(BaseAuthenticatedViewTestCase):
         self.assertEqual(payload["total_bytes"], 0)
         self.assertEqual(payload["file_count"], 0)
 
+    def test_storage_prefers_actual_size_over_expected_size(self):
+        """Storage should use actual_size when set, falling back to expected_size."""
+        org = OrgFactory()
+        OrgMemberFactory(org=org, user=self.user)
+        project = ProjectFactory(org=org, creator=self.user)
+
+        # File with actual_size set (finalized) — should use actual_size
+        FileUpload.objects.create(
+            uploaded_by=self.user,
+            project=project,
+            filename="finalized.txt",
+            content_type="text/plain",
+            expected_size=1000,
+            actual_size=1050,
+            status=FileUploadStatus.AVAILABLE,
+        )
+        # File without actual_size (edge case) — should fall back to expected_size
+        FileUpload.objects.create(
+            uploaded_by=self.user,
+            project=project,
+            filename="no_actual.txt",
+            content_type="text/plain",
+            expected_size=2000,
+            status=FileUploadStatus.AVAILABLE,
+        )
+
+        response = self.send_storage_request()
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(payload["total_bytes"], 3050)  # 1050 + 2000
+        self.assertEqual(payload["file_count"], 2)
+
     def test_storage_returns_sum_of_available_files(self):
         """Storage should return sum of expected_size for AVAILABLE files."""
         # Create org and add user as member

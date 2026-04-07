@@ -86,7 +86,8 @@ def store_pdf_as_file(project, user, filename: str, file_bytes: bytes) -> FileUp
     blob.etag = result.get("etag", "")
     blob.save(update_fields=["status", "size_bytes", "etag", "modified"])
 
+    file_upload.actual_size = len(file_bytes)
     file_upload.status = FileUploadStatus.AVAILABLE
-    file_upload.save(update_fields=["status", "modified"])
+    file_upload.save(update_fields=["status", "actual_size", "modified"])
 
     return file_upload

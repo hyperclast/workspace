@@ -100,6 +100,7 @@ class FileUpload(TimeStampedModel, SoftDeleteModel):
     filename = models.TextField()
     content_type = models.TextField()
     expected_size = models.BigIntegerField()
+    actual_size = models.BigIntegerField(null=True, blank=True)
 
     # NOTE: Kept for now in case we need checksum integrity
     checksum_sha256 = models.TextField(blank=True, null=True)
@@ -131,8 +132,8 @@ class FileUpload(TimeStampedModel, SoftDeleteModel):
     # API serialization helpers
     @property
     def size_bytes(self) -> int:
-        """Alias for expected_size for API serialization."""
-        return self.expected_size
+        """Return actual verified size when available, otherwise expected size."""
+        return self.actual_size if self.actual_size is not None else self.expected_size
 
     # Status check properties
     @property

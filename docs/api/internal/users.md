@@ -512,7 +512,7 @@ See [Overview](./overview.md)
 
 - Only counts files in `AVAILABLE` status (completed uploads)
 - Only counts files uploaded by the authenticated user
-- `total_bytes` is the sum of all file sizes in bytes
+- `total_bytes` is the sum of all file sizes in bytes (uses verified `actual_size` when available, falls back to `expected_size`)
 - `file_count` is the total number of files
 
 **Error Responses:**

@@ -96,7 +96,7 @@ class FileUploadOut(Schema):
 
     @staticmethod
     def resolve_size_bytes(obj):
-        return obj.expected_size
+        return obj.size_bytes
 
     @staticmethod
     def resolve_link(obj):
@@ -138,7 +138,7 @@ class FileUploadDetailOut(Schema):
 
     @staticmethod
     def resolve_size_bytes(obj):
-        return obj.expected_size
+        return obj.size_bytes
 
     @staticmethod
     def resolve_link(obj):
