@@ -171,6 +171,7 @@ class TestQueryParamLimitEnforcement(CommentsRegressionMixin, BaseAuthenticatedV
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
 
+@patch("pages.api.comments.has_ai_config", return_value=True)
 class TestAIReviewCacheDedup(CommentsRegressionMixin, BaseAuthenticatedViewTestCase):
     """AI review dedup uses atomic cache flag, not DB query."""
 
@@ -179,7 +180,7 @@ class TestAIReviewCacheDedup(CommentsRegressionMixin, BaseAuthenticatedViewTestC
 
     @patch("pages.api.comments.run_ai_review")
     @patch("collab.tasks.sync_snapshot_with_page")
-    def test_first_request_accepted(self, _mock_sync, mock_task):
+    def test_first_request_accepted(self, _mock_sync, mock_task, _mock_ai_config):
         mock_task.enqueue = lambda *args, **kwargs: None
 
         response = self.send_api_request(url=self.ai_review_url(), method="post", data={"persona": "socrates"})
@@ -187,7 +188,7 @@ class TestAIReviewCacheDedup(CommentsRegressionMixin, BaseAuthenticatedViewTestC
 
     @patch("pages.api.comments.run_ai_review")
     @patch("collab.tasks.sync_snapshot_with_page")
-    def test_duplicate_request_returns_409(self, _mock_sync, mock_task):
+    def test_duplicate_request_returns_409(self, _mock_sync, mock_task, _mock_ai_config):
         mock_task.enqueue = lambda *args, **kwargs: None
 
         # First request — accepted
@@ -200,7 +201,7 @@ class TestAIReviewCacheDedup(CommentsRegressionMixin, BaseAuthenticatedViewTestC
 
     @patch("pages.api.comments.run_ai_review")
     @patch("collab.tasks.sync_snapshot_with_page")
-    def test_different_persona_not_blocked(self, _mock_sync, mock_task):
+    def test_different_persona_not_blocked(self, _mock_sync, mock_task, _mock_ai_config):
         mock_task.enqueue = lambda *args, **kwargs: None
 
         # Socrates in progress
@@ -212,7 +213,7 @@ class TestAIReviewCacheDedup(CommentsRegressionMixin, BaseAuthenticatedViewTestC
 
     @patch("pages.api.comments.run_ai_review")
     @patch("collab.tasks.sync_snapshot_with_page")
-    def test_flag_cleared_allows_retry(self, _mock_sync, mock_task):
+    def test_flag_cleared_allows_retry(self, _mock_sync, mock_task, _mock_ai_config):
         mock_task.enqueue = lambda *args, **kwargs: None
 
         # First request — sets cache flag
@@ -240,6 +241,7 @@ class TestCommentCreationThrottling(CommentsRegressionMixin, BaseAuthenticatedVi
         self.assertEqual(response.status_code, HTTPStatus.TOO_MANY_REQUESTS)
 
 
+@patch("pages.api.comments.has_ai_config", return_value=True)
 class TestAIReviewThrottling(CommentsRegressionMixin, BaseAuthenticatedViewTestCase):
     """AI review trigger is rate-limited per user."""
 
@@ -252,7 +254,7 @@ class TestAIReviewThrottling(CommentsRegressionMixin, BaseAuthenticatedViewTestC
     )
     @patch("pages.api.comments.run_ai_review")
     @patch("collab.tasks.sync_snapshot_with_page")
-    def test_second_ai_review_within_window_throttled(self, _mock_sync, mock_task):
+    def test_second_ai_review_within_window_throttled(self, _mock_sync, mock_task, _mock_ai_config):
         mock_task.enqueue = lambda *args, **kwargs: None
 
         self.send_api_request(url=self.ai_review_url(), method="post", data={"persona": "socrates"})
@@ -260,6 +262,7 @@ class TestAIReviewThrottling(CommentsRegressionMixin, BaseAuthenticatedViewTestC
         self.assertEqual(response.status_code, HTTPStatus.TOO_MANY_REQUESTS)
 
 
+@patch("pages.api.comments.has_ai_config", return_value=True)
 class TestSyncFailureLogsWarning(CommentsRegressionMixin, BaseAuthenticatedViewTestCase):
     """#9: Sync failure should log warning, not silently pass."""
 
@@ -269,7 +272,7 @@ class TestSyncFailureLogsWarning(CommentsRegressionMixin, BaseAuthenticatedViewT
         "collab.tasks.sync_snapshot_with_page",
         side_effect=Exception("sync failed"),
     )
-    def test_sync_failure_logs_and_continues(self, _mock_sync, mock_log, mock_task):
+    def test_sync_failure_logs_and_continues(self, _mock_sync, mock_log, mock_task, _mock_ai_config):
         mock_task.enqueue = lambda *args, **kwargs: None
 
         url = f"/api/pages/{self.page.external_id}/comments/ai-review/"

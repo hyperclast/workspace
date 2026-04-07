@@ -240,18 +240,15 @@ class TestGenerateEditFromComment(TestCase):
         self.assertIsNotNone(model)
 
     def test_handles_ai_key_not_configured(self, mock_config, mock_completion):
-        """When AI key is not configured, review_model falls back to None."""
+        """AIKeyNotConfiguredError propagates to the caller (API layer returns 400)."""
         from ask.exceptions import AIKeyNotConfiguredError
 
         mock_config.side_effect = AIKeyNotConfiguredError()
-        mock_completion.return_value = self._mock_llm_response("response")
 
-        result = generate_edit_from_comment(self.comment, self.page, self.user)
-        self.assertEqual(result, "response")
+        with self.assertRaises(AIKeyNotConfiguredError):
+            generate_edit_from_comment(self.comment, self.page, self.user)
 
-        call_kwargs = mock_completion.call_args
-        model = call_kwargs.kwargs.get("model") or call_kwargs[1].get("model")
-        self.assertIsNone(model)
+        mock_completion.assert_not_called()
 
     def test_llm_exception_propagates(self, mock_config, mock_completion):
         """LLM errors should propagate to the caller (API layer handles them)."""

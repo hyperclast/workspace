@@ -12,6 +12,7 @@ from users.constants import OrgMemberRole
 from users.tests.factories import OrgFactory, OrgMemberFactory
 
 
+@patch("pages.tasks.get_ai_config_for_user")
 class TestRunAIReplyTask(BaseAuthenticatedViewTestCase):
     """Integration tests for run_ai_reply task."""
 
@@ -47,7 +48,7 @@ class TestRunAIReplyTask(BaseAuthenticatedViewTestCase):
 
     @patch("pages.tasks.notify_comments_updated")
     @patch("pages.tasks.create_chat_completion")
-    def test_creates_reply_comment(self, mock_llm, mock_broadcast):
+    def test_creates_reply_comment(self, mock_llm, mock_broadcast, _mock_ai_config):
         mock_llm.return_value = {
             "choices": [{"message": {"content": "Can you define what 10x means in concrete numbers?"}}]
         }
@@ -69,7 +70,7 @@ class TestRunAIReplyTask(BaseAuthenticatedViewTestCase):
 
     @patch("pages.tasks.notify_comments_updated")
     @patch("pages.tasks.create_chat_completion")
-    def test_works_with_empty_page_content(self, mock_llm, mock_broadcast):
+    def test_works_with_empty_page_content(self, mock_llm, mock_broadcast, _mock_ai_config):
         """Thread context alone is sufficient — empty page content should not block reply."""
         self.page.details["content"] = ""
         self.page.save(update_fields=["details", "modified"])
@@ -82,7 +83,7 @@ class TestRunAIReplyTask(BaseAuthenticatedViewTestCase):
         mock_broadcast.assert_called_once()
 
     @patch("pages.tasks.create_chat_completion")
-    def test_llm_failure_clears_cache_no_comment(self, mock_llm):
+    def test_llm_failure_clears_cache_no_comment(self, mock_llm, _mock_ai_config):
         mock_llm.side_effect = Exception("API error")
         cache_key = f"ai_reply:{self.user_reply.id}"
         cache.set(cache_key, 1, 300)
@@ -93,18 +94,18 @@ class TestRunAIReplyTask(BaseAuthenticatedViewTestCase):
         self.assertEqual(Comment.objects.filter(parent=self.user_reply).count(), 0)
 
     @patch("pages.tasks.create_chat_completion")
-    def test_empty_llm_response_clears_cache_no_comment(self, mock_llm):
+    def test_empty_llm_response_clears_cache_no_comment(self, mock_llm, _mock_ai_config):
         mock_llm.return_value = {"choices": [{"message": {"content": "   "}}]}
 
         run_ai_reply(self.user_reply.id, "socrates", self.user.id)
 
         self.assertEqual(Comment.objects.filter(parent=self.user_reply).count(), 0)
 
-    def test_unknown_persona_creates_no_comment(self):
+    def test_unknown_persona_creates_no_comment(self, _mock_ai_config):
         run_ai_reply(self.user_reply.id, "plato", self.user.id)
         self.assertEqual(Comment.objects.filter(parent=self.user_reply).count(), 0)
 
-    def test_max_depth_skips_reply(self):
+    def test_max_depth_skips_reply(self, _mock_ai_config):
         """AI reply is silently skipped when the user's reply is at max depth."""
         from pages.models.comments import COMMENT_MAX_DEPTH
 
@@ -123,7 +124,7 @@ class TestRunAIReplyTask(BaseAuthenticatedViewTestCase):
         run_ai_reply(deep_reply.id, "socrates", self.user.id)
         self.assertEqual(Comment.objects.filter(parent=deep_reply).count(), 0)
 
-    def test_missing_comment_clears_cache(self):
+    def test_missing_comment_clears_cache(self, _mock_ai_config):
         cache_key = "ai_reply:999999"
         cache.set(cache_key, 1, 300)
 
@@ -131,7 +132,7 @@ class TestRunAIReplyTask(BaseAuthenticatedViewTestCase):
 
         self.assertIsNone(cache.get(cache_key))
 
-    def test_missing_user_clears_cache(self):
+    def test_missing_user_clears_cache(self, _mock_ai_config):
         cache_key = f"ai_reply:{self.user_reply.id}"
         cache.set(cache_key, 1, 300)
 
@@ -141,7 +142,7 @@ class TestRunAIReplyTask(BaseAuthenticatedViewTestCase):
 
     @patch("pages.tasks.notify_comments_updated")
     @patch("pages.tasks.create_chat_completion")
-    def test_includes_anchor_text_in_prompt(self, mock_llm, mock_broadcast):
+    def test_includes_anchor_text_in_prompt(self, mock_llm, mock_broadcast, _mock_ai_config):
         mock_llm.return_value = {"choices": [{"message": {"content": "Interesting."}}]}
 
         run_ai_reply(self.user_reply.id, "socrates", self.user.id)
@@ -154,7 +155,7 @@ class TestRunAIReplyTask(BaseAuthenticatedViewTestCase):
 
     @patch("pages.tasks.notify_comments_updated")
     @patch("pages.tasks.create_chat_completion")
-    def test_includes_thread_conversation_in_prompt(self, mock_llm, mock_broadcast):
+    def test_includes_thread_conversation_in_prompt(self, mock_llm, mock_broadcast, _mock_ai_config):
         mock_llm.return_value = {"choices": [{"message": {"content": "Follow-up."}}]}
 
         run_ai_reply(self.user_reply.id, "socrates", self.user.id)
@@ -168,7 +169,7 @@ class TestRunAIReplyTask(BaseAuthenticatedViewTestCase):
 
     @patch("pages.tasks.notify_comments_updated")
     @patch("pages.tasks.create_chat_completion")
-    def test_deep_thread_chain(self, mock_llm, mock_broadcast):
+    def test_deep_thread_chain(self, mock_llm, mock_broadcast, _mock_ai_config):
         """AI reply works correctly in a deeper thread (AI -> User -> AI -> User)."""
         # Simulate AI's first reply
         ai_reply_1 = CommentFactory(
