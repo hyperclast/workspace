@@ -2,8 +2,10 @@ import json
 from datetime import timedelta
 
 from allauth.account.models import EmailAddress
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.db import models
 from django.db.models import Count, Exists, OuterRef
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import render
@@ -162,6 +164,34 @@ def dashboard(request):
         last_active = user.pop("profile__last_active")
         user["last_active"] = last_active.strftime("%Y-%m-%d %H:%M") if last_active else "Never"
 
+    # Active referral codes
+    referrers = []
+    if "referrals" in getattr(settings, "PRIVATE_FEATURES", []):
+        from private.referrals.models import Referrer, ReferrerStatus, ReferralStatus, VanityCode
+
+        qs = (
+            Referrer.objects.filter(status=ReferrerStatus.ACTIVE)
+            .select_related("user")
+            .annotate(
+                num_signups=Count("referrals"),
+                num_conversions=Count("referrals", filter=models.Q(referrals__status=ReferralStatus.CONVERTED)),
+            )
+            .order_by("-created")
+        )
+        vanity_map = dict(VanityCode.objects.filter(referrer__isnull=False).values_list("referrer_id", "code"))
+        for a in qs:
+            referrers.append(
+                {
+                    "pk": a.user.pk,
+                    "username": a.user.username,
+                    "referral_code": a.referral_code,
+                    "vanity_code": vanity_map.get(a.id),
+                    "num_signups": a.num_signups,
+                    "num_conversions": a.num_conversions,
+                    "created": a.created.strftime("%Y-%m-%d"),
+                }
+            )
+
     context = {
         "dau_data_json": json.dumps(dau_data),
         "signups_data_json": json.dumps(signups_data),
@@ -173,6 +203,7 @@ def dashboard(request):
         "new_users": new_users,
         "weekly_active_users": weekly_active_users,
         "inactive_users": inactive_users,
+        "referrers": referrers,
     }
     return render(request, "pulse/dashboard.html", context)
 

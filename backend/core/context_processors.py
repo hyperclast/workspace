@@ -19,5 +19,6 @@ def branding(request):
         "brand_name": settings.BRAND_NAME,
         "deployment_id": settings.WS_DEPLOYMENT_ID,
         "pricing_enabled": "pricing" in private_features,
+        "referrals_enabled": "referrals" in private_features,
         "support_email": _get_support_email(),
     }

@@ -21,6 +21,7 @@
       <a href="{% url 'core:vs_index' %}">Compare</a>
       <a href="{% url 'core:dev_index' %}">Developer Portal</a>
       {% if pricing_enabled %}<a href="{% url 'pricing:pricing' %}">Pricing</a>{% endif %}
+      {% if referrals_enabled %}<a href="{% url 'referrals:referral' %}">Referral Program</a>{% endif %}
       <a href="{% url 'updates:list' %}">Updates</a>
     </div>
     <div class="landing-footer-column">

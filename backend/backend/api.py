@@ -46,13 +46,19 @@ api.add_router("/imports/", imports_router)
 
 
 def _register_private_routers():
-    """Auto-discover and register API routers from private apps."""
+    """Auto-discover and register API routers from private apps.
+
+    Each app's ``api`` module may define a ``ROUTER_PREFIX`` attribute to
+    override the default URL prefix (which is the app directory name).
+    Example: ``ROUTER_PREFIX = "/referrals/"`` in ``private/referrals/api.py``.
+    """
     for app_name in getattr(settings, "PRIVATE_APPS", []):
         short_name = app_name.replace("private.", "")
         try:
             api_module = importlib.import_module(f"{app_name}.api")
             if hasattr(api_module, "router"):
-                api.add_router(f"/{short_name}/", api_module.router)
+                prefix = getattr(api_module, "ROUTER_PREFIX", f"/{short_name}/")
+                api.add_router(prefix, api_module.router)
         except ImportError:
             pass
 

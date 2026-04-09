@@ -59,16 +59,18 @@ async function loadPrivateFeatures() {
     return;
   }
 
-  // Dynamic import via a variable + @vite-ignore so Vite skips static
-  // resolution. Without this, the OSS build (where private/ is stripped by
-  // publish-oss.sh) fails because Rollup can't resolve the missing module.
-  // The try-catch handles the runtime ImportError gracefully.
-  try {
-    const modulePath = "../private/index.js";
-    const { setupPrivateFeatures } = await import(/* @vite-ignore */ modulePath);
-    await setupPrivateFeatures();
-  } catch {
-    // Private module not available (OSS version)
+  // import.meta.glob is resolved at build time: when private/ exists (internal
+  // build) the module is bundled as a lazy chunk; when it's stripped (OSS build)
+  // the glob returns an empty object and nothing is loaded.
+  const mods = import.meta.glob("../private/index.js");
+  const loader = mods["../private/index.js"];
+  if (loader) {
+    try {
+      const { setupPrivateFeatures } = await loader();
+      await setupPrivateFeatures();
+    } catch {
+      // Private module failed to initialize
+    }
   }
 }
 

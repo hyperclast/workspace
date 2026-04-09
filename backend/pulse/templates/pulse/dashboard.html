@@ -203,6 +203,24 @@
         color: var(--text-muted);
       }
 
+      .data-mode-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-size: 0.7rem;
+        font-weight: 500;
+        color: var(--text-muted);
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+        cursor: default;
+      }
+
+      .data-mode-badge svg {
+        width: 12px;
+        height: 12px;
+      }
+
       .chart-container {
         position: relative;
         height: 250px;
@@ -431,6 +449,7 @@
             <div>
               <h2 class="section-title">Growth Metrics</h2>
             </div>
+            {% include 'pulse/partials/_badge_async.html' %}
           </div>
           <div class="metrics-grid">
             <div class="metric-card">
@@ -475,6 +494,7 @@
             <div>
               <h2 class="section-title">Monthly Active Users (90 days)</h2>
             </div>
+            {% include 'pulse/partials/_badge_async.html' %}
           </div>
           <div class="chart-container">
             {% if mau_data_json == '[]' %}
@@ -493,6 +513,7 @@
             <div>
               <h2 class="section-title">New Signups (90 days)</h2>
             </div>
+            {% include 'pulse/partials/_badge_async.html' %}
           </div>
           <div class="chart-container">
             {% if signups_data_json == '[]' %}
@@ -505,6 +526,63 @@
           </div>
         </section>
 
+        <!-- Active Referral Codes Section -->
+        {% if referrers is not None %}
+          <section class="section" id="referral-codes">
+            <div class="section-header">
+              <div>
+                <h2 class="section-title">Active Referral Codes <span class="count-badge">{{ referrers|length }}</span></h2>
+                <p class="section-meta">Enrolled referrers with referral links</p>
+              </div>
+              {% include 'pulse/partials/_badge_sync.html' %}
+            </div>
+            {% if referrers %}
+              <div class="table-scroll">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>User</th>
+                      <th>Referral Code</th>
+                      <th>Branded Code</th>
+                      <th>Signups</th>
+                      <th>Upgrades</th>
+                      <th>Enrolled</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for aff in referrers %}
+                      <tr>
+                        <td>
+                          <form class="hijack-form" method="POST" action="/hijack/acquire/">
+                            {% csrf_token %}
+                            <input type="hidden" name="user_pk" value="{{ aff.pk }}">
+                            <button type="submit" class="hijack-btn" title="Impersonate {{ aff.username }}">{{ aff.username }}</button>
+                          </form>
+                        </td>
+                        <td><code>{{ aff.referral_code }}</code></td>
+                        <td>
+                          {% if aff.vanity_code %}
+                            <code>{{ aff.vanity_code }}</code>
+                          {% else %}
+                            <span class="text-muted">&mdash;</span>
+                          {% endif %}
+                        </td>
+                        <td>{{ aff.num_signups }}</td>
+                        <td>{{ aff.num_conversions }}</td>
+                        <td>{{ aff.created }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <div class="empty-state">
+                <p>No active referral codes yet.</p>
+              </div>
+            {% endif %}
+          </section>
+        {% endif %}
+
         <!-- New Users Section -->
         <section class="section" id="new-users">
           <div class="section-header">
@@ -512,6 +590,7 @@
               <h2 class="section-title">New Users <span class="count-badge">{{ new_users|length }}</span></h2>
               <p class="section-meta">Last 7 days</p>
             </div>
+            {% include 'pulse/partials/_badge_sync.html' %}
           </div>
           {% if new_users %}
             <div class="table-scroll">
@@ -574,6 +653,7 @@
               <h2 class="section-title">Weekly Active Users <span class="count-badge">{{ weekly_active_users|length }}</span></h2>
               <p class="section-meta">Active in last 7 days (excluding new signups)</p>
             </div>
+            {% include 'pulse/partials/_badge_sync.html' %}
           </div>
           {% if weekly_active_users %}
             <div class="table-scroll">
@@ -630,6 +710,7 @@
               <h2 class="section-title">Inactive Users <span class="count-badge">{{ inactive_users|length }}</span></h2>
               <p class="section-meta">Active in last 90 days, but not in last 7 days</p>
             </div>
+            {% include 'pulse/partials/_badge_sync.html' %}
           </div>
           {% if inactive_users %}
             <div class="table-scroll">
@@ -690,6 +771,7 @@
                 <p class="section-meta">Not yet computed</p>
               {% endif %}
             </div>
+            {% include 'pulse/partials/_badge_async.html' %}
           </div>
           <div class="chart-container">
             {% if dau_data_json == '[]' %}
