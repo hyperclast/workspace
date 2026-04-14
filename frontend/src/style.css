@@ -651,12 +651,24 @@ nav {
   transition: width 0.2s ease, min-width 0.2s ease;
 }
 
-/* Desktop inline collapse */
+/* Desktop inline collapse — show thin strip with toggle */
 .note-sidebar.collapsed {
-  width: 0;
-  min-width: 0;
+  width: 40px;
+  min-width: 40px;
   overflow: hidden;
-  border-right: none;
+  border-right: 1px solid var(--border-light);
+}
+
+.note-sidebar.collapsed .sidebar-header h2,
+.note-sidebar.collapsed .sidebar-jump-btn,
+.note-sidebar.collapsed .sidebar-list,
+.note-sidebar.collapsed .sidebar-new-btn {
+  display: none;
+}
+
+.note-sidebar.collapsed .sidebar-header {
+  padding: 0.75rem 0.5rem 0.5rem;
+  justify-content: center;
 }
 
 .note-sidebar.collapsed .sidebar-resize-handle {
@@ -1541,18 +1553,19 @@ body.sidebar-resizing .chat-sidebar {
   min-height: 0;
 }
 
-/* Sidebar toggle button (hamburger) */
+/* Sidebar toggle button — in sidebar header */
 .sidebar-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
   border: none;
-  padding: 0.5rem;
+  padding: 0.25rem;
   cursor: pointer;
   color: var(--text-secondary);
   border-radius: 4px;
   transition: background 0.15s;
+  flex-shrink: 0;
 }
 
 .sidebar-toggle:hover {
@@ -1615,10 +1628,21 @@ body.sidebar-resizing .chat-sidebar {
 }
 
 .chat-sidebar.collapsed {
-  width: 0;
-  min-width: 0;
+  width: 40px;
+  min-width: 40px;
   overflow: hidden;
-  border-left: none;
+  border-left: 1px solid var(--border-light);
+}
+
+.chat-sidebar.collapsed .sidebar-tabs,
+.chat-sidebar.collapsed .sidebar-tab-content,
+.chat-sidebar.collapsed .chat-input-area {
+  display: none;
+}
+
+.chat-sidebar.collapsed .chat-sidebar-header {
+  justify-content: center;
+  padding: 0.5rem 0.25rem;
 }
 
 .chat-sidebar.collapsed .sidebar-resize-handle {
@@ -2148,7 +2172,7 @@ body.sidebar-resizing .chat-sidebar {
   text-overflow: ellipsis;
 }
 
-/* Right sidebar panel toggle in breadcrumb actions */
+/* Right sidebar panel toggle — in chat-sidebar-header */
 .sidebar-panel-toggle {
   display: flex;
   align-items: center;
@@ -2160,6 +2184,7 @@ body.sidebar-resizing .chat-sidebar {
   cursor: pointer;
   color: var(--text-secondary);
   transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
 }
 
 .sidebar-panel-toggle:hover {
@@ -2177,12 +2202,6 @@ body.sidebar-resizing .chat-sidebar {
 
 .sidebar-panel-toggle.active .panel-fill {
   fill: currentColor;
-}
-
-.panel-toggles {
-  display: flex;
-  align-items: center;
-  gap: 0.125rem;
 }
 
 .sidebar-panel-toggle svg {
@@ -2219,8 +2238,21 @@ body.sidebar-resizing .chat-sidebar {
   /* Override desktop collapsed state in overlay mode */
   .note-sidebar.collapsed {
     width: 260px;
+    min-width: 260px;
     border-right: 1px solid var(--border-light);
     overflow: visible;
+  }
+
+  .note-sidebar.collapsed .sidebar-header h2,
+  .note-sidebar.collapsed .sidebar-jump-btn,
+  .note-sidebar.collapsed .sidebar-list,
+  .note-sidebar.collapsed .sidebar-new-btn {
+    display: revert;
+  }
+
+  .note-sidebar.collapsed .sidebar-header {
+    padding: 0.75rem 0.75rem 0.5rem;
+    justify-content: space-between;
   }
 
   .note-sidebar.open {
@@ -2249,17 +2281,35 @@ body.sidebar-resizing .chat-sidebar {
   .chat-sidebar.collapsed {
     width: 100%;
     max-width: 360px;
+    min-width: 0;
     border-left: 1px solid var(--border-light);
     overflow: visible;
+  }
+
+  .chat-sidebar.collapsed .sidebar-tabs,
+  .chat-sidebar.collapsed .sidebar-tab-content,
+  .chat-sidebar.collapsed .chat-input-area {
+    display: revert;
+  }
+
+  .chat-sidebar.collapsed .chat-sidebar-header {
+    padding: 0.5rem 1rem;
+    justify-content: space-between;
   }
 
   .chat-sidebar.open {
     transform: translateX(0);
   }
 
-  /* Hide resize handles in overlay mode */
+  /* Hide resize handles and standalone toggles in overlay mode */
   .sidebar-resize-handle {
     display: none;
+  }
+
+  /* In overlay mode, toggles stay in note-header breadcrumb isn't used —
+     the toggle buttons still work via their IDs at their new positions */
+  .note-sidebar.collapsed .sidebar-toggle {
+    display: flex;
   }
 }
 
