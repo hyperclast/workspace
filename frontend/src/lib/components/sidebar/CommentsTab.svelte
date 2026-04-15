@@ -15,6 +15,7 @@
     triggerAIReview as apiTriggerAIReview,
     createRewindCheckpoint as apiCreateRewindCheckpoint,
     generateCommentEdit as apiGenerateCommentEdit,
+    toggleReaction as apiToggleReaction,
   } from "../../../api.js";
   import { isDemoMode } from "../../../demo/index.js";
   import {
@@ -26,6 +27,7 @@
     triggerAIReview as demoTriggerAIReview,
     createRewindCheckpoint as demoCreateRewindCheckpoint,
     generateCommentEdit as demoGenerateCommentEdit,
+    toggleReaction as demoToggleReaction,
   } from "../../../demo/demoApi.js";
   import {
     resolveCommentAnchors,
@@ -44,8 +46,8 @@
 
   function getApi() {
     return isDemoMode()
-      ? { fetchComments: demoFetchComments, createComment: demoCreateComment, deleteComment: demoDeleteComment, resolveComment: demoResolveComment, unresolveComment: demoUnresolveComment, triggerAIReview: demoTriggerAIReview, createRewindCheckpoint: demoCreateRewindCheckpoint, generateCommentEdit: demoGenerateCommentEdit }
-      : { fetchComments: apiFetchComments, createComment: apiCreateComment, deleteComment: apiDeleteComment, resolveComment: apiResolveComment, unresolveComment: apiUnresolveComment, triggerAIReview: apiTriggerAIReview, createRewindCheckpoint: apiCreateRewindCheckpoint, generateCommentEdit: apiGenerateCommentEdit };
+      ? { fetchComments: demoFetchComments, createComment: demoCreateComment, deleteComment: demoDeleteComment, resolveComment: demoResolveComment, unresolveComment: demoUnresolveComment, triggerAIReview: demoTriggerAIReview, createRewindCheckpoint: demoCreateRewindCheckpoint, generateCommentEdit: demoGenerateCommentEdit, toggleReaction: demoToggleReaction }
+      : { fetchComments: apiFetchComments, createComment: apiCreateComment, deleteComment: apiDeleteComment, resolveComment: apiResolveComment, unresolveComment: apiUnresolveComment, triggerAIReview: apiTriggerAIReview, createRewindCheckpoint: apiCreateRewindCheckpoint, generateCommentEdit: apiGenerateCommentEdit, toggleReaction: apiToggleReaction };
   }
 
   let comments = $state([]);
@@ -56,6 +58,33 @@
   let pageCommentBody = $state("");
   let replyBody = $state("");
   let applyingComment = $state(null);
+  let showReactionPicker = $state(null); // external_id of comment showing picker
+
+  const ALLOWED_REACTIONS = ["👍", "👎", "❤️", "😄", "🎉", "😮", "🙏", "✅", "😎", "🙂"];
+
+  async function handleToggleReaction(commentExternalId, emoji) {
+    if (!currentPageId) return;
+    try {
+      const { toggleReaction } = getApi();
+      const updatedReactions = await toggleReaction(currentPageId, commentExternalId, emoji);
+      comments = comments.map((c) => updateReactionsDeep(c, commentExternalId, updatedReactions));
+    } catch (e) {
+      console.error("Error toggling reaction:", e);
+    }
+  }
+
+  function updateReactionsDeep(comment, targetId, reactions) {
+    if (comment.external_id === targetId) {
+      return { ...comment, reactions };
+    }
+    if (comment.replies?.length) {
+      return {
+        ...comment,
+        replies: comment.replies.map((r) => updateReactionsDeep(r, targetId, reactions)),
+      };
+    }
+    return comment;
+  }
 
   async function startReply(commentId) {
     if (replyingTo === commentId) {
@@ -70,6 +99,7 @@
 
   let commentsUpdatedHandler = null;
   let aiReviewCompleteHandler = null;
+  let handleDocClick = null;
   let pendingPersonas = $state(new Set());
   let pendingSelections = {};  // { [persona]: boolean } — tracks whether each pending review is selection-scoped
   let hasEditorSelection = $state(false);
@@ -460,6 +490,7 @@
 
   function handleCommentClick(commentId) {
     activeCommentId = commentId;
+    showReactionPicker = null;
     setActiveCommentHighlight(window.editorView, commentId);
 
     // Scroll editor to the comment's anchor position
@@ -488,6 +519,10 @@
       loadComments();
     };
     window.addEventListener("commentsUpdated", commentsUpdatedHandler);
+
+    // Close reaction picker on click outside
+    handleDocClick = () => { showReactionPicker = null; };
+    document.addEventListener("click", handleDocClick);
 
     aiReviewCompleteHandler = (e) => {
       const { persona, commentCount } = e.detail;
@@ -556,6 +591,7 @@
   document.addEventListener("keyup", checkEditorSelection);
 
   onDestroy(() => {
+    document.removeEventListener("click", handleDocClick);
     document.removeEventListener("mouseup", checkEditorSelection);
     document.removeEventListener("keyup", checkEditorSelection);
     if (commentsUpdatedHandler) {
@@ -587,6 +623,46 @@
   });
 </script>
 
+{#snippet reactionItems(comment)}
+  {#each (comment.reactions || []) as reaction}
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <span
+      class="reaction-pill"
+      class:reaction-pill-active={reaction.reacted}
+      class:reaction-pill-readonly={!canResolve()}
+      title={reaction.users.join(", ")}
+      onclick={(e) => { e.stopPropagation(); if (canResolve()) handleToggleReaction(comment.external_id, reaction.emoji); }}
+    >
+      <span class="reaction-emoji">{reaction.emoji}</span>
+      <span class="reaction-count">{reaction.count}</span>
+    </span>
+  {/each}
+  {#if canResolve()}
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <span
+      class="reaction-add-btn"
+      title="Add reaction"
+      onclick={(e) => { e.stopPropagation(); showReactionPicker = showReactionPicker === comment.external_id ? null : comment.external_id; }}
+    >
+      <svg class="reaction-smiley-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+    </span>
+    {#if showReactionPicker === comment.external_id}
+      <div class="reaction-picker">
+        {#each ALLOWED_REACTIONS as emoji}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <span
+            class="reaction-picker-btn"
+            onclick={(e) => { e.stopPropagation(); showReactionPicker = null; handleToggleReaction(comment.external_id, emoji); }}
+          >{emoji}</span>
+        {/each}
+      </div>
+    {/if}
+  {/if}
+{/snippet}
+
 {#snippet renderReply(reply, threadResolved)}
   <div class="comment-reply">
     <div class="comment-header">
@@ -613,6 +689,7 @@
           </button>
         {/if}
       {/if}
+      {@render reactionItems(reply)}
     </div>
     {#if reply.replies && reply.replies.length > 0}
       <div class="comment-replies">
@@ -783,6 +860,7 @@
                   </button>
                 {/if}
               {/if}
+              {@render reactionItems(comment)}
             </div>
 
             <!-- Replies (recursive) -->
@@ -979,9 +1057,11 @@
 
   .comment-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.25rem;
     align-items: center;
     margin-top: 0.375rem;
+    position: relative;
   }
 
   .comment-actions .comment-action-btn + .comment-action-btn::before {
@@ -1280,6 +1360,147 @@
 
   :global(.dark) .comment-resolve-btn-resolved:hover {
     background: rgba(255, 255, 255, 0.06);
+  }
+
+  /* --- Emoji Reactions (inline in .comment-actions row) --- */
+
+  .reaction-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.1875rem;
+    padding: 0.0625rem 0.375rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-light, rgba(0, 0, 0, 0.1));
+    background: var(--bg-surface, #fafafa);
+    cursor: pointer;
+    font-size: 0.75rem;
+    line-height: 1.25;
+    user-select: none;
+  }
+
+  .reaction-pill:hover {
+    background: var(--bg-elevated, #e5e5e5);
+    border-color: var(--border-medium, rgba(0, 0, 0, 0.2));
+  }
+
+  .reaction-pill-active {
+    background: rgba(9, 105, 218, 0.08);
+    border-color: rgba(9, 105, 218, 0.4);
+  }
+
+  .reaction-pill-active:hover {
+    background: rgba(9, 105, 218, 0.14);
+  }
+
+  .reaction-pill-readonly {
+    cursor: default;
+  }
+
+  .reaction-pill-readonly:hover {
+    background: var(--bg-surface, #fafafa);
+    border-color: var(--border-light, rgba(0, 0, 0, 0.1));
+  }
+
+  .reaction-emoji {
+    font-size: 0.8125rem;
+    line-height: 1;
+  }
+
+  .reaction-count {
+    font-size: 0.6875rem;
+    color: var(--text-secondary, #666);
+  }
+
+  .reaction-add-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    color: var(--text-tertiary, #aaa);
+    transition: color 0.15s;
+    position: relative;
+    margin-left: 0.25rem;
+  }
+
+  .reaction-smiley-icon {
+    display: block;
+    width: 16px;
+    height: 16px;
+  }
+
+  .reaction-add-btn:hover {
+    color: var(--text-secondary, #666);
+  }
+
+  .reaction-picker {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.125rem;
+    padding: 0.375rem;
+    background: var(--bg-primary, #fff);
+    border: 1px solid var(--border-light, rgba(0, 0, 0, 0.12));
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+    z-index: 10;
+    width: 180px;
+    margin-bottom: 0.25rem;
+  }
+
+  .reaction-picker-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    background: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1.125rem;
+  }
+
+  .reaction-picker-btn:hover {
+    background: var(--bg-elevated, #e5e5e5);
+  }
+
+  /* Dark mode reactions */
+  :global(.dark) .reaction-pill {
+    background: var(--bg-surface, #1e1e1e);
+    border-color: var(--border-light, rgba(255, 255, 255, 0.1));
+  }
+
+  :global(.dark) .reaction-pill:hover {
+    background: var(--bg-elevated, #2a2a2a);
+  }
+
+  :global(.dark) .reaction-pill-readonly:hover {
+    background: var(--bg-surface, #1e1e1e);
+    border-color: var(--border-light, rgba(255, 255, 255, 0.1));
+  }
+
+  :global(.dark) .reaction-pill-active {
+    background: rgba(9, 105, 218, 0.15);
+    border-color: rgba(9, 105, 218, 0.5);
+  }
+
+  :global(.dark) .reaction-pill-active:hover {
+    background: rgba(9, 105, 218, 0.22);
+  }
+
+  :global(.dark) .reaction-picker {
+    background: var(--bg-surface, #1e1e1e);
+    border-color: var(--border-light, rgba(255, 255, 255, 0.12));
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  :global(.dark) .reaction-picker-btn:hover {
+    background: var(--bg-elevated, #2a2a2a);
   }
 
 </style>

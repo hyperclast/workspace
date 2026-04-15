@@ -876,6 +876,29 @@ export async function triggerAIReview(pageExternalId, persona, selectionText) {
   return response.json();
 }
 
+/**
+ * Toggle an emoji reaction on a comment. Adds if not present, removes if present.
+ * @param {string} pageExternalId
+ * @param {string} commentExternalId
+ * @param {string} emoji
+ * @returns {Promise<Array>} Updated reactions list for the comment
+ */
+export async function toggleReaction(pageExternalId, commentExternalId, emoji) {
+  const response = await csrfFetch(
+    `${API_BASE}/pages/${pageExternalId}/comments/${commentExternalId}/reactions/`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ emoji }),
+    }
+  );
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.detail || `Failed to toggle reaction: ${response.statusText}`);
+  }
+  return response.json();
+}
+
 // PDF Import API
 
 /**

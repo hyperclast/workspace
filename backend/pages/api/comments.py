@@ -1,10 +1,12 @@
 import base64
 import binascii
+from collections import defaultdict
 from datetime import datetime
 from typing import List, Optional
 
 from django.conf import settings
 from django.core.cache import cache
+from django.db import IntegrityError
 from django.db.models import Count
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
@@ -14,13 +16,13 @@ from ninja import Field, Query, Router, Schema
 from backend.utils import log_warning
 from collab.utils import notify_comments_updated
 from core.authentication import session_auth, token_auth
-from pages.models import AIPersona, Comment, Page
+from pages.models import AIPersona, Comment, CommentReaction, Page
 from pages.permissions import user_can_edit_in_page
 from pages.schemas import GenerateEditOut
 from ask.exceptions import AIKeyNotConfiguredError
 from ask.helpers.llm import has_ai_config
 from pages.tasks import generate_edit_from_comment, run_ai_reply, run_ai_review
-from pages.throttling import AIReviewThrottle, CommentCreationThrottle
+from pages.throttling import AIReviewThrottle, CommentCreationThrottle, ReactionThrottle
 
 
 comments_router = Router(auth=[token_auth, session_auth])
@@ -36,6 +38,8 @@ REPLIES_PAGE_SIZE_MAX = 50
 REPLIES_DEFAULT_LIMIT = 20
 AI_REVIEW_DEDUP_TIMEOUT = 300  # seconds
 AI_REPLY_DEDUP_TIMEOUT = 300  # seconds
+
+ALLOWED_REACTIONS = {"👍", "👎", "❤️", "😄", "🎉", "😮", "🙏", "✅", "😎", "🙂"}
 
 
 # --- Schemas ---
@@ -57,6 +61,17 @@ class RepliesQueryParams(Schema):
     offset: int = Field(default=0, ge=0)
 
 
+class ReactionOut(Schema):
+    emoji: str
+    count: int
+    reacted: bool  # whether the requesting user has reacted with this emoji
+    users: List[str] = []  # display names (for tooltip)
+
+
+class ReactionToggleIn(Schema):
+    emoji: str = Field(..., max_length=8)
+
+
 class CommentOut(Schema):
     external_id: str
     parent_id: Optional[str] = None
@@ -75,6 +90,7 @@ class CommentOut(Schema):
     modified: datetime
     replies: List["CommentOut"] = []
     replies_count: int = 0
+    reactions: List[ReactionOut] = []
 
 
 class CommentsListOut(Schema):
@@ -133,7 +149,52 @@ def _author_out(user) -> Optional[AuthorOut]:
     )
 
 
-def _comment_to_out(comment, replies=None, replies_count=0) -> CommentOut:
+def _build_reactions_map(comment_ids, user) -> dict:
+    """Build a dict mapping comment_id → list[ReactionOut] in two queries."""
+    if not comment_ids:
+        return {}
+
+    # Query 1: counts grouped by (comment_id, emoji)
+    counts = (
+        CommentReaction.objects.filter(comment_id__in=comment_ids)
+        .values("comment_id", "emoji")
+        .annotate(count=Count("id"))
+        .order_by("comment_id", "emoji")
+    )
+
+    # Query 2: current user's reactions (for the `reacted` flag)
+    user_reactions = set()
+    if user and user.is_authenticated:
+        user_reactions = set(
+            CommentReaction.objects.filter(comment_id__in=comment_ids, user=user).values_list("comment_id", "emoji")
+        )
+
+    # Query 3: user display names per (comment_id, emoji) for tooltips
+    names_qs = CommentReaction.objects.filter(comment_id__in=comment_ids).select_related("user").order_by("created")
+    names_by_key = defaultdict(list)
+    for r in names_qs:
+        names_by_key[(r.comment_id, r.emoji)].append(_get_display_name(r.user))
+
+    result = defaultdict(list)
+    for row in counts:
+        cid, emoji = row["comment_id"], row["emoji"]
+        result[cid].append(
+            ReactionOut(
+                emoji=emoji,
+                count=row["count"],
+                reacted=(cid, emoji) in user_reactions,
+                users=names_by_key.get((cid, emoji), [])[:10],
+            )
+        )
+    return result
+
+
+def _reactions_for_comment(comment_id, user) -> list:
+    """Build reactions list for a single comment."""
+    return _build_reactions_map([comment_id], user).get(comment_id, [])
+
+
+def _comment_to_out(comment, replies=None, replies_count=0, reactions=None) -> CommentOut:
     anchor_from_b64 = None
     anchor_to_b64 = None
     if comment.anchor_from:
@@ -159,6 +220,7 @@ def _comment_to_out(comment, replies=None, replies_count=0) -> CommentOut:
         modified=comment.modified,
         replies=replies or [],
         replies_count=replies_count,
+        reactions=reactions or [],
     )
 
 
@@ -199,10 +261,19 @@ def list_comments(request: HttpRequest, external_id: str, query: CommentsQueryPa
     for d in descendants:
         children_by_parent.setdefault(d.parent_id, []).append(d)
 
+    # Build reactions map for all comments in one pass
+    all_comment_ids = [r.id for r in roots] + [d.id for d in descendants]
+    reactions_map = _build_reactions_map(all_comment_ids, request.user)
+
     def _build_subtree(comment):
         children = children_by_parent.get(comment.id, [])
         child_outs = [_build_subtree(c) for c in children]
-        return _comment_to_out(comment, replies=child_outs, replies_count=len(children))
+        return _comment_to_out(
+            comment,
+            replies=child_outs,
+            replies_count=len(children),
+            reactions=reactions_map.get(comment.id, []),
+        )
 
     items = [_build_subtree(root) for root in roots]
 
@@ -237,7 +308,10 @@ def list_replies(
     )
     total = replies_qs.count()
     replies = list(replies_qs[query.offset : query.offset + query.limit])
-    items = [_comment_to_out(r, replies_count=r.child_count) for r in replies]
+
+    reply_ids = [r.id for r in replies]
+    reactions_map = _build_reactions_map(reply_ids, request.user)
+    items = [_comment_to_out(r, replies_count=r.child_count, reactions=reactions_map.get(r.id, [])) for r in replies]
 
     return RepliesListOut(items=items, count=total)
 
@@ -433,7 +507,7 @@ def update_comment(request: HttpRequest, external_id: str, comment_id: str, payl
 
         notify_comments_updated(str(page.external_id))
 
-    return 200, _comment_to_out(comment)
+    return 200, _comment_to_out(comment, reactions=_reactions_for_comment(comment.id, request.user))
 
 
 @comments_router.delete(
@@ -499,7 +573,7 @@ def resolve_comment(request: HttpRequest, external_id: str, comment_id: str):
         comment.save(update_fields=["resolved_at", "resolved_by", "modified"])
         notify_comments_updated(str(page.external_id))
 
-    return 200, _comment_to_out(comment)
+    return 200, _comment_to_out(comment, reactions=_reactions_for_comment(comment.id, request.user))
 
 
 @comments_router.post(
@@ -534,7 +608,46 @@ def unresolve_comment(request: HttpRequest, external_id: str, comment_id: str):
         comment.save(update_fields=["resolved_at", "resolved_by", "modified"])
         notify_comments_updated(str(page.external_id))
 
-    return 200, _comment_to_out(comment)
+    return 200, _comment_to_out(comment, reactions=_reactions_for_comment(comment.id, request.user))
+
+
+@comments_router.post(
+    "/{external_id}/comments/{comment_id}/reactions/",
+    response={200: List[ReactionOut], 400: dict, 403: dict, 404: dict, 429: dict},
+    throttle=[ReactionThrottle()],
+)
+def toggle_reaction(request: HttpRequest, external_id: str, comment_id: str, payload: ReactionToggleIn):
+    """Toggle an emoji reaction on a comment. Adds if not present, removes if present."""
+    page = get_object_or_404(
+        Page.objects.get_user_accessible_pages(request.user),
+        external_id=external_id,
+    )
+
+    if not user_can_edit_in_page(request.user, page):
+        return 403, {"detail": "You do not have edit access to this page."}
+
+    if payload.emoji not in ALLOWED_REACTIONS:
+        return 400, {"detail": f"Invalid emoji. Allowed: {', '.join(sorted(ALLOWED_REACTIONS))}"}
+
+    comment = Comment.objects.filter(page=page, external_id=comment_id).first()
+    if not comment:
+        return 404, {"detail": "Comment not found."}
+
+    # Toggle: delete if exists, create if not.
+    # IntegrityError guard handles the race where two concurrent requests
+    # both see DoesNotExist and both try to create.
+    try:
+        existing = CommentReaction.objects.get(comment=comment, user=request.user, emoji=payload.emoji)
+        existing.delete()
+    except CommentReaction.DoesNotExist:
+        try:
+            CommentReaction.objects.create(comment=comment, user=request.user, emoji=payload.emoji)
+        except IntegrityError:
+            pass  # another request already created it
+
+    notify_comments_updated(str(page.external_id))
+
+    return 200, _reactions_for_comment(comment.id, request.user)
 
 
 GENERATE_EDIT_DEDUP_TIMEOUT = 120  # seconds

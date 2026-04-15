@@ -5,6 +5,7 @@ from django.utils import timezone
 from pages.constants import PageEditorRole
 from pages.models import (
     Comment,
+    CommentReaction,
     Folder,
     Page,
     PageEditor,
@@ -175,3 +176,12 @@ class CommentFactory(factory.django.DjangoModelFactory):
         if self.parent:
             return ""
         return factory.Faker("sentence").evaluate(None, None, {"locale": None})
+
+
+class CommentReactionFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = CommentReaction
+
+    comment = factory.SubFactory(CommentFactory)
+    user = factory.SubFactory(UserFactory)
+    emoji = "👍"

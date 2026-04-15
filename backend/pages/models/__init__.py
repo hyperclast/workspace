@@ -1,4 +1,4 @@
-from .comments import AIPersona, Comment
+from .comments import AIPersona, Comment, CommentReaction
 from .editors import PageEditor, ProjectEditor
 from .events import PageEditorAddEvent, PageEditorRemoveEvent, ProjectEditorAddEvent, ProjectEditorRemoveEvent
 from .folders import Folder
@@ -12,6 +12,7 @@ from .rewind import Rewind, RewindEditorSession
 __all__ = [
     "AIPersona",
     "Comment",
+    "CommentReaction",
     "Folder",
     "Page",
     "PageEditor",

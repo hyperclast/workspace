@@ -302,6 +302,13 @@ export async function triggerAIReview(_pageId, _persona, _selectionText) {
 }
 
 /**
+ * Toggle reaction - not available in demo mode
+ */
+export async function toggleReaction(_pageId, _commentId, _emoji) {
+  throw new DemoModeError("add reactions");
+}
+
+/**
  * Create rewind checkpoint - not available in demo mode
  */
 export async function createRewindCheckpoint(_pageId, _label) {

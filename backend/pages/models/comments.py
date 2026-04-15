@@ -161,3 +161,36 @@ class Comment(TimeStampedModel):
         if self.ai_persona:
             return f"{self.ai_persona} comment on {self.page}"
         return f"Comment by {self.author} on {self.page}"
+
+
+class CommentReaction(TimeStampedModel):
+    """An emoji reaction on a comment."""
+
+    comment = models.ForeignKey(
+        Comment,
+        related_name="reactions",
+        on_delete=models.CASCADE,
+    )
+    user = models.ForeignKey(
+        User,
+        related_name="comment_reactions",
+        on_delete=models.CASCADE,
+    )
+    emoji = models.CharField(max_length=8)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["comment", "user", "emoji"],
+                name="reaction_unique_per_user_emoji",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["comment", "emoji"],
+                name="reaction_comment_emoji_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.emoji} by {self.user} on comment {self.comment_id}"
