@@ -41,7 +41,7 @@ def _validate_openai_key(api_key: str) -> Tuple[bool, Optional[str]]:
     """Validate OpenAI API key using litellm."""
     try:
         response = litellm.completion(
-            model="gpt-4o-mini",
+            model="gpt-5.4-nano",
             messages=[{"role": "user", "content": "Hi"}],
             max_tokens=1,
             api_key=api_key,
@@ -68,7 +68,7 @@ def _validate_anthropic_key(api_key: str) -> Tuple[bool, Optional[str]]:
     """Validate Anthropic API key using litellm."""
     try:
         response = litellm.completion(
-            model="claude-3-5-haiku-20241022",
+            model="anthropic/claude-haiku-4-5",
             messages=[{"role": "user", "content": "Hi"}],
             max_tokens=1,
             api_key=api_key,
@@ -95,7 +95,7 @@ def _validate_google_key(api_key: str) -> Tuple[bool, Optional[str]]:
     """Validate Google Gemini API key using litellm."""
     try:
         response = litellm.completion(
-            model="gemini/gemini-2.0-flash",
+            model="gemini/gemini-2.5-flash",
             messages=[{"role": "user", "content": "Hi"}],
             max_tokens=1,
             api_key=api_key,
@@ -175,6 +175,7 @@ def validate_and_update_config(config) -> Tuple[bool, Optional[str]]:
     config.is_validated = is_valid
     if is_valid:
         config.last_validated_at = timezone.now()
-    config.save(update_fields=["is_validated", "last_validated_at", "modified"])
+        config.is_enabled = True
+    config.save(update_fields=["is_validated", "last_validated_at", "is_enabled", "modified"])
 
     return is_valid, error

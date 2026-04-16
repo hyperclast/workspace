@@ -8,10 +8,10 @@ from ask.exceptions import AIKeyNotConfiguredError
 
 
 DEFAULT_MODELS = {
-    AIProvider.OPENAI.value: "gpt-4o-mini",
-    AIProvider.ANTHROPIC.value: "claude-haiku-4-5-20251015",
+    AIProvider.OPENAI.value: "gpt-5.4-nano",
+    AIProvider.ANTHROPIC.value: "claude-haiku-4-5",
     AIProvider.GOOGLE.value: "gemini/gemini-2.5-flash",
-    AIProvider.CUSTOM.value: "gpt-4o-mini",
+    AIProvider.CUSTOM.value: "gpt-5.4-nano",
 }
 
 
@@ -84,7 +84,7 @@ def create_chat_completion(
             if config.model_name:
                 resolved_model = config.model_name
             else:
-                resolved_model = DEFAULT_MODELS.get(config.provider, "gpt-4o-mini")
+                resolved_model = DEFAULT_MODELS.get(config.provider, "gpt-5.4-nano")
     elif not api_key:
         raise AIKeyNotConfiguredError("No API key provided and no user context available.")
 
@@ -98,6 +98,8 @@ def create_chat_completion(
 
     if resolved_provider == AIProvider.CUSTOM.value and resolved_api_base:
         resolved_model = f"openai/{resolved_model}"
+    elif resolved_provider == AIProvider.ANTHROPIC.value and not resolved_model.startswith("anthropic/"):
+        resolved_model = f"anthropic/{resolved_model}"
 
     kwargs = dict(
         model=resolved_model,

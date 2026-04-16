@@ -59,6 +59,9 @@
   .toast-message {
     flex: 1;
     text-align: left;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    min-width: 0;
   }
 
   .toast-close {
