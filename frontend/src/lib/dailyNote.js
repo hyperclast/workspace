@@ -31,6 +31,7 @@ const DAILY_NOTE_TITLE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // path as sidenav clicks). Falls back to pushState+popstate, which forces the
 // router to re-import main.js — correct but visually causes a full-app blink.
 let pageNavigator = null;
+let sidenavRefresher = null;
 
 /**
  * Register the lightweight page-swap function (typically main.js's `openPage`).
@@ -38,6 +39,23 @@ let pageNavigator = null;
  */
 export function setPageNavigator(fn) {
   pageNavigator = fn;
+}
+
+/**
+ * Register the sidenav refresh function (re-fetches projects and re-renders).
+ * Call once during app init.
+ */
+export function setSidenavRefresher(fn) {
+  sidenavRefresher = fn;
+}
+
+async function refreshSidenav() {
+  if (!sidenavRefresher) return;
+  try {
+    await sidenavRefresher();
+  } catch (e) {
+    console.error("[DailyNote] Sidenav refresh failed", e);
+  }
 }
 
 function navigateToPage(externalId) {
@@ -98,6 +116,7 @@ async function handleAutoSetup(unorganizedCount) {
         showToast("Saved, but could not organize existing notes", "error");
       }
     }
+    await refreshSidenav();
     await openDailyNote();
   } catch (e) {
     showToast(e.message || "Failed to set up daily notes", "error");
@@ -114,6 +133,7 @@ function showWelcome(ctx) {
     oncustomize: () => {
       _openDailyNoteWizard({
         onconfigured: async () => {
+          await refreshSidenav();
           await openDailyNote();
         },
       });
@@ -143,6 +163,8 @@ export async function openDailyNote() {
 
   if (result && result.external_id) {
     navigateToPage(result.external_id);
+    // Refresh sidenav so a newly-created daily note shows up under YYYY/MM.
+    refreshSidenav();
   }
 }
 
@@ -152,6 +174,11 @@ export async function openDailyNote() {
 export function openDailyNoteWizard(options = {}) {
   initModals();
   _openDailyNoteWizard({
-    onconfigured: options.onconfigured || (() => {}),
+    onconfigured: async (...args) => {
+      await refreshSidenav();
+      if (options.onconfigured) {
+        await options.onconfigured(...args);
+      }
+    },
   });
 }

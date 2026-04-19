@@ -1,7 +1,4 @@
-from datetime import datetime
 from http import HTTPStatus
-from unittest.mock import patch
-from zoneinfo import ZoneInfo
 
 from core.tests.common import BaseAuthenticatedViewTestCase
 from pages.models import Folder, Page, Project
@@ -201,10 +198,7 @@ class TestDailyNoteToday(DailyNoteTestBase):
         project = ProjectFactory(org=self.org, creator=self.user)
         self._configure(project)
 
-        fixed = datetime(2026, 4, 18, 12, 0, tzinfo=ZoneInfo("UTC"))
-        with patch("users.api.daily_note.datetime") as mock_dt:
-            mock_dt.now.return_value = fixed
-            response = self.send_api_request(url=TODAY_URL, method="post", data={})
+        response = self.send_api_request(url=TODAY_URL, method="post", data={"date": "2026-04-18"})
 
         self.assertEqual(response.status_code, HTTPStatus.OK)
         payload = response.json()
@@ -221,11 +215,8 @@ class TestDailyNoteToday(DailyNoteTestBase):
         project = ProjectFactory(org=self.org, creator=self.user)
         self._configure(project)
 
-        fixed = datetime(2026, 4, 18, 12, 0, tzinfo=ZoneInfo("UTC"))
-        with patch("users.api.daily_note.datetime") as mock_dt:
-            mock_dt.now.return_value = fixed
-            first = self.send_api_request(url=TODAY_URL, method="post", data={})
-            second = self.send_api_request(url=TODAY_URL, method="post", data={})
+        first = self.send_api_request(url=TODAY_URL, method="post", data={"date": "2026-04-18"})
+        second = self.send_api_request(url=TODAY_URL, method="post", data={"date": "2026-04-18"})
 
         self.assertEqual(first.status_code, HTTPStatus.OK)
         self.assertEqual(second.status_code, HTTPStatus.OK)
@@ -244,46 +235,36 @@ class TestDailyNoteToday(DailyNoteTestBase):
         )
         self._configure(project, template=template)
 
-        fixed = datetime(2026, 4, 18, 12, 0, tzinfo=ZoneInfo("UTC"))
-        with patch("users.api.daily_note.datetime") as mock_dt:
-            mock_dt.now.return_value = fixed
-            response = self.send_api_request(url=TODAY_URL, method="post", data={})
+        response = self.send_api_request(url=TODAY_URL, method="post", data={"date": "2026-04-18"})
 
         self.assertEqual(response.status_code, HTTPStatus.OK)
         page = Page.objects.get(external_id=response.json()["external_id"])
         self.assertEqual(page.details.get("content"), "# Daily checklist\n- [ ] Item")
 
-    def test_uses_profile_tz_tokyo_at_utc_23(self):
+    def test_rejects_malformed_date(self):
         project = ProjectFactory(org=self.org, creator=self.user)
         self._configure(project)
-        profile = self._profile()
-        profile.tz = "Asia/Tokyo"
-        profile.save(update_fields=["tz", "modified"])
 
-        # 23:00 UTC on Apr 17 == 08:00 Apr 18 in Tokyo
-        fixed = datetime(2026, 4, 17, 23, 0, tzinfo=ZoneInfo("UTC"))
-        with patch("users.api.daily_note.datetime") as mock_dt:
-            mock_dt.now.side_effect = lambda tz=None: fixed.astimezone(tz) if tz else fixed
-            response = self.send_api_request(url=TODAY_URL, method="post", data={})
+        response = self.send_api_request(url=TODAY_URL, method="post", data={"date": "not-a-date"})
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
 
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertEqual(response.json()["title"], "2026-04-18")
-
-    def test_uses_profile_tz_la_at_utc_03(self):
+    def test_rejects_invalid_calendar_date(self):
         project = ProjectFactory(org=self.org, creator=self.user)
         self._configure(project)
-        profile = self._profile()
-        profile.tz = "America/Los_Angeles"
-        profile.save(update_fields=["tz", "modified"])
 
-        # 03:00 UTC on Apr 18 == 20:00 Apr 17 in LA
-        fixed = datetime(2026, 4, 18, 3, 0, tzinfo=ZoneInfo("UTC"))
-        with patch("users.api.daily_note.datetime") as mock_dt:
-            mock_dt.now.side_effect = lambda tz=None: fixed.astimezone(tz) if tz else fixed
-            response = self.send_api_request(url=TODAY_URL, method="post", data={})
+        response = self.send_api_request(url=TODAY_URL, method="post", data={"date": "2026-02-30"})
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+
+    def test_falls_back_to_utc_when_date_missing(self):
+        project = ProjectFactory(org=self.org, creator=self.user)
+        self._configure(project)
+
+        response = self.send_api_request(url=TODAY_URL, method="post", data={})
 
         self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertEqual(response.json()["title"], "2026-04-17")
+        payload = response.json()
+        # Title should be a valid YYYY-MM-DD
+        self.assertRegex(payload["title"], r"^\d{4}-\d{2}-\d{2}$")
 
 
 class TestDailyNoteOrganize(DailyNoteTestBase):

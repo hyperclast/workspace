@@ -72,7 +72,11 @@ import {
 } from "./lib/modal.js";
 import { initShortcuts } from "./lib/keyboardShortcuts.js";
 import { setupCommandPalette } from "./lib/commandPaletteSetup.js";
-import { openDailyNote, setPageNavigator as setDailyNotePageNavigator } from "./lib/dailyNote.js";
+import {
+  openDailyNote,
+  setPageNavigator as setDailyNotePageNavigator,
+  setSidenavRefresher as setDailyNoteSidenavRefresher,
+} from "./lib/dailyNote.js";
 import { showToast } from "./lib/toast.js";
 import {
   markdownTableExtension,
@@ -2565,6 +2569,10 @@ async function startApp() {
     };
     setNavigateCallback(sidenavNavigate);
     setDailyNotePageNavigator(sidenavNavigate);
+    setDailyNoteSidenavRefresher(async () => {
+      cachedProjects = await fetchProjects();
+      renderSidenav(cachedProjects, currentPage?.external_id);
+    });
 
     setupSidenav(async (projectId, folderId) => {
       currentProjectId = projectId;
@@ -2677,6 +2685,10 @@ async function startApp() {
   };
   setNavigateCallback(sidenavNavigate);
   setDailyNotePageNavigator(sidenavNavigate);
+  setDailyNoteSidenavRefresher(async () => {
+    cachedProjects = await fetchProjects();
+    renderSidenav(cachedProjects, currentPage?.external_id);
+  });
 
   setupSidenav(async (projectId, folderId) => {
     currentProjectId = projectId;

@@ -985,10 +985,17 @@ export async function updateDailyNoteConfig(payload) {
  * @returns {Promise<{external_id, title, project_external_id} | {needsConfig: true}>}
  */
 export async function openDailyNoteToday() {
+  // Compute today's date in the client's local timezone and send as YYYY-MM-DD.
+  // Backend just uses the string as the page title — no timezone math server-side.
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  const date = `${y}-${m}-${d}`;
   const response = await csrfFetch(`${API_BASE}/users/me/daily-note/today/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: "{}",
+    body: JSON.stringify({ date }),
   });
   if (response.status === 409) {
     return { needsConfig: true };

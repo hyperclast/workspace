@@ -1,11 +1,11 @@
 import re
-from datetime import datetime
-from zoneinfo import ZoneInfo
+from datetime import date, datetime, timezone
+from typing import Optional
 
 from django.db import transaction
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
-from ninja import Router
+from ninja import Router, Schema
 from ninja.responses import Response
 
 from core.authentication import session_auth, token_auth
@@ -23,6 +23,10 @@ daily_note_router = Router(auth=[token_auth, session_auth])
 
 DAILY_NOTE_TITLE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 DEFAULT_DAILY_NOTES_PROJECT_NAME = "Daily Notes"
+
+
+class DailyNoteTodayIn(Schema):
+    date: Optional[str] = None
 
 
 def _count_unorganized(project):
@@ -152,11 +156,14 @@ def _get_or_create_year_month_folders(project, year: int, month: int):
     return year_folder, month_folder
 
 
-@daily_note_router.post("/today/", response={200: dict, 409: dict})
-def open_today_daily_note(request: HttpRequest):
+@daily_note_router.post("/today/", response={200: dict, 400: dict, 409: dict})
+def open_today_daily_note(request: HttpRequest, payload: DailyNoteTodayIn = None):
     """Return today's daily note, creating it (and YYYY/MM folders) if missing.
 
     Returns 409 with `daily_note_not_configured` if the user has no project set.
+
+    The client passes `date` (YYYY-MM-DD) computed in its local timezone. If
+    omitted, the server falls back to UTC today.
     """
     user = request.user
     profile = user.profile
@@ -165,12 +172,17 @@ def open_today_daily_note(request: HttpRequest):
         return 409, {"message": "Daily note not configured", "code": "daily_note_not_configured"}
 
     project = profile.daily_note_project
-    tz_name = profile.tz or "UTC"
-    try:
-        tz = ZoneInfo(tz_name)
-    except Exception:
-        tz = ZoneInfo("UTC")
-    today = datetime.now(tz).date()
+
+    requested_date = payload.date if payload else None
+    if requested_date:
+        if not DAILY_NOTE_TITLE_RE.match(requested_date):
+            return 400, {"message": "date must be in YYYY-MM-DD format."}
+        try:
+            today = date.fromisoformat(requested_date)
+        except ValueError:
+            return 400, {"message": "date must be a valid calendar date."}
+    else:
+        today = datetime.now(timezone.utc).date()
     title = today.isoformat()
 
     _, month_folder = _get_or_create_year_month_folders(project, today.year, today.month)
