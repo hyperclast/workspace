@@ -83,6 +83,19 @@
           data-tab={tab.id}
         >
           {tab.label}
+          {#if tab.id === "ask"}
+            <svg
+              class="sidebar-tab-icon"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path d="M12 2 L13.5 9 L20 10.5 L13.5 12 L12 19 L10.5 12 L4 10.5 L10.5 9 Z" />
+              <path d="M19 14 L19.75 17 L22.5 17.75 L19.75 18.5 L19 21.5 L18.25 18.5 L15.5 17.75 L18.25 17 Z" />
+            </svg>
+          {/if}
         </button>
       {/each}
     </div>

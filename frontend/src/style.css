@@ -774,7 +774,7 @@ nav {
 }
 
 .sidebar-item:hover {
-  background: rgba(55, 53, 47, 0.04);
+  background: var(--bg-hover-subtle);
 }
 
 .sidebar-item:focus-visible {
@@ -783,7 +783,7 @@ nav {
 }
 
 .sidebar-item.active {
-  background: rgba(55, 53, 47, 0.08);
+  background: var(--bg-hover);
 }
 
 .sidebar-item-title {
@@ -1699,6 +1699,9 @@ body.sidebar-resizing .chat-sidebar {
 }
 
 .sidebar-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
   background: transparent;
   border: none;
   padding: 0.5rem 0.75rem;
@@ -1710,14 +1713,24 @@ body.sidebar-resizing .chat-sidebar {
   transition: all 0.15s;
 }
 
+.sidebar-tab .sidebar-tab-icon {
+  opacity: 0.75;
+  flex-shrink: 0;
+}
+
+.sidebar-tab.active .sidebar-tab-icon,
+.sidebar-tab:hover .sidebar-tab-icon {
+  opacity: 1;
+}
+
 .sidebar-tab:hover {
   color: var(--text-primary);
-  background: rgba(55, 53, 47, 0.08);
+  background: var(--bg-hover);
 }
 
 .sidebar-tab.active {
   color: var(--text-primary);
-  background: rgba(55, 53, 47, 0.08);
+  background: var(--bg-hover);
 }
 
 .sidebar-tab-content {
@@ -2426,6 +2439,17 @@ body.sidebar-resizing .chat-sidebar {
 
 .note-title-input:focus {
   outline: none;
+}
+
+/* Override the global dark-mode input background so the title stays
+   seamless with the document surface (matches light-mode behavior).
+   Both selectors are needed because theme.js applies `.dark` AND
+   `data-theme="dark"` to <html>; the sibling rule at line 52 uses
+   `:root.dark input` (specificity 0,2,1) which otherwise wins. */
+:root.dark .note-title-input,
+[data-theme="dark"] .note-title-input {
+  background: transparent;
+  border: none;
 }
 
 .note-title-input.title-invalid {
@@ -5473,6 +5497,22 @@ body.sidebar-resizing .chat-sidebar {
 
 .sidebar-new-btn:active {
   transform: translateY(0);
+}
+
+/* Dark mode: the 8% purple gradient washes out on #191919, so lean on
+   a crisp dashed border for visibility and keep the background clean. */
+:root.dark .sidebar-new-btn,
+[data-theme="dark"] .sidebar-new-btn {
+  background: transparent;
+  border-color: #8b9aff;
+  color: #a5b0ff;
+}
+
+:root.dark .sidebar-new-btn:hover,
+[data-theme="dark"] .sidebar-new-btn:hover {
+  background: rgba(139, 154, 255, 0.12);
+  border-color: #a5b0ff;
+  color: #c7cfff;
 }
 
 /* ===== Demo Mode Styles ===== */

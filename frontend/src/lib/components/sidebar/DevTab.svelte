@@ -887,7 +887,7 @@ func main() {
   .lang-switcher {
     display: flex;
     gap: 0.25rem;
-    background: rgba(55, 53, 47, 0.04);
+    background: var(--bg-hover);
     padding: 0.25rem;
     border-radius: 8px;
   }
@@ -910,7 +910,7 @@ func main() {
   }
 
   .lang-btn.active {
-    background: var(--bg-primary, white);
+    background: var(--bg-elevated);
     color: var(--text-primary);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   }

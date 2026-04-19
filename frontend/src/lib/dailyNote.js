@@ -162,9 +162,11 @@ export async function openDailyNote() {
   }
 
   if (result && result.external_id) {
+    // Refresh sidenav first so the newly-created daily note is in cachedProjects
+    // before openPage runs — otherwise findProjectIdForPage returns null and the
+    // breadcrumb row gets hidden until the user navigates away and back.
+    await refreshSidenav();
     navigateToPage(result.external_id);
-    // Refresh sidenav so a newly-created daily note shows up under YYYY/MM.
-    refreshSidenav();
   }
 }
 
