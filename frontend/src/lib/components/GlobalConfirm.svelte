@@ -12,7 +12,9 @@
   import ImportModal from './ImportModal.svelte';
   import CodePasteModal from './CodePasteModal.svelte';
   import MovePageModal from './MovePageModal.svelte';
-  import { getConfirmState, getPromptState, getShareProjectState, getCreateProjectState, getNewPageState, getChangePageTypeState, getCommandPaletteState, getReadonlyLinkState, getSharePageState, getHelpState, getImportState, getCodePasteState, getMovePageState } from '../stores/modal.svelte.js';
+  import DailyNoteWelcome from './DailyNoteWelcome.svelte';
+  import DailyNoteWizard from './DailyNoteWizard.svelte';
+  import { getConfirmState, getPromptState, getShareProjectState, getCreateProjectState, getNewPageState, getChangePageTypeState, getCommandPaletteState, getReadonlyLinkState, getSharePageState, getHelpState, getImportState, getCodePasteState, getMovePageState, getDailyNoteWelcomeState, getDailyNoteWizardState } from '../stores/modal.svelte.js';
 
   const confirmState = getConfirmState();
   const promptState = getPromptState();
@@ -27,6 +29,8 @@
   const importState = getImportState();
   const codePasteState = getCodePasteState();
   const movePageState = getMovePageState();
+  const dailyNoteWelcomeState = getDailyNoteWelcomeState();
+  const dailyNoteWizardState = getDailyNoteWizardState();
 </script>
 
 <ConfirmModal
@@ -131,4 +135,18 @@
   currentFolderId={movePageState.currentFolderId}
   folders={movePageState.folders}
   onmoved={movePageState.onmoved}
+/>
+
+<DailyNoteWelcome
+  bind:open={dailyNoteWelcomeState.open}
+  projectName={dailyNoteWelcomeState.projectName}
+  projectExists={dailyNoteWelcomeState.projectExists}
+  unorganizedCount={dailyNoteWelcomeState.unorganizedCount}
+  onproceed={dailyNoteWelcomeState.onproceed}
+  oncustomize={dailyNoteWelcomeState.oncustomize}
+/>
+
+<DailyNoteWizard
+  bind:open={dailyNoteWizardState.open}
+  onconfigured={dailyNoteWizardState.onconfigured}
 />

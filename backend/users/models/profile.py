@@ -30,6 +30,20 @@ class Profile(TimeStampedModel):
     receive_product_updates = models.BooleanField(default=True)
     demo_visits = models.JSONField(default=list, blank=True)
     keyboard_shortcuts = models.JSONField(default=dict, blank=True)
+    daily_note_project = models.ForeignKey(
+        "pages.Project",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+    daily_note_template = models.ForeignKey(
+        "pages.Page",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
 
     @property
     def access_token(self):

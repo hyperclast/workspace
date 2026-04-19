@@ -943,3 +943,75 @@ export async function importPdf(projectId, file) {
   }
   return response.json();
 }
+
+// Daily Note API
+
+/**
+ * Fetch the user's daily-note configuration.
+ * @returns {Promise<{project: object|null, template: object|null, unorganized_count: number}>}
+ */
+export async function getDailyNoteConfig() {
+  const response = await csrfFetch(`${API_BASE}/users/me/daily-note/config/`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch daily-note config: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Update the user's daily-note configuration.
+ * @param {object} payload - Either {auto: true} or {project_external_id, template_external_id?}
+ * @returns {Promise<object>} Updated config
+ */
+export async function updateDailyNoteConfig(payload) {
+  const response = await csrfFetch(`${API_BASE}/users/me/daily-note/config/`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const err = new Error(
+      data.message || `Failed to update daily-note config: ${response.statusText}`
+    );
+    err.status = response.status;
+    throw err;
+  }
+  return response.json();
+}
+
+/**
+ * Open (or create) today's daily note.
+ * @returns {Promise<{external_id, title, project_external_id} | {needsConfig: true}>}
+ */
+export async function openDailyNoteToday() {
+  const response = await csrfFetch(`${API_BASE}/users/me/daily-note/today/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  });
+  if (response.status === 409) {
+    return { needsConfig: true };
+  }
+  if (!response.ok) {
+    throw new Error(`Failed to open today's daily note: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Organize existing YYYY-MM-DD pages in the daily-note project into YYYY/MM folders.
+ * @param {boolean} dryRun - Preview only
+ * @returns {Promise<{moved_count, skipped_count, total_matched}>}
+ */
+export async function organizeDailyNotes(dryRun = false) {
+  const response = await csrfFetch(`${API_BASE}/users/me/daily-note/organize/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dry_run: dryRun }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to organize daily notes: ${response.statusText}`);
+  }
+  return response.json();
+}

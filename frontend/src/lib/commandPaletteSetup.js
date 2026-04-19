@@ -6,6 +6,7 @@
 
 import { commandPalette } from "./modal.js";
 import { showToast } from "./toast.js";
+import { openDailyNote } from "./dailyNote.js";
 import { getShortcut, onShortcutChange } from "./keyboardShortcuts.js";
 
 let initialized = false;
@@ -75,6 +76,13 @@ export function setupCommandPalette(options = {}) {
         currentProjectId,
         onselect: (selection) => handleSelection(selection, options),
       });
+      return;
+    }
+
+    const dailyNoteShortcut = getShortcut("openDailyNote");
+    if (matchesShortcut(e, dailyNoteShortcut)) {
+      e.preventDefault();
+      openDailyNote();
     }
   };
 

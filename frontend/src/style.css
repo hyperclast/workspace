@@ -661,6 +661,7 @@ nav {
 
 .note-sidebar.collapsed .sidebar-header h2,
 .note-sidebar.collapsed .sidebar-jump-btn,
+.note-sidebar.collapsed .sidebar-icon-btn,
 .note-sidebar.collapsed .sidebar-list,
 .note-sidebar.collapsed .sidebar-new-btn {
   display: none;
@@ -689,6 +690,40 @@ nav {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 0;
+}
+
+/* Small icon-only button in sidenav header (e.g., daily note) */
+.sidebar-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  margin-left: auto;
+  margin-right: 0.25rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary, rgba(55, 53, 47, 0.65));
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.sidebar-icon-btn:hover {
+  background: var(--bg-hover, rgba(55, 53, 47, 0.08));
+  border-color: var(--border-color, rgba(55, 53, 47, 0.16));
+  color: var(--text-primary, #37352f);
+}
+
+:root.dark .sidebar-icon-btn,
+[data-theme="dark"] .sidebar-icon-btn {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
+}
+
+:root.dark .sidebar-icon-btn:hover,
+[data-theme="dark"] .sidebar-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.13);
+  color: var(--text-primary, #fff);
 }
 
 /* Jump button in sidenav header */

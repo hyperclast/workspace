@@ -299,6 +299,50 @@ export function closeMovePage() {
   movePageState.open = false;
 }
 
+let dailyNoteWelcomeState = $state({
+  open: false,
+  projectName: "",
+  projectExists: false,
+  unorganizedCount: 0,
+  onproceed: () => {},
+  oncustomize: () => {},
+});
+
+export function getDailyNoteWelcomeState() {
+  return dailyNoteWelcomeState;
+}
+
+export function openDailyNoteWelcome(options = {}) {
+  dailyNoteWelcomeState.projectName = options.projectName || "Daily Notes";
+  dailyNoteWelcomeState.projectExists = options.projectExists || false;
+  dailyNoteWelcomeState.unorganizedCount = options.unorganizedCount || 0;
+  dailyNoteWelcomeState.onproceed = options.onproceed || (() => {});
+  dailyNoteWelcomeState.oncustomize = options.oncustomize || (() => {});
+  dailyNoteWelcomeState.open = true;
+}
+
+export function closeDailyNoteWelcome() {
+  dailyNoteWelcomeState.open = false;
+}
+
+let dailyNoteWizardState = $state({
+  open: false,
+  onconfigured: () => {},
+});
+
+export function getDailyNoteWizardState() {
+  return dailyNoteWizardState;
+}
+
+export function openDailyNoteWizard(options = {}) {
+  dailyNoteWizardState.onconfigured = options.onconfigured || (() => {});
+  dailyNoteWizardState.open = true;
+}
+
+export function closeDailyNoteWizard() {
+  dailyNoteWizardState.open = false;
+}
+
 let codePasteState = $state({
   open: false,
   suggestedLang: "",

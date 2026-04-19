@@ -72,6 +72,7 @@ import {
 } from "./lib/modal.js";
 import { initShortcuts } from "./lib/keyboardShortcuts.js";
 import { setupCommandPalette } from "./lib/commandPaletteSetup.js";
+import { openDailyNote, setPageNavigator as setDailyNotePageNavigator } from "./lib/dailyNote.js";
 import { showToast } from "./lib/toast.js";
 import {
   markdownTableExtension,
@@ -191,6 +192,14 @@ function renderAppHTML() {
             </svg>
           </button>
           <h2>Projects &rsaquo; Pages</h2>
+          <button id="sidebar-daily-note-btn" class="sidebar-icon-btn" title="Open today's note">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+          </button>
           <button id="sidebar-jump-btn" class="sidebar-jump-btn">Jump</button>
         </div>
         <div id="sidebar-list" class="sidebar-list">
@@ -2324,6 +2333,9 @@ window.openJumpPalette = openJumpPalette;
 function setupJumpButton() {
   const jumpBtn = document.getElementById("sidebar-jump-btn");
   jumpBtn?.addEventListener("click", openJumpPalette);
+
+  const dailyNoteBtn = document.getElementById("sidebar-daily-note-btn");
+  dailyNoteBtn?.addEventListener("click", () => openDailyNote());
 }
 
 /**
@@ -2543,14 +2555,16 @@ async function startApp() {
     setupSidebar();
     setupSidebarPanelToggle();
 
-    setNavigateCallback((externalId) => {
+    const sidenavNavigate = (externalId) => {
       if (externalId !== currentPage?.external_id) {
         if (currentPage) {
           closePageWithoutNavigate();
         }
         openPage(externalId);
       }
-    });
+    };
+    setNavigateCallback(sidenavNavigate);
+    setDailyNotePageNavigator(sidenavNavigate);
 
     setupSidenav(async (projectId, folderId) => {
       currentProjectId = projectId;
@@ -2648,7 +2662,7 @@ async function startApp() {
   }
 
   // Setup left sidenav (pages list)
-  setNavigateCallback((externalId) => {
+  const sidenavNavigate = (externalId) => {
     console.log(
       `[Nav] callback: externalId=${externalId}, currentPage=${currentPage?.external_id ?? "null"}`
     );
@@ -2660,7 +2674,9 @@ async function startApp() {
     } else {
       console.log(`[Nav] skipped: same page`);
     }
-  });
+  };
+  setNavigateCallback(sidenavNavigate);
+  setDailyNotePageNavigator(sidenavNavigate);
 
   setupSidenav(async (projectId, folderId) => {
     currentProjectId = projectId;

@@ -10,12 +10,14 @@ import { csrfFetch } from "../csrf.js";
 const DEFAULT_SHORTCUTS = {
   toggleCheckbox: "Mod-l",
   openCommandPalette: "Mod-k",
+  openDailyNote: "Mod-Alt-d",
 };
 
 // Human-readable labels for actions
 export const SHORTCUT_LABELS = {
   toggleCheckbox: "Toggle checkbox",
   openCommandPalette: "Open command palette",
+  openDailyNote: "Open today's daily note",
 };
 
 // In-memory cache of custom shortcuts (loaded from user profile)

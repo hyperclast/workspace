@@ -18,6 +18,7 @@
   import { showToast } from "../toast.js";
   import { validateUsername } from "../validators.js";
   import AISettingsTab from "./settings/AISettingsTab.svelte";
+  import DailyNoteSettings from "./settings/DailyNoteSettings.svelte";
   import EditorSettingsTab from "./settings/EditorSettingsTab.svelte";
   import ThemeToggle from "./ThemeToggle.svelte";
   import { helpModal } from "../modal.js";
@@ -632,6 +633,7 @@
         <!-- Editor Tab -->
         <div class="settings-tab-content" class:active={activeTab === "editor"}>
           <h2 class="settings-page-title">Editor</h2>
+          <DailyNoteSettings />
           <EditorSettingsTab
             keyboardShortcuts={data.user?.keyboard_shortcuts || {}}
             onUpdate={updateKeyboardShortcuts}

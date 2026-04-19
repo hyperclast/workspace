@@ -16,7 +16,7 @@ from pages.api import (
     projects_router,
     rewind_router,
 )
-from users.api import ai_router, devices_router, orgs_router, tokens_router, users_router
+from users.api import ai_router, daily_note_router, devices_router, orgs_router, tokens_router, users_router
 
 
 if settings.RUNTIME_ENV == "dev":
@@ -29,6 +29,7 @@ else:
 api.add_router("/users/", users_router)
 api.add_router("/users/me/devices", devices_router)
 api.add_router("/users/me/tokens", tokens_router)
+api.add_router("/users/me/daily-note/", daily_note_router)
 api.add_router("/orgs/", orgs_router)
 api.add_router("/ai/", ai_router)
 api.add_router("", projects_router)  # For /orgs/{id}/projects and /projects/{id}

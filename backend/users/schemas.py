@@ -332,6 +332,61 @@ class DeviceUpdateSchema(Schema):
     details: Optional[dict] = None
 
 
+class DailyNoteProjectSummary(Schema):
+    """Lightweight project summary for daily-note config responses."""
+
+    external_id: str
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
+class DailyNoteTemplateSummary(Schema):
+    """Lightweight page summary used as a daily-note template."""
+
+    external_id: str
+    title: str
+
+    class Config:
+        from_attributes = True
+
+
+class DailyNoteConfigOut(Schema):
+    """Current daily-note configuration for a user."""
+
+    project: Optional[DailyNoteProjectSummary] = None
+    template: Optional[DailyNoteTemplateSummary] = None
+    unorganized_count: int = 0
+
+
+class DailyNoteConfigIn(Schema):
+    """Request body for updating daily-note configuration.
+
+    Either set `auto=True` to let the backend pick/create a "Daily Notes" project,
+    or provide `project_external_id` (and optionally `template_external_id`) to set
+    an explicit configuration.
+    """
+
+    auto: Optional[bool] = None
+    project_external_id: Optional[str] = None
+    template_external_id: Optional[str] = None
+
+
+class DailyNoteOrganizeIn(Schema):
+    """Request body for organize endpoint."""
+
+    dry_run: bool = False
+
+
+class DailyNoteOrganizeOut(Schema):
+    """Response from organize endpoint."""
+
+    moved_count: int
+    skipped_count: int
+    total_matched: int
+
+
 class AIProviderSummaryOut(Schema):
     """Read-only summary of an AI provider config for non-admin org members.
 
