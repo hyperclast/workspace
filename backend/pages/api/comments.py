@@ -39,7 +39,7 @@ REPLIES_DEFAULT_LIMIT = 20
 AI_REVIEW_DEDUP_TIMEOUT = 300  # seconds
 AI_REPLY_DEDUP_TIMEOUT = 300  # seconds
 
-ALLOWED_REACTIONS = {"👍", "👎", "❤️", "😄", "🎉", "😮", "🙏", "✅", "😎", "🙂"}
+ALLOWED_REACTIONS = ["👍", "👎", "❤️", "😄", "🎉", "😮", "🙏", "✅", "😎", "🙂"]
 
 
 # --- Schemas ---
@@ -150,40 +150,36 @@ def _author_out(user) -> Optional[AuthorOut]:
 
 
 def _build_reactions_map(comment_ids, user) -> dict:
-    """Build a dict mapping comment_id → list[ReactionOut] in two queries."""
+    """Build a dict mapping comment_id → list[ReactionOut] in one query."""
     if not comment_ids:
         return {}
 
-    # Query 1: counts grouped by (comment_id, emoji)
-    counts = (
-        CommentReaction.objects.filter(comment_id__in=comment_ids)
-        .values("comment_id", "emoji")
-        .annotate(count=Count("id"))
-        .order_by("comment_id", "emoji")
+    user_id = user.id if user and user.is_authenticated else None
+
+    # Single query: all reactions with user info for counts, names, and reacted flag
+    all_reactions = (
+        CommentReaction.objects.filter(comment_id__in=comment_ids).select_related("user").order_by("created")
     )
 
-    # Query 2: current user's reactions (for the `reacted` flag)
-    user_reactions = set()
-    if user and user.is_authenticated:
-        user_reactions = set(
-            CommentReaction.objects.filter(comment_id__in=comment_ids, user=user).values_list("comment_id", "emoji")
-        )
-
-    # Query 3: user display names per (comment_id, emoji) for tooltips
-    names_qs = CommentReaction.objects.filter(comment_id__in=comment_ids).select_related("user").order_by("created")
+    counts_by_key = defaultdict(int)
     names_by_key = defaultdict(list)
-    for r in names_qs:
-        names_by_key[(r.comment_id, r.emoji)].append(_get_display_name(r.user))
+    user_reactions = set()
+
+    for r in all_reactions:
+        key = (r.comment_id, r.emoji)
+        counts_by_key[key] += 1
+        names_by_key[key].append(_get_display_name(r.user))
+        if user_id and r.user_id == user_id:
+            user_reactions.add(key)
 
     result = defaultdict(list)
-    for row in counts:
-        cid, emoji = row["comment_id"], row["emoji"]
+    for (cid, emoji), count in counts_by_key.items():
         result[cid].append(
             ReactionOut(
                 emoji=emoji,
-                count=row["count"],
+                count=count,
                 reacted=(cid, emoji) in user_reactions,
-                users=names_by_key.get((cid, emoji), [])[:10],
+                users=names_by_key[(cid, emoji)][:10],
             )
         )
     return result

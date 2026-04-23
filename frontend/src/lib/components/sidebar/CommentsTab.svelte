@@ -41,7 +41,7 @@
     getState as getRewindState,
     exitRewindMode,
   } from "../../../rewind/index.js";
-  import { getUserInfo } from "../../../config.js";
+  import { getUserInfo, getAppConfig } from "../../../config.js";
   import { showToast } from "../../toast.js";
 
   function getApi() {
@@ -60,7 +60,7 @@
   let applyingComment = $state(null);
   let showReactionPicker = $state(null); // external_id of comment showing picker
 
-  const ALLOWED_REACTIONS = ["👍", "👎", "❤️", "😄", "🎉", "😮", "🙏", "✅", "😎", "🙂"];
+  const ALLOWED_REACTIONS = getAppConfig().reactions?.allowedEmojis ?? ["👍", "👎", "❤️", "😄", "🎉", "😮", "🙏", "✅", "😎", "🙂"];
 
   async function handleToggleReaction(commentExternalId, emoji) {
     if (!currentPageId) return;
@@ -70,6 +70,7 @@
       comments = comments.map((c) => updateReactionsDeep(c, commentExternalId, updatedReactions));
     } catch (e) {
       console.error("Error toggling reaction:", e);
+      showToast("Couldn't toggle reaction", "error");
     }
   }
 

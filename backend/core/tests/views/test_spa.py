@@ -152,9 +152,21 @@ class TestGetAppConfig(TestCase):
 
         self.assertIn("imports", config)
         self.assertIn("filehub", config)
+        self.assertIn("reactions", config)
         self.assertIn("pdfMaxFileSize", config["imports"])
         self.assertIn("maxFileSize", config["imports"])
         self.assertIn("maxFileSize", config["filehub"])
+        self.assertIn("allowedEmojis", config["reactions"])
+
+    def test_reactions_allowed_emojis_matches_backend(self):
+        """reactions.allowedEmojis matches the backend ALLOWED_REACTIONS list."""
+        from pages.api.comments import ALLOWED_REACTIONS
+
+        config = get_app_config()
+
+        self.assertEqual(config["reactions"]["allowedEmojis"], list(ALLOWED_REACTIONS))
+        self.assertIsInstance(config["reactions"]["allowedEmojis"], list)
+        self.assertGreater(len(config["reactions"]["allowedEmojis"]), 0)
 
 
 class TestSPAAppConfigContext(BaseViewTestCase):
@@ -168,6 +180,7 @@ class TestSPAAppConfigContext(BaseViewTestCase):
         self.assertIn("app_config", response.context)
         self.assertIn("imports", response.context["app_config"])
         self.assertIn("filehub", response.context["app_config"])
+        self.assertIn("reactions", response.context["app_config"])
 
     def test_app_config_rendered_in_html(self):
         """app-config JSON script tag is present in response HTML."""

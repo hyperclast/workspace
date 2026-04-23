@@ -150,3 +150,38 @@ class TestReactionsInListComments(ReactionsTestMixin, BaseAuthenticatedViewTestC
         response = self.send_api_request(url=self.comments_url())
         data = response.json()
         self.assertEqual(data["items"][0]["reactions"], [])
+
+    def test_users_tooltip_capped_at_10(self):
+        """Tooltip user list is capped at 10 names even with more reactions."""
+        users = [UserFactory(first_name=f"User{i}") for i in range(12)]
+        for u in users:
+            OrgMemberFactory(org=self.org, user=u, role=OrgMemberRole.MEMBER.value)
+            CommentReaction.objects.create(comment=self.comment, user=u, emoji="👍")
+
+        response = self.send_api_request(url=self.comments_url())
+        data = response.json()
+        reaction = data["items"][0]["reactions"][0]
+        self.assertEqual(reaction["count"], 12)
+        self.assertEqual(len(reaction["users"]), 10)
+
+    def test_multiple_emojis_correct_counts_and_users(self):
+        """Each emoji group has independent counts and user lists."""
+        other_user = UserFactory()
+        OrgMemberFactory(org=self.org, user=other_user, role=OrgMemberRole.MEMBER.value)
+
+        # Both users react with 👍, only other_user reacts with ❤️
+        CommentReaction.objects.create(comment=self.comment, user=self.user, emoji="👍")
+        CommentReaction.objects.create(comment=self.comment, user=other_user, emoji="👍")
+        CommentReaction.objects.create(comment=self.comment, user=other_user, emoji="❤️")
+
+        response = self.send_api_request(url=self.comments_url())
+        data = response.json()
+        reactions = {r["emoji"]: r for r in data["items"][0]["reactions"]}
+
+        self.assertEqual(reactions["👍"]["count"], 2)
+        self.assertEqual(len(reactions["👍"]["users"]), 2)
+        self.assertTrue(reactions["👍"]["reacted"])  # current user reacted
+
+        self.assertEqual(reactions["❤️"]["count"], 1)
+        self.assertEqual(len(reactions["❤️"]["users"]), 1)
+        self.assertFalse(reactions["❤️"]["reacted"])  # current user didn't react

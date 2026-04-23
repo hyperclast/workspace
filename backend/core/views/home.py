@@ -2,6 +2,7 @@ from django.conf import settings
 from django.shortcuts import render, redirect
 
 from filehub.schemas import get_previewable_image_types
+from pages.api.comments import ALLOWED_REACTIONS
 from pages.models import Page
 
 
@@ -19,6 +20,9 @@ def get_app_config():
         },
         "filehub": {
             "maxFileSize": settings.WS_FILEHUB_MAX_FILE_SIZE_BYTES,
+        },
+        "reactions": {
+            "allowedEmojis": list(ALLOWED_REACTIONS),
         },
     }
 
