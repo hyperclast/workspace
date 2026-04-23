@@ -6,8 +6,7 @@
  *   1. User lands with an existing "Daily Notes" project and 3 dated pages
  *      sitting at the project root (no year/month folders).
  *   2. User clicks the sidenav calendar icon.
- *   3. Welcome modal tells them the existing project will be used AND that
- *      N existing notes will be auto-organized.
+ *   3. Welcome modal tells them that N existing notes will be auto-organized.
  *   4. User clicks "Got it".
  *   5. The 3 existing pages are filed into YYYY/MM folders and today's note
  *      opens.
@@ -200,21 +199,54 @@ test.describe("Daily Note onboarding — auto-organize existing notes", () => {
     try {
       await login(page);
 
+      // Wait for the app to finish loading — all initial API calls (project
+      // list, page data) and JS setup (event handlers) must complete before
+      // we interact with the UI.
+      await page.waitForLoadState("networkidle", { timeout: 15000 });
+
       // Calendar icon lives in the sidebar header, always visible when the
       // sidebar is open. Default desktop viewport shows it.
       const calendarBtn = page.locator("#sidebar-daily-note-btn");
       await calendarBtn.waitFor({ state: "visible", timeout: 5000 });
-      await calendarBtn.click();
 
-      // Welcome modal appears with existing-project copy and the organize hint
+      // Click the calendar and wait for the /today/ API call to confirm the
+      // click handler fired. The 409 response triggers the welcome modal flow.
+      const [todayResponse] = await Promise.all([
+        page.waitForResponse((r) => r.url().includes("/daily-note/today/"), { timeout: 10000 }),
+        calendarBtn.click(),
+      ]);
+      expect(todayResponse.status()).toBe(409);
+
+      // Welcome modal appears after detectWelcomeContext() fetches projects
       const modal = page.locator(".modal").filter({ hasText: "Daily Note" });
-      await modal.waitFor({ state: "visible", timeout: 5000 });
-      await expect(modal).toContainText("We'll use your existing");
+      await modal.waitFor({ state: "visible", timeout: 10000 });
       await expect(modal).toContainText("Daily Notes");
       await expect(modal).toContainText(`organize ${existingDates.length} existing notes`);
 
+      // Set up listener for the creation POST /today/ response (200) BEFORE
+      // clicking "Got it" so we don't miss it.  The 409 already fired above;
+      // the next matching response is the 200 that creates today's note.
+      const todayCreationPromise = page.waitForResponse(
+        (r) => r.url().includes("/daily-note/today/") && r.status() === 200,
+        { timeout: 30000 }
+      );
+
       // Proceed with the default (silent) path
       await modal.locator("button:has-text('Got it')").click();
+
+      // Wait for the creation response — this tells us the exact project and
+      // page title the backend used, eliminating date/project mismatches.
+      const creationResponse = await todayCreationPromise;
+      const creationData = await creationResponse.json();
+      const today = creationData.title;
+      const verifyProjectId = creationData.project_external_id;
+
+      // The auto-setup should have picked our seeded project.  If it didn't,
+      // another "Daily Notes" project was reachable — flag it explicitly.
+      expect(
+        verifyProjectId,
+        `auto-setup used project ${verifyProjectId} instead of seeded ${projectId}`
+      ).toBe(projectId);
 
       // Navigation to today's note — URL changes to /pages/{id}/
       await page.waitForURL(/\/pages\/[A-Za-z0-9]+\//, { timeout: 20000 });
@@ -223,12 +255,10 @@ test.describe("Daily Note onboarding — auto-organize existing notes", () => {
       // probing the API for folder state.
       await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
 
-      const today = new Date().toISOString().slice(0, 10);
-
       // Verify the editor shows today's note
       await page.waitForSelector(".cm-content", { timeout: 10000 });
 
-      const projectAfter = await fetchProject(page, projectId);
+      const projectAfter = await fetchProject(page, verifyProjectId);
 
       // Every seeded YYYY-MM-DD page is now inside a YYYY/MM folder pair
       const foldersByExtId = new Map((projectAfter.folders || []).map((f) => [f.external_id, f]));
@@ -252,7 +282,13 @@ test.describe("Daily Note onboarding — auto-organize existing notes", () => {
 
       // And today's newly-created note also lives under its YYYY/MM folder
       const todaysNote = pagesByTitle.get(today);
-      expect(todaysNote, "today's note should have been created").toBeTruthy();
+      const allTitles = (projectAfter.pages || []).map((p) => p.title);
+      expect(
+        todaysNote,
+        `today's note "${today}" not found in project ${verifyProjectId}; pages: [${allTitles.join(
+          ", "
+        )}]`
+      ).toBeTruthy();
       const todayMonthFolder = foldersByExtId.get(todaysNote.folder_id);
       const [tYear, tMonth] = today.split("-");
       expect(todayMonthFolder?.name).toBe(tMonth);

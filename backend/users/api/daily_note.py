@@ -1,11 +1,10 @@
 import re
 from datetime import date, datetime, timezone
-from typing import Optional
 
 from django.db import transaction
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
-from ninja import Router, Schema
+from ninja import Router
 from ninja.responses import Response
 
 from core.authentication import session_auth, token_auth
@@ -17,6 +16,7 @@ from users.schemas import (
     DailyNoteConfigOut,
     DailyNoteOrganizeIn,
     DailyNoteOrganizeOut,
+    DailyNoteTodayIn,
 )
 
 daily_note_router = Router(auth=[token_auth, session_auth])
@@ -25,20 +25,16 @@ DAILY_NOTE_TITLE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 DEFAULT_DAILY_NOTES_PROJECT_NAME = "Daily Notes"
 
 
-class DailyNoteTodayIn(Schema):
-    date: Optional[str] = None
-
-
 def _count_unorganized(project):
     """Count pages in the project with YYYY-MM-DD titles not already filed under YYYY/MM."""
     if project is None:
         return 0
 
-    pages = Page.objects.filter(project=project, is_deleted=False).select_related("folder", "folder__parent")
+    pages = Page.objects.filter(project=project, is_deleted=False, title__regex=r"^\d{4}-\d{2}-\d{2}$").select_related(
+        "folder", "folder__parent"
+    )
     count = 0
     for page in pages:
-        if not DAILY_NOTE_TITLE_RE.match(page.title or ""):
-            continue
         year, month, _ = page.title.split("-")
         expected_month = f"{int(month):02d}"
         folder = page.folder
@@ -156,7 +152,7 @@ def _get_or_create_year_month_folders(project, year: int, month: int):
     return year_folder, month_folder
 
 
-@daily_note_router.post("/today/", response={200: dict, 400: dict, 409: dict})
+@daily_note_router.post("/today/", response={200: dict, 400: dict, 403: dict, 409: dict})
 def open_today_daily_note(request: HttpRequest, payload: DailyNoteTodayIn = None):
     """Return today's daily note, creating it (and YYYY/MM folders) if missing.
 
@@ -172,6 +168,8 @@ def open_today_daily_note(request: HttpRequest, payload: DailyNoteTodayIn = None
         return 409, {"message": "Daily note not configured", "code": "daily_note_not_configured"}
 
     project = profile.daily_note_project
+    if not user_can_edit_in_project(user, project):
+        return 403, {"message": "You no longer have write access to this project."}
 
     requested_date = payload.date if payload else None
     if requested_date:
@@ -185,24 +183,31 @@ def open_today_daily_note(request: HttpRequest, payload: DailyNoteTodayIn = None
         today = datetime.now(timezone.utc).date()
     title = today.isoformat()
 
-    _, month_folder = _get_or_create_year_month_folders(project, today.year, today.month)
+    # Atomic find-or-create with select_for_update to prevent duplicate daily
+    # notes from concurrent requests (double-click, multiple tabs/devices).
+    with transaction.atomic():
+        _, month_folder = _get_or_create_year_month_folders(project, today.year, today.month)
 
-    page = Page.objects.filter(project=project, folder=month_folder, title=title, is_deleted=False).first()
-
-    if page is None:
-        details = {"content": "", "filetype": "md", "schema_version": 1}
-        if profile.daily_note_template_id and profile.daily_note_template.project_id == project.id:
-            source = profile.daily_note_template
-            if source.details:
-                details["content"] = source.details.get("content", "")
-                details["filetype"] = source.details.get("filetype", "md")
-        page = Page.objects.create_with_owner(
-            user=user,
-            project=project,
-            title=title,
-            details=details,
-            folder=month_folder,
+        page = (
+            Page.objects.select_for_update()
+            .filter(project=project, folder=month_folder, title=title, is_deleted=False)
+            .first()
         )
+
+        if page is None:
+            details = {"content": "", "filetype": "md", "schema_version": 1}
+            if profile.daily_note_template_id and profile.daily_note_template.project_id == project.id:
+                source = profile.daily_note_template
+                if source.details:
+                    details["content"] = source.details.get("content", "")
+                    details["filetype"] = source.details.get("filetype", "md")
+            page = Page.objects.create_with_owner(
+                user=user,
+                project=project,
+                title=title,
+                details=details,
+                folder=month_folder,
+            )
 
     return 200, {
         "external_id": page.external_id,
@@ -224,7 +229,9 @@ def organize_daily_notes(request: HttpRequest, payload: DailyNoteOrganizeIn):
     if not user_can_edit_in_project(user, project):
         return 403, {"message": "You don't have permission to write to this project."}
 
-    pages = Page.objects.filter(project=project, is_deleted=False).select_related("folder", "folder__parent")
+    pages = Page.objects.filter(project=project, is_deleted=False, title__regex=r"^\d{4}-\d{2}-\d{2}$").select_related(
+        "folder", "folder__parent"
+    )
 
     moved = 0
     skipped = 0
@@ -233,8 +240,6 @@ def organize_daily_notes(request: HttpRequest, payload: DailyNoteOrganizeIn):
     folder_cache: dict[tuple[int, int], Folder] = {}
 
     for page in pages:
-        if not DAILY_NOTE_TITLE_RE.match(page.title or ""):
-            continue
         total += 1
         year_s, month_s, _ = page.title.split("-")
         year, month = int(year_s), int(month_s)

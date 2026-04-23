@@ -1,14 +1,13 @@
 <script>
   import Modal from './Modal.svelte';
   import { fetchProjectsWithPages, updateDailyNoteConfig, organizeDailyNotes } from '../../api.js';
+  import { countUnorganizedDailyNotes } from '../dailyNote.js';
   import { showToast } from '../toast.js';
 
   let {
     open = $bindable(false),
     onconfigured = () => {},
   } = $props();
-
-  const DAILY_NOTE_TITLE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
   let projects = $state([]);
   let selectedProjectId = $state('');
@@ -27,28 +26,10 @@
   // Derived: count of YYYY-MM-DD pages in the selected project not already in YYYY/MM
   let unorganizedCount = $derived.by(() => {
     if (!selectedProject) return 0;
-    const pages = selectedProject.pages || [];
-    const folders = selectedProject.folders || [];
-    const foldersById = new Map(folders.map((f) => [f.external_id, f]));
-    let count = 0;
-    for (const page of pages) {
-      if (!DAILY_NOTE_TITLE_RE.test(page.title || '')) continue;
-      const [year, month] = page.title.split('-');
-      const expectedMonth = month; // already two digits
-      const folder = page.folder_id ? foldersById.get(page.folder_id) : null;
-      const parent = folder?.parent_id ? foldersById.get(folder.parent_id) : null;
-      if (
-        folder &&
-        parent &&
-        folder.name === expectedMonth &&
-        parent.name === year &&
-        !parent.parent_id
-      ) {
-        continue;
-      }
-      count += 1;
-    }
-    return count;
+    return countUnorganizedDailyNotes(
+      selectedProject.pages || [],
+      selectedProject.folders || [],
+    );
   });
 
   $effect(() => {

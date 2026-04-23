@@ -1,8 +1,10 @@
 from http import HTTPStatus
 
 from core.tests.common import BaseAuthenticatedViewTestCase
+from pages.constants import ProjectEditorRole
 from pages.models import Folder, Page, Project
-from pages.tests.factories import FolderFactory, PageFactory, ProjectFactory
+from pages.models.editors import ProjectEditor
+from pages.tests.factories import FolderFactory, PageFactory, ProjectEditorFactory, ProjectFactory
 from users.constants import OrgMemberRole
 from users.models import OrgMember, Profile
 from users.tests.factories import OrgFactory, OrgMemberFactory, UserFactory
@@ -255,6 +257,20 @@ class TestDailyNoteToday(DailyNoteTestBase):
         response = self.send_api_request(url=TODAY_URL, method="post", data={"date": "2026-02-30"})
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
 
+    def test_returns_403_when_user_lost_project_access(self):
+        """After config, if user loses write access to the project, /today/ must reject."""
+        other_user = UserFactory()
+        other_org = OrgFactory()
+        OrgMemberFactory(org=other_org, user=other_user, role=OrgMemberRole.ADMIN.value)
+        project = ProjectFactory(org=other_org, creator=other_user)
+
+        # Directly set the profile FK to bypass the config PATCH permission check
+        self._configure(project)
+
+        response = self.send_api_request(url=TODAY_URL, method="post", data={"date": "2026-04-18"})
+
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+
     def test_falls_back_to_utc_when_date_missing(self):
         project = ProjectFactory(org=self.org, creator=self.user)
         self._configure(project)
@@ -265,6 +281,66 @@ class TestDailyNoteToday(DailyNoteTestBase):
         payload = response.json()
         # Title should be a valid YYYY-MM-DD
         self.assertRegex(payload["title"], r"^\d{4}-\d{2}-\d{2}$")
+
+    def test_returns_409_when_project_deleted(self):
+        """If the configured project is hard-deleted (SET_NULL clears the FK), /today/ returns 409."""
+        project = ProjectFactory(org=self.org, creator=self.user)
+        self._configure(project)
+
+        # Simulate SET_NULL by deleting the project from the DB
+        project.delete()
+
+        profile = self._profile()
+        self.assertIsNone(profile.daily_note_project_id)
+
+        response = self.send_api_request(url=TODAY_URL, method="post", data={"date": "2026-04-18"})
+
+        self.assertEqual(response.status_code, HTTPStatus.CONFLICT)
+        self.assertEqual(response.json().get("code"), "daily_note_not_configured")
+
+    def test_creates_blank_note_when_template_deleted(self):
+        """If the configured template is hard-deleted (SET_NULL clears the FK), /today/ creates a blank note."""
+        project = ProjectFactory(org=self.org, creator=self.user)
+        template = PageFactory(
+            project=project,
+            creator=self.user,
+            title="Daily Template",
+            details={"content": "# Template content", "filetype": "md"},
+        )
+        self._configure(project, template=template)
+
+        # Simulate SET_NULL by deleting the template from the DB
+        template.delete()
+
+        profile = self._profile()
+        self.assertIsNone(profile.daily_note_template_id)
+
+        response = self.send_api_request(url=TODAY_URL, method="post", data={"date": "2026-04-18"})
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        page = Page.objects.get(external_id=response.json()["external_id"])
+        self.assertEqual(page.details.get("content"), "")
+
+    def test_auto_creates_new_project_when_user_has_viewer_only_daily_notes(self):
+        """auto=true should create a new project when the user only has viewer access to a 'Daily Notes' project."""
+        other_user = UserFactory()
+        other_org = OrgFactory()
+        OrgMemberFactory(org=other_org, user=other_user, role=OrgMemberRole.ADMIN.value)
+        existing = ProjectFactory(org=other_org, creator=other_user, name="Daily Notes")
+
+        # Give our user viewer-only access to the existing project
+        ProjectEditorFactory(user=self.user, project=existing, role=ProjectEditorRole.VIEWER.value)
+
+        response = self.send_api_request(url=CONFIG_URL, method="patch", data={"auto": True})
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        payload = response.json()
+        # Backend should create a new project, not reuse the viewer-only one
+        self.assertNotEqual(payload["project"]["external_id"], existing.external_id)
+        self.assertEqual(payload["project"]["name"], "Daily Notes")
+
+        new_project = Project.objects.get(external_id=payload["project"]["external_id"])
+        self.assertEqual(new_project.creator_id, self.user.id)
 
 
 class TestDailyNoteOrganize(DailyNoteTestBase):
@@ -332,6 +408,23 @@ class TestDailyNoteOrganize(DailyNoteTestBase):
         page.refresh_from_db()
         self.assertIsNone(page.folder)
         self.assertFalse(Folder.objects.filter(project=project).exists())
+
+    def test_organize_excludes_non_date_titles_at_db_level(self):
+        """Pages with non-YYYY-MM-DD titles should never be loaded from the DB."""
+        project = ProjectFactory(org=self.org, creator=self.user)
+        self._configure(project)
+
+        PageFactory(project=project, creator=self.user, title="2026-04-01", folder=None)
+        PageFactory(project=project, creator=self.user, title="Meeting Notes", folder=None)
+        PageFactory(project=project, creator=self.user, title="2026-ab-01", folder=None)
+        PageFactory(project=project, creator=self.user, title="not-a-date", folder=None)
+
+        response = self.send_api_request(url=ORGANIZE_URL, method="post", data={"dry_run": True})
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        body = response.json()
+        self.assertEqual(body["total_matched"], 1)
+        self.assertEqual(body["moved_count"], 1)
 
     def test_skips_pages_already_in_correct_folder(self):
         project = ProjectFactory(org=self.org, creator=self.user)

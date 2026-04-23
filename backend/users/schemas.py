@@ -373,6 +373,16 @@ class DailyNoteConfigIn(Schema):
     template_external_id: Optional[str] = None
 
 
+class DailyNoteTodayIn(Schema):
+    """Request body for the /today/ endpoint.
+
+    The client passes its local-timezone date so the correct daily note is
+    created regardless of server timezone.  Falls back to UTC when omitted.
+    """
+
+    date: Optional[str] = None
+
+
 class DailyNoteOrganizeIn(Schema):
     """Request body for organize endpoint."""
 

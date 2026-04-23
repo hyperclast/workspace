@@ -27,11 +27,33 @@ import { showToast } from "./toast.js";
 
 const DAILY_NOTE_TITLE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * Count YYYY-MM-DD pages not already filed under their correct YYYY/MM folder.
+ * Shared by detectWelcomeContext() and DailyNoteWizard.
+ */
+export function countUnorganizedDailyNotes(pages, folders) {
+  const foldersById = new Map(folders.map((f) => [f.external_id, f]));
+  let count = 0;
+  for (const page of pages) {
+    if (!DAILY_NOTE_TITLE_RE.test(page.title || "")) continue;
+    const [year, month] = page.title.split("-");
+    if (isNaN(Number(month))) continue;
+    const folder = page.folder_id ? foldersById.get(page.folder_id) : null;
+    const parent = folder?.parent_id ? foldersById.get(folder.parent_id) : null;
+    if (folder && parent && folder.name === month && parent.name === year && !parent.parent_id) {
+      continue;
+    }
+    count += 1;
+  }
+  return count;
+}
+
 // Registered by main.js at startup so we can do in-place page swaps (same code
 // path as sidenav clicks). Falls back to pushState+popstate, which forces the
 // router to re-import main.js — correct but visually causes a full-app blink.
 let pageNavigator = null;
 let sidenavRefresher = null;
+let cachedProjectsGetter = null;
 
 /**
  * Register the lightweight page-swap function (typically main.js's `openPage`).
@@ -47,6 +69,16 @@ export function setPageNavigator(fn) {
  */
 export function setSidenavRefresher(fn) {
   sidenavRefresher = fn;
+}
+
+/**
+ * Register a getter that returns the current cached project list (with pages
+ * and folders).  Used by `detectWelcomeContext()` to avoid a redundant network
+ * round trip when the sidenav has already fetched the data.
+ * Call once during app init.
+ */
+export function setCachedProjectsGetter(fn) {
+  cachedProjectsGetter = fn;
 }
 
 async function refreshSidenav() {
@@ -68,15 +100,21 @@ function navigateToPage(externalId) {
 }
 
 /**
- * Best-effort detection for the welcome modal copy. Uses the project list the
- * sidenav has already fetched — no extra network round trip when possible.
+ * Best-effort detection for the welcome modal copy. Counts unorganized daily
+ * notes in any visible "Daily Notes" project.
+ *
+ * Never sets `projectExists: true` because we cannot determine writability
+ * client-side — the backend auto-setup may create a new project even when a
+ * read-only "Daily Notes" project is visible.
  */
 async function detectWelcomeContext() {
-  let projects;
-  try {
-    projects = await fetchProjectsWithPages();
-  } catch {
-    return { projectName: "Daily Notes", projectExists: false, unorganizedCount: 0 };
+  let projects = cachedProjectsGetter?.();
+  if (!projects || projects.length === 0) {
+    try {
+      projects = await fetchProjectsWithPages();
+    } catch {
+      return { projectName: "Daily Notes", projectExists: false, unorganizedCount: 0 };
+    }
   }
 
   const existing = projects.find((p) => (p.name || "").toLowerCase() === "daily notes");
@@ -84,24 +122,11 @@ async function detectWelcomeContext() {
     return { projectName: "Daily Notes", projectExists: false, unorganizedCount: 0 };
   }
 
-  const pages = existing.pages || [];
-  const folders = existing.folders || [];
-  const foldersById = new Map(folders.map((f) => [f.external_id, f]));
-  let unorganizedCount = 0;
-  for (const page of pages) {
-    if (!DAILY_NOTE_TITLE_RE.test(page.title || "")) continue;
-    const [year, month] = page.title.split("-");
-    const folder = page.folder_id ? foldersById.get(page.folder_id) : null;
-    const parent = folder?.parent_id ? foldersById.get(folder.parent_id) : null;
-    if (folder && parent && folder.name === month && parent.name === year && !parent.parent_id) {
-      continue;
-    }
-    unorganizedCount += 1;
-  }
+  const unorganizedCount = countUnorganizedDailyNotes(existing.pages || [], existing.folders || []);
 
   return {
-    projectName: existing.name,
-    projectExists: true,
+    projectName: "Daily Notes",
+    projectExists: false,
     unorganizedCount,
   };
 }
