@@ -702,6 +702,23 @@ func main() {
     <div class="dev-loading">Loading...</div>
   {:else}
     <div class="dev-scrollable">
+      <a href="/dev/mcp/" target="_blank" rel="noopener noreferrer" class="mcp-cta">
+        <div class="mcp-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+            <path d="M2 17l10 5 10-5"></path>
+            <path d="M2 12l10 5 10-5"></path>
+          </svg>
+        </div>
+        <div class="mcp-text">
+          <span class="mcp-title">Let Claude & Cursor work on your pages</span>
+          <span class="mcp-desc">One-command setup to connect via MCP</span>
+        </div>
+        <svg class="mcp-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </a>
+
       <div class="lang-switcher">
       {#each mainLanguages as lang (lang.id)}
         <button
@@ -1109,6 +1126,65 @@ func main() {
   .api-docs-link svg {
     width: 16px;
     height: 16px;
+  }
+
+  .mcp-cta {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(135deg, rgba(249, 168, 37, 0.08) 0%, rgba(230, 81, 0, 0.1) 100%);
+    border: 1px solid rgba(230, 81, 0, 0.2);
+    border-radius: 8px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .mcp-cta:hover {
+    background: linear-gradient(135deg, rgba(249, 168, 37, 0.16) 0%, rgba(230, 81, 0, 0.18) 100%);
+    border-color: rgba(230, 81, 0, 0.35);
+  }
+
+  .mcp-cta:hover .mcp-arrow {
+    transform: translateX(2px);
+  }
+
+  .mcp-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #f9a825 0%, #e65100 100%);
+    border-radius: 6px;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .mcp-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .mcp-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .mcp-desc {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .mcp-arrow {
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+    transition: transform 0.15s;
   }
 
   /* Demo mode styles */
