@@ -11,21 +11,26 @@ MENTION_PATTERN = re.compile(r"@\[([^\]]+)\]\(@([a-zA-Z0-9]+)\)")
 
 
 class PageMentionManager(models.Manager):
-    @transaction.atomic
     def sync_mentions_for_page(self, source_page, content):
         """
         Parse content for @mentions and sync the PageMention table.
         Only modifies DB if mentions have actually changed.
         Returns (created_mentions, changed) tuple where changed indicates if any modifications were made.
         """
-        # Extract unique user external_ids from content
-        mentioned_ids = set()
-        for match in MENTION_PATTERN.finditer(content):
-            mentioned_ids.add(match.group(2))
+        mentioned_ids = [match.group(2) for match in MENTION_PATTERN.finditer(content)]
+        return self.sync_parsed_mentions(source_page, mentioned_ids)
 
+    @transaction.atomic
+    def sync_parsed_mentions(self, source_page, mentioned_external_ids):
+        """Variant of sync_mentions_for_page that accepts already-extracted
+        user external IDs, avoiding a redundant regex sweep when the caller
+        has already parsed the content (e.g. the combined parser in
+        pages.services.content_refs).
+        """
         # Resolve to user IDs
-        if mentioned_ids:
-            users = User.objects.filter(external_id__in=mentioned_ids)
+        unique_external_ids = set(mentioned_external_ids)
+        if unique_external_ids:
+            users = User.objects.filter(external_id__in=unique_external_ids)
             desired_user_ids = set(users.values_list("id", flat=True))
         else:
             desired_user_ids = set()

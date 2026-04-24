@@ -16,17 +16,26 @@ export function getSections(doc) {
   const lineCount = doc.lines;
   const headings = [];
 
-  for (let i = 1; i <= lineCount; i++) {
-    const line = doc.line(i);
-    const parsed = parseHeadingLevel(line.text);
+  // Stream lines with iterLines() (linear walk) instead of calling doc.line(i)
+  // inside a per-line loop, which is O(log n) per call on CodeMirror's piece
+  // tree. We only resolve `from` (via doc.line) for actual heading lines, which
+  // are typically a small fraction of the document.
+  let lineNum = 0;
+  const iter = doc.iterLines();
+  iter.next();
+  while (!iter.done) {
+    lineNum++;
+    const text = iter.value;
+    const parsed = parseHeadingLevel(text);
     if (parsed) {
       headings.push({
-        from: line.from,
-        line: i,
+        from: doc.line(lineNum).from,
+        line: lineNum,
         level: parsed.level,
         headingText: parsed.text,
       });
     }
+    iter.next();
   }
 
   if (headings.length === 0) {
@@ -47,7 +56,6 @@ export function getSections(doc) {
     }
 
     if (j < headings.length) {
-      const nextSameLevelLine = doc.line(headings[j].line);
       const prevLineNum = headings[j].line - 1;
       if (prevLineNum >= 1) {
         sectionEnd = doc.line(prevLineNum).to;

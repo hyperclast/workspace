@@ -441,36 +441,60 @@ class TestSyncSnapshotContentOnly(TestCase):
 
     @patch("collab.tasks.PageLink")
     def test_content_only_skips_link_sync(self, mocked_page_link, mocked_compute):
-        """content_only=True does not call sync_links_for_page."""
+        """content_only=True does not call sync_parsed_links."""
         page = PageFactory()
         room_id = f"page_{page.external_id}"
         self._make_snapshot(room_id, "Some text")
 
         sync_snapshot_with_page(room_id, content_only=True)
 
-        mocked_page_link.objects.sync_links_for_page.assert_not_called()
+        mocked_page_link.objects.sync_parsed_links.assert_not_called()
 
     @patch("collab.tasks.PageMention")
     def test_content_only_skips_mention_sync(self, mocked_mention, mocked_compute):
-        """content_only=True does not call sync_mentions_for_page."""
+        """content_only=True does not call sync_parsed_mentions."""
         page = PageFactory()
         room_id = f"page_{page.external_id}"
         self._make_snapshot(room_id, "Some text")
 
         sync_snapshot_with_page(room_id, content_only=True)
 
-        mocked_mention.objects.sync_mentions_for_page.assert_not_called()
+        mocked_mention.objects.sync_parsed_mentions.assert_not_called()
 
     @patch("collab.tasks.FileLink")
     def test_content_only_skips_file_link_sync(self, mocked_file_link, mocked_compute):
-        """content_only=True does not call FileLink.objects.sync_links_for_page."""
+        """content_only=True does not call FileLink.objects.sync_parsed_file_links."""
         page = PageFactory()
         room_id = f"page_{page.external_id}"
         self._make_snapshot(room_id, "Some text")
 
         sync_snapshot_with_page(room_id, content_only=True)
 
-        mocked_file_link.objects.sync_links_for_page.assert_not_called()
+        mocked_file_link.objects.sync_parsed_file_links.assert_not_called()
+
+    @patch("collab.tasks.FileLink")
+    @patch("collab.tasks.PageMention")
+    @patch("collab.tasks.PageLink")
+    def test_content_only_false_calls_parsed_sync_methods(
+        self, mocked_page_link, mocked_mention, mocked_file_link, mocked_compute
+    ):
+        """content_only=False (default) calls the sync_parsed_* entry points
+        exactly once each — locks in the combined-parse code path so a future
+        refactor cannot silently route back to the old per-manager sweeps.
+        """
+        mocked_page_link.objects.sync_parsed_links.return_value = ([], False)
+        mocked_mention.objects.sync_parsed_mentions.return_value = ([], False)
+        mocked_file_link.objects.sync_parsed_file_links.return_value = ([], False)
+
+        page = PageFactory()
+        room_id = f"page_{page.external_id}"
+        self._make_snapshot(room_id, "Some text")
+
+        sync_snapshot_with_page(room_id, content_only=False)
+
+        mocked_page_link.objects.sync_parsed_links.assert_called_once()
+        mocked_mention.objects.sync_parsed_mentions.assert_called_once()
+        mocked_file_link.objects.sync_parsed_file_links.assert_called_once()
 
     @patch("pages.services.rewind.maybe_create_rewind")
     def test_content_only_skips_rewind_creation(self, mocked_rewind, mocked_compute):
@@ -499,6 +523,102 @@ class TestSyncSnapshotContentOnly(TestCase):
         """content_only=True handles missing snapshot gracefully (no crash)."""
         sync_snapshot_with_page("page_nonexistent", content_only=True)
         mocked_compute.enqueue.assert_not_called()
+
+
+@override_settings(ASK_FEATURE_ENABLED=False)
+@patch("collab.tasks.update_page_embedding")
+class TestSyncSnapshotMixedReferences(TestCase):
+    """Integration test for the single-pass reference parsing in
+    sync_snapshot_with_page.
+
+    Snapshot content contains page links, @mentions, and file links mixed
+    together. The resulting PageLink / PageMention / FileLink rows must match
+    what the per-manager `sync_*_for_page` methods produce on the same
+    content (those methods are the other caller of the reference parsers,
+    used by e.g. Notion import, and keep their own regexes).
+    """
+
+    def _make_snapshot(self, room_id, content):
+        doc = Doc()
+        ytext = Text()
+        doc["codemirror"] = ytext
+        ytext += content
+        return YSnapshot.objects.create(
+            room_id=room_id,
+            snapshot=doc.get_update(),
+            last_update_id=1,
+        )
+
+    def test_mixed_references_match_per_manager_sync(self, mocked_compute):
+        from filehub.models import FileLink
+        from filehub.tests.factories import FileUploadFactory
+        from pages.models import PageLink, PageMention
+        from users.tests.factories import UserFactory
+
+        source_page = PageFactory()
+        project = source_page.project
+        target_page = PageFactory(project=project)
+        mentioned_user = UserFactory()
+        file1 = FileUploadFactory(uploaded_by=source_page.creator, project=project)
+
+        content = (
+            f"Ping @[mentioned](@{mentioned_user.external_id}) about this.\n"
+            f"Refs: [Target](/pages/{target_page.external_id}/)\n"
+            f"See [Spec](/pages/{target_page.external_id}/) for details.\n"
+            f"Attachment: [spec.bin](/files/{project.external_id}/{file1.external_id}/"
+            f"{file1.access_token}/)\n"
+            f"Absolute: [hosted](https://example.test/files/{project.external_id}/"
+            f"{file1.external_id}/{file1.access_token}/)\n"
+            "Unrelated: [docs](https://example.com/docs)\n"
+            "Garbage: @[nope](not-a-url) and [bad file](/files/p/not-a-uuid/tok/)\n"
+        )
+
+        room_id = f"page_{source_page.external_id}"
+        self._make_snapshot(room_id, content)
+
+        sync_snapshot_with_page(room_id)
+
+        new_path_page_links = set(
+            PageLink.objects.filter(source_page=source_page).values_list("target_page_id", "link_text")
+        )
+        new_path_mentions = set(
+            PageMention.objects.filter(source_page=source_page).values_list("mentioned_user_id", flat=True)
+        )
+        new_path_file_links = set(
+            FileLink.objects.filter(source_page=source_page).values_list("target_file_id", "link_text")
+        )
+
+        # Wipe and run the per-manager (old) sync path against the same content
+        # to get the reference expectation.
+        PageLink.objects.filter(source_page=source_page).delete()
+        PageMention.objects.filter(source_page=source_page).delete()
+        FileLink.objects.filter(source_page=source_page).delete()
+
+        PageLink.objects.sync_links_for_page(source_page, content)
+        PageMention.objects.sync_mentions_for_page(source_page, content)
+        FileLink.objects.sync_links_for_page(source_page, content)
+
+        old_path_page_links = set(
+            PageLink.objects.filter(source_page=source_page).values_list("target_page_id", "link_text")
+        )
+        old_path_mentions = set(
+            PageMention.objects.filter(source_page=source_page).values_list("mentioned_user_id", flat=True)
+        )
+        old_path_file_links = set(
+            FileLink.objects.filter(source_page=source_page).values_list("target_file_id", "link_text")
+        )
+
+        self.assertEqual(new_path_page_links, old_path_page_links)
+        self.assertEqual(new_path_mentions, old_path_mentions)
+        self.assertEqual(new_path_file_links, old_path_file_links)
+
+        # Sanity: the expected refs actually landed (not both empty).
+        self.assertEqual(new_path_page_links, {(target_page.id, "Target"), (target_page.id, "Spec")})
+        self.assertEqual(new_path_mentions, {mentioned_user.id})
+        self.assertEqual(
+            new_path_file_links,
+            {(file1.id, "spec.bin"), (file1.id, "hosted")},
+        )
 
 
 @override_settings(ASK_FEATURE_ENABLED=False)

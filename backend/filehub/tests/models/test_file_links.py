@@ -100,12 +100,16 @@ class FileLinkModelTests(TestCase):
     def test_sync_links_handles_absolute_urls(self):
         """Test that absolute URLs with domain are also matched."""
         content = (
-            f"Check out [hosted](/files/{self.project.external_id}/{self.file.external_id}/{self.file.access_token}/)"
+            f"Check out [hosted](https://example.test/files/{self.project.external_id}/"
+            f"{self.file.external_id}/{self.file.access_token}/)"
         )
 
         FileLink.objects.sync_links_for_page(self.page, content)
 
         self.assertEqual(FileLink.objects.count(), 1)
+        link = FileLink.objects.first()
+        self.assertEqual(link.target_file, self.file)
+        self.assertEqual(link.link_text, "hosted")
 
     def test_sync_links_returns_changed_flag(self):
         """Test that sync returns changed=True when links are added/removed, False otherwise."""

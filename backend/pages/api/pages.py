@@ -65,7 +65,9 @@ pages_router = Router(auth=[token_auth, session_auth])
 @paginate
 def list_pages(request: HttpRequest):
     """Return all pages accessible by the authenticated user with pagination."""
-    return Page.objects.get_user_accessible_pages(request.user).order_by("-updated")
+    # select_related("folder") avoids an N+1 in PageOut.resolve_folder_id, which
+    # accesses obj.folder.external_id for each page in the response.
+    return Page.objects.get_user_accessible_pages(request.user).select_related("folder").order_by("-updated")
 
 
 @pages_router.get("/autocomplete/", response=PagesAutocompleteOut)
@@ -144,7 +146,8 @@ def create_page(request: HttpRequest, payload: PageIn):
 def get_page(request: HttpRequest, external_id: str):
     """Get a specific page by external ID."""
     page = get_object_or_404(
-        Page.objects.get_user_accessible_pages(request.user),
+        # select_related("folder") avoids an extra query in PageOut.resolve_folder_id.
+        Page.objects.get_user_accessible_pages(request.user).select_related("folder"),
         external_id=external_id,
     )
     page.role = get_page_access_level(request.user, page).value
@@ -157,7 +160,9 @@ def update_page(
     external_id: str,
     payload: PageUpdateIn,
 ):
-    page = get_object_or_404(Page, external_id=external_id)
+    # select_related("folder") avoids an extra query in PageOut.resolve_folder_id
+    # for the response serialization when folder is not being changed.
+    page = get_object_or_404(Page.objects.select_related("folder"), external_id=external_id)
 
     # First check if user has access to the page at all
     # Return 404 to prevent information disclosure about page existence

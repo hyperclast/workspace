@@ -79,6 +79,10 @@ export const decorateLinks = ViewPlugin.fromClass(
       const builder = [];
       const { state } = view;
       const cursorPos = state.selection.main.head;
+      // Hoisted out of the per-line loop to avoid recompiling the regex on every
+      // visible line on every keystroke / scroll / selection change. lastIndex is
+      // reset per line below.
+      const regex = new RegExp(MARKDOWN_LINK_REGEX.source, "g");
 
       for (const { from, to } of view.visibleRanges) {
         const startLine = state.doc.lineAt(from).number;
@@ -87,9 +91,9 @@ export const decorateLinks = ViewPlugin.fromClass(
         for (let lineNum = startLine; lineNum <= endLine; lineNum++) {
           const line = state.doc.line(lineNum);
           const lineText = line.text;
+          regex.lastIndex = 0;
 
           let match;
-          const regex = new RegExp(MARKDOWN_LINK_REGEX.source, "g");
 
           while ((match = regex.exec(lineText)) !== null) {
             const start = line.from + match.index;
@@ -139,8 +143,8 @@ export const decorateLinks = ViewPlugin.fromClass(
         }
       }
 
-      builder.sort((a, b) => a.from - b.from || a.startSide - b.startSide);
-
+      // Decoration.set(builder, true) sorts the ranges internally, so the
+      // explicit JS sort that used to live here was duplicated work.
       return Decoration.set(builder, true);
     }
   },

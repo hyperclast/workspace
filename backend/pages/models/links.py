@@ -7,20 +7,23 @@ INTERNAL_LINK_PATTERN = re.compile(r"\[([^\]]+)\]\(/pages/([a-zA-Z0-9]+)/?\)")
 
 
 class PageLinkManager(models.Manager):
-    @transaction.atomic
     def sync_links_for_page(self, source_page, content):
         """
         Parse content for internal links and sync the PageLink table.
         Only modifies DB if links have actually changed.
         Returns (created_links, changed) tuple where changed indicates if any modifications were made.
         """
-        from pages.models import Page
+        parsed_links = [(match.group(1), match.group(2)) for match in INTERNAL_LINK_PATTERN.finditer(content)]
+        return self.sync_parsed_links(source_page, parsed_links)
 
-        parsed_links = []
-        for match in INTERNAL_LINK_PATTERN.finditer(content):
-            link_text = match.group(1)
-            target_external_id = match.group(2)
-            parsed_links.append((link_text, target_external_id))
+    @transaction.atomic
+    def sync_parsed_links(self, source_page, parsed_links):
+        """Variant of sync_links_for_page that accepts pre-parsed
+        (link_text, target_external_id) tuples, avoiding a redundant regex
+        sweep when the caller has already parsed the content (e.g. the
+        combined parser in pages.services.content_refs).
+        """
+        from pages.models import Page
 
         target_ids = [ext_id for _, ext_id in parsed_links]
         target_pages = (

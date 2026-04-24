@@ -1,8 +1,9 @@
 import re
-import uuid
 
 from django.db import models, transaction
 from django_extensions.db.models import TimeStampedModel
+
+from core.helpers import is_valid_uuid
 
 
 # Match: [link text](/files/{project_id}/{file_id}/{token}/)
@@ -12,25 +13,13 @@ FILE_LINK_PATTERN = re.compile(
 )
 
 
-def is_valid_uuid(value):
-    """Check if a string is a valid UUID."""
-    try:
-        uuid.UUID(value)
-        return True
-    except (ValueError, AttributeError):
-        return False
-
-
 class FileLinkManager(models.Manager):
-    @transaction.atomic
     def sync_links_for_page(self, source_page, content):
         """
         Parse content for file links and sync the FileLink table.
         Only modifies DB if links have actually changed.
         Returns (created_links, changed) tuple where changed indicates if any modifications were made.
         """
-        from filehub.models import FileUpload
-
         parsed_links = []
         for match in FILE_LINK_PATTERN.finditer(content):
             link_text = match.group(1)
@@ -38,6 +27,18 @@ class FileLinkManager(models.Manager):
             # Only include valid UUIDs to avoid DB query errors
             if is_valid_uuid(target_file_id):
                 parsed_links.append((link_text, target_file_id))
+        return self.sync_parsed_file_links(source_page, parsed_links)
+
+    @transaction.atomic
+    def sync_parsed_file_links(self, source_page, parsed_links):
+        """Variant of sync_links_for_page that accepts pre-parsed
+        (link_text, target_file_external_id) tuples, avoiding a redundant
+        regex sweep when the caller has already parsed the content (e.g.
+        the combined parser in pages.services.content_refs).
+
+        Caller is responsible for UUID-validating target_file_external_id.
+        """
+        from filehub.models import FileUpload
 
         file_ids = [fid for _, fid in parsed_links]
         target_files = (

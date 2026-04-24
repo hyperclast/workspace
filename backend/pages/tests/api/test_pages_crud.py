@@ -1150,3 +1150,159 @@ class TestGetPageRoleField(BaseAuthenticatedViewTestCase):
         items = response.json()["items"]
         self.assertTrue(len(items) > 0)
         self.assertIsNone(items[0]["role"])
+
+
+class TestPagesListQueryCount(BaseAuthenticatedViewTestCase):
+    """Regression tests for the `select_related("folder")` N+1 fix on
+    PageOut-returning endpoints.
+
+    PageOut.resolve_folder_id dereferences obj.folder.external_id for every
+    page in the response. Without select_related("folder") on the queryset,
+    each page with a folder triggers one extra SELECT against pages_folder,
+    making list_pages scale O(pages_in_folders) in query count. These tests
+    assert that query count does NOT grow with the number of pages returned,
+    and that a single-page GET/PUT does not issue a second query to resolve
+    the folder.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.org = OrgFactory()
+        OrgMemberFactory(org=self.org, user=self.user, role=OrgMemberRole.ADMIN.value)
+        self.project = ProjectFactory(org=self.org, creator=self.user)
+        # Folders are created once here — the (project, name) uniqueness
+        # constraint on root folders would reject a second FolderFactory
+        # call with the same name inside a single test.
+        self.folder_a = FolderFactory(project=self.project, parent=None, name="A")
+        self.folder_b = FolderFactory(project=self.project, parent=None, name="B")
+
+    def _create_pages_in_folders(self, count):
+        """Create `count` pages distributed across a few folders in self.project."""
+        folders = [self.folder_a, self.folder_b, None]  # mix: some pages unfiled
+        for i in range(count):
+            PageFactory(project=self.project, creator=self.user, folder=folders[i % len(folders)])
+
+    def _warm_up(self, url):
+        """Issue a throwaway request so session / auth middleware caches are
+        primed before the measured calls. Without this, the first measured
+        call lands with several extra SELECTs (session fetch, user load,
+        permission caches) that subsequent calls skip, and the N+1 delta we
+        actually care about gets lost in the noise.
+        """
+        self.send_api_request(url=url, method="get")
+
+    def test_list_pages_query_count_does_not_grow_with_folder_pages(self):
+        """Query count must be independent of how many returned pages sit in folders.
+
+        The hallmark of the pre-fix N+1 was one extra SELECT per page with a
+        folder; scaling the fixture from 3 to 12 pages (with the same mix of
+        folders) would add ~6 queries. With select_related("folder") in place,
+        both counts are identical.
+        """
+        self._create_pages_in_folders(3)
+        self._warm_up("/api/pages/")
+        small_count = _count_queries(self, "/api/pages/")
+
+        # Grow the dataset; every added page in a folder would be one extra
+        # query in the N+1 regime.
+        self._create_pages_in_folders(9)
+        large_count = _count_queries(self, "/api/pages/")
+
+        self.assertEqual(
+            small_count,
+            large_count,
+            f"list_pages query count grew with page count ({small_count} → {large_count}); "
+            "N+1 on folder dereference has regressed — check select_related('folder') "
+            "on the queryset in list_pages.",
+        )
+
+    def test_get_page_does_not_issue_extra_query_for_folder(self):
+        """GET /api/pages/{id}/ must issue the same number of queries whether
+        or not the target page sits in a folder. Without select_related,
+        a page-in-folder response would trigger one extra SELECT for the
+        folder on serialization.
+        """
+        page_no_folder = PageFactory(project=self.project, creator=self.user, folder=None)
+        page_in_folder = PageFactory(project=self.project, creator=self.user, folder=self.folder_a)
+
+        self._warm_up(f"/api/pages/{page_no_folder.external_id}/")
+        count_no_folder = _count_queries(self, f"/api/pages/{page_no_folder.external_id}/")
+        count_in_folder = _count_queries(self, f"/api/pages/{page_in_folder.external_id}/")
+
+        self.assertEqual(
+            count_no_folder,
+            count_in_folder,
+            f"GET /api/pages/{{id}}/ issued more queries for a page in a folder "
+            f"({count_in_folder}) than for a page at project root ({count_no_folder}); "
+            "select_related('folder') on get_page is missing or ineffective.",
+        )
+
+    def test_update_page_does_not_issue_extra_query_for_folder(self):
+        """PUT /api/pages/{id}/ response serialization must not issue an extra
+        query to resolve the folder when the page is in one.
+        """
+        page_no_folder = PageFactory(project=self.project, creator=self.user, folder=None)
+        page_in_folder = PageFactory(project=self.project, creator=self.user, folder=self.folder_a)
+
+        self._warm_up(f"/api/pages/{page_no_folder.external_id}/")
+        # Title-only update; request body does NOT mention folder_id so the
+        # update path does not re-fetch/assign the folder.
+        count_no_folder = _count_queries(
+            self,
+            f"/api/pages/{page_no_folder.external_id}/",
+            method="put",
+            data={"title": "Updated A"},
+        )
+        count_in_folder = _count_queries(
+            self,
+            f"/api/pages/{page_in_folder.external_id}/",
+            method="put",
+            data={"title": "Updated B"},
+        )
+
+        self.assertEqual(
+            count_no_folder,
+            count_in_folder,
+            f"PUT /api/pages/{{id}}/ issued more queries for a page in a folder "
+            f"({count_in_folder}) than for a page at project root ({count_no_folder}); "
+            "select_related('folder') on update_page is missing or ineffective.",
+        )
+
+    def test_create_with_owner_caches_folder_on_instance(self):
+        """POST /api/pages/ is the one PageOut-returning endpoint that does
+        not fetch the page through select_related('folder') — it creates a
+        fresh instance and hands it straight to the serializer. Correctness
+        there relies on create_with_owner(folder=folder_instance) leaving the
+        folder descriptor cached on the returned Page, so that
+        PageOut.resolve_folder_id can read folder.external_id without an
+        extra SELECT. Lock that invariant in: if a future refactor assigns
+        only folder_id (not the instance), this test catches the regression
+        before it becomes a per-response N+1.
+        """
+        page = Page.objects.create_with_owner(
+            user=self.user,
+            project=self.project,
+            title="Cached folder",
+            folder=self.folder_a,
+        )
+        with self.assertNumQueries(0):
+            self.assertEqual(page.folder.external_id, self.folder_a.external_id)
+
+
+def _count_queries(test_case, url, method="get", data=None):
+    """Run an authenticated API request against `url` and return the number
+    of SQL queries it executed. Also asserts the response was 2xx so a later
+    auth/permission regression doesn't silently skip the N+1 path.
+    """
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    with CaptureQueriesContext(connection) as ctx:
+        response = test_case.send_api_request(url=url, method=method, data=data)
+
+    test_case.assertLess(
+        response.status_code,
+        300,
+        f"{method.upper()} {url} returned {response.status_code}; cannot measure N+1 on a failed response.",
+    )
+    return len(ctx.captured_queries)

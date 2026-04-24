@@ -7,6 +7,7 @@ from backend.utils import log_error, log_info
 from core.helpers import task
 from filehub.models import FileLink
 from pages.models import Page, PageLink, PageMention
+from pages.services.content_refs import parse_page_refs
 
 from .models import YSnapshot
 
@@ -119,7 +120,11 @@ def sync_snapshot_with_page(room_id: str, is_session_end: bool = False, content_
                         },
                     )
 
-        _, links_changed = PageLink.objects.sync_links_for_page(page, content)
+        # Single combined parse pass over the snapshot content for all three
+        # reference types, instead of three separate regex sweeps.
+        parsed_mentions, parsed_page_links, parsed_file_links = parse_page_refs(content)
+
+        _, links_changed = PageLink.objects.sync_parsed_links(page, parsed_page_links)
 
         if links_changed:
             log_info("Links changed for %s, broadcasting update", room_id)
@@ -128,12 +133,12 @@ def sync_snapshot_with_page(room_id: str, is_session_end: bool = False, content_
             log_info("Links unchanged for %s, skipping broadcast", room_id)
 
         # Sync @mentions
-        _, mentions_changed = PageMention.objects.sync_mentions_for_page(page, content)
+        _, mentions_changed = PageMention.objects.sync_parsed_mentions(page, parsed_mentions)
         if mentions_changed:
             log_info("Mentions changed for %s", room_id)
 
         # Sync file links
-        _, file_links_changed = FileLink.objects.sync_links_for_page(page, content)
+        _, file_links_changed = FileLink.objects.sync_parsed_file_links(page, parsed_file_links)
         if file_links_changed:
             log_info("File links changed for %s", room_id)
 
