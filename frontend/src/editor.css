@@ -990,6 +990,20 @@
   font-family: ui-monospace, "SF Mono", "Cascadia Code", "Source Code Pro", Menlo, Consolas,
     monospace;
   font-size: 0.9em;
+  /* Monospace column alignment relies on spaces not collapsing and content not wrapping. */
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* Inline code chips must not alter character width inside tables, or pipes stop aligning.
+   Strip the chip's padding/font overrides; keep a subtle background so chips stay recognizable. */
+.cm-line.cm-table-header .format-inline-code,
+.cm-line.cm-table-separator .format-inline-code,
+.cm-line.cm-table-row .format-inline-code {
+  padding: 0;
+  font-size: inherit;
+  font-family: inherit;
+  border-radius: 2px;
 }
 
 /* Table spacing */
@@ -1007,10 +1021,8 @@
   color: #1e293b;
 }
 
-/* Separator row - minimized */
+/* Separator row - faded but same width as data rows so columns align */
 .cm-line.cm-table-separator {
-  font-size: 0.6em;
-  line-height: 1;
   opacity: 0.35;
 }
 
@@ -1079,10 +1091,7 @@
   color: #f1f5f9;
 }
 
-.cm-line.cm-table-header .cm-table-pipe {
-  color: #9ca3af;
-}
-
+.cm-line.cm-table-header .cm-table-pipe,
 .cm-line.cm-table-header .cm-table-pipe.cm-table-pipe-outer {
   color: #e2e8f0;
 }
@@ -1135,11 +1144,8 @@
 }
 
 :root.dark .cm-line.cm-table-header .cm-table-pipe,
-[data-theme="dark"] .cm-line.cm-table-header .cm-table-pipe {
-  color: rgba(255, 255, 255, 0.25);
-}
-
 :root.dark .cm-line.cm-table-header .cm-table-pipe.cm-table-pipe-outer,
+[data-theme="dark"] .cm-line.cm-table-header .cm-table-pipe,
 [data-theme="dark"] .cm-line.cm-table-header .cm-table-pipe.cm-table-pipe-outer {
   color: rgba(255, 255, 255, 0.1);
 }
@@ -1159,6 +1165,124 @@
 [data-theme="dark"] .cm-line.cm-table-header .cm-selectionBackground,
 [data-theme="dark"] .cm-line.cm-table-row .cm-selectionBackground {
   background: rgba(82, 156, 202, 0.25) !important;
+}
+
+/* ============================================================================
+   Rendered table widget (shown when cursor is outside a markdown table)
+   ============================================================================ */
+
+.cm-table-widget-wrapper {
+  margin: 0.5em 0;
+  overflow-x: auto;
+}
+
+.cm-table-widget {
+  border-collapse: collapse;
+  font-size: 0.9em;
+  width: auto;
+  max-width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+  /* Isolate from the surrounding .cm-line text-shaping. */
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  cursor: text;
+}
+
+.cm-table-widget th,
+.cm-table-widget td {
+  padding: 6px 12px;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.4;
+}
+
+.cm-table-widget th {
+  background: #f1f5f9;
+  font-weight: 600;
+  color: #1e293b;
+  border-top: none;
+}
+
+.cm-table-widget td {
+  color: #334155;
+}
+
+.cm-table-widget th + th,
+.cm-table-widget td + td {
+  border-left: 1px solid #e2e8f0;
+}
+
+.cm-table-widget tbody tr:nth-child(even) td {
+  background: #f8fafc;
+}
+
+.cm-table-widget tbody tr:hover td {
+  background: #e0f2fe;
+}
+
+.cm-table-widget tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.cm-table-widget-code {
+  background-color: var(--code-bg);
+  color: var(--code-text);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.875em;
+  white-space: nowrap;
+}
+
+.cm-table-widget a {
+  color: #0066cc;
+  text-decoration: underline;
+}
+
+.cm-table-widget a:hover {
+  color: #0052a3;
+}
+
+/* Dark mode */
+:root.dark .cm-table-widget,
+[data-theme="dark"] .cm-table-widget {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+:root.dark .cm-table-widget th,
+:root.dark .cm-table-widget td,
+[data-theme="dark"] .cm-table-widget th,
+[data-theme="dark"] .cm-table-widget td {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+:root.dark .cm-table-widget th,
+[data-theme="dark"] .cm-table-widget th {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+:root.dark .cm-table-widget td,
+[data-theme="dark"] .cm-table-widget td {
+  color: var(--text-secondary);
+}
+
+:root.dark .cm-table-widget tbody tr:nth-child(even) td,
+[data-theme="dark"] .cm-table-widget tbody tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+:root.dark .cm-table-widget tbody tr:hover td,
+[data-theme="dark"] .cm-table-widget tbody tr:hover td {
+  background: rgba(82, 156, 202, 0.12);
+}
+
+:root.dark .cm-table-widget a,
+[data-theme="dark"] .cm-table-widget a {
+  color: #60a5fa;
 }
 
 /* Table context menu */

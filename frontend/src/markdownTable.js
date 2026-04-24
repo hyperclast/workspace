@@ -9,7 +9,7 @@
  */
 
 import { Prec, StateField } from "@codemirror/state";
-import { Decoration, keymap, ViewPlugin } from "@codemirror/view";
+import { Decoration, EditorView, keymap, ViewPlugin, WidgetType } from "@codemirror/view";
 import { TABLE_SCAN_LIMIT_LINES } from "./config/performance.js";
 
 // ============================================================================
@@ -393,8 +393,237 @@ const tablesField = StateField.define({
 });
 
 // ============================================================================
+// Rendered-Table Widget
+// ============================================================================
+
+/**
+ * Allowlist of URL schemes permitted on link hrefs inside rendered tables.
+ * Anything else (in particular `javascript:`, `data:`, `vbscript:`, `file:`)
+ * falls back to `#` so the link is inert. Scheme-relative and absolute paths,
+ * anchors, and relative URLs have no scheme and pass through unchanged.
+ */
+const SAFE_URL_SCHEMES = new Set(["http:", "https:", "mailto:", "tel:"]);
+
+export function sanitizeCellLinkHref(raw) {
+  const url = (raw || "").trim();
+  if (url === "") return "#";
+  // Match scheme (letters/digits/+-.) followed by a colon. If no scheme is
+  // present, it's a relative/anchor URL — safe to pass through.
+  const schemeMatch = url.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/);
+  if (!schemeMatch) return url;
+  const scheme = schemeMatch[1].toLowerCase() + ":";
+  return SAFE_URL_SCHEMES.has(scheme) ? url : "#";
+}
+
+/**
+ * Minimal inline markdown renderer for cell content. Handles the inline
+ * subset that realistically shows up in a table cell: backtick code, bold,
+ * italic, strikethrough, and [text](url) links. Recurses for nested
+ * formatting (e.g. `**bold `code` inside**`). All output goes through
+ * textContent / createTextNode so cell content is never injected as HTML.
+ * Link hrefs are passed through `sanitizeCellLinkHref` to block
+ * `javascript:` / `data:` / other dangerous schemes.
+ */
+export function renderCellInline(content, doc) {
+  const frag = doc.createDocumentFragment();
+  const n = content.length;
+  let i = 0;
+  let textStart = 0;
+
+  const flushText = (endExclusive) => {
+    if (endExclusive > textStart) {
+      frag.appendChild(doc.createTextNode(content.slice(textStart, endExclusive)));
+    }
+  };
+
+  while (i < n) {
+    const ch = content[i];
+
+    // `code`
+    if (ch === "`") {
+      const end = content.indexOf("`", i + 1);
+      if (end !== -1) {
+        flushText(i);
+        const code = doc.createElement("code");
+        code.className = "cm-table-widget-code";
+        code.textContent = content.slice(i + 1, end);
+        frag.appendChild(code);
+        i = end + 1;
+        textStart = i;
+        continue;
+      }
+    }
+
+    // **bold**
+    if (ch === "*" && content[i + 1] === "*") {
+      const end = content.indexOf("**", i + 2);
+      if (end !== -1) {
+        flushText(i);
+        const strong = doc.createElement("strong");
+        strong.appendChild(renderCellInline(content.slice(i + 2, end), doc));
+        frag.appendChild(strong);
+        i = end + 2;
+        textStart = i;
+        continue;
+      }
+    }
+
+    // *italic* (single asterisk, not part of **)
+    if (ch === "*" && content[i + 1] !== "*" && content[i - 1] !== "*") {
+      // Find a closing single-asterisk that isn't doubled
+      let j = i + 1;
+      while (j < n) {
+        if (content[j] === "*" && content[j + 1] !== "*" && content[j - 1] !== "*") break;
+        j++;
+      }
+      if (j < n && j > i + 1) {
+        flushText(i);
+        const em = doc.createElement("em");
+        em.appendChild(renderCellInline(content.slice(i + 1, j), doc));
+        frag.appendChild(em);
+        i = j + 1;
+        textStart = i;
+        continue;
+      }
+    }
+
+    // ~~strike~~
+    if (ch === "~" && content[i + 1] === "~") {
+      const end = content.indexOf("~~", i + 2);
+      if (end !== -1) {
+        flushText(i);
+        const del = doc.createElement("del");
+        del.appendChild(renderCellInline(content.slice(i + 2, end), doc));
+        frag.appendChild(del);
+        i = end + 2;
+        textStart = i;
+        continue;
+      }
+    }
+
+    // [text](url)
+    if (ch === "[") {
+      const closeBracket = content.indexOf("]", i + 1);
+      if (closeBracket !== -1 && content[closeBracket + 1] === "(") {
+        const closeParen = content.indexOf(")", closeBracket + 2);
+        if (closeParen !== -1) {
+          flushText(i);
+          const a = doc.createElement("a");
+          a.href = sanitizeCellLinkHref(content.slice(closeBracket + 2, closeParen));
+          a.appendChild(renderCellInline(content.slice(i + 1, closeBracket), doc));
+          frag.appendChild(a);
+          i = closeParen + 1;
+          textStart = i;
+          continue;
+        }
+      }
+    }
+
+    i++;
+  }
+  flushText(n);
+  return frag;
+}
+
+/**
+ * Block widget that renders a parsed markdown table as an actual HTML
+ * <table>. Used when the cursor is outside the table — when the cursor
+ * enters the table's range, this widget is dropped and the existing
+ * per-line decorations take over so the raw source is editable.
+ */
+class TableWidget extends WidgetType {
+  constructor(table) {
+    super();
+    this.table = table;
+    // Stable signature for eq() so CodeMirror reuses the DOM across updates
+    // when the table's logical content hasn't changed.
+    const headerCells = (table.rows.find((r) => r.type === "header") || { cells: [] }).cells;
+    const dataRows = table.rows.filter((r) => r.type === "data");
+    this.sig =
+      table.alignments.join(",") +
+      "\n" +
+      headerCells.map((c) => c.content).join("\u241F") +
+      "\n" +
+      dataRows.map((r) => r.cells.map((c) => c.content).join("\u241F")).join("\u241E");
+  }
+
+  eq(other) {
+    return other instanceof TableWidget && this.sig === other.sig;
+  }
+
+  toDOM() {
+    const doc = document;
+    const wrapper = doc.createElement("div");
+    wrapper.className = "cm-table-widget-wrapper";
+
+    const tbl = doc.createElement("table");
+    tbl.className = "cm-table-widget";
+    tbl.setAttribute("role", "presentation");
+
+    const alignments = this.table.alignments;
+    const headerRow = this.table.rows.find((r) => r.type === "header");
+    const dataRows = this.table.rows.filter((r) => r.type === "data");
+    const columnCount = Math.max(
+      alignments.length,
+      headerRow ? headerRow.cells.length : 0,
+      ...dataRows.map((r) => r.cells.length)
+    );
+
+    const appendCells = (row, tagName, trEl) => {
+      for (let col = 0; col < columnCount; col++) {
+        const cell = row.cells[col];
+        const el = doc.createElement(tagName);
+        const align = alignments[col];
+        if (align && align !== "left") el.style.textAlign = align;
+        if (cell) {
+          el.appendChild(renderCellInline(cell.content, doc));
+          // Anchor so clicks land in the right place in the source.
+          el.dataset.cellFrom = String(cell.contentFrom);
+        } else {
+          el.dataset.cellFrom = String(row.from);
+        }
+        trEl.appendChild(el);
+      }
+    };
+
+    if (headerRow) {
+      const thead = doc.createElement("thead");
+      const tr = doc.createElement("tr");
+      appendCells(headerRow, "th", tr);
+      thead.appendChild(tr);
+      tbl.appendChild(thead);
+    }
+
+    const tbody = doc.createElement("tbody");
+    for (const row of dataRows) {
+      const tr = doc.createElement("tr");
+      appendCells(row, "td", tr);
+      tbody.appendChild(tr);
+    }
+    tbl.appendChild(tbody);
+
+    wrapper.appendChild(tbl);
+    return wrapper;
+  }
+
+  ignoreEvent(event) {
+    // Let clicks propagate so the editor can move the cursor into the source,
+    // and so <a> links inside cells remain clickable. Drag/selection events
+    // are also fine to pass through.
+    return false;
+  }
+}
+
+// ============================================================================
 // Decorations
 // ============================================================================
+
+function selectionIntersectsTable(state, table) {
+  const sel = state.selection.main;
+  const selFrom = Math.min(sel.from, sel.to);
+  const selTo = Math.max(sel.from, sel.to);
+  return !(selTo < table.from || selFrom > table.to);
+}
 
 function buildDecorations(state, view) {
   const decorations = [];
@@ -407,6 +636,15 @@ function buildDecorations(state, view) {
 
   for (const table of tables) {
     if (table.to < viewFrom || table.from > viewTo) continue;
+
+    // A block-widget rendering of this table (handled by the tableWidgetField
+    // StateField) will fully replace the table's display when the selection is
+    // outside it. In that case, per-line decorations would be wasted work —
+    // and can even conflict — so skip them. When the selection is inside, the
+    // widget is absent and these decorations make the raw source look like a
+    // table for editing.
+    if (!selectionIntersectsTable(state, table)) continue;
+
     const rowCount = table.rows.length;
     let dataRowIndex = 0;
 
@@ -506,6 +744,46 @@ function buildDecorations(state, view) {
   return Decoration.set(decorations);
 }
 
+/**
+ * Block-widget decorations must come from a StateField (CodeMirror forbids
+ * block decorations in ViewPlugins). This field owns the rendered-table
+ * widgets — one per table whose range does not intersect the selection.
+ *
+ * It reuses the full-document scan already performed by `tablesField`. For
+ * very large documents `tablesField` short-circuits to an empty list, in
+ * which case no widgets render and the per-line decorations in the ViewPlugin
+ * are the fallback for editing raw pipe tables.
+ */
+function computeTableWidgetDecorations(state) {
+  const tables = state.field(tablesField);
+  if (!tables || tables.length === 0) return Decoration.none;
+
+  const decos = [];
+  for (const table of tables) {
+    if (selectionIntersectsTable(state, table)) continue;
+    decos.push(
+      Decoration.replace({
+        widget: new TableWidget(table),
+        block: true,
+      }).range(table.from, table.to)
+    );
+  }
+  return Decoration.set(decos, true);
+}
+
+const tableWidgetField = StateField.define({
+  create(state) {
+    return computeTableWidgetDecorations(state);
+  },
+  update(deco, tr) {
+    if (tr.docChanged || tr.selection) {
+      return computeTableWidgetDecorations(tr.state);
+    }
+    return deco;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
 const tableDecorations = ViewPlugin.fromClass(
   class {
     constructor(view) {
@@ -513,7 +791,9 @@ const tableDecorations = ViewPlugin.fromClass(
     }
 
     update(update) {
-      if (update.docChanged || update.viewportChanged) {
+      // Rebuild on selection change too: the widget must toggle off when the
+      // cursor enters the table so the user can edit the raw source.
+      if (update.docChanged || update.viewportChanged || update.selectionSet) {
         this.decorations = buildDecorations(update.state, update.view);
       }
     }
@@ -1729,12 +2009,39 @@ const tableContextMenu = ViewPlugin.fromClass(
 // Export Extension
 // ============================================================================
 
+// Click on a rendered table widget → put the cursor in the corresponding cell
+// (using the data-cell-from anchor that toDOM() attaches). The widget drops
+// out naturally on the next `buildDecorations` because the selection now
+// intersects the table range.
+const tableWidgetClickHandler = EditorView.domEventHandlers({
+  mousedown(event, view) {
+    if (event.button !== 0) return false;
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return false;
+    // Allow <a> links inside cells to behave normally.
+    if (target.closest("a")) return false;
+    const cellEl = target.closest("[data-cell-from]");
+    if (!cellEl || !cellEl.closest(".cm-table-widget")) return false;
+    const pos = parseInt(cellEl.dataset.cellFrom, 10);
+    if (Number.isNaN(pos)) return false;
+    event.preventDefault();
+    view.dispatch({
+      selection: { anchor: pos },
+      scrollIntoView: true,
+    });
+    view.focus();
+    return true;
+  },
+});
+
 export const markdownTableExtension = [
   tablesField,
+  tableWidgetField,
   tableDecorations,
   tableAutoFormat,
   tableKeymap,
   tableContextMenu,
+  tableWidgetClickHandler,
 ];
 
 // Also export individual pieces for testing
