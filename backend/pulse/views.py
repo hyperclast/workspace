@@ -1,4 +1,5 @@
 import json
+from collections import defaultdict
 from datetime import timedelta
 
 from allauth.account.models import EmailAddress
@@ -11,6 +12,8 @@ from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
+
+from users.models import AIProviderConfig, OrgMember
 
 from .models import PulseMetric
 from .tasks import compute_dau_metrics
@@ -42,6 +45,11 @@ def dashboard(request):
     # Get MAU data for chart
     mau_data = list(PulseMetric.objects.filter(metric_type="mau").order_by("date").values("date", "value"))
     for item in mau_data:
+        item["date"] = item["date"].isoformat()
+
+    # Get WAU data for chart
+    wau_data = list(PulseMetric.objects.filter(metric_type="wau").order_by("date").values("date", "value"))
+    for item in wau_data:
         item["date"] = item["date"].isoformat()
 
     # Calculate MoM MAU Growth %
@@ -192,10 +200,61 @@ def dashboard(request):
                 }
             )
 
+    # Users with AI keys (personal or via org membership)
+    personal_by_user = defaultdict(list)
+    for cfg in AIProviderConfig.objects.filter(user__isnull=False).order_by("user_id", "provider"):
+        personal_by_user[cfg.user_id].append(cfg)
+
+    org_keys_by_org = defaultdict(list)
+    for cfg in AIProviderConfig.objects.filter(org__isnull=False).select_related("org").order_by("org_id", "provider"):
+        org_keys_by_org[cfg.org_id].append(cfg)
+
+    org_by_user = defaultdict(list)
+    if org_keys_by_org:
+        for user_id, org_id in OrgMember.objects.filter(org_id__in=org_keys_by_org.keys()).values_list(
+            "user_id", "org_id"
+        ):
+            org_by_user[user_id].append(org_id)
+
+    user_ids = set(personal_by_user.keys()) | set(org_by_user.keys())
+    users_lookup = {u.pk: u for u in User.objects.filter(pk__in=user_ids).only("pk", "email", "username")}
+
+    def _fmt(cfg, org_name=None):
+        return {
+            "name": cfg.get_display_name(),
+            "key_hint": cfg.get_key_hint(),
+            "is_enabled": cfg.is_enabled,
+            "is_validated": cfg.is_validated,
+            "org_name": org_name,
+        }
+
+    ai_key_users = []
+    for uid in user_ids:
+        u = users_lookup.get(uid)
+        if not u:
+            continue
+        personal = [_fmt(c) for c in personal_by_user.get(uid, [])]
+        org_entries = []
+        for org_id in org_by_user.get(uid, []):
+            for cfg in org_keys_by_org[org_id]:
+                org_entries.append(_fmt(cfg, org_name=cfg.org.name))
+        ai_key_users.append(
+            {
+                "pk": u.pk,
+                "email": u.email,
+                "username": u.username,
+                "personal_providers": personal,
+                "org_providers": org_entries,
+                "total": len(personal) + len(org_entries),
+            }
+        )
+    ai_key_users.sort(key=lambda r: (-r["total"], r["email"]))
+
     context = {
         "dau_data_json": json.dumps(dau_data),
         "signups_data_json": json.dumps(signups_data),
         "mau_data_json": json.dumps(mau_data),
+        "wau_data_json": json.dumps(wau_data),
         "current_mau": current_mau,
         "mom_growth": mom_growth,
         "dau_mau_ratio": dau_mau_ratio,
@@ -204,6 +263,7 @@ def dashboard(request):
         "weekly_active_users": weekly_active_users,
         "inactive_users": inactive_users,
         "referrers": referrers,
+        "ai_key_users": ai_key_users,
     }
     return render(request, "pulse/dashboard.html", context)
 

@@ -296,6 +296,7 @@
         border-radius: 4px;
         border-bottom: 1.5px dashed #b07cc5;
         transition: all 0.15s ease;
+        white-space: nowrap;
       }
 
       .hijack-btn::after {
@@ -427,11 +428,13 @@
         <div class="pulse-sidenav-links">
           <a href="#growth">Growth Metrics</a>
           <a href="#mau">Monthly Active Users</a>
+          <a href="#wau">Weekly Active Users</a>
+          <a href="#dau">Daily Active Users</a>
           <a href="#signups">New Signups</a>
           <a href="#new-users">New Users</a>
+          <a href="#ai-keys">AI Keys</a>
           <a href="#weekly-active">Weekly Active</a>
           <a href="#inactive-users">Inactive Users</a>
-          <a href="#dau">Daily Active Users</a>
         </div>
         <button type="button" class="btn-recompute" id="recompute-btn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -503,6 +506,49 @@
               </div>
             {% else %}
               <canvas id="mau-chart"></canvas>
+            {% endif %}
+          </div>
+        </section>
+
+        <!-- WAU Section -->
+        <section class="section" id="wau">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Weekly Active Users (90 days)</h2>
+            </div>
+            {% include 'pulse/partials/_badge_async.html' %}
+          </div>
+          <div class="chart-container">
+            {% if wau_data_json == '[]' %}
+              <div class="empty-state">
+                <p>No data yet. Click Recompute to backfill.</p>
+              </div>
+            {% else %}
+              <canvas id="wau-chart"></canvas>
+            {% endif %}
+          </div>
+        </section>
+
+        <!-- DAU Section -->
+        <section class="section" id="dau">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Daily Active Users (90 days)</h2>
+              {% if last_computed %}
+                <p class="section-meta">Last computed: {{ last_computed|timesince }} ago</p>
+              {% else %}
+                <p class="section-meta">Not yet computed</p>
+              {% endif %}
+            </div>
+            {% include 'pulse/partials/_badge_async.html' %}
+          </div>
+          <div class="chart-container">
+            {% if dau_data_json == '[]' %}
+              <div class="empty-state">
+                <p>No data yet. Click "Recompute" in the sidebar to compute metrics.</p>
+              </div>
+            {% else %}
+              <canvas id="dau-chart"></canvas>
             {% endif %}
           </div>
         </section>
@@ -646,6 +692,73 @@
           {% endif %}
         </section>
 
+        <!-- AI Keys Section -->
+        <section class="section" id="ai-keys">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Users with AI Keys <span class="count-badge">{{ ai_key_users|length }}</span></h2>
+              <p class="section-meta">Personal keys + org keys (via membership). Warning badges = disabled or unvalidated.</p>
+            </div>
+            {% include 'pulse/partials/_badge_sync.html' %}
+          </div>
+          {% if ai_key_users %}
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Username</th>
+                    <th>Personal providers</th>
+                    <th>Org providers</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in ai_key_users %}
+                    <tr>
+                      <td>{{ row.email }}</td>
+                      <td>
+                        <form class="hijack-form" method="POST" action="/hijack/acquire/">
+                          {% csrf_token %}
+                          <input type="hidden" name="user_pk" value="{{ row.pk }}">
+                          <button type="submit" class="hijack-btn" title="Impersonate {{ row.username }}">{{ row.username }}</button>
+                        </form>
+                      </td>
+                      <td>
+                        {% for p in row.personal_providers %}
+                          {% if p.is_enabled and p.is_validated %}
+                            <span class="badge badge-success">{{ p.name }}{% if p.key_hint %} <small>· {{ p.key_hint }}</small>{% endif %}</span>
+                          {% else %}
+                            <span class="badge badge-warning">{{ p.name }}{% if p.key_hint %} <small>· {{ p.key_hint }}</small>{% endif %}</span>
+                          {% endif %}
+                        {% empty %}
+                          <span class="badge badge-warning">—</span>
+                        {% endfor %}
+                      </td>
+                      <td>
+                        {% for p in row.org_providers %}
+                          {% if p.is_enabled and p.is_validated %}
+                            <span class="badge badge-success">{{ p.name }} <small>· {{ p.org_name }}{% if p.key_hint %} · {{ p.key_hint }}{% endif %}</small></span>
+                          {% else %}
+                            <span class="badge badge-warning">{{ p.name }} <small>· {{ p.org_name }}{% if p.key_hint %} · {{ p.key_hint }}{% endif %}</small></span>
+                          {% endif %}
+                        {% empty %}
+                          <span class="badge badge-warning">—</span>
+                        {% endfor %}
+                      </td>
+                      <td>{{ row.total }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="empty-state">
+              <p>No users have AI keys configured yet.</p>
+            </div>
+          {% endif %}
+        </section>
+
         <!-- Weekly Active Users Section -->
         <section class="section" id="weekly-active">
           <div class="section-header">
@@ -759,30 +872,6 @@
             </div>
           {% endif %}
         </section>
-
-        <!-- DAU Section -->
-        <section class="section" id="dau">
-          <div class="section-header">
-            <div>
-              <h2 class="section-title">Daily Active Users (90 days)</h2>
-              {% if last_computed %}
-                <p class="section-meta">Last computed: {{ last_computed|timesince }} ago</p>
-              {% else %}
-                <p class="section-meta">Not yet computed</p>
-              {% endif %}
-            </div>
-            {% include 'pulse/partials/_badge_async.html' %}
-          </div>
-          <div class="chart-container">
-            {% if dau_data_json == '[]' %}
-              <div class="empty-state">
-                <p>No data yet. Click "Recompute" in the sidebar to compute metrics.</p>
-              </div>
-            {% else %}
-              <canvas id="dau-chart"></canvas>
-            {% endif %}
-          </div>
-        </section>
       </main>
     </div>
 
@@ -793,6 +882,7 @@
       const dauData = {{ dau_data_json|safe }};
       const signupsData = {{ signups_data_json|safe }};
       const mauData = {{ mau_data_json|safe }};
+      const wauData = {{ wau_data_json|safe }};
 
       const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
       const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
@@ -891,6 +981,38 @@
                 callbacks: {
                     ...commonOptions.plugins.tooltip.callbacks,
                   label: (item) => `${item.raw} monthly active users`
+                }
+              }
+            }
+          }
+        });
+      }
+
+      // WAU Chart
+      if (wauData.length > 0) {
+        new Chart(document.getElementById('wau-chart').getContext('2d'), {
+          type: 'line',
+          data: {
+            labels: wauData.map(d => d.date),
+            datasets: [{
+              label: 'WAU',
+              data: wauData.map(d => d.value),
+              borderColor: '#06b6d4',
+              backgroundColor: 'rgba(6, 182, 212, 0.1)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 2,
+              pointHoverRadius: 5,
+            }]
+          },
+          options: {
+              ...commonOptions,
+            plugins: {
+                ...commonOptions.plugins,
+              tooltip: {
+                callbacks: {
+                    ...commonOptions.plugins.tooltip.callbacks,
+                  label: (item) => `${item.raw} weekly active users`
                 }
               }
             }

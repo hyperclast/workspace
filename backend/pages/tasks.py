@@ -91,7 +91,7 @@ def send_project_editor_removed_email(event_id: str):
 REVIEW_MODELS = {
     AIProvider.OPENAI.value: "gpt-5.4",
     AIProvider.ANTHROPIC.value: "claude-sonnet-4-6",
-    AIProvider.GOOGLE.value: "gemini/gemini-3.1-pro",
+    AIProvider.GOOGLE.value: "gemini/gemini-3.1-pro-preview",
     AIProvider.CUSTOM.value: "gpt-5.4",
 }
 

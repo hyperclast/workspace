@@ -60,7 +60,20 @@ def compute_dau_metrics():
                 defaults={"value": mau_count},
             )
 
-        log_info("Computed pulse metrics (DAU + MAU + signups) for 90 days")
+            # WAU: unique users active in the 7 days ending on this date
+            wau_start = datetime.combine(date - timedelta(days=6), time.min, tzinfo=dt_timezone.utc)
+            wau_count = User.objects.filter(
+                profile__last_active__gte=wau_start,
+                profile__last_active__lte=day_end,
+            ).count()
+
+            PulseMetric.objects.update_or_create(
+                metric_type="wau",
+                date=date,
+                defaults={"value": wau_count},
+            )
+
+        log_info("Computed pulse metrics (DAU + WAU + MAU + signups) for 90 days")
 
     except Exception as e:
         log_error("Error computing pulse metrics: %s", e)
