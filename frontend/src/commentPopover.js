@@ -12,6 +12,7 @@ import * as Y from "yjs";
 import { StateField, StateEffect } from "@codemirror/state";
 import { showTooltip, Decoration, EditorView, ViewPlugin, keymap } from "@codemirror/view";
 import { createComment } from "./api.js";
+import { isPdfPage } from "./pdf/isPdfPage.js";
 
 // --- Effects ---
 
@@ -560,6 +561,11 @@ const commentPopoverTheme = EditorView.baseTheme({
 // --- Keybinding: Cmd+Alt+M (Ctrl+Alt+M on Win/Linux) opens comment form ---
 
 function openCommentFormCommand(view) {
+  // PDF pages drive the comment popover off the PDF text-layer selection
+  // (PdfCommentPopover), not the editor — the editor isn't even mounted there.
+  // Defense in depth in case a future code path ever loads this extension on a PDF.
+  if (isPdfPage(window.getCurrentPage?.())) return false;
+
   const sel = view.state.selection.main;
   if (sel.from === sel.to) return false;
 

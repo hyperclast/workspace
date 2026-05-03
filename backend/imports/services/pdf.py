@@ -6,6 +6,8 @@ storing the original PDF binary in the project's file storage.
 """
 
 import logging
+import re
+from typing import List
 
 from django.conf import settings
 from django.db import transaction
@@ -18,13 +20,48 @@ from filehub.storage import get_storage_backend
 logger = logging.getLogger(__name__)
 
 
-def escape_markdown_link_text(text: str) -> str:
-    """Escape characters that break markdown link syntax: [text](url).
+# Matches the per-page header the frontend's `extractTextFromPdf` emits
+# (`# Page N\n\n…`) at the start of a line.
+_PAGE_MARKER_RE = re.compile(r"^# Page (\d+)\n\n", flags=re.MULTILINE)
 
-    Prevents user-controlled filenames from altering the link structure
-    when interpolated as the link text portion.
+
+def compute_page_text_offsets(content: str) -> List[List[int]]:
+    """Map PDF page numbers to character ranges in the extracted text.
+
+    The frontend prefixes each page's text with `# Page N\\n\\n` markers
+    when joining the per-page strings (see `extractTextFromPdf`). This
+    helper walks those markers and returns a list where index `i` is
+    `[start, end)` character offsets of the text body for page `i + 1`.
+    Pages that produced no text are represented as `[0, 0]` so the index
+    always lines up with the page number — anchor resolution can then map
+    a character offset in `extracted_text` back to a page number.
+
+    Returns an empty list when the content has no recognizable markers,
+    leaving callers free to skip anchor resolution for legacy data.
     """
-    return text.replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]").replace("\n", " ").replace("\r", "")
+    if not content:
+        return []
+
+    matches = list(_PAGE_MARKER_RE.finditer(content))
+    if not matches:
+        return []
+
+    max_page = max(int(m.group(1)) for m in matches)
+    result = [[0, 0] for _ in range(max_page)]
+
+    for i, m in enumerate(matches):
+        page_num = int(m.group(1))
+        text_start = m.end()
+        if i + 1 < len(matches):
+            # The next chunk is preceded by the "\n\n" join separator.
+            text_end = matches[i + 1].start() - 2
+        else:
+            text_end = len(content)
+        if text_end < text_start:
+            text_end = text_start
+        result[page_num - 1] = [text_start, text_end]
+
+    return result
 
 
 def store_pdf_as_file(project, user, filename: str, file_bytes: bytes) -> FileUpload:

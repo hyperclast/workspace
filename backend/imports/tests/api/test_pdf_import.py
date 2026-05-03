@@ -23,89 +23,6 @@ def _mock_store_pdf(project, user, filename, file_bytes):
     return fu
 
 
-class TestPdfImportFilenameEscaping(BaseAuthenticatedViewTestCase):
-    """Verify that user-supplied filenames are escaped in generated page content."""
-
-    def setUp(self):
-        super().setUp()
-        self.org = OrgFactory()
-        OrgMemberFactory(org=self.org, user=self.user)
-        self.project = ProjectFactory(org=self.org, creator=self.user)
-
-    def _import(self, filename="doc.pdf", title="Test", content="Some text"):
-        file = SimpleUploadedFile(filename, PDF_BYTES, content_type="application/pdf")
-        return self.client.post(
-            "/api/imports/pdf/",
-            data={
-                "project_id": str(self.project.external_id),
-                "title": title,
-                "content": content,
-                "file": file,
-            },
-            format="multipart",
-        )
-
-    @patch("imports.api.imports.store_pdf_as_file", side_effect=_mock_store_pdf)
-    def test_plain_filename_in_page_content(self, mock_store):
-        resp = self._import(filename="report.pdf")
-        self.assertEqual(resp.status_code, HTTPStatus.CREATED)
-
-        page = Page.objects.get(external_id=resp.json()["page_external_id"])
-        page_content = page.details["content"]
-
-        # Link text should contain the plain filename
-        self.assertIn("[report.pdf]", page_content)
-
-    @patch("imports.api.imports.store_pdf_as_file", side_effect=_mock_store_pdf)
-    def test_bracket_filename_escaped(self, mock_store):
-        """Brackets in filenames must be escaped to prevent link breakage."""
-        resp = self._import(filename="report[1].pdf")
-        self.assertEqual(resp.status_code, HTTPStatus.CREATED)
-
-        page = Page.objects.get(external_id=resp.json()["page_external_id"])
-        page_content = page.details["content"]
-
-        # Brackets should be escaped
-        self.assertIn("\\[1\\]", page_content)
-        # The raw unescaped form should NOT appear in the link text portion
-        self.assertNotIn("[report[1]", page_content)
-
-    @patch("imports.api.imports.store_pdf_as_file", side_effect=_mock_store_pdf)
-    def test_injection_filename_escaped(self, mock_store):
-        """A filename crafted to inject markdown should be neutralized."""
-        resp = self._import(filename="evil](http://bad.com)\n[click")
-        self.assertEqual(resp.status_code, HTTPStatus.CREATED)
-
-        page = Page.objects.get(external_id=resp.json()["page_external_id"])
-        page_content = page.details["content"]
-
-        # The closing bracket must be escaped so it can't close the link
-        self.assertNotIn("](http://bad.com)", page_content.split("](")[0])
-        # Newline should be replaced, not present in the link text
-        self.assertNotIn("\n[click", page_content.split("\n\n---")[0])
-
-    @patch("imports.api.imports.store_pdf_as_file", side_effect=_mock_store_pdf)
-    def test_backslash_filename_escaped(self, mock_store):
-        """Backslashes in filenames are escaped to prevent markdown issues.
-
-        Note: Django's UploadedFile._set_name() calls os.path.basename() on
-        the filename, which strips everything before a backslash (treating it
-        as a path separator). So "back\\slash.pdf" becomes "slash.pdf" before
-        the API ever sees it. We can't test backslash escaping through the
-        full API path — that's covered by the unit test for
-        escape_markdown_link_text() directly. Instead, verify that a filename
-        with only non-path-separator special chars is handled correctly.
-        """
-        resp = self._import(filename="file (copy).pdf")
-        self.assertEqual(resp.status_code, HTTPStatus.CREATED)
-
-        page = Page.objects.get(external_id=resp.json()["page_external_id"])
-        page_content = page.details["content"]
-
-        # Parentheses don't need escaping in link *text*, only in link URL
-        self.assertIn("[file (copy).pdf]", page_content)
-
-
 class TestPdfImportAbusePrevention(BaseAuthenticatedViewTestCase):
     """Verify that banned users are blocked from PDF imports."""
 
@@ -404,8 +321,8 @@ class TestPdfImportHappyPath(BaseAuthenticatedViewTestCase):
         self.assertEqual(payload["file_external_id"], "file-ext-id")
 
     @patch("imports.api.imports.store_pdf_as_file", side_effect=_mock_store_pdf)
-    def test_page_content_structure(self, mock_store):
-        """Created page has PDF link, separator, and extracted text."""
+    def test_page_is_pdf_type(self, mock_store):
+        """Created page is a PDF-type page that points at the stored file."""
         file = SimpleUploadedFile("report.pdf", PDF_BYTES, content_type="application/pdf")
         resp = self.client.post(
             "/api/imports/pdf/",
@@ -420,17 +337,39 @@ class TestPdfImportHappyPath(BaseAuthenticatedViewTestCase):
 
         self.assertEqual(resp.status_code, HTTPStatus.CREATED)
         page = Page.objects.get(external_id=resp.json()["page_external_id"])
-        content = page.details["content"]
 
-        # PDF link at the top
-        self.assertTrue(content.startswith("[report.pdf](/files/proj/file-ext-id/tok/)"))
-        # Separator between link and text
-        self.assertIn("\n\n---\n\n", content)
-        # Extracted text is stripped
-        self.assertTrue(content.endswith("Chapter 1 text"))
-        # Page details have correct metadata
-        self.assertEqual(page.details["filetype"], "md")
-        self.assertEqual(page.details["schema_version"], 1)
+        # PDF-type page: empty content, extracted text on the side, file id stored
+        self.assertEqual(page.details["filetype"], "pdf")
+        self.assertEqual(page.details["schema_version"], 2)
+        self.assertEqual(page.details["content"], "")
+        self.assertEqual(page.details["extracted_text"], "Chapter 1 text")
+        self.assertEqual(page.details["pdf_file_id"], "file-ext-id")
+
+    @patch("imports.api.imports.store_pdf_as_file", side_effect=_mock_store_pdf)
+    def test_page_text_offsets_persisted(self, mock_store):
+        """Per-page char ranges are persisted so AI anchor resolution can map
+        an anchor_text occurrence back to a PDF page number."""
+        content = "# Page 1\n\nFirst page text.\n\n# Page 2\n\nSecond page text."
+        file = SimpleUploadedFile("doc.pdf", PDF_BYTES, content_type="application/pdf")
+        resp = self.client.post(
+            "/api/imports/pdf/",
+            data={
+                "project_id": str(self.project.external_id),
+                "title": "Multi-page",
+                "content": content,
+                "file": file,
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(resp.status_code, HTTPStatus.CREATED)
+        page = Page.objects.get(external_id=resp.json()["page_external_id"])
+        offsets = page.details["page_text_offsets"]
+        self.assertEqual(len(offsets), 2)
+        s1, e1 = offsets[0]
+        s2, e2 = offsets[1]
+        self.assertEqual(content[s1:e1], "First page text.")
+        self.assertEqual(content[s2:e2], "Second page text.")
 
     @patch("imports.api.imports.store_pdf_as_file", side_effect=_mock_store_pdf)
     def test_title_truncated_to_100_chars(self, mock_store):

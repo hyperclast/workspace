@@ -3,6 +3,7 @@ from collections import defaultdict
 from datetime import timedelta
 
 from allauth.account.models import EmailAddress
+from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
@@ -13,6 +14,7 @@ from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from users.constants import OrgMemberRole
 from users.models import AIProviderConfig, OrgMember
 
 from .models import PulseMetric
@@ -250,6 +252,47 @@ def dashboard(request):
         )
     ai_key_users.sort(key=lambda r: (-r["total"], r["email"]))
 
+    # Paid orgs (Pro plan billing)
+    paid_orgs = []
+    paid_orgs_total = 0
+    paid_orgs_payment_failed = 0
+    if apps.is_installed("private.billing"):
+        from private.billing.models import OrgBilling, PlanChoices
+
+        pro_billings = list(
+            OrgBilling.objects.filter(plan=PlanChoices.PRO)
+            .select_related("org")
+            .annotate(member_count=Count("org__members", distinct=True))
+            .order_by("stripe_payment_failed", "-modified")
+        )
+        paid_orgs_total = len(pro_billings)
+        paid_orgs_payment_failed = sum(1 for b in pro_billings if b.stripe_payment_failed)
+
+        org_ids = [b.org_id for b in pro_billings]
+        members_by_org = defaultdict(list)
+        for om in OrgMember.objects.filter(org_id__in=org_ids).select_related("user").order_by("-role", "created"):
+            members_by_org[om.org_id].append(
+                {
+                    "pk": om.user.pk,
+                    "email": om.user.email,
+                    "username": om.user.username,
+                    "is_admin": om.role == OrgMemberRole.ADMIN.value,
+                }
+            )
+
+        for b in pro_billings:
+            paid_orgs.append(
+                {
+                    "org_id": b.org_id,
+                    "org_name": b.org.name or b.org.external_id,
+                    "payment_failed": b.stripe_payment_failed,
+                    "member_count": b.member_count,
+                    "members": members_by_org.get(b.org_id, []),
+                    "modified": b.modified.strftime("%Y-%m-%d") if b.modified else "",
+                    "upgraded_at": b.upgraded_at.strftime("%Y-%m-%d") if b.upgraded_at else "",
+                }
+            )
+
     context = {
         "dau_data_json": json.dumps(dau_data),
         "signups_data_json": json.dumps(signups_data),
@@ -264,6 +307,10 @@ def dashboard(request):
         "inactive_users": inactive_users,
         "referrers": referrers,
         "ai_key_users": ai_key_users,
+        "paid_orgs": paid_orgs,
+        "paid_orgs_total": paid_orgs_total,
+        "paid_orgs_payment_failed": paid_orgs_payment_failed,
+        "billing_enabled": apps.is_installed("private.billing"),
     }
     return render(request, "pulse/dashboard.html", context)
 

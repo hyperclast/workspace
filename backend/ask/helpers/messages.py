@@ -6,9 +6,10 @@ from pages.models import Page
 
 
 def build_ask_request_messages(question: str, pages: List[Page]) -> List[dict]:
+    page_contexts = [{"title": page.title, "text": page.get_text_content()} for page in pages]
     aug_content = render_to_string(
         "ask/others/ask_request_pages.txt",
-        context={"pages": pages},
+        context={"pages": page_contexts},
     )
 
     messages = [

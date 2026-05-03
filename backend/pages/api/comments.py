@@ -12,6 +12,7 @@ from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from ninja import Field, Query, Router, Schema
+from pydantic import ValidationError as PydanticValidationError
 
 from backend.utils import log_warning
 from collab.utils import notify_comments_updated
@@ -38,6 +39,10 @@ REPLIES_PAGE_SIZE_MAX = 50
 REPLIES_DEFAULT_LIMIT = 20
 AI_REVIEW_DEDUP_TIMEOUT = 300  # seconds
 AI_REPLY_DEDUP_TIMEOUT = 300  # seconds
+
+# PDF anchor limits
+PDF_ANCHOR_MAX_RECTS = 50
+PDF_ANCHOR_TEXT_MAX_LENGTH = 4_000
 
 ALLOWED_REACTIONS = ["👍", "👎", "❤️", "😄", "🎉", "😮", "🙏", "✅", "😎", "🙂"]
 
@@ -72,6 +77,36 @@ class ReactionToggleIn(Schema):
     emoji: str = Field(..., max_length=8)
 
 
+class PdfRect(Schema):
+    """A rectangle on a PDF page in PDF user-space coordinates."""
+
+    x: float = Field(..., ge=0)
+    y: float = Field(..., ge=0)
+    w: float = Field(..., ge=0)
+    h: float = Field(..., ge=0)
+
+
+class PdfAnchor(Schema):
+    """Anchor for a comment on a PDF-type page (create payload)."""
+
+    page: int = Field(..., ge=1)
+    rects: List[PdfRect] = Field(..., min_length=1, max_length=PDF_ANCHOR_MAX_RECTS)
+    text: str = Field(..., max_length=PDF_ANCHOR_TEXT_MAX_LENGTH)
+
+
+class PdfAnchorOut(Schema):
+    """Anchor shape returned to clients.
+
+    AI-resolved anchors store `{page, text}` only with `rects=[]` — the
+    overlay can still scope the comment to a page even though no rectangle
+    is painted. `rects` therefore has no minimum length on the way out.
+    """
+
+    page: int = Field(..., ge=1)
+    rects: List[PdfRect] = Field(default_factory=list, max_length=PDF_ANCHOR_MAX_RECTS)
+    text: str = Field(..., max_length=PDF_ANCHOR_TEXT_MAX_LENGTH)
+
+
 class CommentOut(Schema):
     external_id: str
     parent_id: Optional[str] = None
@@ -82,6 +117,7 @@ class CommentOut(Schema):
     anchor_from_b64: Optional[str] = None
     anchor_to_b64: Optional[str] = None
     anchor_text: str = ""
+    pdf_anchor: Optional[PdfAnchorOut] = None
     can_reply: bool = True
     is_resolved: bool = False
     resolved_by: Optional[AuthorOut] = None
@@ -109,6 +145,7 @@ class CommentCreateIn(Schema):
     anchor_from_b64: Optional[str] = Field(None, max_length=COMMENT_ANCHOR_B64_MAX_LENGTH)
     anchor_to_b64: Optional[str] = Field(None, max_length=COMMENT_ANCHOR_B64_MAX_LENGTH)
     anchor_text: Optional[str] = Field(None, max_length=COMMENT_ANCHOR_TEXT_MAX_LENGTH)
+    pdf_anchor: Optional[PdfAnchor] = None
 
 
 class CommentUpdateIn(Schema):
@@ -198,6 +235,14 @@ def _comment_to_out(comment, replies=None, replies_count=0, reactions=None) -> C
     if comment.anchor_to:
         anchor_to_b64 = base64.b64encode(bytes(comment.anchor_to)).decode("ascii")
 
+    pdf_anchor_out: Optional[PdfAnchorOut] = None
+    if comment.pdf_anchor:
+        try:
+            pdf_anchor_out = PdfAnchorOut(**comment.pdf_anchor)
+        except (PydanticValidationError, ValueError, TypeError):
+            # Stored anchor is malformed — skip rather than 500 the response.
+            pdf_anchor_out = None
+
     return CommentOut(
         external_id=comment.external_id,
         parent_id=comment.parent.external_id if comment.parent_id else None,
@@ -208,6 +253,7 @@ def _comment_to_out(comment, replies=None, replies_count=0, reactions=None) -> C
         anchor_from_b64=anchor_from_b64,
         anchor_to_b64=anchor_to_b64,
         anchor_text=comment.anchor_text,
+        pdf_anchor=pdf_anchor_out,
         can_reply=comment.can_reply,
         is_resolved=comment.is_resolved,
         resolved_by=_author_out(comment.resolved_by) if comment.resolved_by_id else None,
@@ -327,6 +373,8 @@ def create_comment(request: HttpRequest, external_id: str, payload: CommentCreat
     if not user_can_edit_in_page(request.user, page):
         return 403, {"detail": "You do not have edit access to this page."}
 
+    is_pdf_page = page.is_pdf
+
     # Validate: replies
     parent = None
     if payload.parent_id:
@@ -334,16 +382,21 @@ def create_comment(request: HttpRequest, external_id: str, payload: CommentCreat
         if not parent:
             return 404, {"detail": "Parent comment not found."}
 
-        # Replies must not have anchors
-        if payload.anchor_from_b64 or payload.anchor_to_b64:
+        # Replies must not have anchors of any kind
+        if payload.anchor_from_b64 or payload.anchor_to_b64 or payload.pdf_anchor:
             return 400, {"detail": "Replies cannot have their own anchors."}
 
         # Enforce max nesting depth
         if not parent.can_reply:
             return 400, {"detail": "Maximum comment nesting depth reached."}
     else:
-        # Root comments are either anchored (have anchor_text) or page-level (no anchor)
-        pass
+        # Root comments: cross-validate anchor type against page filetype.
+        if is_pdf_page:
+            if payload.anchor_from_b64 or payload.anchor_to_b64:
+                return 400, {"detail": "PDF pages do not accept text anchors. Use pdf_anchor."}
+        else:
+            if payload.pdf_anchor:
+                return 400, {"detail": "Only PDF-type pages accept pdf_anchor."}
 
     if not payload.body or not payload.body.strip():
         return 400, {"detail": "Comment body cannot be empty."}
@@ -358,6 +411,14 @@ def create_comment(request: HttpRequest, external_id: str, payload: CommentCreat
             anchor_to = base64.b64decode(payload.anchor_to_b64)
     except (binascii.Error, ValueError):
         return 400, {"detail": "Invalid base64 in anchor data."}
+
+    # Resolve pdf_anchor + derive anchor_text from it (so AI personas keep working).
+    pdf_anchor_value = None
+    anchor_text_value = payload.anchor_text or ""
+    if payload.pdf_anchor and not parent:
+        pdf_anchor_value = payload.pdf_anchor.model_dump()
+        if not anchor_text_value:
+            anchor_text_value = payload.pdf_anchor.text
 
     # For replies, root points to the thread's root comment.
     # If the parent is itself a root (parent.root is None), then parent is the root.
@@ -377,7 +438,8 @@ def create_comment(request: HttpRequest, external_id: str, payload: CommentCreat
         depth=parent.depth + 1 if parent else 0,
         anchor_from=anchor_from,
         anchor_to=anchor_to,
-        anchor_text=payload.anchor_text or "",
+        anchor_text=anchor_text_value,
+        pdf_anchor=pdf_anchor_value,
         body=payload.body.strip(),
     )
 
@@ -667,6 +729,9 @@ def generate_edit(request: HttpRequest, external_id: str, comment_id: str):
 
     if not user_can_edit_in_page(request.user, page):
         return 403, {"detail": "You do not have edit access to this page."}
+
+    if page.is_pdf:
+        return 400, {"detail": "Suggested edits are not supported on PDF pages."}
 
     comment = get_object_or_404(Comment, page=page, external_id=comment_id)
 

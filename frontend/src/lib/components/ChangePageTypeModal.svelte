@@ -27,6 +27,11 @@
       label: 'HTTP Log',
       description: 'View HTTP access logs',
     },
+    {
+      id: 'pdf',
+      label: 'PDF',
+      description: 'PDF pages are created via Import › PDF.',
+    },
   ];
 
   let {
@@ -107,12 +112,17 @@
 
   function isTypeAvailable(typeId) {
     if (typeId === 'csv') return csvAvailable;
+    // PDF pages can only be created via the import flow — never as a switch target.
+    if (typeId === 'pdf') return false;
     return true;
   }
 
   function getUnavailableReason(typeId) {
     if (typeId === 'csv' && !csvAvailable) {
       return 'Content doesn\'t appear to be in CSV format.';
+    }
+    if (typeId === 'pdf') {
+      return 'PDF pages are created via Import › PDF.';
     }
     return null;
   }

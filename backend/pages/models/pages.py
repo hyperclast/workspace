@@ -322,9 +322,28 @@ class Page(TimeStampedModel):
         return editors
 
     @property
+    def is_pdf(self) -> bool:
+        """True when this page wraps a PDF file (filetype == 'pdf')."""
+        from pages.constants import FileType
+
+        return (self.details or {}).get("filetype") == FileType.PDF
+
+    def get_text_content(self) -> str:
+        """Return the readable text body of the page.
+
+        For PDF pages the markdown content is empty by design — the readable
+        text lives in details.extracted_text (populated at import time). For
+        all other page types the canonical body is details.content.
+        """
+        details = self.details or {}
+        if self.is_pdf:
+            return details.get("extracted_text", "") or ""
+        return details.get("content", "") or ""
+
+    @property
     def content_for_embedding(self) -> str:
         title = self.title or ""
-        content = self.details.get("content", "")
+        content = self.get_text_content()
 
         if not title and not content:
             return ""

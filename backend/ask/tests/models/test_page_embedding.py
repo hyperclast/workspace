@@ -93,6 +93,31 @@ class TestPageEmbeddingModel(TestCase):
             PageEmbedding.objects.update_or_create_page_embedding(page)
             self.assertFalse(mocked_compute.called)
 
+    @patch("ask.models.embeddings.compute_embedding")
+    def test_update_or_create_page_embedding_indexes_pdf_extracted_text(self, mocked_compute):
+        """PDF pages contribute extracted_text to the embedding input — not the empty `content` field."""
+        values = [0.5 for _ in range(1536)]
+        page = PageFactory(
+            title="Annual Report",
+            details={
+                "filetype": "pdf",
+                "schema_version": 2,
+                "content": "",
+                "extracted_text": "Revenue grew 12% year over year.",
+                "pdf_file_id": "pdf-1",
+            },
+        )
+        mocked_compute.return_value = values
+
+        embedding, action = PageEmbedding.objects.update_or_create_page_embedding(page)
+
+        self.assertEqual(action, "created")
+        self.assertEqual(embedding.page, page)
+        # The compute_embedding call should have received the title + extracted_text body.
+        called_input = mocked_compute.call_args[0][0]
+        self.assertIn("Annual Report", called_input)
+        self.assertIn("Revenue grew 12% year over year.", called_input)
+
 
 class TestPageEmbeddingSimilaritySearch(TestCase):
     """Test the similarity_search manager method."""

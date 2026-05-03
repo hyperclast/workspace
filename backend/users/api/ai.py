@@ -62,32 +62,157 @@ def list_provider_models(request: HttpRequest, provider: str):
     }
 
 
-@ai_router.post("/providers/", response={201: AIProviderConfigOut, 400: dict})
-def create_user_ai_provider(request: HttpRequest, payload: AIProviderConfigIn):
-    """Create a new AI provider configuration for the user."""
-    config = AIProviderConfig(
-        user=request.user,
-        provider=payload.provider,
-        display_name=payload.display_name or "",
-        api_key=payload.api_key or "",
-        api_base_url=payload.api_base_url or "",
-        model_name=payload.model_name or "",
-        is_enabled=payload.is_enabled,
-        is_default=payload.is_default,
-    )
-    config.save()
+def _find_matching_config(*, user=None, org=None, provider, api_key, api_base_url, exclude_pk=None):
+    """Find an existing AIProviderConfig with the same (scope, provider, api_key, api_base_url).
 
-    if config.api_key:
+    Decrypts api_key in Python since EncryptedTextField uses non-deterministic ciphertext
+    and can't be filtered in SQL. api_base_url is filtered in SQL (plain URLField, stored as
+    "" when omitted) so the same key pointed at different base URLs — the realistic case for
+    the `custom` provider — is treated as a distinct identity. Built-in providers always store
+    api_base_url="", so they continue to match on an empty filter and behavior is unchanged.
+
+    `exclude_pk` skips a specific row, used by PATCH collision detection so a row never matches
+    itself.
+
+    Returns None if api_key is empty (no dedup key) or no match.
+    """
+    if not api_key:
+        return None
+    qs = AIProviderConfig.objects.filter(provider=provider, api_base_url=api_base_url or "")
+    qs = qs.filter(user=user) if user is not None else qs.filter(org=org)
+    if exclude_pk is not None:
+        qs = qs.exclude(pk=exclude_pk)
+    for cfg in qs:
+        if cfg.api_key == api_key:
+            return cfg
+    return None
+
+
+def _find_patch_collision(*, user=None, org=None, config, payload):
+    """If applying payload to config would land on the dedup identity of another row, return it.
+
+    PATCH must not silently create a row with `(scope, provider, api_key, api_base_url)`
+    matching another existing row. We compute the post-PATCH identity (using payload values
+    where supplied, otherwise the row's current values) and look for a different row in the
+    same scope that already owns it. Returns None when identity is unchanged or no collision.
+    """
+    new_api_key = payload.api_key if payload.api_key is not None else config.api_key
+    new_api_base_url = payload.api_base_url if payload.api_base_url is not None else config.api_base_url
+    if new_api_key == config.api_key and new_api_base_url == config.api_base_url:
+        return None
+    return _find_matching_config(
+        user=user,
+        org=org,
+        provider=config.provider,
+        api_key=new_api_key,
+        api_base_url=new_api_base_url,
+        exclude_pk=config.pk,
+    )
+
+
+def _duplicate_patch_response(collision):
+    """Build the 400 body for a PATCH that would duplicate another row's identity."""
+    return Response(
+        {
+            "message": (
+                "Another configuration with this api_key and api_base_url already exists in "
+                "this scope. Delete or merge it manually before patching."
+            ),
+            "config": AIProviderConfigOut.from_orm(collision).dict(),
+        },
+        status=HTTPStatus.BAD_REQUEST,
+    )
+
+
+def _validation_error_response(config, error):
+    """Build the 400 body for a failed key validation: message + the existing config."""
+    return Response(
+        {
+            "message": f"API key validation failed: {error}",
+            "config": AIProviderConfigOut.from_orm(config).dict(),
+        },
+        status=HTTPStatus.BAD_REQUEST,
+    )
+
+
+def _upsert_provider_config(*, user=None, org=None, payload):
+    """Create or revive an AIProviderConfig, deduping on (scope, provider, api_key, api_base_url).
+
+    If a matching row exists, updates its metadata fields with payload values and returns
+    that row. Validation re-runs whenever the existing row is not validated, or whenever a
+    validation-relevant field (api_key, api_base_url, model_name) changes against an
+    already-validated row — otherwise a previously-valid row could keep is_validated=True
+    against a never-tested (key, base_url, model) triple. Otherwise inserts a new row.
+
+    Returns: (config, validation_error or None). Caller decides 201 vs 400 from the error.
+    """
+    existing = _find_matching_config(
+        user=user,
+        org=org,
+        provider=payload.provider,
+        api_key=payload.api_key,
+        api_base_url=payload.api_base_url,
+    )
+
+    if existing:
+        revalidate = False
+        if payload.display_name is not None and payload.display_name != "":
+            existing.display_name = payload.display_name
+        if payload.api_base_url is not None and payload.api_base_url != "":
+            if existing.api_base_url != payload.api_base_url:
+                revalidate = True
+            existing.api_base_url = payload.api_base_url
+        if payload.model_name is not None and payload.model_name != "":
+            if existing.model_name != payload.model_name:
+                revalidate = True
+            existing.model_name = payload.model_name
+        if payload.api_key and existing.api_key != payload.api_key:
+            existing.api_key = payload.api_key
+            revalidate = True
+        if payload.is_enabled is not None:
+            existing.is_enabled = payload.is_enabled
+        if payload.is_default is not None:
+            existing.is_default = payload.is_default
+        if revalidate:
+            existing.is_validated = False
+        existing.save()
+        config = existing
+    else:
+        config = AIProviderConfig(
+            user=user,
+            org=org,
+            provider=payload.provider,
+            display_name=payload.display_name or "",
+            api_key=payload.api_key or "",
+            api_base_url=payload.api_base_url or "",
+            model_name=payload.model_name or "",
+            is_enabled=payload.is_enabled if payload.is_enabled is not None else True,
+            is_default=payload.is_default if payload.is_default is not None else False,
+        )
+        config.save()
+
+    if config.api_key and not config.is_validated:
         is_valid, error = validate_and_update_config(config)
         if not is_valid:
-            return Response(
-                {
-                    "message": f"API key validation failed: {error}",
-                    "config": AIProviderConfigOut.from_orm(config).dict(),
-                },
-                status=HTTPStatus.BAD_REQUEST,
-            )
+            return config, error
 
+    return config, None
+
+
+@ai_router.post("/providers/", response={201: AIProviderConfigOut, 400: dict})
+def create_user_ai_provider(request: HttpRequest, payload: AIProviderConfigIn):
+    """Create or update a user-scoped AI provider configuration (idempotent upsert).
+
+    Identity is (user, provider, api_key, api_base_url). When a re-POST matches an
+    existing row, that row's metadata is refreshed and validation re-runs if it was
+    previously unvalidated or if a validation-relevant field (api_key, api_base_url,
+    model_name) changed. When no match exists, a new row is created. Returns 201 in
+    both cases; 400 is returned with the existing config in the body when validation
+    fails.
+    """
+    config, error = _upsert_provider_config(user=request.user, payload=payload)
+    if error:
+        return _validation_error_response(config, error)
     return 201, config
 
 
@@ -102,10 +227,20 @@ def get_user_ai_provider(request: HttpRequest, config_id: str):
 
 @ai_router.patch("/providers/{config_id}/", response={200: AIProviderConfigOut, 400: dict, 404: dict})
 def update_user_ai_provider(request: HttpRequest, config_id: str, payload: AIProviderConfigUpdateIn):
-    """Update an AI provider configuration."""
+    """Update an AI provider configuration.
+
+    Rejects with 400 if the resulting (api_key, api_base_url) pair would collide with another
+    user-scoped row for the same provider — keeps PATCH consistent with the upsert identity
+    enforced by POST. The colliding row is returned in the body so the client can offer a
+    merge/delete prompt.
+    """
     config = AIProviderConfig.objects.filter(user=request.user, external_id=config_id).first()
     if not config:
         return Response({"message": "Configuration not found"}, status=HTTPStatus.NOT_FOUND)
+
+    collision = _find_patch_collision(user=request.user, config=config, payload=payload)
+    if collision:
+        return _duplicate_patch_response(collision)
 
     update_fields = []
     key_changed = False
@@ -211,7 +346,15 @@ def list_org_ai_providers_summary(request: HttpRequest, org_id: str):
 
 @ai_router.post("/orgs/{org_id}/providers/", response={201: AIProviderConfigOut, 400: dict, 403: dict, 404: dict})
 def create_org_ai_provider(request: HttpRequest, org_id: str, payload: AIProviderConfigIn):
-    """Create an AI provider configuration for the organization (admin only)."""
+    """Create or update an org-scoped AI provider configuration (admin only, idempotent upsert).
+
+    Identity is (org, provider, api_key, api_base_url). When a re-POST matches an
+    existing org row, that row's metadata is refreshed and validation re-runs if it
+    was previously unvalidated or if a validation-relevant field (api_key,
+    api_base_url, model_name) changed. When no match exists, a new row is created.
+    Returns 201 in both cases; 400 is returned with the existing config in the body
+    when validation fails.
+    """
     org = Org.objects.filter(external_id=org_id).first()
     if not org:
         return Response({"message": "Organization not found"}, status=HTTPStatus.NOT_FOUND)
@@ -219,29 +362,9 @@ def create_org_ai_provider(request: HttpRequest, org_id: str, payload: AIProvide
     if not user_is_org_admin(request.user, org):
         return Response({"message": "Admin access required"}, status=HTTPStatus.FORBIDDEN)
 
-    config = AIProviderConfig(
-        org=org,
-        provider=payload.provider,
-        display_name=payload.display_name or "",
-        api_key=payload.api_key or "",
-        api_base_url=payload.api_base_url or "",
-        model_name=payload.model_name or "",
-        is_enabled=payload.is_enabled,
-        is_default=payload.is_default,
-    )
-    config.save()
-
-    if config.api_key:
-        is_valid, error = validate_and_update_config(config)
-        if not is_valid:
-            return Response(
-                {
-                    "message": f"API key validation failed: {error}",
-                    "config": AIProviderConfigOut.from_orm(config).dict(),
-                },
-                status=HTTPStatus.BAD_REQUEST,
-            )
-
+    config, error = _upsert_provider_config(org=org, payload=payload)
+    if error:
+        return _validation_error_response(config, error)
     return 201, config
 
 
@@ -250,7 +373,13 @@ def create_org_ai_provider(request: HttpRequest, org_id: str, payload: AIProvide
     response={200: AIProviderConfigOut, 400: dict, 403: dict, 404: dict},
 )
 def update_org_ai_provider(request: HttpRequest, org_id: str, config_id: str, payload: AIProviderConfigUpdateIn):
-    """Update an organization's AI provider configuration (admin only)."""
+    """Update an organization's AI provider configuration (admin only).
+
+    Rejects with 400 if the resulting (api_key, api_base_url) pair would collide with another
+    org-scoped row for the same provider — keeps PATCH consistent with the upsert identity
+    enforced by POST. The colliding row is returned in the body so the client can offer a
+    merge/delete prompt.
+    """
     org = Org.objects.filter(external_id=org_id).first()
     if not org:
         return Response({"message": "Organization not found"}, status=HTTPStatus.NOT_FOUND)
@@ -261,6 +390,10 @@ def update_org_ai_provider(request: HttpRequest, org_id: str, config_id: str, pa
     config = AIProviderConfig.objects.filter(org=org, external_id=config_id).first()
     if not config:
         return Response({"message": "Configuration not found"}, status=HTTPStatus.NOT_FOUND)
+
+    collision = _find_patch_collision(org=org, config=config, payload=payload)
+    if collision:
+        return _duplicate_patch_response(collision)
 
     update_fields = []
     key_changed = False

@@ -20,3 +20,12 @@ class AccessLevel(str, Enum):
     VIEWER = "viewer"
     EDITOR = "editor"
     ADMIN = "admin"
+
+
+class FileType:
+    """String constants for Page.details['filetype']."""
+
+    MD = "md"
+    PDF = "pdf"
+    CSV = "csv"
+    LOG = "log"

@@ -169,6 +169,28 @@ class TestRunAIReplyTask(BaseAuthenticatedViewTestCase):
 
     @patch("pages.tasks.notify_comments_updated")
     @patch("pages.tasks.create_chat_completion")
+    def test_pdf_page_uses_extracted_text_in_prompt(self, mock_llm, mock_broadcast, _mock_ai_config):
+        """PDF pages contribute extracted_text — not the empty `content` field — to the AI reply prompt."""
+        self.page.details = {
+            "filetype": "pdf",
+            "schema_version": 2,
+            "content": "",
+            "extracted_text": "The migration plan calls for blue/green deployment.",
+            "pdf_file_id": "pdf-123",
+        }
+        self.page.save(update_fields=["details", "modified"])
+
+        mock_llm.return_value = {"choices": [{"message": {"content": "Noted."}}]}
+
+        run_ai_reply(self.user_reply.id, "socrates", self.user.id)
+
+        call_args = mock_llm.call_args
+        messages = call_args[1]["messages"] if "messages" in call_args[1] else call_args[0][0]
+        user_message = next(m for m in messages if m["role"] == "user")
+        self.assertIn("blue/green deployment", user_message["content"])
+
+    @patch("pages.tasks.notify_comments_updated")
+    @patch("pages.tasks.create_chat_completion")
     def test_deep_thread_chain(self, mock_llm, mock_broadcast, _mock_ai_config):
         """AI reply works correctly in a deeper thread (AI -> User -> AI -> User)."""
         # Simulate AI's first reply

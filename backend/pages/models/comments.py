@@ -69,6 +69,13 @@ class Comment(TimeStampedModel):
     # Fallback display for human comments when anchor resolution fails.
     anchor_text = models.TextField(blank=True, default="")
 
+    # PDF anchor: only set on root comments on PDF-type pages.
+    # Shape: {"page": int (1-indexed), "rects": [{"x", "y", "w", "h"}, ...], "text": str}
+    # Coordinates are in PDF user-space units (zoom/rotation independent).
+    # Mutually exclusive with anchor_from/anchor_to (enforced at API/schema layer
+    # based on the page's filetype, not in the DB).
+    pdf_anchor = models.JSONField(null=True, blank=True, default=None)
+
     body = models.TextField()  # Markdown
 
     # AI commenter metadata
@@ -99,12 +106,13 @@ class Comment(TimeStampedModel):
             models.Index(fields=["root", "created"], name="comment_root_created_idx"),
         ]
         constraints = [
-            # Replies cannot have their own anchors
+            # Replies cannot have their own anchors (text or PDF)
             models.CheckConstraint(
                 check=models.Q(parent__isnull=True)
                 | models.Q(
                     anchor_from__isnull=True,
                     anchor_to__isnull=True,
+                    pdf_anchor__isnull=True,
                 ),
                 name="replies_no_anchor",
             ),

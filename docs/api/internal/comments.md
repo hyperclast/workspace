@@ -60,6 +60,7 @@ Requires `user_can_access_page()` — anyone who can read the page can see comme
       "anchor_from_b64": "AQ3s...",
       "anchor_to_b64": "AQ4t...",
       "anchor_text": "the highlighted passage",
+      "pdf_anchor": null,
       "created": "2026-03-18T10:00:00Z",
       "modified": "2026-03-18T10:00:00Z",
       "can_reply": true,
@@ -75,6 +76,7 @@ Requires `user_can_access_page()` — anyone who can read the page can see comme
           "anchor_from_b64": null,
           "anchor_to_b64": null,
           "anchor_text": "",
+          "pdf_anchor": null,
           "created": "2026-03-18T10:05:00Z",
           "modified": "2026-03-18T10:05:00Z",
           "can_reply": true,
@@ -92,8 +94,9 @@ Requires `user_can_access_page()` — anyone who can read the page can see comme
 
 - Root comments are paginated. All replies are nested inline as a full thread tree.
 - Sorted by `created` ascending.
-- `anchor_from_b64` / `anchor_to_b64` are base64-encoded Yjs RelativePositions. May be null for AI comments pending deferred resolution.
-- `anchor_text` is a plain text snapshot of the highlighted range.
+- `anchor_from_b64` / `anchor_to_b64` are base64-encoded Yjs RelativePositions used for markdown-page comments. May be null for AI comments pending deferred resolution, and are always null on PDF-page comments and on replies.
+- `anchor_text` is a plain text snapshot of the highlighted range. On PDF pages this is the highlighted passage from the PDF text layer (also stored in `pdf_anchor.text`).
+- `pdf_anchor` is set on root comments anchored to a PDF-type page; null on markdown-page comments and on replies. Shape: `{"page": 1-indexed int, "rects": [{"x", "y", "w", "h"}, ...], "text": str}`. Coordinates are in PDF user-space (zoom/rotation independent). `rects` may be empty for AI comments that have only a text snippet to anchor against. Malformed stored anchors are returned as null rather than failing the response.
 - `ai_persona` is empty for human comments, or one of: `socrates`, `einstein`, `dewey`, `athena`.
 - `requester` is set for AI comments (the user who triggered the review), null for human comments.
 - `can_reply` is `true` if the comment's depth allows further replies, `false` at max depth. Nesting is limited to 8 levels (depth 0–7) via `COMMENT_MAX_DEPTH`.
@@ -149,6 +152,7 @@ Requires `user_can_access_page()` — anyone who can read the page can list repl
       "anchor_from_b64": null,
       "anchor_to_b64": null,
       "anchor_text": "",
+      "pdf_anchor": null,
       "created": "2026-03-18T10:05:00Z",
       "modified": "2026-03-18T10:05:00Z",
       "can_reply": true,
@@ -186,13 +190,20 @@ Requires `user_can_edit_in_page()` — editors only.
 
 ### Request Body
 
-| Field             | Type   | Required | Description                                                                    |
-| ----------------- | ------ | -------- | ------------------------------------------------------------------------------ |
-| `body`            | string | Yes      | Comment body (markdown)                                                        |
-| `parent_id`       | string | No       | External ID of parent comment (for replies), null for root                     |
-| `anchor_from_b64` | string | No       | Base64 Yjs RelativePosition (start). Required for root, forbidden for replies. |
-| `anchor_to_b64`   | string | No       | Base64 Yjs RelativePosition (end). Required for root, forbidden for replies.   |
-| `anchor_text`     | string | No       | Highlighted text. Required for root comments.                                  |
+| Field             | Type   | Required | Description                                                                                                                                                                                                                                                                                                 |
+| ----------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `body`            | string | Yes      | Comment body (markdown)                                                                                                                                                                                                                                                                                     |
+| `parent_id`       | string | No       | External ID of parent comment (for replies), null for root                                                                                                                                                                                                                                                  |
+| `anchor_from_b64` | string | No       | Base64 Yjs RelativePosition (start). For markdown-page roots only; forbidden on replies & PDFs.                                                                                                                                                                                                             |
+| `anchor_to_b64`   | string | No       | Base64 Yjs RelativePosition (end). For markdown-page roots only; forbidden on replies & PDFs.                                                                                                                                                                                                               |
+| `anchor_text`     | string | No       | Highlighted text. Required for root comments. Derived from `pdf_anchor.text` on PDF pages if omitted.                                                                                                                                                                                                       |
+| `pdf_anchor`      | object | No       | PDF anchor for root comments on PDF-type pages. Shape: `{page: int≥1, rects: [{x,y,w,h}], text: string}`. Forbidden on replies and on markdown-page comments. `rects` requires at least 1 entry on creation; `rects` is capped at `PDF_ANCHOR_MAX_RECTS`; `text` is capped at `PDF_ANCHOR_TEXT_MAX_LENGTH`. |
+
+**Anchor type rules (cross-validated against page filetype):**
+
+- Markdown pages accept `anchor_from_b64`/`anchor_to_b64`; sending `pdf_anchor` returns 400.
+- PDF pages accept `pdf_anchor`; sending `anchor_from_b64`/`anchor_to_b64` returns 400.
+- Replies must not carry any anchor of any kind (constraint enforced at both API and DB level).
 
 ### Response
 
@@ -201,11 +212,11 @@ Requires `user_can_edit_in_page()` — editors only.
 
 ### Error Responses
 
-| Status | Condition                                                          |
-| ------ | ------------------------------------------------------------------ |
-| 400    | Empty body, missing anchor on root, anchor on reply, max depth hit |
-| 403    | User is not an editor                                              |
-| 404    | Page or parent comment not found                                   |
+| Status | Condition                                                                                                        |
+| ------ | ---------------------------------------------------------------------------------------------------------------- |
+| 400    | Empty body, missing anchor on root, anchor on reply, anchor type mismatched against page filetype, max depth hit |
+| 403    | User is not an editor                                                                                            |
+| 404    | Page or parent comment not found                                                                                 |
 
 ---
 

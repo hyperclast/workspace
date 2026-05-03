@@ -9,6 +9,10 @@ import { keymap } from "@codemirror/view";
 import { Prec } from "@codemirror/state";
 import { WS_HOST } from "./config.js";
 
+// WebSocket close code 4029 is sent by the consumer for rate-limited connections
+// (mirrors WS_CLOSE_RATE_LIMITED in backend/collab/consumers.py).
+const WS_CLOSE_RATE_LIMITED = 4029;
+
 // Track pages that have had access denied - don't retry these
 const accessDeniedPages = new Set();
 
@@ -381,6 +385,171 @@ export function createCollaborationObjects(pageExternalId, displayName = "Anonym
     },
     syncPromise, // Caller can await this for sync to complete
   };
+}
+
+/**
+ * Open a lightweight WebSocket subscription for a page.
+ *
+ * The Yjs `WebsocketProvider` opened by `createCollaborationObjects` is the
+ * only place that delivers server-pushed text frames (`comments_updated`,
+ * `ai_review_complete`, `links_updated`, etc.) to the browser. Pages that
+ * skip Yjs collaboration (PDF pages — there is no editable text layer to
+ * sync) need their own subscription so they still receive those broadcasts
+ * in real time.
+ *
+ * Returns a cleanup function. Calling it closes the socket and stops any
+ * pending reconnect.
+ */
+export function subscribeToPageEvents(pageExternalId) {
+  if (accessDeniedPages.has(pageExternalId)) {
+    return () => {};
+  }
+
+  // Derive host at call time so tests can override window.location after
+  // module load. WS_HOST is captured at import time and would freeze the
+  // jsdom default ("localhost:3000").
+  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const wsUrl = `${wsProtocol}//${window.location.host}/ws/pages/${pageExternalId}/`;
+
+  let ws = null;
+  let closedByCleanup = false;
+  let reconnectTimer = null;
+  let reconnectDelay = 1000;
+  const maxDelay = 30000;
+  const stopOnCloseCodes = [4001, 4003, 1008, WS_CLOSE_RATE_LIMITED];
+
+  const open = () => {
+    if (accessDeniedPages.has(pageExternalId)) return;
+    try {
+      ws = new WebSocket(wsUrl);
+    } catch (err) {
+      console.error("[subscribeToPageEvents] WS construct failed:", err);
+      return;
+    }
+    ws.binaryType = "arraybuffer";
+
+    ws.addEventListener("open", () => {
+      reconnectDelay = 1000;
+    });
+
+    ws.addEventListener("message", (event) => {
+      // Ignore Yjs binary sync frames — we never send a sync response so
+      // the server's initial state vector is harmless to drop.
+      if (typeof event.data !== "string") return;
+      const result = dispatchPageTextEvent(pageExternalId, event.data);
+      if (result === "access_denied") {
+        accessDeniedPages.add(pageExternalId);
+        closedByCleanup = true;
+        try {
+          ws.close();
+        } catch {
+          /* noop */
+        }
+      }
+    });
+
+    ws.addEventListener("close", (event) => {
+      if (closedByCleanup) return;
+      const code = event?.code;
+      if (stopOnCloseCodes.includes(code)) {
+        accessDeniedPages.add(pageExternalId);
+        return;
+      }
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        reconnectDelay = Math.min(reconnectDelay * 2, maxDelay);
+        open();
+      }, reconnectDelay);
+    });
+
+    ws.addEventListener("error", (err) => {
+      console.warn("[subscribeToPageEvents] WS error:", err);
+    });
+  };
+
+  open();
+
+  return () => {
+    closedByCleanup = true;
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    if (ws && ws.readyState <= WebSocket.OPEN) {
+      try {
+        ws.close(1000, "Page closed");
+      } catch {
+        /* noop */
+      }
+    }
+    ws = null;
+  };
+}
+
+/**
+ * Translate one server-sent text frame into a window CustomEvent.
+ * Pure-ish: only side effect is the `window.dispatchEvent(...)` call.
+ *
+ * Returns "access_denied" when the caller should terminate the underlying
+ * connection (access revoked or denied), otherwise null.
+ */
+function dispatchPageTextEvent(pageExternalId, raw) {
+  let message;
+  try {
+    message = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!message || typeof message !== "object") return null;
+
+  switch (message.type) {
+    case "error":
+      if (message.code === "access_denied" || message.code === "rate_limited") {
+        window.dispatchEvent(
+          new CustomEvent("collabError", {
+            detail: { pageId: pageExternalId, code: message.code, message: message.message },
+          })
+        );
+        return "access_denied";
+      }
+      return null;
+    case "access_revoked":
+      window.dispatchEvent(
+        new CustomEvent("pageAccessRevoked", {
+          detail: { pageId: pageExternalId, message: message.message },
+        })
+      );
+      return "access_denied";
+    case "links_updated":
+      window.dispatchEvent(
+        new CustomEvent("linksUpdated", { detail: { pageId: message.page_id } })
+      );
+      return null;
+    case "rewind_created":
+      window.dispatchEvent(
+        new CustomEvent("rewindCreated", {
+          detail: { pageId: message.page_id, rewind: message.rewind },
+        })
+      );
+      return null;
+    case "folders_updated":
+      window.dispatchEvent(new CustomEvent("foldersUpdated"));
+      return null;
+    case "comments_updated":
+      window.dispatchEvent(
+        new CustomEvent("commentsUpdated", { detail: { pageId: pageExternalId } })
+      );
+      return null;
+    case "ai_review_complete":
+      window.dispatchEvent(
+        new CustomEvent("aiReviewComplete", {
+          detail: { persona: message.persona, commentCount: message.comment_count },
+        })
+      );
+      return null;
+    default:
+      return null;
+  }
 }
 
 /**

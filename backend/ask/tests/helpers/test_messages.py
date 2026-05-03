@@ -245,6 +245,40 @@ class TestBuildAskRequestMessages(TestCase):
         self.assertLess(first_pos, second_pos)
         self.assertLess(second_pos, third_pos)
 
+    def test_build_ask_request_messages_pdf_page_uses_extracted_text(self):
+        """PDF pages contribute extracted_text to the prompt — not the empty `content` field."""
+        page = PageFactory(
+            title="Whitepaper",
+            details={
+                "filetype": "pdf",
+                "schema_version": 2,
+                "content": "",
+                "extracted_text": "Quantum supremacy was demonstrated in 2019.",
+                "pdf_file_id": "pdf-123",
+            },
+        )
+
+        messages = build_ask_request_messages("What does the whitepaper claim?", [page])
+
+        assistant_content = messages[1]["content"]
+        self.assertIn("Whitepaper", assistant_content)
+        self.assertIn("Quantum supremacy was demonstrated in 2019.", assistant_content)
+        # Confirm it actually rendered a <content> block (not skipped because details.content == "").
+        self.assertEqual(assistant_content.count("<content>"), 1)
+
+    def test_build_ask_request_messages_pdf_page_without_extracted_text_omits_content(self):
+        """PDF pages with neither extracted_text nor content render only a <title>."""
+        page = PageFactory(
+            title="Empty PDF",
+            details={"filetype": "pdf", "schema_version": 2, "content": ""},
+        )
+
+        messages = build_ask_request_messages("Anything?", [page])
+
+        assistant_content = messages[1]["content"]
+        self.assertIn("Empty PDF", assistant_content)
+        self.assertEqual(assistant_content.count("<content>"), 0)
+
     def test_build_ask_request_messages_xml_tags_in_content_are_escaped(self):
         """Test that XML-like tags in user content are HTML-escaped, preventing tag injection."""
         page = PageFactory(

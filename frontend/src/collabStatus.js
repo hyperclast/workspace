@@ -45,6 +45,12 @@ export function updateCollabStatus(status) {
     instance = mount(CollabStatus, { target: wrapper });
   }
 
+  // Reset display in case loadPdfPage hid us during the previous navigation —
+  // the wrapper is reused across SPA navigations, so any forced display:none
+  // from a prior PDF page would carry over and hide the indicator on a
+  // markdown page that genuinely needs it.
+  wrapper.style.display = "";
+
   // Update the store (both first call and subsequent calls)
   flushSync(() => {
     setStatus(status);

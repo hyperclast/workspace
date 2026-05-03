@@ -81,6 +81,18 @@ describe("updateCollabStatus", () => {
       // Should still be only one wrapper
       expect(document.querySelectorAll("#collab-status-wrapper").length).toBe(1);
     });
+
+    test("clears any forced display:none on subsequent calls", () => {
+      // PDF page navigation forces display:none on the wrapper. When we
+      // navigate back to a markdown page that needs collab, updateCollabStatus
+      // must restore the indicator to its default display.
+      updateCollabStatus("connected");
+      const wrapper = document.getElementById("collab-status-wrapper");
+      wrapper.style.display = "none";
+
+      updateCollabStatus("connecting");
+      expect(wrapper.style.display).toBe("");
+    });
   });
 
   describe("status display", () => {

@@ -1,10 +1,16 @@
 from typing import Optional, Tuple
 
 import litellm
+import requests
 from django.utils import timezone
 
 from ask.constants import AIProvider
-from ask.exceptions import AIKeyValidationError
+from core.helpers.api import send_api_request
+
+
+OPENAI_MODELS_URL = "https://api.openai.com/v1/models"
+ANTHROPIC_MODELS_URL = "https://api.anthropic.com/v1/models"
+GOOGLE_MODELS_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
 def validate_api_key(
@@ -37,85 +43,49 @@ def validate_api_key(
         return False, str(e)
 
 
-def _validate_openai_key(api_key: str) -> Tuple[bool, Optional[str]]:
-    """Validate OpenAI API key using litellm."""
+def _invalid_key_status_codes(provider: str) -> set:
+    # Google returns 400 for an invalid key; OpenAI/Anthropic use 401.
+    # 403 = key valid but disabled/restricted; treat as invalid for our purposes.
+    if provider == AIProvider.GOOGLE.value:
+        return {400, 401, 403}
+    return {401, 403}
+
+
+def _validate_via_models(provider: str, url: str, headers: dict) -> Tuple[bool, Optional[str]]:
     try:
-        response = litellm.completion(
-            model="gpt-5.4-nano",
-            messages=[{"role": "user", "content": "Hi"}],
-            max_tokens=1,
-            api_key=api_key,
-        )
+        send_api_request(url, method="get", headers=headers)
         return True, None
-    except litellm.AuthenticationError:
-        return False, "Invalid API key"
-    except litellm.RateLimitError:
-        return True, None
-    except litellm.APIError as e:
-        if "invalid_api_key" in str(e).lower() or "incorrect api key" in str(e).lower():
+    except requests.exceptions.HTTPError as e:
+        status = getattr(e.response, "status_code", None)
+        if status in _invalid_key_status_codes(provider):
             return False, "Invalid API key"
-        return True, None
-    except Exception as e:
-        error_str = str(e).lower()
-        if "invalid" in error_str and "key" in error_str:
-            return False, "Invalid API key"
-        if "authentication" in error_str or "unauthorized" in error_str:
-            return False, "Invalid API key"
-        return False, f"Validation failed: {str(e)}"
+        return False, f"Validation failed: HTTP {status}"
+    except requests.exceptions.RequestException as e:
+        return False, f"Validation failed: {e}"
+
+
+def _validate_openai_key(api_key: str) -> Tuple[bool, Optional[str]]:
+    return _validate_via_models(
+        AIProvider.OPENAI.value,
+        OPENAI_MODELS_URL,
+        {"Authorization": f"Bearer {api_key}"},
+    )
 
 
 def _validate_anthropic_key(api_key: str) -> Tuple[bool, Optional[str]]:
-    """Validate Anthropic API key using litellm."""
-    try:
-        response = litellm.completion(
-            model="anthropic/claude-haiku-4-5",
-            messages=[{"role": "user", "content": "Hi"}],
-            max_tokens=1,
-            api_key=api_key,
-        )
-        return True, None
-    except litellm.AuthenticationError:
-        return False, "Invalid API key"
-    except litellm.RateLimitError:
-        return True, None
-    except litellm.APIError as e:
-        if "invalid" in str(e).lower() and "key" in str(e).lower():
-            return False, "Invalid API key"
-        return True, None
-    except Exception as e:
-        error_str = str(e).lower()
-        if "invalid" in error_str and "key" in error_str:
-            return False, "Invalid API key"
-        if "authentication" in error_str or "unauthorized" in error_str:
-            return False, "Invalid API key"
-        return False, f"Validation failed: {str(e)}"
+    return _validate_via_models(
+        AIProvider.ANTHROPIC.value,
+        ANTHROPIC_MODELS_URL,
+        {"x-api-key": api_key, "anthropic-version": "2023-06-01"},
+    )
 
 
 def _validate_google_key(api_key: str) -> Tuple[bool, Optional[str]]:
-    """Validate Google Gemini API key using litellm."""
-    try:
-        response = litellm.completion(
-            model="gemini/gemini-2.5-flash",
-            messages=[{"role": "user", "content": "Hi"}],
-            max_tokens=1,
-            api_key=api_key,
-        )
-        return True, None
-    except litellm.AuthenticationError:
-        return False, "Invalid API key"
-    except litellm.RateLimitError:
-        return True, None
-    except litellm.APIError as e:
-        if "invalid" in str(e).lower() and "key" in str(e).lower():
-            return False, "Invalid API key"
-        return True, None
-    except Exception as e:
-        error_str = str(e).lower()
-        if "invalid" in error_str and "key" in error_str:
-            return False, "Invalid API key"
-        if "authentication" in error_str or "unauthorized" in error_str:
-            return False, "Invalid API key"
-        return False, f"Validation failed: {str(e)}"
+    return _validate_via_models(
+        AIProvider.GOOGLE.value,
+        GOOGLE_MODELS_URL,
+        {"x-goog-api-key": api_key},
+    )
 
 
 def _validate_custom_key(

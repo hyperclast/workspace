@@ -57,7 +57,7 @@ def list_rewinds(request: HttpRequest, external_id: str, query: RewindListQuery 
 
 @rewind_router.post(
     "/{external_id}/rewind/checkpoint/",
-    response={200: RewindSummaryOut, 404: dict},
+    response={200: RewindSummaryOut, 400: dict, 404: dict},
 )
 def create_rewind_checkpoint(
     request: HttpRequest,
@@ -77,6 +77,10 @@ def create_rewind_checkpoint(
 
     if not user_can_edit_in_page(request.user, page):
         raise Http404
+
+    # PDF pages have no Yjs document and no editable text content to checkpoint.
+    if page.is_pdf:
+        return 400, {"message": "Rewind is not supported on PDF pages."}
 
     # Sync latest Yjs snapshot to page.details before snapshotting
     try:

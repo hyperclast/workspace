@@ -1,3 +1,4 @@
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 
 from pages.models import Comment
@@ -144,6 +145,98 @@ class TestGetAncestorChain(CommentModelMixin, TestCase):
         self.assertIn(sibling_a.id, chain_ids)
         self.assertIn(leaf.id, chain_ids)
         self.assertNotIn(sibling_b.id, chain_ids)
+
+
+class TestRepliesNoAnchorConstraint(CommentModelMixin, TestCase):
+    """Regression coverage for the ``replies_no_anchor`` CheckConstraint.
+
+    The constraint's predicate is::
+
+        parent IS NULL
+        OR (anchor_from IS NULL AND anchor_to IS NULL AND pdf_anchor IS NULL)
+
+    When ``pdf_anchor`` was added the constraint expanded to a three-way AND,
+    so it's worth pinning down both the markdown and PDF axes against silent
+    drift in future migrations.
+    """
+
+    def test_root_markdown_comment_with_text_anchor_allowed(self):
+        """Root markdown comment with anchor_from/anchor_to set, pdf_anchor=None — allowed."""
+        comment = Comment.objects.create(
+            page=self.page,
+            author=self.user,
+            body="Markdown root with text anchor",
+            anchor_from=b"\x01\x02\x03",
+            anchor_to=b"\x04\x05\x06",
+            pdf_anchor=None,
+        )
+        self.assertIsNone(comment.parent_id)
+        self.assertIsNotNone(comment.anchor_from)
+        self.assertIsNone(comment.pdf_anchor)
+
+    def test_root_pdf_comment_with_pdf_anchor_allowed(self):
+        """Root PDF comment with pdf_anchor set, text anchors None — allowed."""
+        comment = Comment.objects.create(
+            page=self.page,
+            author=self.user,
+            body="PDF root with pdf_anchor",
+            anchor_from=None,
+            anchor_to=None,
+            pdf_anchor={"page": 1, "rects": [], "text": "x"},
+        )
+        self.assertIsNone(comment.parent_id)
+        self.assertIsNone(comment.anchor_from)
+        self.assertEqual(comment.pdf_anchor["page"], 1)
+
+    def test_reply_with_no_anchors_allowed(self):
+        """Reply (parent set) with all three anchor fields NULL — allowed."""
+        root = CommentFactory(page=self.page, author=self.user)
+        reply = Comment.objects.create(
+            page=self.page,
+            author=self.user,
+            body="Reply",
+            parent=root,
+            root=root,
+            depth=1,
+            anchor_from=None,
+            anchor_to=None,
+            pdf_anchor=None,
+        )
+        self.assertEqual(reply.parent_id, root.id)
+
+    def test_reply_with_text_anchor_rejected(self):
+        """Reply with anchor_from set violates the constraint."""
+        root = CommentFactory(page=self.page, author=self.user)
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Comment.objects.create(
+                    page=self.page,
+                    author=self.user,
+                    body="Bad reply",
+                    parent=root,
+                    root=root,
+                    depth=1,
+                    anchor_from=b"\x01",
+                    anchor_to=None,
+                    pdf_anchor=None,
+                )
+
+    def test_reply_with_pdf_anchor_rejected(self):
+        """Reply with pdf_anchor set violates the constraint."""
+        root = CommentFactory(page=self.page, author=self.user)
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Comment.objects.create(
+                    page=self.page,
+                    author=self.user,
+                    body="Bad reply",
+                    parent=root,
+                    root=root,
+                    depth=1,
+                    anchor_from=None,
+                    anchor_to=None,
+                    pdf_anchor={"page": 1, "rects": [], "text": "x"},
+                )
 
 
 class TestCascadeDeleteAcrossUsers(CommentModelMixin, TestCase):

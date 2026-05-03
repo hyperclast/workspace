@@ -67,8 +67,18 @@ describe("CommentsTab resolve — source patterns", () => {
   });
 
   test("currentPageRole is set from window.getCurrentPage on page change", () => {
-    // Verify that the page change handler reads role from the global page object
-    expect(source).toContain("window.getCurrentPage?.()?.role");
+    // The page-change handler reads window.getCurrentPage() and assigns
+    // currentPageRole from the returned object's role. The exact chaining
+    // shape may vary (e.g. read once into a local, or chain inline) — what
+    // we care about is that role flows from the global page object inside
+    // the registered page-change handler.
+    const handlerMatch = source.match(
+      /registerPageChangeHandler\(\([^)]*\)\s*=>\s*\{[\s\S]*?\n\s{4}\}\);/
+    );
+    expect(handlerMatch).not.toBeNull();
+    const handlerBody = handlerMatch[0];
+    expect(handlerBody).toContain("window.getCurrentPage");
+    expect(handlerBody).toMatch(/currentPageRole\s*=\s*[^;]*\.role/);
   });
 
   test("resolve button does NOT appear in the renderReply snippet", () => {

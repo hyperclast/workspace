@@ -3,7 +3,7 @@ from typing import List
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.http import content_disposition_header
@@ -27,6 +27,7 @@ from pages.permissions import (
     get_user_page_access_label,
     is_org_member_email,
     user_can_access_page,
+    user_can_access_project,
     user_can_delete_page_in_project,
     user_can_edit_in_page,
     user_can_edit_in_project,
@@ -255,8 +256,37 @@ def download_page(request: HttpRequest, external_id: str):
     )
 
     # Get content and filetype from details
-    content = page.details.get("content", "") if page.details else ""
-    filetype = page.details.get("filetype", "md") if page.details else "md"
+    details = page.details or {}
+    content = details.get("content", "")
+    filetype = details.get("filetype", "md")
+
+    # PDF pages: redirect to the original PDF stored in filehub.
+    # Files are project-scoped — page-only viewers (Tier 3) get 403.
+    if page.is_pdf:
+        if not page.project or not user_can_access_project(request.user, page.project):
+            return Response({"message": "You don't have access to the underlying PDF file"}, status=403)
+
+        pdf_file_id = details.get("pdf_file_id")
+        if not pdf_file_id:
+            return Response({"message": "Underlying PDF file is missing"}, status=404)
+
+        from filehub.models import FileUpload
+        from filehub.services import generate_download_url
+
+        # FileUpload.objects already excludes soft-deleted records.
+        file_upload = FileUpload.objects.filter(
+            external_id=pdf_file_id,
+            project=page.project,
+        ).first()
+        if not file_upload:
+            return Response({"message": "Underlying PDF file is missing"}, status=404)
+
+        try:
+            download_url, _, _ = generate_download_url(file_upload, filename=file_upload.filename)
+        except ValueError:
+            return Response({"message": "PDF file is not available for download"}, status=404)
+
+        return HttpResponseRedirect(download_url)
 
     content_type = get_content_type_for_filetype(filetype)
     file_content = prepare_page_content_for_export(page.title, content, filetype)
@@ -267,7 +297,7 @@ def download_page(request: HttpRequest, external_id: str):
     return response
 
 
-@pages_router.post("/{external_id}/access-code/", response={200: AccessCodeOut, 403: dict})
+@pages_router.post("/{external_id}/access-code/", response={200: AccessCodeOut, 400: dict, 403: dict})
 def generate_access_code(request: HttpRequest, external_id: str):
     """Generate or retrieve a read-only access code for a page.
 
@@ -278,6 +308,11 @@ def generate_access_code(request: HttpRequest, external_id: str):
 
     if not user_can_edit_in_page(request.user, page):
         return 403, {"message": "You don't have permission to generate access codes for this page"}
+
+    # Public sharing on PDF pages is disabled in v1 — the underlying file URL
+    # is project-scoped and we don't want anonymous viewers fetching files.
+    if page.is_pdf:
+        return 400, {"message": "Public access codes are not supported on PDF pages."}
 
     if not page.access_code:
         # 32 bytes = 256 bits of entropy, produces ~43-char URL-safe string

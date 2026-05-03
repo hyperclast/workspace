@@ -3,6 +3,7 @@
   import { registerTabHandler, registerPageChangeHandler } from "../../stores/sidebar.svelte.js";
   import { fetchPageLinks, syncPageLinks } from "../../../api.js";
   import { isDemoMode } from "../../../demo/index.js";
+  import { isPdfPage } from "../../../pdf/isPdfPage.js";
   import {
     fetchPageLinks as fetchDemoPageLinks,
     syncPageLinks as syncDemoPageLinks,
@@ -13,6 +14,10 @@
   let localOutgoingLinks = $state([]);
   let externalLinks = $state([]);
   let currentPageId = $state(null);
+  // PDF pages have no editor-backed text content to scan for outgoing
+  // or external links, so those sections are replaced with a notice.
+  // Backlinks still come from the server and remain useful.
+  let currentPageIsPdf = $state(false);
   let loading = $state(false);
   let linksUpdatedHandler = null;
   let contentChangeHandler = null;
@@ -180,6 +185,7 @@
     registerTabHandler("links", updateLinks);
     registerPageChangeHandler((pageId) => {
       currentPageId = pageId;
+      currentPageIsPdf = isPdfPage(window.getCurrentPage?.());
       updateLinks();
     });
 
@@ -254,76 +260,91 @@
       {/if}
     </div>
 
-    <div class="links-section">
-      <h3 class="links-section-title">
-        <svg class="links-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <path d="M14 12l3 3-3 3"/>
-          <line x1="9" y1="15" x2="17" y2="15"/>
-        </svg>
-        Links
-      </h3>
-      {#if displayOutgoingLinks().length > 0}
-        <div class="links-list">
-          {#each displayOutgoingLinks() as link (link.external_id + link.link_text)}
-            <button
-              class="link-item link-item-internal"
-              class:link-item-pending={!link.serverConfirmed}
-              onclick={() => navigateToPage(link.external_id)}
-            >
-              <svg class="link-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-              </svg>
-              <div class="link-item-content">
-                <div class="link-item-title">{link.title || "Untitled"}</div>
-                <div class="link-item-subtitle">"{link.link_text}"</div>
-              </div>
-            </button>
-          {/each}
-        </div>
-      {:else}
-        <div class="links-none">This page doesn't link to any other pages</div>
-      {/if}
-    </div>
-
-    <div class="links-section">
-      <h3 class="links-section-title">
-        <svg class="links-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="2" y1="12" x2="22" y2="12"/>
-          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-        </svg>
-        External
-      </h3>
-      {#if externalLinks.length > 0}
-        <div class="links-list">
-          {#each externalLinks as link (link.url)}
-            <a
-              href={link.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              class="link-item link-item-external"
-            >
-              <svg class="link-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="2" y1="12" x2="22" y2="12"/>
-                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-              </svg>
-              <div class="link-item-content">
-                <div class="link-item-title">
-                  {link.title || getDomainFromUrl(link.url)}
+    {#if currentPageIsPdf}
+      <div class="links-section">
+        <h3 class="links-section-title">
+          <svg class="links-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <path d="M14 12l3 3-3 3"/>
+            <line x1="9" y1="15" x2="17" y2="15"/>
+          </svg>
+          Links
+        </h3>
+        <div class="links-none">PDF pages don't track outgoing or external links</div>
+      </div>
+    {:else}
+      <div class="links-section">
+        <h3 class="links-section-title">
+          <svg class="links-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <path d="M14 12l3 3-3 3"/>
+            <line x1="9" y1="15" x2="17" y2="15"/>
+          </svg>
+          Links
+        </h3>
+        {#if displayOutgoingLinks().length > 0}
+          <div class="links-list">
+            {#each displayOutgoingLinks() as link (link.external_id + link.link_text)}
+              <button
+                class="link-item link-item-internal"
+                class:link-item-pending={!link.serverConfirmed}
+                onclick={() => navigateToPage(link.external_id)}
+              >
+                <svg class="link-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                </svg>
+                <div class="link-item-content">
+                  <div class="link-item-title">{link.title || "Untitled"}</div>
+                  <div class="link-item-subtitle">"{link.link_text}"</div>
                 </div>
-                <div class="link-item-url">{link.url}</div>
-              </div>
-            </a>
-          {/each}
-        </div>
-      {:else}
-        <div class="links-none">No links to other websites</div>
-      {/if}
-    </div>
+              </button>
+            {/each}
+          </div>
+        {:else}
+          <div class="links-none">This page doesn't link to any other pages</div>
+        {/if}
+      </div>
+
+      <div class="links-section">
+        <h3 class="links-section-title">
+          <svg class="links-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+          External
+        </h3>
+        {#if externalLinks.length > 0}
+          <div class="links-list">
+            {#each externalLinks as link (link.url)}
+              <a
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="link-item link-item-external"
+              >
+                <svg class="link-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="2" y1="12" x2="22" y2="12"/>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+                <div class="link-item-content">
+                  <div class="link-item-title">
+                    {link.title || getDomainFromUrl(link.url)}
+                  </div>
+                  <div class="link-item-url">{link.url}</div>
+                </div>
+              </a>
+            {/each}
+          </div>
+        {:else}
+          <div class="links-none">No links to other websites</div>
+        {/if}
+      </div>
+    {/if}
   {/if}
 </div>
 

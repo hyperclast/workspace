@@ -25,7 +25,7 @@ from imports.schemas import (
     NotionImportOut,
 )
 from imports.services.abuse import should_block_user
-from imports.services.pdf import escape_markdown_link_text, store_pdf_as_file
+from imports.services.pdf import compute_page_text_offsets, store_pdf_as_file
 from imports.tasks import process_notion_import
 from imports.throttling import ImportCreationThrottle
 from pages.models import Page, Project
@@ -265,18 +265,24 @@ def import_pdf(
     # Store original PDF as a project file
     file_upload = store_pdf_as_file(project, request.user, filename, file_bytes)
 
-    # Build page content with link to original PDF at top
-    pdf_link = f"[{escape_markdown_link_text(filename)}]({file_upload.download_url})"
-    page_content = f"{pdf_link}\n\n---\n\n{content.strip()}"
-
-    # Create page — if this fails, clean up the FileUpload to avoid orphans
+    # Create page — PDF-type page that renders the original PDF inline.
+    # Extracted text is kept in details.extracted_text for search and AI context.
     clean_title = title.strip()[:100]
+    extracted_text = content.strip()
+    page_text_offsets = compute_page_text_offsets(extracted_text)
     try:
         page = Page.objects.create_with_owner(
             user=request.user,
             project=project,
             title=clean_title,
-            details={"content": page_content, "filetype": "md", "schema_version": 1},
+            details={
+                "content": "",
+                "extracted_text": extracted_text,
+                "page_text_offsets": page_text_offsets,
+                "pdf_file_id": str(file_upload.external_id),
+                "filetype": "pdf",
+                "schema_version": 2,
+            },
         )
     except Exception:
         logger.exception("Failed to create page for PDF import, cleaning up file upload %s", file_upload.external_id)

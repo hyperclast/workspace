@@ -365,7 +365,7 @@ The system is designed to be resilient - individual page failures don't stop the
 
 ## PDF Import
 
-PDF import is a synchronous, single-file import that creates one page per PDF. Unlike Notion import (which uses background processing), PDF import completes within the HTTP request.
+PDF import is a synchronous, single-file import that creates one **PDF-native page** per PDF. Unlike Notion import (which uses background processing), PDF import completes within the HTTP request.
 
 ### Flow
 
@@ -375,7 +375,7 @@ PDF import is a synchronous, single-file import that creates one page per PDF. U
 ├───────────────────────────────────────────┤
 │  1. User picks PDF file                  │
 │  2. PDF.js extracts text (client-side)    │
-│  3. POST /api/imports/pdf/                │
+│  3. POST /api/v1/imports/pdf/             │
 │     multipart: project_id, title,         │
 │                content, file              │
 └────────────────────┬──────────────────────┘
@@ -385,38 +385,41 @@ PDF import is a synchronous, single-file import that creates one page per PDF. U
 ├───────────────────────────────────────────┤
 │  4. Validate (type, size, content, perms) │
 │  5. Store PDF as FileUpload via FileHub   │
-│  6. Create page with extracted text       │
-│     + link to original PDF at top         │
+│  6. Create PDF-native page (filetype=pdf, │
+│     schema_version=2, pdf_file_id set,    │
+│     extracted_text + page_text_offsets    │
+│     stored in details for search/AI)      │
 │  7. Return 201 with page/file IDs        │
 └───────────────────────────────────────────┘
 ```
 
 ### Key Differences from Notion Import
 
-| Aspect            | Notion Import                  | PDF Import                            |
-| ----------------- | ------------------------------ | ------------------------------------- |
-| Processing        | Async (RQ background job)      | Synchronous (inline)                  |
-| Text extraction   | Server-side (markdown parsing) | Client-side (PDF.js)                  |
-| Pages per import  | Many (from zip archive)        | One                                   |
-| Creates ImportJob | Yes                            | No                                    |
-| File storage      | Archive stored in R2 for audit | Original PDF stored as FileUpload     |
-| Deduplication     | source_hash based              | None (each import creates a new page) |
+| Aspect            | Notion Import                  | PDF Import                                        |
+| ----------------- | ------------------------------ | ------------------------------------------------- |
+| Processing        | Async (RQ background job)      | Synchronous (inline)                              |
+| Text extraction   | Server-side (markdown parsing) | Client-side (PDF.js)                              |
+| Pages per import  | Many (from zip archive)        | One                                               |
+| Page type         | Markdown (`filetype` unset)    | PDF-native (`filetype="pdf"`, schema_version 2)   |
+| Creates ImportJob | Yes                            | No                                                |
+| File storage      | Archive stored in R2 for audit | Original PDF stored as FileUpload, linked to page |
+| Deduplication     | source_hash based              | None (each import creates a new page)             |
 
-### Page Content Structure
+### Page Shape
 
-The created page contains:
+The created page is a PDF-native page — it does **not** contain markdown content. Instead:
 
-```markdown
-[filename.pdf](/files/project-id/file-id/token/)
+- `details["filetype"]` = `"pdf"`
+- `details["schema_version"]` = `2`
+- `details["pdf_file_id"]` — external ID of the `FileUpload` holding the original PDF
+- `details["extracted_text"]` — client-extracted plain text (used for full-text search and AI review)
+- `details["page_text_offsets"]` — list of UTF-8 byte offsets marking where each PDF page begins in `extracted_text`
 
----
+The frontend recognizes `filetype="pdf"` and renders the original PDF inline via PDF.js (lazy, IntersectionObserver-driven). There is no CodeMirror editor, no Yjs collaboration document, and no markdown body. Comments anchor to PDF rectangles instead of text ranges (see `docs/api/internal/comments.md` for the `pdf_anchor` schema).
 
-Extracted text from the PDF...
-```
+### Migration note
 
-- **PDF link**: Markdown link to the original file at the top, with filename escaped to prevent markdown injection
-- **Separator**: Horizontal rule separating the link from content
-- **Extracted text**: Client-side extracted text, stripped of leading/trailing whitespace
+PDF imports created on or after 2026-04-25 are PDF-native pages as described above. Older imports remain as markdown pages with a link to the original PDF embedded at the top followed by the extracted text body (`schema_version` 1 or unset). They continue to render through the regular CodeMirror editor with no behavior change; only the import flow has changed.
 
 ### Validation
 

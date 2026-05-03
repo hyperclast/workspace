@@ -116,6 +116,7 @@ import { initTheme } from "./theme.js";
 import { mount, unmount } from "svelte";
 import ThemeToggle from "./lib/components/ThemeToggle.svelte";
 import PdfViewer from "./pdf/PdfViewer.svelte";
+import { isPdfPage } from "./pdf/isPdfPage.js";
 import { addRecentPage } from "./lib/recentPages.js";
 import { commandPalette } from "./lib/modal.js";
 import { setupRewind, exitRewindMode } from "./rewind/index.js";
@@ -727,6 +728,17 @@ async function loadPage(page, signal = null) {
   const filetype = page.details?.filetype || "md";
   pageLoadSpan.addEvent("setup_complete");
 
+  // PDF pages render the original PDF inline. No Yjs collaboration: there is
+  // no editable text content. loadPdfPage() opens its own thin WebSocket
+  // subscription so comment / AI-review broadcasts still reach the page.
+  if (isPdfPage(page)) {
+    resetToolbar();
+    const { loadPdfPage } = await import("./pdf/loadPdfPage.js");
+    await loadPdfPage(page, pageLoadSpan, contentLength);
+    updateSidenavActive(currentPage.external_id);
+    return;
+  }
+
   // CSV pages use a different viewer (read-only, needs Yjs sync for content)
   if (filetype === "csv") {
     pageLoadSpan.addEvent("csv_viewer_init_start");
@@ -1165,6 +1177,13 @@ function cleanupCurrentPage() {
     window.logViewerCleanup();
     window.logViewerCleanup = null;
     document.getElementById("editor").style.paddingLeft = "";
+  }
+
+  if (window.pdfPageViewCleanup) {
+    window.pdfPageViewCleanup();
+    window.pdfPageViewCleanup = null;
+    const ed = document.getElementById("editor");
+    if (ed) ed.style.padding = "";
   }
 
   document.getElementById("editor").innerHTML = "";

@@ -42,6 +42,7 @@
     exitRewindMode,
   } from "../../../rewind/index.js";
   import { getUserInfo, getAppConfig } from "../../../config.js";
+  import { isPdfPage } from "../../../pdf/isPdfPage.js";
   import { showToast } from "../../toast.js";
 
   function getApi() {
@@ -53,6 +54,7 @@
   let comments = $state([]);
   let currentPageId = $state(null);
   let currentPageRole = $state(null); // "admin", "editor", "viewer", or null
+  let currentPageIsPdf = $state(false);
   let loading = $state(false);
   let replyingTo = $state(null); // external_id of comment being replied to
   let pageCommentBody = $state("");
@@ -111,6 +113,7 @@
   let activeCommentId = $state(null);
   let showNewComment = $state(false);
   let commentFocusedHandler = null;
+  let pdfCommentSelectedHandler = null;
   let collabStatusHandler = null;
   let resolveRetryTimer = null;
 
@@ -494,6 +497,15 @@
     showReactionPicker = null;
     setActiveCommentHighlight(window.editorView, commentId);
 
+    // PDF pages: focus the anchor in the inline PDF viewer instead of the editor.
+    const clicked = comments.find((c) => c.external_id === commentId);
+    if (clicked?.pdf_anchor) {
+      window.dispatchEvent(
+        new CustomEvent("pdfFocusAnchor", { detail: { pdf_anchor: clicked.pdf_anchor } })
+      );
+      return;
+    }
+
     // Scroll editor to the comment's anchor position
     const view = window.editorView;
     if (!view) return;
@@ -510,7 +522,9 @@
     registerTabHandler("comments", loadComments);
     registerPageChangeHandler((pageId) => {
       currentPageId = pageId;
-      currentPageRole = window.getCurrentPage?.()?.role ?? null;
+      const cp = window.getCurrentPage?.();
+      currentPageRole = cp?.role ?? null;
+      currentPageIsPdf = isPdfPage(cp);
       _inflight.clear();
       pendingPersonas = new Set();
       loadComments();
@@ -552,6 +566,23 @@
       });
     };
     window.addEventListener("commentFocused", commentFocusedHandler);
+
+    // PDF rectangle → Sidebar: clicking a yellow highlight focuses that thread.
+    // Same flow as commentFocused, but dispatched by PdfCommentOverlay (not the editor).
+    pdfCommentSelectedHandler = (e) => {
+      const commentId = e.detail?.commentId;
+      if (!commentId) return;
+      activeCommentId = commentId;
+      openSidebar();
+      setActiveTab("comments");
+      requestAnimationFrame(() => {
+        const card = document.querySelector(`.comment-card[data-comment-id="${commentId}"]`);
+        if (card) {
+          card.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      });
+    };
+    window.addEventListener("pdfCommentSelected", pdfCommentSelectedHandler);
 
     // Re-resolve comment anchors when document content changes so bars/dots track edits
     docChangeHandler = () => {
@@ -606,6 +637,9 @@
     }
     if (commentFocusedHandler) {
       window.removeEventListener("commentFocused", commentFocusedHandler);
+    }
+    if (pdfCommentSelectedHandler) {
+      window.removeEventListener("pdfCommentSelected", pdfCommentSelectedHandler);
     }
     if (docChangeHandler) {
       window.removeEventListener("editorContentChanged", docChangeHandler);
@@ -839,7 +873,7 @@
             <div class="comment-body">{@html formatCommentBody(comment.body)}</div>
 
             <div class="comment-actions">
-              {#if comment.ai_persona && !comment.parent_id && !comment.is_resolved && comment.anchor_text && canResolve()}
+              {#if comment.ai_persona && !comment.parent_id && !comment.is_resolved && comment.anchor_text && !currentPageIsPdf && canResolve()}
                 <button
                   class="comment-action-btn"
                   disabled={applyingComment === comment.external_id}

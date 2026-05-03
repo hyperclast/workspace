@@ -4,22 +4,33 @@
     getState,
     setActiveTab,
     closeSidebar,
+    registerPageChangeHandler,
   } from "../stores/sidebar.svelte.js";
   import { getFeatureFlags, SIDEBAR_OVERLAY_BREAKPOINT } from "../../config.js";
+  import { isPdfPage } from "../../pdf/isPdfPage.js";
   import AskTab from "./sidebar/AskTab.svelte";
   import CommentsTab from "./sidebar/CommentsTab.svelte";
   import LinksTab from "./sidebar/LinksTab.svelte";
   import DevTab from "./sidebar/DevTab.svelte";
   import RewindTab from "../../rewind/RewindTab.svelte";
 
-  const state = getState();
+  // Renamed from `state` to avoid shadowing the `$state` rune — Svelte 5
+  // would otherwise compile `$state(...)` below as a legacy auto-subscribe
+  // to this local, breaking sidebar mount.
+  const sidebarState = getState();
   const featureFlags = getFeatureFlags();
 
-  // Derived state for reactivity
-  let isOpen = $derived(state.isOpen);
-  let isCollapsed = $derived(state.isCollapsed);
-  let activeTab = $derived(state.activeTab);
-  let tabs = $derived(state.tabs);
+  let isOpen = $derived(sidebarState.isOpen);
+  let isCollapsed = $derived(sidebarState.isCollapsed);
+  let activeTab = $derived(sidebarState.activeTab);
+  let tabs = $derived(sidebarState.tabs);
+
+  // PDF pages cannot use Rewind (server returns 400 on checkpoint creation),
+  // so the tab is hidden while a PDF page is open.
+  let currentPageIsPdf = $state(false);
+  let visibleTabs = $derived(
+    currentPageIsPdf ? tabs.filter((t) => t.id !== "rewind") : tabs,
+  );
 
   onMount(() => {
     // Manually attach click handlers since Svelte's onclick doesn't work with mount().
@@ -47,6 +58,16 @@
       }
     };
     window.addEventListener("resize", handleResize);
+
+    // Track whether the current page is a PDF so we can hide tabs that
+    // don't apply (Rewind). If the user was viewing Rewind and navigates
+    // to a PDF, fall back to Comments since Rewind is no longer visible.
+    registerPageChangeHandler(() => {
+      currentPageIsPdf = isPdfPage(window.getCurrentPage?.());
+      if (currentPageIsPdf && sidebarState.activeTab === "rewind") {
+        setActiveTab("comments");
+      }
+    });
 
     return () => {
       overlay?.removeEventListener("click", handleOverlayClick);
@@ -76,7 +97,7 @@
   <!-- Sidebar header -->
   <div class="chat-sidebar-header">
     <div class="sidebar-tabs">
-      {#each tabs as tab (tab.id)}
+      {#each visibleTabs as tab (tab.id)}
         <button
           class="sidebar-tab"
           class:active={activeTab === tab.id}
@@ -147,7 +168,7 @@
   {/if}
 
   <!-- Rewind Tab (conditionally rendered) -->
-  {#if featureFlags.rewind}
+  {#if featureFlags.rewind && !currentPageIsPdf}
     <div
       class="sidebar-tab-content"
       class:hidden={activeTab !== "rewind"}
@@ -158,7 +179,7 @@
   {/if}
 
   <!-- Private tabs will be dynamically added -->
-  {#each tabs.filter(t => t.id !== "ask" && t.id !== "comments" && t.id !== "links" && t.id !== "dev" && t.id !== "rewind") as tab (tab.id)}
+  {#each visibleTabs.filter(t => t.id !== "ask" && t.id !== "comments" && t.id !== "links" && t.id !== "dev" && t.id !== "rewind") as tab (tab.id)}
     <div
       class="sidebar-tab-content"
       class:hidden={activeTab !== tab.id}

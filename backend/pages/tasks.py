@@ -152,6 +152,42 @@ def _build_numbered_content(content: str) -> str:
     return "\n".join(f"{i + 1}: {line}" for i, line in enumerate(lines))
 
 
+def _resolve_pdf_anchor(page, anchor_text):
+    """Map an AI-quoted passage to a page-only `pdf_anchor` dict.
+
+    AI personas only emit `anchor_text`; on PDF pages that means the comment
+    has no way to be located in the document by the overlay. This helper
+    finds the first occurrence of `anchor_text` in `extracted_text` and
+    looks up which page contains that offset using the `page_text_offsets`
+    map persisted at import time. Returns
+    `{"page": int, "rects": [], "text": str}` — the empty `rects` tells the
+    overlay to scroll to the page without painting a rectangle. Returns
+    `None` when the page isn't a PDF, the anchor text isn't found, or
+    `page_text_offsets` is missing (legacy data).
+    """
+    if not page.is_pdf:
+        return None
+    if not anchor_text:
+        return None
+    details = page.details or {}
+    extracted_text = details.get("extracted_text") or ""
+    offsets = details.get("page_text_offsets") or []
+    if not extracted_text or not offsets:
+        return None
+
+    pos = extracted_text.find(anchor_text)
+    if pos == -1:
+        return None
+
+    for index, span in enumerate(offsets):
+        if not span or len(span) != 2:
+            continue
+        start, end = span
+        if start <= pos < end:
+            return {"page": index + 1, "rects": [], "text": anchor_text}
+    return None
+
+
 def _build_context_pages(page) -> str:
     """Build context from other pages in the project, respecting cost guardrails."""
     other_pages = (
@@ -163,7 +199,7 @@ def _build_context_pages(page) -> str:
     context_parts = []
     total_chars = 0
     for p in other_pages:
-        content = p.details.get("content", "")
+        content = p.get_text_content()
         if not content:
             continue
         truncated = content[:MAX_CHARS_PER_PAGE]
@@ -223,7 +259,7 @@ def run_ai_review(page_id: int, page_external_id: str, persona: str, requester_i
         cache.delete(cache_key)
         return
 
-    content = page.details.get("content", "")
+    content = page.get_text_content()
     if not content.strip():
         log_info("AI review: page %s has no content, skipping", page_eid)
         notify_ai_review_complete(page_eid, persona, 0)
@@ -322,6 +358,7 @@ def run_ai_review(page_id: int, page_external_id: str, persona: str, requester_i
     log_info("AI review: creating %d comments for page %s", len(parsed_comments), page_eid)
 
     for item in parsed_comments:
+        pdf_anchor = _resolve_pdf_anchor(page, item["anchor_text"])
         Comment.objects.create(
             page=page,
             author=None,
@@ -329,6 +366,7 @@ def run_ai_review(page_id: int, page_external_id: str, persona: str, requester_i
             requester=requester,
             anchor_text=item["anchor_text"],
             body=item["body"],
+            pdf_anchor=pdf_anchor,
         )
 
     # Broadcast comments update + review completion
@@ -374,7 +412,7 @@ def generate_edit_from_comment(comment, page, requester):
 
     Returns the text to insert (string).
     """
-    content = page.details.get("content", "")
+    content = page.get_text_content()
     context = _extract_context_window(content, comment.anchor_text)
 
     # Build the comment thread
@@ -470,7 +508,7 @@ def run_ai_reply(reply_comment_id: int, persona: str, requester_id: int):
         )
 
     # Get page content for broader context
-    content = page.details.get("content", "")
+    content = page.get_text_content()
     page_context = ""
     if content.strip():
         truncated = content[:MAX_CHARS_PER_PAGE]

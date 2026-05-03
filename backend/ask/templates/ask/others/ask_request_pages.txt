@@ -3,8 +3,8 @@ Here are the most relevant pages:
 {% for page in pages %}
 <page>
 <title>{{ page.title }}</title>
-{% if page.details.content %}
-<content>{{ page.details.content|truncatechars:3000 }}</content>
+{% if page.text %}
+<content>{{ page.text|truncatechars:3000 }}</content>
 {% endif %}
 </page>
 {% endfor %}

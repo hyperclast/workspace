@@ -31,6 +31,7 @@ export function setupPresenceUI(awareness) {
   }
 
   target.innerHTML = "";
+  target.style.display = "";
 
   let hideTimeout;
   let cleaned = false;

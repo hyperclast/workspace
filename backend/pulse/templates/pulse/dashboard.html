@@ -427,6 +427,9 @@
       <nav class="pulse-sidenav">
         <div class="pulse-sidenav-links">
           <a href="#growth">Growth Metrics</a>
+          {% if billing_enabled %}
+            <a href="#paid-orgs">Paid Orgs</a>
+          {% endif %}
           <a href="#mau">Monthly Active Users</a>
           <a href="#wau">Weekly Active Users</a>
           <a href="#dau">Daily Active Users</a>
@@ -490,6 +493,72 @@
             </div>
           </div>
         </section>
+
+        <!-- Paid Orgs Section -->
+        {% if billing_enabled %}
+          <section class="section" id="paid-orgs">
+            <div class="section-header">
+              <div>
+                <h2 class="section-title">Paid Orgs <span class="count-badge">{{ paid_orgs_total }}</span></h2>
+                <p class="section-meta">
+                  Pro plan organizations.
+                  {% if paid_orgs_payment_failed %}
+                    <span class="badge badge-warning">{{ paid_orgs_payment_failed }} with payment failed</span>
+                  {% endif %}
+                </p>
+              </div>
+              {% include 'pulse/partials/_badge_sync.html' %}
+            </div>
+            {% if paid_orgs %}
+              <div class="table-scroll">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Org</th>
+                      <th>Members (★ admin)</th>
+                      <th>Count</th>
+                      <th>Status</th>
+                      <th>Upgraded</th>
+                      <th>Last Change</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for org in paid_orgs %}
+                      <tr>
+                        <td><strong>{{ org.org_name }}</strong></td>
+                        <td>
+                          {% for m in org.members %}
+                            <form class="hijack-form" method="POST" action="/hijack/acquire/">
+                              {% csrf_token %}
+                              <input type="hidden" name="user_pk" value="{{ m.pk }}">
+                              <button type="submit" class="hijack-btn" title="Impersonate {{ m.email }}">{{ m.username }}{% if m.is_admin %} ★{% endif %}</button>
+                            </form>{% if not forloop.last %} {% endif %}
+                          {% empty %}
+                            <span class="section-meta">—</span>
+                          {% endfor %}
+                        </td>
+                        <td>{{ org.member_count }}</td>
+                        <td>
+                          {% if org.payment_failed %}
+                            <span class="badge badge-warning">Payment failed</span>
+                          {% else %}
+                            <span class="badge badge-success">Active</span>
+                          {% endif %}
+                        </td>
+                        <td>{{ org.upgraded_at|default:"—" }}</td>
+                        <td>{{ org.modified }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <div class="empty-state">
+                <p>No paid orgs yet.</p>
+              </div>
+            {% endif %}
+          </section>
+        {% endif %}
 
         <!-- MAU Section -->
         <section class="section" id="mau">

@@ -16,7 +16,7 @@
         document.documentElement.classList.add(effective);
       })();
     </script>
-    <title>{% block title %}Home{% endblock %} | {{ brand_name }}</title>
+    <title>{% block title %}Home{% endblock %} | {{ brand_name|default:"Hyperclast" }}</title>
     {% include 'core/partials/_favicon.html' %}
 
     {% block meta %}

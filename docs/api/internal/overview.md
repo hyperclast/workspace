@@ -338,6 +338,7 @@ while (true) {
 
 ## Available API Resources
 
+- [**AI Providers API**](./ai.md) - Manage user/org AI provider configs (OpenAI, Anthropic, Google, custom). Idempotent upsert on `(scope, provider, api_key, api_base_url)`
 - [**Ask API**](./ask.md) - AI-powered question answering about your pages using RAG
 - [**Authentication API**](./auth.md) - Login, signup, logout, and password reset (django-allauth headless)
 - [**Comments API**](./comments.md) - Page comments anchored to text ranges, with threaded replies and AI persona reviews

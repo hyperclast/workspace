@@ -4,65 +4,60 @@ from django.test import SimpleTestCase, TestCase
 
 from filehub.constants import BlobStatus, FileUploadStatus
 from filehub.models import Blob, FileUpload
-from imports.services.pdf import escape_markdown_link_text, store_pdf_as_file
+from imports.services.pdf import compute_page_text_offsets, store_pdf_as_file
 from pages.tests.factories import ProjectFactory
 from users.tests.factories import UserFactory
 
 
-class TestEscapeMarkdownLinkText(SimpleTestCase):
-    """Test escape_markdown_link_text() prevents markdown injection."""
+class TestComputePageTextOffsets(SimpleTestCase):
+    """compute_page_text_offsets() maps PDF page numbers to char ranges."""
 
-    def test_plain_filename_unchanged(self):
-        self.assertEqual(escape_markdown_link_text("document.pdf"), "document.pdf")
+    def test_empty_content(self):
+        self.assertEqual(compute_page_text_offsets(""), [])
 
-    def test_escapes_closing_bracket(self):
-        """A ']' in the filename would close the link text early."""
-        self.assertEqual(
-            escape_markdown_link_text("report].pdf"),
-            "report\\].pdf",
-        )
+    def test_no_markers(self):
+        """Legacy PDFs without per-page markers yield an empty mapping."""
+        self.assertEqual(compute_page_text_offsets("Plain extracted text."), [])
 
-    def test_escapes_opening_bracket(self):
-        self.assertEqual(
-            escape_markdown_link_text("report[1].pdf"),
-            "report\\[1\\].pdf",
-        )
+    def test_single_page(self):
+        content = "# Page 1\n\nHello world"
+        offsets = compute_page_text_offsets(content)
+        self.assertEqual(len(offsets), 1)
+        start, end = offsets[0]
+        self.assertEqual(content[start:end], "Hello world")
 
-    def test_escapes_backslash(self):
-        """Backslashes must be escaped first to avoid double-escaping."""
-        self.assertEqual(
-            escape_markdown_link_text("back\\slash.pdf"),
-            "back\\\\slash.pdf",
-        )
+    def test_multiple_pages(self):
+        content = "# Page 1\n\nFirst page text.\n\n# Page 2\n\nSecond page text."
+        offsets = compute_page_text_offsets(content)
+        self.assertEqual(len(offsets), 2)
+        s1, e1 = offsets[0]
+        s2, e2 = offsets[1]
+        self.assertEqual(content[s1:e1], "First page text.")
+        self.assertEqual(content[s2:e2], "Second page text.")
 
-    def test_replaces_newline_with_space(self):
-        self.assertEqual(
-            escape_markdown_link_text("line1\nline2.pdf"),
-            "line1 line2.pdf",
-        )
+    def test_anchor_text_resolves_to_correct_page(self):
+        content = "# Page 1\n\nFirst page about cats.\n\n# Page 2\n\nSecond page about dogs."
+        offsets = compute_page_text_offsets(content)
 
-    def test_strips_carriage_return(self):
-        self.assertEqual(
-            escape_markdown_link_text("file\r\n.pdf"),
-            "file .pdf",
-        )
+        # "dogs" lives on page 2
+        pos = content.find("dogs")
+        match = next((i for i, (s, e) in enumerate(offsets) if s <= pos < e), None)
+        self.assertEqual(match, 1)  # 0-indexed → page 2
 
-    def test_combined_injection_attempt(self):
-        """Filename crafted to break out of link text and inject new link."""
-        malicious = "evil](http://bad.com)\n[click me"
-        escaped = escape_markdown_link_text(malicious)
-        # The ] must be escaped so markdown won't treat it as closing the link
-        self.assertEqual(escaped, "evil\\](http://bad.com) \\[click me")
-        # Verify the ] before ( is always preceded by a backslash
-        self.assertNotIn("](", escaped.replace("\\]", ""))
-
-    def test_empty_string(self):
-        self.assertEqual(escape_markdown_link_text(""), "")
-
-    def test_only_special_chars(self):
-        # Input: [ ] \ \n \r
-        # \ → \\, [ → \[, ] → \], \n → space, \r → removed
-        self.assertEqual(escape_markdown_link_text("[]\\\n\r"), "\\[\\]\\\\ ")
+    def test_pages_with_no_text_are_skipped_in_content_but_indexed(self):
+        """When a PDF page has no extractable text the frontend skips it; the
+        resulting offsets list should still index the highest page number so
+        downstream lookups by page_number-1 work."""
+        content = "# Page 1\n\nFirst page text.\n\n# Page 3\n\nThird page text."
+        offsets = compute_page_text_offsets(content)
+        self.assertEqual(len(offsets), 3)
+        # Page 2 has no text, slot is [0, 0]
+        self.assertEqual(offsets[1], [0, 0])
+        # Page 1 and 3 are populated
+        s1, e1 = offsets[0]
+        s3, e3 = offsets[2]
+        self.assertEqual(content[s1:e1], "First page text.")
+        self.assertEqual(content[s3:e3], "Third page text.")
 
 
 class TestStorePdfAsFile(TestCase):

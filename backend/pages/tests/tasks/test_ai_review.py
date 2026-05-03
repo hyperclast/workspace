@@ -214,6 +214,43 @@ class TestBuildContextPages(TestCase):
         self.assertIn('title="Notes &quot;Q3&quot; &lt;draft&gt; &amp; ideas"', result)
         self.assertNotIn("<draft>", result)
 
+    def test_pdf_sibling_page_uses_extracted_text(self):
+        """A PDF page in the project must contribute its extracted_text, not
+        the empty `content` field, to the AI context."""
+        PageFactory(
+            project=self.project,
+            creator=self.user,
+            title="Reference Paper",
+            details={
+                "filetype": "pdf",
+                "schema_version": 2,
+                "content": "",
+                "extracted_text": "Quoted excerpt from PDF page two.",
+                "pdf_file_id": "deadbeef",
+            },
+        )
+        result = _build_context_pages(self.page)
+        self.assertIn("Quoted excerpt from PDF page two.", result)
+        self.assertIn('title="Reference Paper"', result)
+
+    def test_pdf_sibling_page_without_extracted_text_is_skipped(self):
+        """A PDF with no extracted_text contributes nothing — `get_text_content`
+        returns "" so the page is dropped by the empty-content filter."""
+        PageFactory(
+            project=self.project,
+            creator=self.user,
+            title="Empty PDF",
+            details={
+                "filetype": "pdf",
+                "schema_version": 2,
+                "content": "",
+                "extracted_text": "",
+                "pdf_file_id": "deadbeef",
+            },
+        )
+        result = _build_context_pages(self.page)
+        self.assertEqual(result, "")
+
 
 # --- run_ai_review ---
 

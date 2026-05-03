@@ -131,8 +131,8 @@ class AIProviderConfigIn(Schema):
     api_key: Optional[str] = None
     api_base_url: Optional[str] = None
     model_name: Optional[str] = Field(None, max_length=100)
-    is_enabled: bool = True
-    is_default: bool = False
+    is_enabled: Optional[bool] = None
+    is_default: Optional[bool] = None
 
 
 class AIProviderConfigUpdateIn(Schema):
