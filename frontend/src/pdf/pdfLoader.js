@@ -39,6 +39,19 @@ async function initPdfJs() {
 }
 
 /**
+ * Translate worker-init failures into a user-friendly message; pass other
+ * errors through unchanged. The original error is logged for debugging.
+ */
+function friendlyPdfError(err) {
+  const msg = err?.message || String(err);
+  if (msg.includes("fake worker") || msg.includes("dynamically imported module")) {
+    console.error("[PDF] Worker load failed:", err);
+    return new Error("Couldn't load PDF support. Please refresh the page and try again.");
+  }
+  return err;
+}
+
+/**
  * Load a PDF document from a URL.
  * @param {string} url - The URL of the PDF file
  * @returns {Promise<import('pdfjs-dist').PDFDocumentProxy>}
@@ -53,7 +66,11 @@ export async function loadPdf(url) {
     cMapPacked: true,
   });
 
-  return loadingTask.promise;
+  try {
+    return await loadingTask.promise;
+  } catch (err) {
+    throw friendlyPdfError(err);
+  }
 }
 
 /**
@@ -107,11 +124,16 @@ export async function getTextContent(page) {
 export async function extractTextFromPdf(data) {
   const pdfjs = await initPdfJs();
 
-  const doc = await pdfjs.getDocument({
-    data,
-    cMapUrl: "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.8.69/cmaps/",
-    cMapPacked: true,
-  }).promise;
+  let doc;
+  try {
+    doc = await pdfjs.getDocument({
+      data,
+      cMapUrl: "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.8.69/cmaps/",
+      cMapPacked: true,
+    }).promise;
+  } catch (err) {
+    throw friendlyPdfError(err);
+  }
 
   // Try to get title from PDF metadata
   const metadata = await doc.getMetadata().catch(() => null);

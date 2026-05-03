@@ -936,8 +936,20 @@ export async function importPdf(projectId, file) {
     body: formData,
   });
   if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    const err = new Error(data.message || `Failed to import PDF: ${response.statusText}`);
+    // Django returns JSON with `message`. nginx (e.g. 413 from
+    // client_max_body_size) returns HTML, so json() fails — fall back to a
+    // status-aware message instead of an empty `response.statusText`.
+    const data = await response.json().catch(() => null);
+    let message = data?.message;
+    if (!message) {
+      if (response.status === 413) {
+        const limitMb = Math.round(MAX_PDF_SIZE / (1024 * 1024));
+        message = `This PDF is too large to upload. Maximum size is ${limitMb}MB.`;
+      } else {
+        message = `Failed to import PDF (HTTP ${response.status})`;
+      }
+    }
+    const err = new Error(message);
     err.status = response.status;
     throw err;
   }
