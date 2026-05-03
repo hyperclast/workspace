@@ -119,6 +119,89 @@ class TestPageEmbeddingModel(TestCase):
         self.assertIn("Revenue grew 12% year over year.", called_input)
 
 
+class TestPageEmbeddingComputeFailures(TestCase):
+    """The embedding column is NOT NULL — when compute_embedding fails, the manager
+    must propagate (not insert/update with None). Regression tests for the
+    IntegrityError observed in production when a user had no AI provider configured.
+    """
+
+    @patch("ask.models.embeddings.compute_embedding")
+    def test_create_branch_propagates_when_compute_raises(self, mocked_compute):
+        """If compute_embedding raises during the create path, the exception must bubble up."""
+        page = PageFactory(details={"content": "Page text"})
+        mocked_compute.side_effect = ValueError("api_key is required")
+
+        with self.assertRaises(ValueError):
+            PageEmbedding.objects.update_or_create_page_embedding(page)
+
+    @patch("ask.models.embeddings.compute_embedding")
+    def test_create_branch_does_not_persist_when_compute_raises(self, mocked_compute):
+        """No PageEmbedding row should be created when compute_embedding fails."""
+        page = PageFactory(details={"content": "Page text"})
+        mocked_compute.side_effect = ValueError("api_key is required")
+
+        with self.assertRaises(ValueError):
+            PageEmbedding.objects.update_or_create_page_embedding(page)
+
+        self.assertFalse(PageEmbedding.objects.filter(page=page).exists())
+
+    @patch("ask.models.embeddings.compute_embedding")
+    def test_update_branch_propagates_when_compute_raises(self, mocked_compute):
+        """If compute_embedding raises during the update path, the exception must bubble up."""
+        page = PageFactory(details={"content": "New content"})
+        PageEmbeddingFactory(page=page, content_hash="stale_hash")
+        mocked_compute.side_effect = ValueError("api_key is required")
+
+        with self.assertRaises(ValueError):
+            PageEmbedding.objects.update_or_create_page_embedding(page)
+
+    @patch("ask.models.embeddings.compute_embedding")
+    def test_update_branch_leaves_existing_row_intact_when_compute_raises(self, mocked_compute):
+        """When the update path fails, the previously-stored embedding and hash must be unchanged."""
+        page = PageFactory(details={"content": "New content"})
+        original_values = [0.5] * 1536
+        original_hash = "original_hash"
+        original_embedding = PageEmbeddingFactory(
+            page=page,
+            embedding=original_values,
+            content_hash=original_hash,
+        )
+        original_computed = original_embedding.computed
+        mocked_compute.side_effect = ValueError("api_key is required")
+
+        with self.assertRaises(ValueError):
+            PageEmbedding.objects.update_or_create_page_embedding(page)
+
+        original_embedding.refresh_from_db()
+        self.assertEqual(original_embedding.embedding, original_values)
+        self.assertEqual(original_embedding.content_hash, original_hash)
+        self.assertEqual(original_embedding.computed, original_computed)
+
+    @patch("ask.models.embeddings.compute_embedding")
+    def test_create_branch_passes_raise_exception_true(self, mocked_compute):
+        """Regression guard: the manager must opt into raise_exception so failures
+        propagate instead of compute_embedding swallowing them and returning None."""
+        page = PageFactory(details={"content": "Page text"})
+        mocked_compute.return_value = [0.5] * 1536
+
+        PageEmbedding.objects.update_or_create_page_embedding(page)
+
+        _, kwargs = mocked_compute.call_args
+        self.assertTrue(kwargs.get("raise_exception"))
+
+    @patch("ask.models.embeddings.compute_embedding")
+    def test_update_branch_passes_raise_exception_true(self, mocked_compute):
+        """Same regression guard for the update path."""
+        page = PageFactory(details={"content": "New content"})
+        PageEmbeddingFactory(page=page, content_hash="stale_hash")
+        mocked_compute.return_value = [0.5] * 1536
+
+        PageEmbedding.objects.update_or_create_page_embedding(page)
+
+        _, kwargs = mocked_compute.call_args
+        self.assertTrue(kwargs.get("raise_exception"))
+
+
 class TestPageEmbeddingSimilaritySearch(TestCase):
     """Test the similarity_search manager method."""
 
