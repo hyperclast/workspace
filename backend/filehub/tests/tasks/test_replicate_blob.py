@@ -10,6 +10,7 @@ from pages.tests.factories import ProjectFactory
 from users.tests.factories import UserFactory
 
 
+@override_settings(WS_FILEHUB_REPLICATION_ENABLED=True)
 class TestReplicateBlob(TestCase):
     def setUp(self):
         self.user = UserFactory()
@@ -34,6 +35,23 @@ class TestReplicateBlob(TestCase):
             verified=datetime.now(UTC),
         )
         return file_upload
+
+    @override_settings(WS_FILEHUB_REPLICATION_ENABLED=False)
+    @patch("filehub.tasks.get_storage_backend")
+    def test_skips_when_replication_disabled(self, mock_get_storage):
+        """A stale job in Redis or a config mismatch must not run."""
+        file_upload = self._create_verified_upload(provider="r2")
+
+        result = replicate_blob(
+            external_id=str(file_upload.external_id),
+            target_provider="local",
+        )
+
+        self.assertEqual(result["status"], "skipped")
+        self.assertEqual(result["message"], "Replication disabled")
+        mock_get_storage.assert_not_called()
+        # No target blob should be created.
+        self.assertFalse(Blob.objects.filter(file_upload=file_upload, provider="local").exists())
 
     def test_returns_error_when_file_not_found(self):
         result = replicate_blob(

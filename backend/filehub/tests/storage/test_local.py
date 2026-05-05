@@ -1,4 +1,6 @@
 from datetime import timedelta
+from pathlib import Path
+from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 
@@ -7,6 +9,22 @@ from filehub.storage.local import LocalStorageBackend
 
 
 class TestLocalStorageBackend(TestCase):
+    @override_settings(
+        WS_FILEHUB_LOCAL_STORAGE_ROOT="/var/filehub/storage",
+    )
+    def test_init_is_side_effect_free(self):
+        """Constructing the backend must not touch the filesystem.
+
+        Regression: production rq workers crashed in __init__ because the
+        storage root was not writable; instantiation must succeed even when
+        the configured path cannot be created.
+        """
+        with patch.object(Path, "mkdir") as mock_mkdir:
+            backend = LocalStorageBackend()
+
+        mock_mkdir.assert_not_called()
+        self.assertEqual(backend.storage_root, Path("/var/filehub/storage"))
+
     @override_settings(
         WS_FILEHUB_LOCAL_STORAGE_ROOT="/tmp/filehub-test",
         WS_FILEHUB_LOCAL_BASE_URL="http://localhost:8000",

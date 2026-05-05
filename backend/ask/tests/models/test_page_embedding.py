@@ -173,7 +173,7 @@ class TestPageEmbeddingComputeFailures(TestCase):
             PageEmbedding.objects.update_or_create_page_embedding(page)
 
         original_embedding.refresh_from_db()
-        self.assertEqual(original_embedding.embedding, original_values)
+        self.assertEqual(list(original_embedding.embedding), original_values)
         self.assertEqual(original_embedding.content_hash, original_hash)
         self.assertEqual(original_embedding.computed, original_computed)
 

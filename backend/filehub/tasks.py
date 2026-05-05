@@ -25,6 +25,14 @@ def replicate_blob(external_id: str, target_provider: str) -> dict:
     Returns:
         dict with status and details
     """
+    if not getattr(settings, "WS_FILEHUB_REPLICATION_ENABLED", False):
+        logger.info(
+            "Replication disabled, skipping job for %s -> %s",
+            external_id,
+            target_provider,
+        )
+        return {"status": "skipped", "message": "Replication disabled"}
+
     try:
         file_upload = FileUpload.objects.get(external_id=external_id)
     except FileUpload.DoesNotExist:

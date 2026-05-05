@@ -16,7 +16,6 @@ class LocalStorageBackend(StorageBackend):
 
     def __init__(self):
         self.storage_root = Path(getattr(settings, "WS_FILEHUB_LOCAL_STORAGE_ROOT", "/tmp/filehub"))
-        self.storage_root.mkdir(parents=True, exist_ok=True)
         self.base_url = getattr(settings, "WS_FILEHUB_LOCAL_BASE_URL", "http://localhost:8000")
 
     def _get_path(self, object_key: str) -> Path:
