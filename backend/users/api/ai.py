@@ -607,7 +607,7 @@ def trigger_indexing(request: HttpRequest):
     if not pending_page_ids:
         return {"triggered": False, "pages_queued": 0, "message": "All pages are already indexed."}
 
-    index_user_pages.delay(request.user.id, pending_page_ids)
+    index_user_pages.enqueue(request.user.id, pending_page_ids)
 
     return {
         "triggered": True,

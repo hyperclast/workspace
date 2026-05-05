@@ -47,3 +47,8 @@ if settings.RUNTIME_ENV == "dev":
         *debug_toolbar_urls(),
         *static(settings.STATIC_URL, document_root=settings.STATIC_ROOT),
     ]
+
+
+handler500 = "core.views.errors.handler500"
+handler404 = "core.views.errors.handler404"
+handler403 = "core.views.errors.handler403"
