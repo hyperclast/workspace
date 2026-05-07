@@ -1,6 +1,5 @@
 from datetime import timedelta
 
-import django_rq
 import markdown2
 from django.conf import settings
 from django.http import Http404, JsonResponse
@@ -13,6 +12,7 @@ from core.views.utils import get_user_nav_context
 from users.models import User
 
 from .models import Update
+from .tasks import send_update_to_new_subscribers, send_update_to_subscribers
 
 
 def get_subscriber_count():
@@ -110,8 +110,7 @@ def send_update_email(request, slug):
     if update.emailed_at:
         return JsonResponse({"error": "Email already sent for this update"}, status=400)
 
-    queue = django_rq.get_queue(settings.JOB_EMAIL_QUEUE)
-    queue.enqueue("updates.tasks.send_update_to_subscribers", update.id)
+    send_update_to_subscribers.enqueue(update.id)
 
     return JsonResponse({"success": True, "message": "Email queued for delivery"})
 
@@ -187,7 +186,6 @@ def send_to_new_subscribers(request, slug):
     if new_count == 0:
         return JsonResponse({"error": "No new subscribers to send to"}, status=400)
 
-    queue = django_rq.get_queue(settings.JOB_EMAIL_QUEUE)
-    queue.enqueue("updates.tasks.send_update_to_new_subscribers", update.id)
+    send_update_to_new_subscribers.enqueue(update.id)
 
     return JsonResponse({"success": True, "message": f"Email queued for {new_count} new subscriber(s)"})

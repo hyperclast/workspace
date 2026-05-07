@@ -1,11 +1,42 @@
 from unittest.mock import patch
 
-from django.template import TemplateDoesNotExist
-from django.test import RequestFactory, TestCase, override_settings
-from django.urls import get_resolver
+from django.core.exceptions import PermissionDenied
+from django.http import HttpResponse
+from django.template import Context, Template, TemplateDoesNotExist
+from django.test import Client, RequestFactory, TestCase, override_settings
+from django.urls import get_resolver, path
 
 from backend import urls as project_urls
 from core.views import errors
+
+
+def _boom_view(request):
+    """View that raises an unhandled exception — used by the end-to-end
+    integration test below to drive Django's real middleware path through
+    handler500.
+    """
+    raise RuntimeError("intentional test failure")
+
+
+def _forbidden_view(request):
+    """View that raises PermissionDenied — Django's middleware translates
+    this into a 403 and dispatches to handler403.
+    """
+    raise PermissionDenied("intentional forbidden")
+
+
+def _ok_view(request):
+    return HttpResponse("ok")
+
+
+urlpatterns = [
+    path("__boom__/", _boom_view),
+    path("__forbidden__/", _forbidden_view),
+    path("__ok__/", _ok_view),
+]
+handler500 = "core.views.errors.handler500"
+handler404 = "core.views.errors.handler404"
+handler403 = "core.views.errors.handler403"
 
 
 class TestErrorHandlerWiring(TestCase):
@@ -114,13 +145,55 @@ class TestSafeRenderProcessorFallback(TestCase):
 
         self.assertIn('property="og:site_name" content="Acme"', response.content.decode())
 
+    def test_layer2_support_email_follows_frontend_url(self):
+        """The fallback's support_email must be derived from the live
+        FRONTEND_URL setting (same logic as the live context processor),
+        not a hardcoded `support@hyperclast.com`. Otherwise rebranded
+        deployments leak the Hyperclast domain on every error page."""
+        with (
+            override_settings(BRAND_NAME="Acme", FRONTEND_URL="https://acme.example/"),
+            patch("core.views.errors.render", side_effect=RuntimeError("processor crashed")),
+        ):
+            response = errors.handler500(self.factory.get("/"))
+
+        body = response.content.decode()
+        self.assertIn("mailto:support@acme.example", body)
+        self.assertNotIn("support@hyperclast.com", body)
+
+    def test_branding_fallback_dict_pulls_support_email_from_settings(self):
+        """Direct unit test on the fallback dict: support_email is computed
+        from FRONTEND_URL via the same helper as the context processor."""
+        with override_settings(FRONTEND_URL="https://acme.example/"):
+            fallback = errors._branding_fallback()
+        self.assertEqual(fallback["support_email"], "support@acme.example")
+
+    def test_branding_fallback_dict_pulls_private_features_from_settings(self):
+        """pricing_enabled and referrals_enabled must reflect PRIVATE_FEATURES,
+        matching how the live context processor computes them."""
+        with override_settings(PRIVATE_FEATURES=["pricing", "referrals"]):
+            fallback = errors._branding_fallback()
+        self.assertTrue(fallback["pricing_enabled"])
+        self.assertTrue(fallback["referrals_enabled"])
+
+        with override_settings(PRIVATE_FEATURES=[]):
+            fallback = errors._branding_fallback()
+        self.assertFalse(fallback["pricing_enabled"])
+        self.assertFalse(fallback["referrals_enabled"])
+
     def test_branding_fallback_dict_has_safe_defaults(self):
-        """Direct unit test on the fallback dict: even with no settings configured,
-        it must always have a brand_name. Other downstream templates depend on it."""
-        fallback = errors._branding_fallback()
+        """Direct unit test on the fallback dict: not just key-presence, but
+        actual values. After P1, support_email is computed from FRONTEND_URL
+        rather than hardcoded — so a localhost FRONTEND_URL must produce the
+        documented `support@example.com` value (matching the live processor)
+        and deployment_id must mirror WS_DEPLOYMENT_ID."""
+        with override_settings(
+            FRONTEND_URL="http://localhost:9800",
+            WS_DEPLOYMENT_ID="prod_e2e",
+        ):
+            fallback = errors._branding_fallback()
         self.assertEqual(fallback["brand_name"], "Hyperclast")
-        self.assertIn("support_email", fallback)
-        self.assertIn("deployment_id", fallback)
+        self.assertEqual(fallback["support_email"], "support@example.com")
+        self.assertEqual(fallback["deployment_id"], "prod_e2e")
 
 
 class TestSafeRenderPlainHtmlLastResort(TestCase):
@@ -142,7 +215,9 @@ class TestSafeRenderPlainHtmlLastResort(TestCase):
 
         self.assertEqual(response.status_code, 500)
         body = response.content.decode()
-        self.assertIn("500", body)
+        self.assertIn("<!DOCTYPE html>", body)
+        self.assertIn("<h1>500</h1>", body)
+        self.assertIn("Something went wrong.", body)
         self.assertEqual(response["Content-Type"], "text/html; charset=utf-8")
 
     def test_plain_html_when_both_render_paths_fail(self):
@@ -155,7 +230,9 @@ class TestSafeRenderPlainHtmlLastResort(TestCase):
             response = errors.handler404(self.factory.get("/"))
 
         self.assertEqual(response.status_code, 404)
-        self.assertIn("404", response.content.decode())
+        body = response.content.decode()
+        self.assertIn("<h1>404</h1>", body)
+        self.assertIn("Something went wrong.", body)
 
     def test_handler_does_not_re_raise(self):
         """The handler must swallow rendering errors completely — re-raising
@@ -171,3 +248,90 @@ class TestSafeRenderPlainHtmlLastResort(TestCase):
                 self.fail(f"handler500 must not re-raise, but did: {exc!r}")
 
         self.assertEqual(response.status_code, 500)
+
+
+class TestSeoMetaPartialDefaults(TestCase):
+    """Belt-and-suspenders check on _seo_meta.html.
+
+    Even if some future code path renders a page with no `brand_name` in the
+    context (e.g. a custom error route, a stripped-down management view), the
+    template must not produce empty `content=""` attributes for og:site_name /
+    og:title / twitter:title. The `|default:'Hyperclast'` filters guarantee a
+    sensible literal as the last line of defense — independent of whether
+    context processors ran.
+    """
+
+    TEMPLATE = "{% include 'core/partials/_seo_meta.html' %}"
+
+    def _render(self, context):
+        return Template("{% load static %}" + self.TEMPLATE).render(Context(context))
+
+    def test_og_site_name_falls_back_when_brand_name_missing(self):
+        body = self._render({})
+        self.assertIn('property="og:site_name" content="Hyperclast"', body)
+        self.assertNotIn('property="og:site_name" content=""', body)
+
+    def test_og_title_falls_back_when_brand_name_and_seo_title_missing(self):
+        body = self._render({})
+        self.assertIn('property="og:title" content="Hyperclast"', body)
+        self.assertNotIn('property="og:title" content=""', body)
+
+    def test_twitter_title_falls_back_when_brand_name_and_seo_title_missing(self):
+        body = self._render({})
+        self.assertIn('name="twitter:title" content="Hyperclast"', body)
+        self.assertNotIn('name="twitter:title" content=""', body)
+
+    def test_brand_name_in_context_takes_precedence_over_default(self):
+        body = self._render({"brand_name": "Acme"})
+        self.assertIn('property="og:site_name" content="Acme"', body)
+        self.assertIn('property="og:title" content="Acme"', body)
+        self.assertIn('name="twitter:title" content="Acme"', body)
+
+    def test_seo_title_in_context_takes_precedence_over_brand_name_default(self):
+        body = self._render({"seo_title": "My Page"})
+        self.assertIn('property="og:title" content="My Page"', body)
+        self.assertIn('name="twitter:title" content="My Page"', body)
+        self.assertIn('property="og:site_name" content="Hyperclast"', body)
+
+
+@override_settings(
+    ROOT_URLCONF=__name__,
+    DEBUG=False,
+    BRAND_NAME="Hyperclast",
+    ALLOWED_HOSTS=["*"],
+)
+class TestErrorHandlerEndToEnd(TestCase):
+    """End-to-end integration test: a real view raising → middleware →
+    handler500 → branded HTML.
+
+    All other handler tests in this file call ``errors.handler500(...)``
+    directly with a ``RequestFactory`` request, which proves the renderer
+    works but doesn't exercise the path Django actually walks at runtime
+    (URL resolver → middleware → exception → handler dispatch). This test
+    closes that loop by mounting a temporary urlconf (this very module)
+    that points at three routes: a 500-raising view, a 403-raising view,
+    and an unmatched-URL test for 404.
+    """
+
+    def setUp(self):
+        # raise_request_exception=False prevents the test client from
+        # re-raising the view's RuntimeError so the 500 page can render.
+        self.client_no_raise = Client(raise_request_exception=False)
+
+    def test_view_exception_renders_branded_500_page(self):
+        response = self.client_no_raise.get("/__boom__/")
+        self.assertEqual(response.status_code, 500)
+        body = response.content.decode()
+        self.assertIn('property="og:site_name" content="Hyperclast"', body)
+
+    def test_unmatched_url_renders_branded_404_page(self):
+        response = self.client.get("/__no_such_url__/")
+        self.assertEqual(response.status_code, 404)
+        body = response.content.decode()
+        self.assertIn('property="og:site_name" content="Hyperclast"', body)
+
+    def test_permission_denied_renders_branded_403_page(self):
+        response = self.client.get("/__forbidden__/")
+        self.assertEqual(response.status_code, 403)
+        body = response.content.decode()
+        self.assertIn('property="og:site_name" content="Hyperclast"', body)

@@ -7,17 +7,33 @@ from backend.utils import log_exception
 
 
 def _branding_fallback():
-    """Hardcoded branding context used when the normal request-context path
-    can't be trusted (e.g. a context processor itself raised). Mirrors
-    core.context_processors.branding but with safe getattr defaults so it
-    never depends on settings being well-formed.
+    """Branding context used when the normal request-context path can't be
+    trusted (e.g. a context processor itself raised). Mirrors
+    core.context_processors.branding but wraps each derived value in
+    try/except + getattr defaults so it never depends on settings, the
+    frontend URL, or PRIVATE_FEATURES being well-formed.
     """
+    try:
+        from core.context_processors import _get_support_email
+
+        support_email = _get_support_email()
+    except Exception:
+        support_email = "support@example.com"
+
+    try:
+        private_features = getattr(settings, "PRIVATE_FEATURES", []) or []
+        pricing_enabled = "pricing" in private_features
+        referrals_enabled = "referrals" in private_features
+    except Exception:
+        pricing_enabled = False
+        referrals_enabled = False
+
     return {
         "brand_name": getattr(settings, "BRAND_NAME", "Hyperclast"),
         "deployment_id": getattr(settings, "WS_DEPLOYMENT_ID", ""),
-        "support_email": "support@hyperclast.com",
-        "pricing_enabled": False,
-        "referrals_enabled": False,
+        "support_email": support_email,
+        "pricing_enabled": pricing_enabled,
+        "referrals_enabled": referrals_enabled,
     }
 
 
@@ -46,7 +62,7 @@ def _safe_render(request, template_name, status):
     # Last resort: hardcoded HTML. Only reached if the template itself is
     # broken or missing.
     return HttpResponse(
-        f"<!DOCTYPE html><html><body><h1>{status}</h1>" "<p>Something went wrong.</p></body></html>",
+        f"<!DOCTYPE html><html><body><h1>{status}</h1>" f"<p>Something went wrong.</p></body></html>",
         status=status,
         content_type="text/html; charset=utf-8",
     )

@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.utils import timezone
 
+from core.helpers import is_hijacked_session
 from users.models import Device
 
 
@@ -10,7 +11,9 @@ class LastActiveMiddleware:
 
     def __call__(self, request):
         response = self.get_response(request)
-        if request.user.is_authenticated and hasattr(request.user, "profile"):
+        # Skip updates when an admin is impersonating this user via django-hijack —
+        # the impersonated user isn't actually active.
+        if request.user.is_authenticated and hasattr(request.user, "profile") and not is_hijacked_session(request):
             profile = request.user.profile
             last = profile.last_active
             threshold = settings.PROFILE_LAST_ACTIVE_THROTTLE_SECONDS

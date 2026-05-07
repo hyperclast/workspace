@@ -15,8 +15,8 @@
 
 {# Open Graph tags #}
 <meta property="og:type" content="{{ seo_og_type|default:'website' }}" />
-<meta property="og:site_name" content="{{ brand_name }}" />
-<meta property="og:title" content="{{ seo_title|default:brand_name }}" />
+<meta property="og:site_name" content="{{ brand_name|default:'Hyperclast' }}" />
+<meta property="og:title" content="{% firstof seo_title brand_name 'Hyperclast' %}" />
 {% if seo_description %}
   <meta property="og:description" content="{{ seo_description }}" />
 {% endif %}
@@ -31,7 +31,7 @@
 
 {# Twitter Card tags #}
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="{{ seo_title|default:brand_name }}" />
+<meta name="twitter:title" content="{% firstof seo_title brand_name 'Hyperclast' %}" />
 {% if seo_description %}
   <meta name="twitter:description" content="{{ seo_description }}" />
 {% endif %}

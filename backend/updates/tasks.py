@@ -12,6 +12,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from premailer import transform
 
+from core.helpers.tasks import task
 from core.models import SentEmail
 from users.models import User
 
@@ -181,6 +182,7 @@ def render_update_email(update: Update, content_html: str) -> tuple[str, str, st
     return subject, html_body, text_body
 
 
+@task(settings.JOB_EMAIL_QUEUE)
 def send_update_to_subscribers(update_id: int) -> None:
     try:
         update = Update.objects.get(pk=update_id)
@@ -229,6 +231,7 @@ def send_update_to_subscribers(update_id: int) -> None:
     logger.info(f"Sent update '{update.title}' to {sent_count} subscribers")
 
 
+@task(settings.JOB_EMAIL_QUEUE)
 def send_update_to_new_subscribers(update_id: int) -> int:
     """Send update to subscribers who haven't received it yet.
 

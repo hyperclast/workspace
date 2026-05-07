@@ -216,17 +216,16 @@ class TestSendUpdateEmail(TestCase):
 
         self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
 
-    @patch("updates.views.django_rq.get_queue")
-    def test_send_email_enqueues_task(self, mock_get_queue):
+    @patch("updates.views.send_update_to_subscribers.enqueue")
+    def test_send_email_enqueues_task(self, mock_enqueue):
         self.client.force_login(self.superuser)
-        mock_queue = mock_get_queue.return_value
 
         response = self.client.post(reverse("updates:send_email", args=[self.update.slug]))
 
         self.assertEqual(response.status_code, HTTPStatus.OK)
         data = response.json()
         self.assertTrue(data["success"])
-        mock_queue.enqueue.assert_called_once_with("updates.tasks.send_update_to_subscribers", self.update.id)
+        mock_enqueue.assert_called_once_with(self.update.id)
 
     def test_send_email_prevents_double_send(self):
         self.client.force_login(self.superuser)
@@ -245,6 +244,56 @@ class TestSendUpdateEmail(TestCase):
         response = self.client.post(reverse("updates:send_email", args=["nonexistent-slug"]))
 
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+
+class TestSendToNewSubscribers(TestCase):
+    def setUp(self):
+        self.superuser = UserFactory(is_superuser=True)
+        self.update = UpdateFactory(title="Test Update", emailed_at=timezone.now())
+
+    def test_send_to_new_subscribers_requires_superuser(self):
+        user = UserFactory()
+        self.client.force_login(user)
+
+        response = self.client.post(reverse("updates:send_to_new", args=[self.update.slug]))
+
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+
+    def test_send_to_new_subscribers_requires_authentication(self):
+        response = self.client.post(reverse("updates:send_to_new", args=[self.update.slug]))
+
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+
+    @patch("updates.views.send_update_to_new_subscribers.enqueue")
+    @patch("updates.views.get_update_email_counts")
+    def test_send_to_new_subscribers_enqueues_task(self, mock_counts, mock_enqueue):
+        self.client.force_login(self.superuser)
+        mock_counts.return_value = (10, 5)
+
+        response = self.client.post(reverse("updates:send_to_new", args=[self.update.slug]))
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        data = response.json()
+        self.assertTrue(data["success"])
+        mock_enqueue.assert_called_once_with(self.update.id)
+
+    def test_send_to_new_subscribers_400_when_not_yet_sent(self):
+        self.client.force_login(self.superuser)
+        self.update.emailed_at = None
+        self.update.save()
+
+        response = self.client.post(reverse("updates:send_to_new", args=[self.update.slug]))
+
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+
+    @patch("updates.views.get_update_email_counts")
+    def test_send_to_new_subscribers_400_when_no_new_subscribers(self, mock_counts):
+        self.client.force_login(self.superuser)
+        mock_counts.return_value = (10, 0)
+
+        response = self.client.post(reverse("updates:send_to_new", args=[self.update.slug]))
+
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
 
 
 class TestSendTestUpdateEmail(TestCase):

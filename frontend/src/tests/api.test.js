@@ -371,5 +371,62 @@ describe("API Service", () => {
         window._appConfig = originalAppConfig;
       }
     });
+
+    it("translates nginx 413 (non-JSON body) to a friendly size message", async () => {
+      const file = new File(["x"], "small.pdf", { type: "application/pdf" });
+      Object.defineProperty(file, "size", { value: 1024 });
+
+      csrfFetch.mockResolvedValue({
+        ok: false,
+        status: 413,
+        json: () => Promise.reject(new SyntaxError("Unexpected token < in JSON")),
+      });
+
+      try {
+        await importPdf("proj1", file);
+        expect.fail("Should have thrown");
+      } catch (e) {
+        expect(e.message).toBe("This PDF is too large to upload. Maximum size is 20MB.");
+        expect(e.status).toBe(413);
+      }
+    });
+
+    it("uses the server-supplied message when 413 includes a JSON body", async () => {
+      const file = new File(["x"], "small.pdf", { type: "application/pdf" });
+      Object.defineProperty(file, "size", { value: 1024 });
+
+      csrfFetch.mockResolvedValue({
+        ok: false,
+        status: 413,
+        json: async () => ({ message: "PDF exceeds maximum size of 20MB" }),
+      });
+
+      try {
+        await importPdf("proj1", file);
+        expect.fail("Should have thrown");
+      } catch (e) {
+        expect(e.message).toBe("PDF exceeds maximum size of 20MB");
+        expect(e.status).toBe(413);
+      }
+    });
+
+    it("falls back to status-only message on non-413 with no JSON body", async () => {
+      const file = new File(["x"], "small.pdf", { type: "application/pdf" });
+      Object.defineProperty(file, "size", { value: 1024 });
+
+      csrfFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: () => Promise.reject(new SyntaxError("Unexpected token < in JSON")),
+      });
+
+      try {
+        await importPdf("proj1", file);
+        expect.fail("Should have thrown");
+      } catch (e) {
+        expect(e.message).toBe("Failed to import PDF (HTTP 500)");
+        expect(e.status).toBe(500);
+      }
+    });
   });
 });

@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from ask.constants import AIProvider
 from ask.tasks import index_user_pages
+from ask.tests.factories import PageEmbeddingFactory
 from core.tests.common import BaseAuthenticatedViewTestCase
 from pages.tests.factories import PageFactory
 from users.models import AIProviderConfig
@@ -79,3 +80,24 @@ class TestTriggerIndexingAPI(BaseAuthenticatedViewTestCase):
         """
         self.assertTrue(callable(getattr(index_user_pages, "enqueue", None)))
         self.assertFalse(hasattr(index_user_pages, "delay"))
+
+    @patch("ask.tasks.index_user_pages")
+    def test_only_unindexed_pages_are_enqueued(self, mock_task):
+        """Pages already in PageEmbedding must be excluded from the enqueue
+        payload. Validates the queryset that filters
+        `user_pages.exclude(id__in=indexed_page_ids)` and protects against a
+        future refactor that broadens the queryset and accidentally re-indexes
+        every page on every trigger."""
+        self._make_validated_provider()
+        indexed_page = self._make_accessible_page()
+        unindexed_page = self._make_accessible_page()
+        PageEmbeddingFactory(page=indexed_page)
+
+        response = self.send_api_request(url=self.URL, method="post")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        payload = response.json()
+        self.assertTrue(payload["triggered"])
+        self.assertEqual(payload["pages_queued"], 1)
+
+        mock_task.enqueue.assert_called_once_with(self.user.id, [unindexed_page.external_id])

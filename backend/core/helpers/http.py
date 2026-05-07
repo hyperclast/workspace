@@ -16,6 +16,15 @@ def get_ip(request: HttpRequest) -> Union[str, None]:
     return ip
 
 
+def is_hijacked_session(request: HttpRequest) -> bool:
+    """True iff this request is being made through a django-hijack impersonation session."""
+    # django-hijack stores impersonator PKs under session["hijack_history"]; non-empty = hijacked.
+    session = getattr(request, "session", None)
+    if session is None:
+        return False
+    return bool(session.get("hijack_history"))
+
+
 def get_host(url: str) -> str:
     return urlparse(url).netloc
 
