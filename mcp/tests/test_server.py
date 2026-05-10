@@ -302,22 +302,34 @@ class TestUpdatePageTool:
 
 class TestDeletePageTool:
     @pytest.mark.asyncio
-    async def test_success(self, mock_client):
+    async def test_success_with_confirm(self, mock_client):
         mock_client.delete_page.return_value = None
-        result = await server_module.delete_page("p1")
+        result = await server_module.delete_page("p1", confirm=True)
         assert result == "Page deleted."
         mock_client.delete_page.assert_called_once_with("p1")
 
     @pytest.mark.asyncio
+    async def test_rejected_without_confirm(self, mock_client):
+        result = await server_module.delete_page("p1")
+        assert "confirm must be true" in result
+        mock_client.delete_page.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_rejected_with_confirm_false(self, mock_client):
+        result = await server_module.delete_page("p1", confirm=False)
+        assert "confirm must be true" in result
+        mock_client.delete_page.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_not_creator(self, mock_client):
         mock_client.delete_page.side_effect = HyperclastAPIError(403, "forbidden", "Permission denied.")
-        result = await server_module.delete_page("p1")
+        result = await server_module.delete_page("p1", confirm=True)
         assert "Error: Permission denied." == result
 
     @pytest.mark.asyncio
     async def test_validation_error_returns_message(self, mock_client):
         mock_client.delete_page.side_effect = ValueError("Invalid page_id")
-        result = await server_module.delete_page("../bad")
+        result = await server_module.delete_page("../bad", confirm=True)
         assert "Error:" in result
 
 

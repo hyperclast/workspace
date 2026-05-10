@@ -10,6 +10,7 @@ from pages.models import Page, PageLink, PageMention
 from pages.services.content_refs import parse_page_refs
 
 from .models import YSnapshot
+from .services.apply_text import ApplyMode, ApplyResult, apply_text_to_room
 
 
 def broadcast_rewind_created(room_id: str, page_id: str, rewind_data: dict):
@@ -150,3 +151,61 @@ def sync_snapshot_with_page(room_id: str, is_session_end: bool = False, content_
 
     except Exception as e:
         log_error("Error syncing snapshot for %s: %s", room_id, e)
+
+
+@task(settings.JOB_INTERNAL_QUEUE)
+def apply_text_update_to_page(
+    page_external_id: str,
+    new_content: str,
+    user_id: int,
+    mode: ApplyMode = "overwrite",
+):
+    """Apply an MCP/REST text update into the Yjs doc for a page.
+
+    `update_page` in pages/api/pages.py only writes to
+    `page.details["content"]`. Connected editors hydrate from Yjs and
+    never see those writes (and will overwrite them on the next
+    snapshot-sync). This task injects the change into the Yjs doc so
+    live clients merge it and `sync_snapshot_with_page` picks it up
+    cleanly.
+
+    `user_id` is the user who initiated the edit. `apply_text_to_room`
+    re-checks `can_edit_page` at execution time to close the
+    revoked-in-flight window between enqueue and execute.
+
+    Failures propagate to the RQ wrapper so they appear as failed jobs
+    (retries / dead-letter queue) rather than silently swallowed errors.
+    """
+    room_id = f"page_{page_external_id}"
+    result = apply_text_to_room(room_id, new_content, user_id, mode)
+    # Stable `mcp_text_update result=...` prefix so log-based metrics can
+    # split applied / noop / denied without parsing free-form text.
+    if result is ApplyResult.APPLIED:
+        log_info(
+            "mcp_text_update result=applied room=%s user=%s mode=%s",
+            room_id,
+            user_id,
+            mode,
+        )
+    elif result is ApplyResult.NOOP:
+        log_info(
+            "mcp_text_update result=noop room=%s user=%s mode=%s",
+            room_id,
+            user_id,
+            mode,
+        )
+    elif result is ApplyResult.DENIED:
+        log_info(
+            "mcp_text_update result=denied room=%s user=%s mode=%s",
+            room_id,
+            user_id,
+            mode,
+        )
+    else:
+        log_error(
+            "mcp_text_update result=unknown room=%s user=%s mode=%s value=%r",
+            room_id,
+            user_id,
+            mode,
+            result,
+        )

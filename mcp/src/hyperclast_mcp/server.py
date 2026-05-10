@@ -249,12 +249,21 @@ async def update_page(
 
 
 @mcp.tool()
-async def delete_page(page_id: str) -> str:
-    """Delete a page (creator only).
+async def delete_page(
+    page_id: str,
+    confirm: bool = False,
+) -> str:
+    """Delete a page (creator only, soft-delete).
+
+    THIS IS DESTRUCTIVE — the page becomes inaccessible.
+    The user must explicitly ask for deletion before calling this tool.
 
     Args:
         page_id: The page's external id.
+        confirm: Must be true to proceed. Prevents accidental deletion.
     """
+    if not confirm:
+        return "Error: confirm must be true. This will delete the page."
     try:
         await _get_client().delete_page(page_id)
         return "Page deleted."

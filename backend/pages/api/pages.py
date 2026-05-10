@@ -3,6 +3,7 @@ from typing import List
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -12,7 +13,8 @@ from ninja.pagination import paginate
 from ninja.responses import Response
 
 from ask.tasks import update_page_embedding
-from backend.utils import log_info
+from backend.utils import log_error, log_info
+from collab.tasks import apply_text_update_to_page
 from collab.utils import notify_page_access_revoked, notify_write_permission_revoked
 from core.authentication import session_auth, token_auth
 from core.rate_limit import (
@@ -57,6 +59,55 @@ MAX_CONTENT_SIZE = 10 * 1024 * 1024  # 10 MB
 def validate_content_size(content: str) -> bool:
     """Check if content exceeds the maximum allowed size."""
     return len(content.encode("utf-8")) <= MAX_CONTENT_SIZE
+
+
+def _enqueue_yjs_sync_on_commit(
+    page_external_id: str,
+    new_content: str,
+    user_id: int,
+    mode: str,
+) -> None:
+    """Schedule the Yjs apply task for after the current transaction commits.
+
+    Wrapping in `transaction.on_commit` keeps the page.details write and
+    the Yjs apply atomic with respect to the request: if the request
+    fails (or its transaction is rolled back) the task is not enqueued.
+    Equally important, the worker reads from y_updates / y_snapshots —
+    if the enqueue fired before commit, the worker could race the DB
+    write and rebuild the doc from a stale base.
+
+    Failure to enqueue (e.g. Redis blip) is logged with a stable
+    structured tag so log-based alerts can fire on it. We do NOT
+    re-raise: the page.details write has already succeeded, the API
+    has returned 200/201 to the caller, and the next snapshot-sync
+    will reconcile content into the editor on reload.
+    """
+
+    def _enqueue() -> None:
+        try:
+            apply_text_update_to_page.enqueue(
+                page_external_id=page_external_id,
+                new_content=new_content,
+                user_id=user_id,
+                mode=mode,
+            )
+            log_info(
+                "yjs_sync_enqueue ok page=%s user=%s mode=%s",
+                page_external_id,
+                user_id,
+                mode,
+            )
+        except Exception as e:
+            log_error(
+                "yjs_sync_enqueue failed page=%s user=%s mode=%s err=%s",
+                page_external_id,
+                user_id,
+                mode,
+                e,
+                exc_info=True,
+            )
+
+    transaction.on_commit(_enqueue)
 
 
 pages_router = Router(auth=[token_auth, session_auth])
@@ -140,6 +191,18 @@ def create_page(request: HttpRequest, payload: PageIn):
         details=default_details,
         folder=folder,
     )
+
+    # Seed the Yjs doc with the initial content. Without this, a page
+    # created via MCP/REST with content shows up empty in the editor,
+    # because clients hydrate from y_updates/y_snapshots, not page.details.
+    if content:
+        _enqueue_yjs_sync_on_commit(
+            page_external_id=page.external_id,
+            new_content=content,
+            user_id=request.user.id,
+            mode="overwrite",
+        )
+
     return 201, page
 
 
@@ -170,16 +233,41 @@ def update_page(
     if not user_can_access_page(request.user, page):
         return 404, {"message": "Page not found"}
 
-    # User has access but may not be the creator
-    if not user_can_delete_page_in_project(request.user, page):
-        return 403, {"message": "Only the creator can update this page"}
+    # Per-field permission split. `update_page` mixes ownership-flavored
+    # fields (title, folder_id) with editor-flavored fields (details.content).
+    # The body-text mutation also goes through the Yjs WebSocket (gated by
+    # `can_edit_page` — editor-allowed) and through the worker re-check in
+    # `apply_text_to_room`. Treating content writes as creator-only here
+    # makes the REST gate stricter than the back door, which is the wrong
+    # direction. Splitting per field keeps title/folder creator-only while
+    # letting editors write content via REST too.
+    raw_body = request.body
+    folder_id_in_body = b'"folder_id"' in raw_body
+
+    title_changing = payload.title != page.title
+
+    folder_changing = False
+    if folder_id_in_body:
+        current_folder_external_id = page.folder.external_id if page.folder else None
+        folder_changing = payload.folder_id != current_folder_external_id
+
+    if title_changing or folder_changing:
+        if not user_can_delete_page_in_project(request.user, page):
+            field = "title" if title_changing else "folder"
+            return 403, {"message": f"Only the creator can change a page's {field}"}
+    else:
+        # Content-only writes (or no-op writes) require editor access. This
+        # matches the Yjs WebSocket rule that the web frontend already uses
+        # for body-text edits. Page creators always qualify, even if they
+        # only hold a viewer-role PageEditor row from the auto-add hook.
+        if not user_can_delete_page_in_project(request.user, page) and not user_can_edit_in_page(request.user, page):
+            return 403, {"message": "You don't have permission to edit this page"}
 
     page.title = payload.title
 
     # Handle folder_id if provided in request body
-    raw_body = request.body
     folder_changed = False
-    if b'"folder_id"' in raw_body:
+    if folder_id_in_body:
         folder_changed = True
         if payload.folder_id is None:
             page.folder = None
@@ -189,6 +277,10 @@ def update_page(
                 page.folder = folder
             except Folder.DoesNotExist:
                 return 404, {"message": "Folder not found"}
+
+    # If the payload carries content, also capture (mode, content_fragment)
+    # so we can apply it to the Yjs doc after save — see comment below.
+    yjs_sync: tuple[str, str] | None = None
 
     if payload.details is not None:
         mode = payload.mode or "append"
@@ -209,6 +301,9 @@ def update_page(
                 page.details = {**page.details, **payload.details, "content": merged_content}
             else:
                 page.details = {**payload.details, "content": merged_content}
+
+            if new_content:
+                yjs_sync = (mode, new_content)
         else:
             if page.details:
                 merged_details = {**page.details, **payload.details}
@@ -219,10 +314,25 @@ def update_page(
                 return 413, {"message": f"Content too large (max {MAX_CONTENT_SIZE // (1024 * 1024)} MB)"}
             page.details = merged_details
 
+            if "content" in payload.details:
+                yjs_sync = ("overwrite", content)
+
     update_fields = ["title", "details", "modified"]
     if folder_changed:
         update_fields.append("folder_id")
     page.save(update_fields=update_fields)
+
+    # The editor reads from Yjs, not page.details. Push the content
+    # change into the Yjs doc so live editors see it and so the next
+    # sync_snapshot_with_page doesn't clobber what we just saved.
+    if yjs_sync is not None:
+        yjs_mode, yjs_content = yjs_sync
+        _enqueue_yjs_sync_on_commit(
+            page_external_id=page.external_id,
+            new_content=yjs_content,
+            user_id=request.user.id,
+            mode=yjs_mode,
+        )
 
     if settings.ASK_FEATURE_ENABLED:
         update_page_embedding.enqueue(page_id=page.external_id)

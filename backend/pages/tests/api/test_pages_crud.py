@@ -453,6 +453,199 @@ class TestPagesUpdateAPI(BaseAuthenticatedViewTestCase):
 
         self.assertEqual(response.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
 
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    @patch("pages.api.pages.apply_text_update_to_page")
+    def test_update_page_with_content_enqueues_yjs_sync(self, mock_apply_text):
+        """REST content writes must also propagate into the Yjs doc.
+
+        Otherwise connected editors don't see the change live, and the
+        next WS snapshot sync would clobber page.details back to the
+        stale Yjs state. See aa486c9a for context.
+        """
+        page = PageFactory(creator=self.user, title="Test Page")
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.send_update_page_request(
+                page.external_id,
+                page.title,
+                details={"content": "added text"},
+                mode="append",
+            )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        mock_apply_text.enqueue.assert_called_once_with(
+            page_external_id=page.external_id,
+            new_content="added text",
+            user_id=self.user.id,
+            mode="append",
+        )
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    @patch("pages.api.pages.apply_text_update_to_page")
+    def test_update_page_overwrite_mode_enqueues_full_content(self, mock_apply_text):
+        """In overwrite mode, the task receives the full final content."""
+        page = PageFactory(creator=self.user, title="Test Page", details={"content": "old"})
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.send_update_page_request(
+                page.external_id,
+                page.title,
+                details={"content": "brand new"},
+                mode="overwrite",
+            )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        mock_apply_text.enqueue.assert_called_once_with(
+            page_external_id=page.external_id,
+            new_content="brand new",
+            user_id=self.user.id,
+            mode="overwrite",
+        )
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    @patch("pages.api.pages.apply_text_update_to_page")
+    def test_update_page_title_only_does_not_enqueue_yjs_sync(self, mock_apply_text):
+        """Title-only updates should NOT touch the Yjs doc."""
+        page = PageFactory(creator=self.user, title="Old")
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.send_update_page_request(page.external_id, "New Title")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        mock_apply_text.enqueue.assert_not_called()
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    @patch("pages.api.pages.apply_text_update_to_page")
+    def test_update_page_append_empty_content_does_not_enqueue(self, mock_apply_text):
+        """Appending an empty string is a no-op for Yjs — don't queue work."""
+        page = PageFactory(creator=self.user, title="Test", details={"content": "existing"})
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.send_update_page_request(
+                page.external_id,
+                page.title,
+                details={"content": ""},
+                mode="append",
+            )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        mock_apply_text.enqueue.assert_not_called()
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    @patch("pages.api.pages.apply_text_update_to_page")
+    def test_update_page_yjs_sync_only_fires_after_commit(self, mock_apply_text):
+        """The enqueue must be wrapped in transaction.on_commit.
+
+        Without on_commit, the worker could race the page.save() and
+        rebuild the doc from a stale base; or the enqueue could fire
+        even when the request transaction is rolled back. We verify
+        the enqueue does NOT fire while the test transaction is held
+        open, and only fires when on_commit callbacks are executed.
+        """
+        page = PageFactory(creator=self.user, title="Test Page")
+
+        with self.captureOnCommitCallbacks(execute=False) as callbacks:
+            response = self.send_update_page_request(
+                page.external_id,
+                page.title,
+                details={"content": "after-commit content"},
+                mode="append",
+            )
+            self.assertEqual(response.status_code, HTTPStatus.OK)
+            # Pre-commit: the on_commit callback is captured but not yet executed.
+            mock_apply_text.enqueue.assert_not_called()
+
+        # Run captured callbacks now (simulates commit).
+        for callback in callbacks:
+            callback()
+        mock_apply_text.enqueue.assert_called_once_with(
+            page_external_id=page.external_id,
+            new_content="after-commit content",
+            user_id=self.user.id,
+            mode="append",
+        )
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    @patch("pages.api.pages.log_error")
+    @patch("pages.api.pages.apply_text_update_to_page")
+    def test_update_page_yjs_sync_enqueue_failure_logged_and_swallowed(self, mock_apply_text, mock_log_error):
+        """If enqueue raises (e.g. Redis blip), the API must still succeed.
+
+        page.details is already saved at that point. Re-raising would
+        return 500 to the caller and obscure the fact that the write
+        landed in the DB. Instead, the failure is logged with a stable
+        structured tag so log-based alerts can fire on it.
+        """
+        mock_apply_text.enqueue.side_effect = RuntimeError("redis is down")
+        page = PageFactory(creator=self.user, title="Test Page")
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.send_update_page_request(
+                page.external_id,
+                page.title,
+                details={"content": "should-not-fail-API"},
+                mode="append",
+            )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        # The API surfaces success but the failure is logged.
+        self.assertTrue(mock_log_error.called, "enqueue failure must be logged")
+        # The first positional arg of log_error is the format string; assert
+        # it carries the stable tag so log-based alerts can match.
+        first_call_msg = mock_log_error.call_args_list[0].args[0]
+        self.assertIn("yjs_sync_enqueue failed", first_call_msg)
+
+
+class TestPagesCreateYjsSync(BaseAuthenticatedViewTestCase):
+    """POST /api/pages/ must seed the Yjs doc when content is provided."""
+
+    def setUp(self):
+        super().setUp()
+        self.org = OrgFactory()
+        OrgMemberFactory(org=self.org, user=self.user, role=OrgMemberRole.MEMBER.value)
+        self.project = ProjectFactory(org=self.org, creator=self.user)
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    @patch("pages.api.pages.apply_text_update_to_page")
+    def test_create_page_with_content_enqueues_yjs_sync(self, mock_apply_text):
+        """Without this, MCP-created pages with content look empty in the editor."""
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.send_api_request(
+                url="/api/pages/",
+                method="post",
+                data={
+                    "title": "New",
+                    "project_id": str(self.project.external_id),
+                    "details": {"content": "seeded body"},
+                },
+            )
+
+        self.assertEqual(response.status_code, HTTPStatus.CREATED)
+        payload = response.json()
+        mock_apply_text.enqueue.assert_called_once_with(
+            page_external_id=payload["external_id"],
+            new_content="seeded body",
+            user_id=self.user.id,
+            mode="overwrite",
+        )
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    @patch("pages.api.pages.apply_text_update_to_page")
+    def test_create_page_without_content_does_not_enqueue(self, mock_apply_text):
+        """A page created with empty content doesn't need a Yjs write."""
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.send_api_request(
+                url="/api/pages/",
+                method="post",
+                data={
+                    "title": "Empty",
+                    "project_id": str(self.project.external_id),
+                },
+            )
+
+        self.assertEqual(response.status_code, HTTPStatus.CREATED)
+        mock_apply_text.enqueue.assert_not_called()
+
 
 class TestPagesDeleteAPI(BaseAuthenticatedViewTestCase):
     """Test DELETE /api/pages/{external_id}/ endpoint."""
@@ -579,7 +772,7 @@ class TestOrgMemberAccessAPI(BaseAuthenticatedViewTestCase):
         )
 
         self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
-        self.assertIn("Only the creator can update", response.json()["message"])
+        self.assertIn("Only the creator can change", response.json()["message"])
 
     def test_org_member_cannot_delete_org_page_they_dont_own(self):
         """Test that org members cannot delete pages they don't own."""
@@ -693,7 +886,7 @@ class TestProjectEditorAccessAPI(BaseAuthenticatedViewTestCase):
         )
 
         self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
-        self.assertIn("Only the creator can update", response.json()["message"])
+        self.assertIn("Only the creator can change", response.json()["message"])
 
     def test_project_editor_cannot_delete_page_they_didnt_create(self):
         """Test that project editors cannot delete pages they didn't create."""
@@ -886,7 +1079,7 @@ class TestPageAccessControlSecurity(BaseAuthenticatedViewTestCase):
 
         # Should get 403 (Forbidden) because user has access but isn't creator
         self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
-        self.assertIn("Only the creator can update", response.json()["message"])
+        self.assertIn("Only the creator can change", response.json()["message"])
 
     @override_settings(ASK_FEATURE_ENABLED=False)
     def test_update_page_without_access_returns_404(self):
@@ -962,7 +1155,7 @@ class TestPageAccessControlSecurity(BaseAuthenticatedViewTestCase):
 
         # Should get 403 (Forbidden) because user is project editor but not page creator
         self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
-        self.assertIn("Only the creator can update", response.json()["message"])
+        self.assertIn("Only the creator can change", response.json()["message"])
 
     def test_delete_page_as_project_editor_not_creator_returns_403(self):
         """Test that project editors who didn't create the page get 403 on delete."""
@@ -986,6 +1179,209 @@ class TestPageAccessControlSecurity(BaseAuthenticatedViewTestCase):
 
         # Page should still exist
         self.assertTrue(Page.objects.filter(external_id=page.external_id).exists())
+
+
+@override_settings(ASK_FEATURE_ENABLED=False)
+class TestUpdatePagePerFieldPermissions(BaseAuthenticatedViewTestCase):
+    """Per-field permission split on PUT /api/pages/{id}/.
+
+    `update_page` mixes ownership-flavored fields (title, folder_id) with
+    editor-flavored fields (details.content). Title/folder changes stay
+    creator-only; content writes are editor-allowed (matching the Yjs
+    WebSocket rule that the web frontend uses for body-text edits).
+    """
+
+    def setUp(self):
+        super().setUp()
+        # Project owned by someone else, with org_members_can_access disabled
+        # so org membership alone confers no access — every test user gets
+        # exactly the access we wire up explicitly.
+        self.creator = UserFactory()
+        self.org = OrgFactory()
+        OrgMemberFactory(org=self.org, user=self.creator, role=OrgMemberRole.ADMIN.value)
+        self.project = ProjectFactory(org=self.org, creator=self.creator, org_members_can_access=False)
+        self.page = PageFactory(
+            project=self.project,
+            creator=self.creator,
+            title="Original",
+            details={"content": "existing", "filetype": "md"},
+        )
+        # self.folder is in the same project — used for folder-move tests.
+        self.folder = FolderFactory(project=self.project, parent=None, name="Inbox")
+
+    # ---- Helpers --------------------------------------------------------
+
+    def _put(self, **data):
+        return self.send_api_request(
+            url=f"/api/pages/{self.page.external_id}/",
+            method="put",
+            data=data,
+        )
+
+    def _login_editor(self):
+        """self.user gets PageEditor with editor role (no project/org access)."""
+        PageEditorFactory(page=self.page, user=self.user, role=PageEditorRole.EDITOR.value)
+
+    def _login_viewer(self):
+        """self.user gets PageEditor with viewer role (read-only)."""
+        PageEditorFactory(page=self.page, user=self.user, role=PageEditorRole.VIEWER.value)
+
+    def _login_outsider(self):
+        """self.user has no access at any tier — tests should see 404."""
+        # No editor wiring; default state.
+        return
+
+    def _login_as_creator(self):
+        """Switch the test session to the page creator."""
+        self.client.force_login(self.creator)
+
+    # ---- Title-only payload (ownership-flavored) ------------------------
+
+    def test_creator_can_change_title(self):
+        self._login_as_creator()
+        response = self._put(title="Renamed")
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.title, "Renamed")
+
+    def test_editor_cannot_change_title(self):
+        """Editors can write content but cannot rename — matches the spec
+        narrative that title changes are an act of ownership."""
+        self._login_editor()
+        response = self._put(title="Renamed by editor")
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        self.assertIn("Only the creator can change a page's title", response.json()["message"])
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.title, "Original")
+
+    def test_viewer_cannot_change_title(self):
+        self._login_viewer()
+        response = self._put(title="Renamed by viewer")
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+
+    def test_outsider_gets_404_on_title_change(self):
+        self._login_outsider()
+        response = self._put(title="Renamed by outsider")
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+    def test_editor_unchanged_title_is_allowed(self):
+        """Sending the same title is not 'a change' — clients (mobile/CLI/MCP)
+        commonly echo the existing title back. Don't punish them with a 403."""
+        self._login_editor()
+        response = self._put(title=self.page.title)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+    # ---- Content-only payload (editor-flavored) -------------------------
+
+    def test_editor_can_change_content_overwrite(self):
+        self._login_editor()
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self._put(
+                title=self.page.title,
+                details={"content": "editor-rewrote-this"},
+                mode="overwrite",
+            )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.details["content"], "editor-rewrote-this")
+
+    def test_editor_can_change_content_append(self):
+        self._login_editor()
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self._put(
+                title=self.page.title,
+                details={"content": " + appended"},
+                mode="append",
+            )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.details["content"], "existing + appended")
+
+    def test_editor_can_change_content_prepend(self):
+        self._login_editor()
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self._put(
+                title=self.page.title,
+                details={"content": "prepended + "},
+                mode="prepend",
+            )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.details["content"], "prepended + existing")
+
+    def test_viewer_cannot_change_content(self):
+        self._login_viewer()
+        response = self._put(
+            title=self.page.title,
+            details={"content": "viewer attempted overwrite"},
+            mode="overwrite",
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        self.assertIn("don't have permission", response.json()["message"])
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.details["content"], "existing")
+
+    def test_outsider_gets_404_on_content_change(self):
+        self._login_outsider()
+        response = self._put(
+            title=self.page.title,
+            details={"content": "outsider attempted overwrite"},
+            mode="overwrite",
+        )
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+    # ---- folder_id payload (ownership-flavored) -------------------------
+
+    def test_creator_can_move_to_folder(self):
+        self._login_as_creator()
+        response = self._put(title=self.page.title, folder_id=str(self.folder.external_id))
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.folder_id, self.folder.id)
+
+    def test_editor_cannot_move_to_folder(self):
+        self._login_editor()
+        response = self._put(title=self.page.title, folder_id=str(self.folder.external_id))
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        self.assertIn("Only the creator can change a page's folder", response.json()["message"])
+        self.page.refresh_from_db()
+        self.assertIsNone(self.page.folder_id)
+
+    def test_editor_sending_unchanged_folder_id_is_allowed(self):
+        """Echoing the same folder_id (None == project root) shouldn't trip
+        the creator-only check — only an actual move requires creator."""
+        self._login_editor()
+        response = self._put(title=self.page.title, folder_id=None)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+    # ---- Mixed payload requires the stricter rule (creator) -------------
+
+    def test_editor_blocked_when_payload_mixes_title_and_content(self):
+        self._login_editor()
+        response = self._put(
+            title="Renamed by editor",
+            details={"content": "editor-rewrote-this"},
+            mode="overwrite",
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        self.assertIn("Only the creator can change a page's title", response.json()["message"])
+        self.page.refresh_from_db()
+        # No partial application — content must NOT have been written.
+        self.assertEqual(self.page.title, "Original")
+        self.assertEqual(self.page.details["content"], "existing")
+
+    def test_creator_can_change_title_and_content_together(self):
+        self._login_as_creator()
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self._put(
+                title="Renamed",
+                details={"content": "rewritten"},
+                mode="overwrite",
+            )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.title, "Renamed")
+        self.assertEqual(self.page.details["content"], "rewritten")
 
 
 class TestPageLevelAccessCreatePage(BaseAuthenticatedViewTestCase):

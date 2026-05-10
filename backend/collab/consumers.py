@@ -11,7 +11,7 @@ from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
-from pycrdt import Doc, YMessageType, YSyncMessageType
+from pycrdt import Doc, YMessageType, YSyncMessageType, create_update_message
 from pycrdt.websocket.django_channels_consumer import YjsConsumer as BaseYjsConsumer
 
 from backend.utils import (
@@ -47,6 +47,10 @@ class PageYjsConsumer(BaseYjsConsumer):
         self.has_unsaved_changes = False  # Flag for dirty tracking
         self.updates_since_snapshot = 0  # Counter for update-based snapshot trigger
         self.pending_writes = set()  # Track in-flight write tasks to await on disconnect
+        # Set to True when applying an externally-injected update (from
+        # collab.services.apply_text) so the transaction observer skips
+        # re-persisting — the update is already in y_updates.
+        self._suppress_persistence = False
 
     # -----------------------------
     # Helpers
@@ -279,8 +283,18 @@ class PageYjsConsumer(BaseYjsConsumer):
 
                 log_debug("Doc transaction: %s bytes", len(update_bytes))
 
-                # Persist asynchronously but track the task for cleanup
-                if getattr(self, "ystore", None):
+                # Persist asynchronously but track the task for cleanup.
+                # Skip the ystore.write when applying an externally-injected
+                # update — the caller already wrote the bytes to y_updates
+                # (see external_update handler). We still need the dirty /
+                # snapshot bookkeeping below so the periodic / threshold /
+                # disconnect snapshot path runs and sync_snapshot_with_page
+                # picks up the change. Without that, denormalized state
+                # (links, mentions, file-links, rewind) goes stale until the
+                # next human edit.
+                if self._suppress_persistence:
+                    log_debug("Suppressing persistence for external update: %s bytes", len(update_bytes))
+                elif getattr(self, "ystore", None):
                     task = asyncio.create_task(self.ystore.write(update_bytes))
                     self.pending_writes.add(task)
                     task.add_done_callback(self.pending_writes.discard)
@@ -652,3 +666,78 @@ class PageYjsConsumer(BaseYjsConsumer):
                 }
             )
         )
+
+    async def external_update(self, event):
+        """
+        Handle an externally-injected Yjs update (from MCP/REST via
+        collab.services.apply_text).
+
+        The update is already persisted to y_updates by the caller. We must:
+
+        1. Apply it to self.ydoc so the server-side doc stays in sync with
+           persistence. If we don't, this consumer's snapshot on disconnect
+           would not contain the update (the snapshot is taken from self.ydoc
+           with a watermark past the update's id), silently dropping the
+           external write from the next hydration.
+        2. Forward it to this consumer's client as a SYNC_UPDATE message so
+           the editor reflects the change live.
+
+        If applying to self.ydoc fails, we MUST NOT forward the bytes to
+        the client. Forwarding a divergent update would leave the client
+        merged ahead of the server's ydoc; the next disconnect snapshot
+        would then be taken from a stale self.ydoc, with the watermark
+        already past the external update's row id, silently dropping the
+        external write from the next hydration. Instead, we signal the
+        client to resync (it can choose to reconnect); the persisted
+        update will be picked up on hydration.
+
+        We must NOT re-persist the update — `_suppress_persistence` tells the
+        transaction observer to skip its usual ystore.write() call.
+        """
+        update_bytes = event.get("update")
+        if not update_bytes:
+            log_warning("external_update event missing update bytes for %s", getattr(self, "room_name", "unknown"))
+            return
+
+        if getattr(self, "ydoc", None) is None:
+            log_debug(
+                "external_update received before ydoc ready for %s, dropping", getattr(self, "room_name", "unknown")
+            )
+            return
+
+        # Apply to server-side ydoc without re-persisting. The observer
+        # fires synchronously during apply_update, so this flag is race-free.
+        try:
+            self._suppress_persistence = True
+            try:
+                self.ydoc.apply_update(update_bytes)
+            finally:
+                self._suppress_persistence = False
+        except Exception as e:
+            log_error(
+                "Error applying external update to ydoc for %s: %s; not forwarding to client",
+                self.room_name,
+                e,
+                exc_info=True,
+            )
+            # Do NOT forward divergent bytes. Tell the client to resync so it
+            # can choose to reconnect and rehydrate from persisted state.
+            try:
+                await self.send(
+                    text_data='{"type":"error","code":"resync_required","message":"Server failed to apply update; please reconnect to resync."}'
+                )
+            except Exception as send_err:
+                log_error(
+                    "Error sending resync_required to client for %s: %s",
+                    self.room_name,
+                    send_err,
+                    exc_info=True,
+                )
+            return
+
+        # Forward to the WS client as a Yjs SYNC_UPDATE so the editor merges.
+        try:
+            await self.send(bytes_data=create_update_message(update_bytes))
+            log_debug("Forwarded external_update (%s bytes) to client for %s", len(update_bytes), self.room_name)
+        except Exception as e:
+            log_error("Error forwarding external_update to client for %s: %s", self.room_name, e, exc_info=True)
