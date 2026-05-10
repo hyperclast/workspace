@@ -22,8 +22,8 @@ class UserFactory(factory.django.DjangoModelFactory):
         model = User
         exclude = "text_password"
 
-    username = factory.Faker("user_name")
-    email = factory.Faker("email")
+    username = factory.Sequence(lambda n: f"user_{n}")
+    email = factory.Sequence(lambda n: f"user_{n}@example.com")
     password = factory.PostGenerationMethodCall("set_password", TEST_USER_PASSWORD)
 
     @classmethod

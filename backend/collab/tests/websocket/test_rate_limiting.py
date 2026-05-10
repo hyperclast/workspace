@@ -209,8 +209,10 @@ class TestWebSocketRateLimiting(TransactionTestCase):
                 # Check if this was actually accepted or immediately rejected
                 # The consumer accepts first, then closes for rate limiting
                 try:
-                    # Try to receive potential error/close message (short timeout)
-                    output = await comm.receive_output(timeout=0.5)
+                    # Try to receive potential error/close message.
+                    # 2s gives slow CI hosts headroom; the rate-limited frame still arrives almost
+                    # instantly, so the semantic check (accepted vs rejected) is unchanged.
+                    output = await comm.receive_output(timeout=2.0)
 
                     if output["type"] == "websocket.send":
                         # Got a message - check if it's an error
@@ -221,21 +223,25 @@ class TestWebSocketRateLimiting(TransactionTestCase):
                                 # This was rejected after initial accept
                                 rejected_count += 1
                                 # Receive the close message
-                                close_msg = await comm.receive_output(timeout=1)
+                                close_msg = await comm.receive_output(timeout=2.0)
                                 self.assertEqual(close_msg.get("code"), WS_CLOSE_RATE_LIMITED)
                             else:
                                 # Unexpected message, count as accepted
                                 accepted_count += 1
                                 try:
                                     await comm.disconnect()
-                                except Exception:
+                                except BaseException:
+                                    # Catch BaseException because asyncio.CancelledError
+                                    # (a BaseException, not Exception, since Python 3.8) can
+                                    # escape from WebsocketCommunicator.disconnect() after the
+                                    # consumer's application task has been torn down.
                                     pass
                         else:
                             # Binary data (Yjs sync message), connection was accepted
                             accepted_count += 1
                             try:
                                 await comm.disconnect()
-                            except Exception:
+                            except BaseException:
                                 pass
                     elif output["type"] == "websocket.close":
                         # Closed immediately (rate limited)
@@ -246,14 +252,14 @@ class TestWebSocketRateLimiting(TransactionTestCase):
                         accepted_count += 1
                         try:
                             await comm.disconnect()
-                        except Exception:
+                        except BaseException:
                             pass
                 except asyncio.TimeoutError:
                     # No error message, connection was truly accepted
                     accepted_count += 1
                     try:
                         await comm.disconnect()
-                    except Exception:
+                    except BaseException:
                         pass
             else:
                 # Connection was rejected before accept (shouldn't happen with current impl)
