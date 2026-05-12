@@ -191,3 +191,38 @@ class TestUpdatePageEmbeddingTaskFeatureDisabled(TestCase):
         update_page_embedding(page.external_id)
 
         mocked_update.assert_not_called()
+
+
+@override_settings(ASK_FEATURE_ENABLED=True, EMBEDDINGS_SERVER_API_KEY="sk-server")
+@patch("ask.tasks.PageEmbedding.objects.update_or_create_page_embedding")
+class TestUpdatePageEmbeddingTaskWithServerKey(TestCase):
+    """When the server-side embedding key is set (production path), the task
+    should run regardless of whether the user has any AIProviderConfig — the
+    server key pays for the embedding."""
+
+    def test_proceeds_without_any_user_config(self, mocked_update):
+        page = PageFactory()
+        mocked_update.return_value = (PageEmbeddingFactory(page=page), "created")
+
+        update_page_embedding(page.external_id)
+
+        mocked_update.assert_called_once_with(page, user=page.creator)
+
+    def test_proceeds_when_user_only_has_anthropic_config(self, mocked_update):
+        """The original 401 bug: user has only an Anthropic key, but server key
+        is configured. Task must NOT try to use the Anthropic key — it just
+        proceeds with the server key behind the scenes (resolved deeper in
+        the helper layer)."""
+        page = PageFactory()
+        AIProviderConfig.objects.create(
+            user=page.creator,
+            provider=AIProvider.ANTHROPIC.value,
+            api_key="sk-ant-xyz",
+            is_enabled=True,
+            is_validated=True,
+        )
+        mocked_update.return_value = (PageEmbeddingFactory(page=page), "created")
+
+        update_page_embedding(page.external_id)
+
+        mocked_update.assert_called_once()

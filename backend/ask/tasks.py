@@ -2,11 +2,11 @@ from typing import List
 
 from django.conf import settings
 
+from ask.helpers.embeddings import has_embedding_credentials
 from ask.models import PageEmbedding
 from backend.utils import log_error, log_info
 from core.helpers import task
 from pages.models import Page
-from users.models import AIProviderConfig
 
 
 @task(settings.JOB_AI_QUEUE)
@@ -28,8 +28,11 @@ def update_page_embedding(page_id: str, user_id: int = None):
         if not user:
             user = page.creator
 
-        if AIProviderConfig.objects.get_config_for_request(user) is None:
-            log_info("Skipping embedding for page %s: user %s has no AI provider configured", page_id, user.id)
+        if not has_embedding_credentials(user):
+            log_info(
+                "Skipping embedding for page %s: no embedding credentials available (no server key, no user OpenAI config)",
+                page_id,
+            )
             return
 
         _, action = PageEmbedding.objects.update_or_create_page_embedding(page, user=user)
@@ -56,8 +59,11 @@ def index_user_pages(user_id: int, page_external_ids: List[str]):
         log_error("index_user_pages: user %s not found", user_id)
         return
 
-    if AIProviderConfig.objects.get_config_for_request(user) is None:
-        log_info("Skipping bulk indexing for user %s: no AI provider configured", user_id)
+    if not has_embedding_credentials(user):
+        log_info(
+            "Skipping bulk indexing for user %s: no embedding credentials available",
+            user_id,
+        )
         return
 
     log_info("Starting bulk indexing of %d pages for user %s", len(page_external_ids), user_id)

@@ -1,8 +1,9 @@
-from typing import List, Optional, Union
+from decimal import Decimal
+from typing import List, Optional, Tuple, Union
 
 import tiktoken
 from django.conf import settings
-from litellm import embedding, RateLimitError, Timeout
+from litellm import RateLimitError, Timeout, embedding
 
 from backend.utils import log_error
 from core.helpers import retry_with_exponential_backoff
@@ -14,31 +15,170 @@ RETRY_ERROR_TYPES = (
 )
 
 
-def _resolve_api_key(user=None, api_key=None):
-    """Resolve API key from user's AIProviderConfig if not provided."""
-    if api_key:
-        return api_key
+KEY_SOURCE_EXPLICIT = "explicit"
+KEY_SOURCE_SERVER = "server"
+KEY_SOURCE_USER = "user"
 
-    if user:
+
+# Per-million-token USD prices used as a fallback when litellm.completion_cost
+# returns nothing for an embedding model. Treat as a "last resort" lookup —
+# the source of truth is the provider's published pricing, and litellm's cost
+# map should generally agree.
+EMBEDDING_COST_PER_MILLION_TOKENS = {
+    "text-embedding-3-small": Decimal("0.02"),
+    "text-embedding-3-large": Decimal("0.13"),
+    "text-embedding-ada-002": Decimal("0.10"),
+}
+
+
+def _resolve_credentials(user=None, api_key: Optional[str] = None) -> Tuple[Optional[str], Optional[str], str]:
+    """Resolve (api_key, api_base_url, key_source) for an embedding call.
+
+    Precedence:
+        1. Explicit `api_key` argument (tests, scripts).
+        2. Server-side `EMBEDDINGS_SERVER_API_KEY` setting (hosted product).
+        3. The user/org's OpenAI AIProviderConfig (self-host fallback).
+    """
+    if api_key:
+        return api_key, None, KEY_SOURCE_EXPLICIT
+
+    server_key = getattr(settings, "EMBEDDINGS_SERVER_API_KEY", "") or ""
+    if server_key:
+        base_url = getattr(settings, "EMBEDDINGS_SERVER_API_BASE_URL", "") or ""
+        return server_key, (base_url or None), KEY_SOURCE_SERVER
+
+    if user is not None:
+        from ask.constants import AIProvider
         from users.models import AIProviderConfig
 
-        config = AIProviderConfig.objects.get_config_for_request(user)
-        if config:
-            return config.api_key
+        config_obj = AIProviderConfig.objects.get_config_for_request(user, provider=AIProvider.OPENAI.value)
+        if config_obj and config_obj.api_key:
+            return config_obj.api_key, (config_obj.api_base_url or None), KEY_SOURCE_USER
 
-    return None
+    return None, None, ""
+
+
+def has_embedding_credentials(user=None) -> bool:
+    """Return True when any credential source can satisfy an embedding call."""
+    api_key, _, _ = _resolve_credentials(user=user)
+    return bool(api_key)
+
+
+def _resolve_api_key(user=None, api_key=None):
+    """Backwards-compatible shim returning just the API key string.
+
+    Prefer `_resolve_credentials` for new call sites — it also surfaces the
+    base URL and key source needed for routing + usage attribution.
+    """
+    key, _, _ = _resolve_credentials(user=user, api_key=api_key)
+    return key
+
+
+def _extract_usage_tokens(response) -> Tuple[Optional[int], Optional[int]]:
+    """Pull prompt/total tokens from a litellm response, tolerating dict + object shapes."""
+    usage = getattr(response, "usage", None)
+    if usage is None and isinstance(response, dict):
+        usage = response.get("usage")
+
+    if isinstance(usage, dict):
+        prompt = usage.get("prompt_tokens")
+        total = usage.get("total_tokens")
+    elif usage is not None:
+        prompt = getattr(usage, "prompt_tokens", None)
+        total = getattr(usage, "total_tokens", None)
+    else:
+        return None, None
+
+    if not isinstance(prompt, int) or not isinstance(total, int):
+        return None, None
+    return prompt, total
+
+
+def _compute_embedding_cost(*, response, model: str, total_tokens: int) -> Decimal:
+    """Compute USD cost for an embedding call.
+
+    Asks litellm first (it knows the published rate cards); falls back to
+    a per-model rate table if litellm has no answer.
+    """
+    try:
+        from litellm import completion_cost
+
+        cost = completion_cost(completion_response=response)
+        if cost:
+            return Decimal(str(cost))
+    except Exception:
+        pass
+
+    rate_per_million = EMBEDDING_COST_PER_MILLION_TOKENS.get(model)
+    if rate_per_million is None or total_tokens <= 0:
+        return Decimal("0")
+    return (Decimal(total_tokens) / Decimal(1_000_000) * rate_per_million).quantize(Decimal("0.00000001"))
+
+
+def _record_embedding_usage(*, response, model, user, page, kind, key_source):
+    """Persist one EmbeddingUsage row per successful embedding call.
+
+    Best-effort: any failure here is logged but never blocks the caller.
+    A response whose shape we don't understand (e.g. a bare Mock) is skipped
+    silently so unit tests that mock `litellm.embedding` stay green.
+    """
+    try:
+        from ask.models import EmbeddingUsage, EmbeddingUsageKeySource, EmbeddingUsageKind
+
+        prompt_tokens, total_tokens = _extract_usage_tokens(response)
+        if prompt_tokens is None or total_tokens is None:
+            return
+
+        valid_kinds = {c.value for c in EmbeddingUsageKind}
+        valid_sources = {c.value for c in EmbeddingUsageKeySource}
+        if kind not in valid_kinds or key_source not in valid_sources:
+            return
+
+        cost = _compute_embedding_cost(response=response, model=model, total_tokens=total_tokens)
+
+        EmbeddingUsage.objects.create(
+            user=user,
+            page=page,
+            model=model,
+            prompt_tokens=prompt_tokens,
+            total_tokens=total_tokens,
+            cost_usd=cost,
+            kind=kind,
+            key_source=key_source,
+        )
+    except Exception as exc:
+        log_error("EmbeddingUsage record failed: %s", exc)
 
 
 @retry_with_exponential_backoff(errors=RETRY_ERROR_TYPES)
 def create_embedding(input_data: str, **options) -> List[float]:
-    """Creates embedding for the given `input_data`."""
+    """Creates embedding for the given `input_data` and records usage."""
     model = options.get("model", settings.ASK_EMBEDDINGS_DEFAULT_MODEL)
-    api_key = _resolve_api_key(user=options.get("user"), api_key=options.get("api_key"))
+    user = options.get("user")
+    page = options.get("page")
+    kind = options.get("kind", "query")
+
+    api_key, api_base_url, key_source = _resolve_credentials(user=user, api_key=options.get("api_key"))
 
     if not api_key:
         raise ValueError("api_key is required for creating embeddings - configure an AI provider in settings")
 
-    return embedding(input=[input_data], model=model, api_key=api_key).data[0]["embedding"]
+    call_kwargs = {"input": [input_data], "model": model, "api_key": api_key}
+    if api_base_url:
+        call_kwargs["api_base"] = api_base_url
+
+    response = embedding(**call_kwargs)
+
+    _record_embedding_usage(
+        response=response,
+        model=model,
+        user=user,
+        page=page,
+        kind=kind,
+        key_source=key_source,
+    )
+
+    return response.data[0]["embedding"]
 
 
 def truncate_input_data(data: str, encoding_name: str, max_tokens: int) -> str:
@@ -64,9 +204,11 @@ def compute_embedding(
     encoding_name: Optional[str] = None,
     max_tokens: Optional[int] = None,
     raise_exception: Optional[bool] = False,
+    page=None,
+    kind: str = "query",
 ) -> Union[List[float], None]:
     """Computes embedding for given `data`. Requires user or api_key to resolve credentials."""
-    embedding = None
+    result = None
 
     try:
         model = model or settings.ASK_EMBEDDINGS_DEFAULT_MODEL
@@ -74,7 +216,14 @@ def compute_embedding(
         max_tokens = max_tokens or settings.ASK_EMBEDDINGS_DEFAULT_MAX_INPUT
 
         input_data = truncate_input_data(data=data, encoding_name=encoding_name, max_tokens=max_tokens)
-        embedding = create_embedding(input_data=input_data, model=model, api_key=api_key, user=user)
+        result = create_embedding(
+            input_data=input_data,
+            model=model,
+            api_key=api_key,
+            user=user,
+            page=page,
+            kind=kind,
+        )
 
     except Exception as e:
         if raise_exception:
@@ -82,4 +231,4 @@ def compute_embedding(
 
         log_error(f"Embeddings: Encountered error {e}")
 
-    return embedding
+    return result

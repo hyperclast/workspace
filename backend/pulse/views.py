@@ -1,14 +1,17 @@
 import json
 from collections import defaultdict
 from datetime import timedelta
+from decimal import Decimal
 
 from allauth.account.models import EmailAddress
+from ask.models import EmbeddingUsage, EmbeddingUsageKeySource
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db import models
-from django.db.models import Count, Exists, OuterRef
+from django.db.models import Count, Exists, OuterRef, Sum
+from django.db.models.functions import TruncDate
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
@@ -293,6 +296,56 @@ def dashboard(request):
                 }
             )
 
+    # Embeddings spend (Hyperclast-paid; everything routed through the server key)
+    thirty_days_ago_dt = now - timedelta(days=30)
+    server_usage_qs = EmbeddingUsage.objects.filter(key_source=EmbeddingUsageKeySource.SERVER)
+
+    def _spend_rollup(qs):
+        agg = qs.aggregate(cost=Sum("cost_usd"), tokens=Sum("total_tokens"), calls=Count("id"))
+        return {
+            "cost": agg["cost"] or Decimal("0"),
+            "tokens": agg["tokens"] or 0,
+            "calls": agg["calls"] or 0,
+        }
+
+    emb_lifetime = _spend_rollup(server_usage_qs)
+    emb_30d = _spend_rollup(server_usage_qs.filter(created__gte=thirty_days_ago_dt))
+    emb_7d = _spend_rollup(server_usage_qs.filter(created__gte=seven_days_ago))
+
+    # User-keyed call count is informational — self-hosters paying their own OpenAI bill
+    emb_user_keyed_calls_30d = EmbeddingUsage.objects.filter(
+        key_source=EmbeddingUsageKeySource.USER, created__gte=thirty_days_ago_dt
+    ).count()
+
+    # Daily server spend for last 30 days
+    emb_daily_raw = (
+        server_usage_qs.filter(created__gte=thirty_days_ago_dt)
+        .annotate(day=TruncDate("created"))
+        .values("day")
+        .annotate(cost=Sum("cost_usd"), calls=Count("id"))
+        .order_by("day")
+    )
+    emb_daily_data = [
+        {
+            "date": row["day"].isoformat(),
+            "cost": float(row["cost"] or 0),
+            "calls": row["calls"] or 0,
+        }
+        for row in emb_daily_raw
+    ]
+
+    # Top users by lifetime server-side spend
+    emb_top_users = list(
+        server_usage_qs.exclude(user__isnull=True)
+        .values("user_id", "user__email", "user__username")
+        .annotate(
+            total_cost=Sum("cost_usd"),
+            total_tokens=Sum("total_tokens"),
+            total_calls=Count("id"),
+        )
+        .order_by("-total_cost")[:20]
+    )
+
     context = {
         "dau_data_json": json.dumps(dau_data),
         "signups_data_json": json.dumps(signups_data),
@@ -311,6 +364,13 @@ def dashboard(request):
         "paid_orgs_total": paid_orgs_total,
         "paid_orgs_payment_failed": paid_orgs_payment_failed,
         "billing_enabled": apps.is_installed("private.billing"),
+        "emb_lifetime": emb_lifetime,
+        "emb_30d": emb_30d,
+        "emb_7d": emb_7d,
+        "emb_user_keyed_calls_30d": emb_user_keyed_calls_30d,
+        "emb_daily_data_json": json.dumps(emb_daily_data),
+        "emb_top_users": emb_top_users,
+        "emb_server_key_configured": bool(getattr(settings, "EMBEDDINGS_SERVER_API_KEY", "")),
     }
     return render(request, "pulse/dashboard.html", context)
 

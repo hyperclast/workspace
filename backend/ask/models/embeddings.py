@@ -26,7 +26,7 @@ class PageEmbeddingManager(models.Manager):
             if content_hash == entry.content_hash:
                 return entry, "skipped"
 
-            entry.embedding = compute_embedding(input_data, user=user, raise_exception=True)
+            entry.embedding = compute_embedding(input_data, user=user, page=page, kind="index", raise_exception=True)
             entry.content_hash = content_hash
             entry.computed = timezone.now()
             entry.save(update_fields=["embedding", "content_hash", "computed", "modified"])
@@ -35,7 +35,7 @@ class PageEmbeddingManager(models.Manager):
         except self.model.DoesNotExist:
             entry = self.create(
                 page=page,
-                embedding=compute_embedding(input_data, user=user, raise_exception=True),
+                embedding=compute_embedding(input_data, user=user, page=page, kind="index", raise_exception=True),
                 content_hash=content_hash,
                 computed=timezone.now(),
             )

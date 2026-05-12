@@ -134,3 +134,70 @@ class TestIndexUserPagesFeatureDisabled(TestCase):
         index_user_pages(user_id=user.id, page_external_ids=[page.external_id])
 
         mocked_update.assert_not_called()
+
+
+@override_settings(ASK_FEATURE_ENABLED=True, EMBEDDINGS_SERVER_API_KEY="sk-server")
+@patch("ask.tasks.PageEmbedding.objects.update_or_create_page_embedding")
+class TestIndexUserPagesWithServerKey(TestCase):
+    """Bulk indexing should work for users without any AIProviderConfig as
+    long as the server key is set — that's the hosted-product default and
+    the whole point of moving embeddings to a server-paid path."""
+
+    def test_proceeds_without_user_config(self, mocked_update):
+        user = UserFactory()
+        page = PageFactory(creator=user)
+        mocked_update.return_value = (PageEmbeddingFactory(page=page), "created")
+
+        index_user_pages(user_id=user.id, page_external_ids=[page.external_id])
+
+        mocked_update.assert_called_once_with(page, user=user)
+
+    def test_proceeds_when_user_has_only_anthropic_config(self, mocked_update):
+        """The original 401 case: user has only an Anthropic key. With the
+        server key set, indexing proceeds (cost is on us, not the user)."""
+        user = UserFactory()
+        AIProviderConfig.objects.create(
+            user=user,
+            provider=AIProvider.ANTHROPIC.value,
+            api_key="sk-ant-xyz",
+            is_enabled=True,
+            is_validated=True,
+        )
+        page = PageFactory(creator=user)
+        mocked_update.return_value = (PageEmbeddingFactory(page=page), "created")
+
+        index_user_pages(user_id=user.id, page_external_ids=[page.external_id])
+
+        mocked_update.assert_called_once()
+
+
+@override_settings(ASK_FEATURE_ENABLED=True, EMBEDDINGS_SERVER_API_KEY="sk-server")
+class TestIndexUserPagesUsageRecordingEndToEnd(TestCase):
+    """End-to-end: bulk indexing N pages writes N EmbeddingUsage rows. Mocks
+    only at the litellm boundary so the manager + recording chain is real."""
+
+    @patch("ask.helpers.embeddings.embedding")
+    def test_one_usage_row_per_indexed_page(self, mock_litellm):
+        from types import SimpleNamespace
+
+        from ask.models import EmbeddingUsage
+
+        def _resp(*_args, **_kwargs):
+            return SimpleNamespace(
+                data=[{"embedding": [0.0] * 1536}],
+                usage=SimpleNamespace(prompt_tokens=10, total_tokens=10),
+                model="text-embedding-3-small",
+            )
+
+        mock_litellm.side_effect = _resp
+        user = UserFactory()
+        pages = [PageFactory(creator=user, title=f"Doc {i}", details={"content": f"Body {i}"}) for i in range(3)]
+
+        index_user_pages(user_id=user.id, page_external_ids=[p.external_id for p in pages])
+
+        rows = EmbeddingUsage.objects.filter(kind="index")
+        self.assertEqual(rows.count(), 3)
+        self.assertEqual({r.page_id for r in rows}, {p.id for p in pages})
+        for row in rows:
+            self.assertEqual(row.user, user)
+            self.assertEqual(row.key_source, "server")

@@ -438,6 +438,7 @@
           <a href="#ai-keys">AI Keys</a>
           <a href="#weekly-active">Weekly Active</a>
           <a href="#inactive-users">Inactive Users</a>
+          <a href="#embeddings-spend">Embeddings Spend</a>
         </div>
         <button type="button" class="btn-recompute" id="recompute-btn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -941,6 +942,87 @@
             </div>
           {% endif %}
         </section>
+
+        <!-- Embeddings Spend Section -->
+        <section class="section" id="embeddings-spend">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Embeddings Spend</h2>
+              <p class="section-meta">
+                Server-keyed embedding calls (Hyperclast-paid).
+                {% if not emb_server_key_configured %}
+                  <span class="badge badge-warning">WS_EMBEDDINGS_SERVER_API_KEY not set — calls fall back to user OpenAI keys.</span>
+                {% endif %}
+              </p>
+            </div>
+            {% include 'pulse/partials/_badge_sync.html' %}
+          </div>
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-label">Lifetime spend</div>
+              <div class="metric-value neutral">${{ emb_lifetime.cost|floatformat:4 }}</div>
+              <div class="metric-subtitle">{{ emb_lifetime.calls }} calls · {{ emb_lifetime.tokens }} tokens</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Last 30 days</div>
+              <div class="metric-value neutral">${{ emb_30d.cost|floatformat:4 }}</div>
+              <div class="metric-subtitle">{{ emb_30d.calls }} calls · {{ emb_30d.tokens }} tokens</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Last 7 days</div>
+              <div class="metric-value neutral">${{ emb_7d.cost|floatformat:4 }}</div>
+              <div class="metric-subtitle">{{ emb_7d.calls }} calls · {{ emb_7d.tokens }} tokens</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">User-keyed calls (30d)</div>
+              <div class="metric-value neutral">{{ emb_user_keyed_calls_30d }}</div>
+              <div class="metric-subtitle">Self-hosters / fallback path (we don't pay)</div>
+            </div>
+          </div>
+          <div class="chart-container" style="margin-top: 1rem;">
+            <canvas id="embeddings-spend-chart"></canvas>
+          </div>
+          {% if emb_top_users %}
+            <div class="table-scroll" style="margin-top: 1rem;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Username</th>
+                    <th>Calls</th>
+                    <th>Tokens</th>
+                    <th>Lifetime cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in emb_top_users %}
+                    <tr>
+                      <td>{{ row.user__email|default:"—" }}</td>
+                      <td>
+                        {% if row.user_id %}
+                          <form class="hijack-form" method="POST" action="/hijack/acquire/">
+                            {% csrf_token %}
+                            <input type="hidden" name="user_pk" value="{{ row.user_id }}">
+                            <button type="submit" class="hijack-btn" title="Impersonate {{ row.user__username }}">{{ row.user__username }}</button>
+                          </form>
+                        {% else %}
+                          —
+                        {% endif %}
+                      </td>
+                      <td>{{ row.total_calls }}</td>
+                      <td>{{ row.total_tokens }}</td>
+                      <td>${{ row.total_cost|floatformat:4 }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="empty-state">
+              <p>No server-side embedding calls recorded yet.</p>
+            </div>
+          {% endif %}
+        </section>
       </main>
     </div>
 
@@ -952,6 +1034,7 @@
       const signupsData = {{ signups_data_json|safe }};
       const mauData = {{ mau_data_json|safe }};
       const wauData = {{ wau_data_json|safe }};
+      const embDailyData = {{ emb_daily_data_json|safe }};
 
       const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
       const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
@@ -1082,6 +1165,49 @@
                 callbacks: {
                     ...commonOptions.plugins.tooltip.callbacks,
                   label: (item) => `${item.raw} weekly active users`
+                }
+              }
+            }
+          }
+        });
+      }
+
+      // Embeddings Spend Chart (daily server-side cost, last 30 days)
+      if (embDailyData.length > 0) {
+        new Chart(document.getElementById('embeddings-spend-chart').getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: embDailyData.map(d => d.date),
+            datasets: [{
+              label: 'Daily server spend (USD)',
+              data: embDailyData.map(d => d.cost),
+              backgroundColor: 'rgba(124, 140, 232, 0.6)',
+              borderColor: '#7c8ce8',
+              borderWidth: 1,
+              borderRadius: 4,
+            }]
+          },
+          options: {
+              ...commonOptions,
+            plugins: {
+                ...commonOptions.plugins,
+              tooltip: {
+                callbacks: {
+                    ...commonOptions.plugins.tooltip.callbacks,
+                  label: (item) => {
+                    const row = embDailyData[item.dataIndex] || {};
+                    return `$${item.raw.toFixed(4)} · ${row.calls || 0} calls`;
+                  }
+                }
+              }
+            },
+            scales: {
+                ...commonOptions.scales,
+              y: {
+                  ...commonOptions.scales.y,
+                ticks: {
+                    ...commonOptions.scales.y.ticks,
+                  callback: (value) => `$${Number(value).toFixed(4)}`
                 }
               }
             }

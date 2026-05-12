@@ -399,6 +399,14 @@ ASK_EMBEDDINGS_MAX_PAGES = 5
 WS_ASK_RATE_LIMIT_REQUESTS = config("WS_ASK_RATE_LIMIT_REQUESTS", cast=int, default=30)
 WS_ASK_RATE_LIMIT_WINDOW_SECONDS = config("WS_ASK_RATE_LIMIT_WINDOW_SECONDS", cast=int, default=60)
 
+# Server-side embedding credentials.
+# When set, embeddings (index + query vectors) use this key — Hyperclast eats the cost.
+# When unset, falls back to the user/org's OpenAI AIProviderConfig (self-hosted path).
+# Embeddings are model-dependent: stored and query vectors must use the same model,
+# so we route them all through one server-owned key in the hosted product.
+EMBEDDINGS_SERVER_API_KEY = config("WS_EMBEDDINGS_SERVER_API_KEY", default="")
+EMBEDDINGS_SERVER_API_BASE_URL = config("WS_EMBEDDINGS_SERVER_API_BASE_URL", default="")
+
 # Dev sidebar (shows API code snippets in the sidebar)
 DEV_SIDEBAR_ENABLED = config("WS_DEV_SIDEBAR_ENABLED", cast=bool, default=False)
 
