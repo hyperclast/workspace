@@ -148,7 +148,8 @@ When a user loses access to a page (removed from org or project), active WebSock
 **1. Consumer** (`backend/collab/consumers.py`)
 
 - `connect()` - Validates user access before accepting connection
-- `make_ydoc()` - Creates and hydrates Yjs document from persisted updates
+- `make_ydoc()` - Creates and hydrates Yjs document from persisted updates; falls back to seeding from `Page.details["content"]` when both the snapshot and update log are empty
+- `_seed_ydoc_from_page()` - Single-writer seed under a Postgres advisory transaction lock so concurrent first-time loaders cannot double the page (fail-open: returns False on any error and the WS still accepts)
 - `receive()` - Handles incoming Yjs protocol messages
 - `disconnect()` - Writes snapshot and cleans up resources
 - `access_revoked()` - Notifies user when access is removed
@@ -196,6 +197,8 @@ Key exports:
 
 - `createCollaborationObjects()` - Creates Yjs doc, WebSocket provider, and CodeMirror extension
 - `destroyCollaboration()` - Cleanup function
+- `decideAfterSync()` - Pure function returning one of `"denied"`, `"hold_rest_timeout"`, `"hold_rest_seed_missing"`, `"upgrade_to_collab"`; the client never inserts REST content into ytext — the server owns hydration via `_seed_ydoc_from_page`
+- `isServerSeedMissing()` - Predicate for the synced-but-empty-ytext-with-rest-content case (used by `decideAfterSync` to hold the REST view when a server seed fail-opens)
 
 Dependencies:
 

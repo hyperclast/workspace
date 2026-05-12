@@ -30,6 +30,7 @@ from django.test import TransactionTestCase
 from pycrdt import Doc, Text
 
 from backend.asgi import application
+from collab.models import YUpdate
 from collab.tests import (
     create_page_with_access,
     create_user_with_org_and_project,
@@ -606,3 +607,227 @@ class TestHydrationEdgeCases(TransactionTestCase):
             "3-byte snapshot should be considered valid",
         )
         self.assertFalse(mock_ystore.read_called)
+
+
+class TestMakeYdocSeedWiring(TransactionTestCase):
+    """Tests that `make_ydoc()` calls the seed helper exactly when the
+    room has no usable Yjs state and the page row has seedable content.
+
+    The helper itself is exercised in `test_seed_ydoc.py`; here we only
+    verify the wiring inside `make_ydoc()` so the seed-once invariant
+    holds end-to-end from a real WebSocket connect.
+
+    Assertions look at the real `y_updates` table (not the mocked
+    ystore). The seed path writes through the Django ORM under an
+    advisory transaction lock, so the persisted row is observable via
+    `YUpdate.objects.filter(...)` regardless of how `PostgresYStore` is
+    mocked for the hydration read path.
+    """
+
+    SEED_CONTENT = "content1234"
+
+    async def _yupdate_rows(self, room_id):
+        rows = await sync_to_async(list)(
+            YUpdate.objects.filter(room_id=room_id).order_by("id").values_list("yupdate", flat=True)
+        )
+        return [bytes(b) for b in rows]
+
+    @patch("collab.consumers.PostgresYStore")
+    async def test_seeds_when_no_snapshot_and_no_updates(self, MockYStore):
+        """Empty store + non-empty Page.details["content"] → seed fires."""
+        mock_ystore = FakeYStore(initial_updates=[], snapshot_data=None)
+        MockYStore.return_value = mock_ystore
+
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project, details={"content": self.SEED_CONTENT})
+
+        comm = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
+        comm.scope["user"] = user
+
+        await comm.connect()
+        await asyncio.sleep(0.3)
+        await comm.disconnect()
+
+        self.assertTrue(mock_ystore.read_called)
+
+        rows = await self._yupdate_rows(f"page_{page.external_id}")
+        self.assertEqual(len(rows), 1, "seed must persist exactly one y_updates row")
+
+        replay = Doc()
+        replay.apply_update(rows[0])
+        self.assertEqual(
+            str(replay.get("codemirror", type=Text)),
+            self.SEED_CONTENT,
+            "persisted seed must round-trip back to the page content",
+        )
+
+    @patch("collab.consumers.PostgresYStore")
+    async def test_seeds_when_corrupt_snapshot_and_no_updates(self, MockYStore):
+        """A 2-byte snapshot falls through to full replay; with an empty
+        update log, the seed branch must still fire."""
+        mock_ystore = FakeYStore(
+            initial_updates=[],
+            snapshot_data=(b"\x00\x00", 50),
+        )
+        MockYStore.return_value = mock_ystore
+
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project, details={"content": self.SEED_CONTENT})
+
+        comm = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
+        comm.scope["user"] = user
+
+        await comm.connect()
+        await asyncio.sleep(0.3)
+        await comm.disconnect()
+
+        self.assertTrue(mock_ystore.read_called)
+
+        rows = await self._yupdate_rows(f"page_{page.external_id}")
+        self.assertEqual(len(rows), 1)
+
+        replay = Doc()
+        replay.apply_update(rows[0])
+        self.assertEqual(str(replay.get("codemirror", type=Text)), self.SEED_CONTENT)
+
+    @patch("collab.consumers.PostgresYStore")
+    async def test_does_not_seed_when_content_empty(self, MockYStore):
+        """Empty `details.content` is the precondition we must not seed under."""
+        mock_ystore = FakeYStore(initial_updates=[], snapshot_data=None)
+        MockYStore.return_value = mock_ystore
+
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project, details={"content": ""})
+
+        comm = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
+        comm.scope["user"] = user
+
+        await comm.connect()
+        await asyncio.sleep(0.3)
+        await comm.disconnect()
+
+        self.assertTrue(mock_ystore.read_called)
+        rows = await self._yupdate_rows(f"page_{page.external_id}")
+        self.assertEqual(rows, [])
+
+    @patch("collab.consumers.PostgresYStore")
+    async def test_does_not_seed_when_valid_snapshot_present(self, MockYStore):
+        """A real snapshot is the source of truth — never seed over it,
+        even when the page row still carries legacy `details.content`."""
+        snapshot_bytes = create_update_bytes("snapshot is truth")
+        self.assertGreater(len(snapshot_bytes), 2)
+
+        mock_ystore = FakeYStore(
+            snapshot_data=(snapshot_bytes, 100),
+            incremental_updates=[],
+        )
+        MockYStore.return_value = mock_ystore
+
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project, details={"content": self.SEED_CONTENT})
+
+        comm = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
+        comm.scope["user"] = user
+
+        await comm.connect()
+        await asyncio.sleep(0.3)
+        await comm.disconnect()
+
+        self.assertTrue(mock_ystore.read_since_called)
+        self.assertFalse(mock_ystore.read_called)
+        rows = await self._yupdate_rows(f"page_{page.external_id}")
+        self.assertEqual(rows, [])
+
+    @patch("collab.consumers.PostgresYStore")
+    async def test_does_not_seed_when_updates_exist(self, MockYStore):
+        """If any y_updates row exists, hydration replays it; seeding would
+        double the content (the same race the seed fixes)."""
+        existing = create_update_bytes("already in y_updates")
+        mock_ystore = FakeYStore(
+            initial_updates=[(existing, b"", 1234567890.0)],
+            snapshot_data=None,
+        )
+        MockYStore.return_value = mock_ystore
+
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project, details={"content": self.SEED_CONTENT})
+
+        comm = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
+        comm.scope["user"] = user
+
+        await comm.connect()
+        await asyncio.sleep(0.3)
+        await comm.disconnect()
+
+        self.assertTrue(mock_ystore.read_called)
+        # The FakeYStore reports one update via `read()`, so make_ydoc
+        # sees update_count == 1 and skips the seed branch entirely. No
+        # real y_updates row should be written.
+        rows = await self._yupdate_rows(f"page_{page.external_id}")
+        self.assertEqual(rows, [])
+
+
+class TestMakeYdocSeedFailureFailOpen(TransactionTestCase):
+    """Pin the intentional fail-open behavior when `_seed_ydoc_from_page`
+    returns False for a non-empty page.
+
+    `_seed_ydoc_from_page` catches its own write/read errors and returns
+    `False` so a transient DB hiccup does not break the WebSocket
+    connect. The consumer must therefore accept the connection and hand
+    the client an empty `Doc`. The user briefly sees the REST-rendered
+    body before the WS sync resolves; once it does, the editor upgrades
+    to a collaborative-but-empty doc — a regression from the user's
+    point of view, but a *recoverable* one because no `y_updates` row
+    was written. The next opener (or a reload by this user) re-enters
+    `make_ydoc` with the room still empty and retries the seed cleanly.
+
+    Erasing `details.content` here would turn that transient failure
+    into permanent data loss, which is why the reconcile helper is
+    `y_updates`-gated (see `_reconcile_empty_page_content`).
+
+    This test pins both halves of the contract: the connection still
+    succeeds, and no `y_updates` row is written.
+    """
+
+    SEED_CONTENT = "content1234"
+
+    async def _yupdate_rows(self, room_id):
+        rows = await sync_to_async(list)(
+            YUpdate.objects.filter(room_id=room_id).order_by("id").values_list("yupdate", flat=True)
+        )
+        return [bytes(b) for b in rows]
+
+    @patch(
+        "collab.consumers.PageYjsConsumer._seed_ydoc_from_page",
+        new_callable=AsyncMock,
+        return_value=False,
+    )
+    @patch("collab.consumers.PostgresYStore")
+    async def test_connection_accepted_when_seed_returns_false(self, MockYStore, mock_seed):
+        """Seed helper returning False is the fail-open path: connection
+        accepted, no y_updates row written, hydrated doc stays empty."""
+        mock_ystore = FakeYStore(initial_updates=[], snapshot_data=None)
+        MockYStore.return_value = mock_ystore
+
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project, details={"content": self.SEED_CONTENT})
+
+        comm = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
+        comm.scope["user"] = user
+
+        connected, _ = await comm.connect()
+        self.assertTrue(
+            connected,
+            "Consumer must still accept the WS connection when the seed helper fails",
+        )
+
+        await asyncio.sleep(0.3)
+        await comm.disconnect()
+
+        self.assertTrue(mock_seed.called, "make_ydoc must call the seed helper")
+        rows = await self._yupdate_rows(f"page_{page.external_id}")
+        self.assertEqual(
+            rows,
+            [],
+            "Failed seed must not write a partial y_updates row — the next opener retries",
+        )

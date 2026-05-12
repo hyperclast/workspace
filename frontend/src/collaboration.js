@@ -32,6 +32,39 @@ window.addEventListener("error", (event) => {
 });
 
 /**
+ * Pure decision for what `setupCollaborationAsync` should do after
+ * the Yjs sync handshake settles. Returns one of:
+ *
+ * - "denied"            — sync resolver flagged access denied
+ * - "hold_rest_timeout" — sync never completed (timeout / null)
+ * - "upgrade_to_collab" — synced, server is authoritative
+ *
+ * Takes only the sync result on purpose: the server is the single
+ * writer of the seed (advisory-locked write inside
+ * `_seed_ydoc_from_page`), so the post-sync decision is a function of
+ * the handshake outcome alone. Anything that read `ytext` or
+ * `restContent` here would be tempted to gate the upgrade on local
+ * state, which is what produced the content-doubling race the server
+ * seed fixed.
+ *
+ * Synced + empty-ytext is treated as authoritative — a stale REST
+ * `details.content` is reconciled to `""` by the consumer when the
+ * room actually nets to empty (see `_reconcile_empty_page_content` in
+ * `backend/collab/consumers.py`). An earlier iteration held the REST
+ * view in that case, but it broke real-time sync for legitimately-
+ * emptied pages.
+ *
+ * @param {{synced?: boolean, accessDenied?: boolean} | null | undefined} syncResult
+ * @returns {"denied" | "hold_rest_timeout" | "upgrade_to_collab"}
+ */
+export function decideAfterSync(syncResult) {
+  if (!syncResult) return "hold_rest_timeout";
+  if (syncResult.accessDenied) return "denied";
+  if (!syncResult.synced) return "hold_rest_timeout";
+  return "upgrade_to_collab";
+}
+
+/**
  * Create collaboration objects for a page.
  * This should be called BEFORE creating the editor view.
  * @param {string} pageExternalId - The page's external_id (used as room identifier)
@@ -55,7 +88,7 @@ export function createCollaborationObjects(pageExternalId, displayName = "Anonym
       get extension() {
         return yCollab(ytext, null);
       },
-      syncPromise: Promise.resolve({ synced: false, ytextHasContent: false, accessDenied: true }),
+      syncPromise: Promise.resolve({ synced: false, accessDenied: true }),
     };
   }
 
@@ -180,7 +213,7 @@ export function createCollaborationObjects(pageExternalId, displayName = "Anonym
     if (provider.synced) {
       console.log("Already synced, ytext.length=" + ytext.length);
       syncResolved = true;
-      resolve({ synced: true, ytextHasContent: ytext.length > 0 });
+      resolve({ synced: true });
       return;
     }
 
@@ -189,7 +222,7 @@ export function createCollaborationObjects(pageExternalId, displayName = "Anonym
       if (isSynced && !syncResolved) {
         syncResolved = true;
         provider.off("sync", onSync);
-        resolve({ synced: true, ytextHasContent: ytext.length > 0 });
+        resolve({ synced: true });
       }
     };
 
@@ -207,7 +240,7 @@ export function createCollaborationObjects(pageExternalId, displayName = "Anonym
         );
         syncResolved = true;
         provider.off("sync", onSync);
-        resolve({ synced: false, ytextHasContent: ytext.length > 0 });
+        resolve({ synced: false });
       }
     }, 10000);
   });

@@ -4,14 +4,16 @@ Subclasses pycrdt-websocket's YjsConsumer.
 """
 
 import asyncio
+import hashlib
 import json
 from typing import Optional, Tuple
 
 from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.core.cache import cache
+from django.db import connection, transaction
 from django.utils import timezone
-from pycrdt import Doc, YMessageType, YSyncMessageType, create_update_message
+from pycrdt import Doc, Text, YMessageType, YSyncMessageType, create_update_message
 from pycrdt.websocket.django_channels_consumer import YjsConsumer as BaseYjsConsumer
 
 from backend.utils import (
@@ -24,12 +26,38 @@ from backend.utils import (
     set_request_id,
 )
 
+from .models import YUpdate
 from .permissions import can_access_page, can_edit_page
 from .ystore import PostgresYStore, get_db_config_from_django
 
 
 # WebSocket close codes
 WS_CLOSE_RATE_LIMITED = 4029  # Too Many Requests (custom code)
+
+# Shared ytext key the CodeMirror binding uses on the client. Must stay
+# in lockstep with `frontend/src/collaboration.js` (`ydoc.getText("codemirror")`)
+# and `collab/services/apply_text.py` (`YTEXT_KEY`). Bumping it here without
+# updating those keeps the seed and the editor on different roots.
+YTEXT_KEY = "codemirror"
+
+# Reserved namespace for `pg_advisory_xact_lock(int4, int4)` keys taken
+# by the seeding path. The two-int form lets us partition the advisory
+# lock space by subsystem so unrelated callers cannot accidentally
+# collide with our lock.
+SEED_LOCK_NAMESPACE = 1
+
+
+def _advisory_lock_key_for_room(room_id: str) -> int:
+    """Hash `room_id` to a signed 32-bit int suitable for the second
+    argument of `pg_advisory_xact_lock(int4, int4)`.
+
+    Collisions in the 32-bit space cause spurious cross-room blocking
+    bounded by one seed transaction (a single-digit-ms wait); they
+    never cause correctness loss because the in-lock re-read of
+    `y_updates` is keyed by the real `room_id`, not the hash.
+    """
+    digest = hashlib.blake2s(room_id.encode("utf-8"), digest_size=4).digest()
+    return int.from_bytes(digest, byteorder="big", signed=True)
 
 
 class PageYjsConsumer(BaseYjsConsumer):
@@ -51,6 +79,14 @@ class PageYjsConsumer(BaseYjsConsumer):
         # collab.services.apply_text) so the transaction observer skips
         # re-persisting — the update is already in y_updates.
         self._suppress_persistence = False
+        # Set to True when `_seed_ydoc_from_page` persisted (or read
+        # back) a seed row but `doc.apply_update` raised, leaving the
+        # local doc empty. Gates the empty-doc reconcile path: without
+        # this guard, reconcile would see y_updates rows alongside an
+        # empty local doc and erase `Page.details["content"]` — but the
+        # doc is only empty because we could not decode the bytes, not
+        # because the room is actually empty.
+        self._seed_apply_failed = False
 
     # -----------------------------
     # Helpers
@@ -257,18 +293,54 @@ class PageYjsConsumer(BaseYjsConsumer):
                     1 + incremental_count,
                 )
             else:
-                # No snapshot exists, fall back to loading all updates
+                # No usable snapshot — load all updates from scratch. A
+                # corrupt 2-byte snapshot falls through here too, so the
+                # seed branch below covers that edge case as well when
+                # update_count ends at 0.
                 log_debug("No snapshot found for room=%s, loading all updates", room_name)
                 update_count = 0
                 async for update_bytes, _meta, _ts in self.ystore.read():
                     doc.apply_update(update_bytes)
                     update_count += 1
+
+                if update_count == 0:
+                    # Yjs store is empty for this room. Hydrate from
+                    # Page.details["content"] so concurrent loaders don't
+                    # each insert the same REST content with different
+                    # Yjs clientIDs (which would double the page text).
+                    # The helper persists the seed as a y_updates row;
+                    # this runs BEFORE the observer is subscribed so the
+                    # seed is not re-persisted on top of itself.
+                    seeded = await self._seed_ydoc_from_page(doc)
+                    if seeded:
+                        update_count = 1
+
                 log_info(
-                    "[PERF] Hydration via full replay: room=%s, " "update_count=%s, " "total_operations=%s",
+                    "[PERF] Hydration via full replay: room=%s, update_count=%s, total_operations=%s",
                     room_name,
                     update_count,
                     update_count,
                 )
+
+            # Connect-time reconcile for the stale-content edge case:
+            # hydration left ytext empty but Page.details["content"] is
+            # still the value a previous session wrote. Disconnect-time
+            # reconcile is unreliable here because the empty-doc
+            # snapshot skip never enqueues sync_snapshot_with_page, AND
+            # the ASGI test harness can cancel the consumer task before
+            # disconnect runs to completion (asgiref's receive_output
+            # cancels the future on TimeoutError). Running the reconcile
+            # during make_ydoc — synchronously, while the consumer task
+            # is still alive — closes both gaps. The internal
+            # `y_updates`-exists gate keeps a fail-opened seed from
+            # erasing user content, and `_seed_apply_failed` keeps a
+            # seed-bytes-decode failure from doing the same.
+            if (
+                getattr(self, "ystore", None)
+                and str(doc.get(YTEXT_KEY, type=Text)) == ""
+                and not self._seed_apply_failed
+            ):
+                await self._reconcile_empty_page_content()
 
         # --- 2) NOW subscribe to observer for FUTURE updates only
         # Callback receives a TransactionEvent. The update bytes are in event.update
@@ -381,6 +453,13 @@ class PageYjsConsumer(BaseYjsConsumer):
                     self.room_name,
                     len(snapshot_bytes),
                 )
+                # The snapshot upsert is skipped here, which means
+                # `sync_snapshot_with_page` (enqueued from
+                # `ystore.upsert_snapshot`) does not run and
+                # `Page.details["content"]` keeps whatever non-empty
+                # value the previous snapshot wrote. Reconcile inline
+                # so the page row reflects the now-empty CRDT state.
+                await self._reconcile_empty_page_content()
                 return False
 
             max_id = await self.ystore.get_max_update_id() or 0
@@ -398,6 +477,80 @@ class PageYjsConsumer(BaseYjsConsumer):
         except Exception as e:
             log_error("Error taking snapshot: %s", e, exc_info=True)
             return False
+
+    async def _reconcile_empty_page_content(self) -> bool:
+        """Clear stale `Page.details["content"]` when the CRDT has drained empty.
+
+        The empty-doc snapshot skip in `_take_snapshot` does not write
+        through `ystore.upsert_snapshot`, so `sync_snapshot_with_page`
+        is never enqueued and `Page.details["content"]` retains the
+        non-empty value the previous snapshot wrote. The REST page
+        payload then carries that stale content into every subsequent
+        page load even though the CRDT is empty — the editor briefly
+        renders the stale REST body before the WS sync arrives and
+        wipes it back out, and any tooling that reads `details.content`
+        directly (Ask, search, exports) sees the wrong text indefinitely.
+
+        Reconciliation runs only when at least one `y_updates` row
+        exists for the room. That gate distinguishes "the room was
+        edited down to empty" (safe to reconcile) from "the
+        server-side seed fail-opened on a fresh room and the doc is
+        empty because nothing was ever written" (must NOT clobber
+        `details.content` — the next opener should retry the seed).
+
+        Returns True when a write actually happened. Idempotent on
+        repeat calls because `details.content` already being empty
+        short-circuits.
+        """
+        page_external_id = self.room_name.removeprefix("page_")
+        room_id = self.room_name
+
+        @sync_to_async
+        def _reconcile() -> bool:
+            from core.helpers import hashify
+            from filehub.models import FileLink
+            from pages.models import Page, PageLink, PageMention
+
+            if not YUpdate.objects.filter(room_id=room_id).exists():
+                return False
+
+            try:
+                page = Page.objects.get(external_id=page_external_id, is_deleted=False)
+            except Page.DoesNotExist:
+                return False
+            if page.is_pdf:
+                return False
+
+            details = page.details or {}
+            if not details.get("content"):
+                return False
+
+            page.details["content"] = ""
+            page.details["content_hash"] = hashify("")
+            page.save(update_fields=["details", "modified"])
+
+            PageLink.objects.sync_parsed_links(page, [])
+            PageMention.objects.sync_parsed_mentions(page, [])
+            FileLink.objects.sync_parsed_file_links(page, [])
+            return True
+
+        try:
+            reconciled = await _reconcile()
+        except Exception as e:
+            log_error(
+                "Error reconciling empty page content for %s: %s",
+                self.room_name,
+                e,
+                exc_info=True,
+            )
+            return False
+
+        if reconciled:
+            log_info(
+                "[RECONCILE] Cleared stale details.content for empty room=%s",
+                self.room_name,
+            )
+        return reconciled
 
     async def _create_editor_session(self, page_uuid):
         """Create a RewindEditorSession row for rewind attribution."""
@@ -431,6 +584,125 @@ class PageYjsConsumer(BaseYjsConsumer):
             RewindEditorSession.objects.filter(id=session_id).update(disconnected_at=timezone.now())
 
         await _close()
+
+    async def _seed_ydoc_from_page(self, doc: Doc) -> bool:
+        """Seed `doc` from `Page.details["content"]` and persist the seed.
+
+        Called from `make_ydoc()` when hydration finds no usable state in
+        the Yjs store. Without coordination, two browsers connecting to
+        the same empty room would each insert the same REST content with
+        different Yjs clientIDs; the CRDT keeps both, doubling the page.
+
+        Single-writer-per-room is enforced via a Postgres advisory
+        transaction lock keyed on a hash of `room_name`. The lock
+        acquisition, the `y_updates` recheck, and the seed insert all
+        run inside one `transaction.atomic` block on Django's DB
+        connection, so the lock and the persisted row commit together
+        and the lock auto-releases on commit. Two consumers racing on
+        the same room produce:
+
+          - **Winner**: acquires the lock first, finds `y_updates`
+            still empty, inserts the seed row, commits. Then applies
+            the seed bytes to its local `doc` and returns True.
+          - **Loser**: blocks on the lock until the winner commits,
+            then finds the winner's row in `y_updates`, applies those
+            bytes to its local `doc` (keeping its server-side ydoc
+            consistent with persistence), and returns True without
+            writing a new row.
+
+        Returns False when there is nothing to seed (page missing,
+        soft-deleted, PDF, or empty `details.content`) or when the
+        seed transaction raises. PDF pages store their body in
+        `details.extracted_text`, not `details.content`, so seeding
+        from `details.content` for a PDF would inject the empty v2
+        markdown wrapper into the editor.
+        """
+        page_external_id = self.room_name.removeprefix("page_")
+        room_id = self.room_name
+
+        @sync_to_async
+        def _seed_under_lock():
+            from pages.models import Page
+
+            try:
+                page = Page.objects.only("details").get(
+                    external_id=page_external_id,
+                    is_deleted=False,
+                )
+            except Page.DoesNotExist:
+                return None, None
+            if page.is_pdf:
+                return None, None
+            content = (page.details or {}).get("content") or None
+            if not content:
+                return None, None
+
+            lock_key = _advisory_lock_key_for_room(room_id)
+
+            with transaction.atomic():
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT pg_advisory_xact_lock(%s, %s)",
+                        [SEED_LOCK_NAMESPACE, lock_key],
+                    )
+
+                existing = list(
+                    YUpdate.objects.filter(room_id=room_id).order_by("id").values_list("yupdate", flat=True)
+                )
+                if existing:
+                    return [bytes(chunk) for chunk in existing], "loser"
+
+                seed_doc = Doc()
+                ytext = seed_doc.get(YTEXT_KEY, type=Text)
+                ytext.insert(0, content)
+                seed_update = bytes(seed_doc.get_update())
+
+                YUpdate.objects.create(room_id=room_id, yupdate=seed_update)
+                return [seed_update], "winner"
+
+        try:
+            result_updates, role = await _seed_under_lock()
+        except Exception as e:
+            log_error(
+                "Error seeding ydoc for room=%s: %s",
+                self.room_name,
+                e,
+                exc_info=True,
+            )
+            return False
+
+        if not result_updates:
+            return False
+
+        try:
+            for chunk in result_updates:
+                doc.apply_update(chunk)
+        except Exception as e:
+            # The seed bytes are committed to y_updates (winner) or were
+            # authored by another writer (loser), but applying them to
+            # the local doc raised — likely a pycrdt parse error from a
+            # version skew or, in practice, never. Fail open like the
+            # other branches of this helper, and flag the consumer so
+            # the empty-doc reconcile does NOT clear Page.details based
+            # on this consumer's (now-misleading) empty local doc.
+            log_error(
+                "Failed to apply seed bytes to local doc for room=%s role=%s: %s",
+                self.room_name,
+                role,
+                e,
+                exc_info=True,
+            )
+            self._seed_apply_failed = True
+            return False
+
+        log_info(
+            "[SEED] room=%s role=%s update_count=%s total_bytes=%s",
+            self.room_name,
+            role,
+            len(result_updates),
+            sum(len(c) for c in result_updates),
+        )
+        return True
 
     async def receive(self, text_data=None, bytes_data=None):
         """
@@ -538,6 +810,39 @@ class PageYjsConsumer(BaseYjsConsumer):
                         log_info("Final snapshot taken on disconnect for %s", self.room_name)
                 else:
                     log_debug("No changes since last snapshot, skipping final snapshot for %s", self.room_name)
+
+                # `_take_snapshot`'s empty-doc skip branch only
+                # reconciles when the serialized doc is ≤2 bytes
+                # (the byte threshold that triggers the y-websocket
+                # client crash). A *collaboratively*-emptied doc
+                # carries CRDT tombstones and serializes well above
+                # that threshold even though `str(ytext) == ""`, so
+                # the skip branch never runs. In that path
+                # `upsert_snapshot` did fire and
+                # `sync_snapshot_with_page` would normally clear
+                # `details.content` to `""`, but the call to
+                # `sync_snapshot_with_page` is enqueued from inside
+                # async code and can be swallowed in environments
+                # where the synchronous fallback fails (tests; rare
+                # production edge cases). Gating this reconcile on
+                # the actual ytext content closes both gaps with one
+                # idempotent write.
+                try:
+                    ytext_content = str(self.ydoc.get("codemirror", type=Text))
+                except Exception as exc:
+                    log_warning(
+                        "Could not capture ydoc text on disconnect for %s: %s",
+                        getattr(self, "room_name", "unknown"),
+                        exc,
+                    )
+                else:
+                    # Skip the reconcile if the seed apply failed at
+                    # hydration: the ydoc may look empty only because we
+                    # could not decode the bytes we (or another writer)
+                    # persisted, not because the room is actually empty.
+                    # See `_seed_apply_failed` in `__init__`.
+                    if len(ytext_content) == 0 and not self._seed_apply_failed:
+                        await self._reconcile_empty_page_content()
 
             # Close the ystore pool
             if getattr(self, "ystore", None):

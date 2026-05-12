@@ -23,6 +23,7 @@ import { getSession, logout } from "./auth.js";
 import { clickToEndPlugin } from "./clickToEndPlugin.js";
 import {
   createCollaborationObjects,
+  decideAfterSync,
   destroyCollaboration,
   setupUnloadHandler,
 } from "./collaboration.js";
@@ -764,7 +765,8 @@ async function loadPage(page, signal = null) {
       pageLoadSpan.addEvent("csv_yjs_sync_start");
       const syncResult = await csvCollabObjects.syncPromise;
 
-      if (syncResult.synced && syncResult.ytextHasContent) {
+      const csvYtextLength = csvCollabObjects.ytext?.length || 0;
+      if (syncResult.synced && csvYtextLength > 0) {
         const ytextContent = csvCollabObjects.ytext.toString();
         mountCsvViewer(ytextContent, document.getElementById("editor"));
         pageLoadSpan.addEvent("csv_yjs_sync_complete", { contentLength: ytextContent.length });
@@ -806,7 +808,8 @@ async function loadPage(page, signal = null) {
       pageLoadSpan.addEvent("log_yjs_sync_start");
       const syncResult = await logCollabObjects.syncPromise;
 
-      if (syncResult.synced && syncResult.ytextHasContent) {
+      const logYtextLength = logCollabObjects.ytext?.length || 0;
+      if (syncResult.synced && logYtextLength > 0) {
         const ytextContent = logCollabObjects.ytext.toString();
         mountLogViewer(ytextContent, document.getElementById("editor"));
         pageLoadSpan.addEvent("log_yjs_sync_complete", { contentLength: ytextContent.length });
@@ -951,15 +954,16 @@ async function setupCollaborationAsync(page, restContent, filetype, signal = nul
       : syncResult.accessDenied
       ? "denied"
       : "timeout";
+    const ytextLength = collabObjects.ytext?.length || 0;
     syncSpan.end({
       status: syncStatus,
-      serverHasContent: syncResult.ytextHasContent,
-      ytextLength: collabObjects.ytext?.length || 0,
+      serverHasContent: ytextLength > 0,
+      ytextLength,
     });
 
     collabSpan.addEvent("ws_sync_complete", {
       synced: syncResult.synced,
-      serverHasContent: syncResult.ytextHasContent,
+      serverHasContent: ytextLength > 0,
     });
 
     // Y.applyUpdate() during sync may have blocked the main thread for seconds
@@ -981,7 +985,21 @@ async function setupCollaborationAsync(page, restContent, filetype, signal = nul
       return;
     }
 
-    if (syncResult.accessDenied) {
+    // Decide what to do with the sync result. Extracted to a pure
+    // function in `collaboration.js` so the post-sync decision is
+    // unit-testable in isolation. The async wiring (telemetry spans,
+    // nav aborts, editor upgrade) stays here.
+    //
+    // The server seeds the Yjs doc from Page.details["content"] under
+    // a per-room advisory lock when hydration finds the room empty,
+    // so ytext is the single source of truth on the synced path. A
+    // synced + empty ytext is authoritative; the consumer reconciles
+    // any stale `details.content` to `""` on disconnect when the room
+    // really is empty (see `_reconcile_empty_page_content` in
+    // `backend/collab/consumers.py`).
+    const decision = decideAfterSync(syncResult);
+
+    if (decision === "denied") {
       collabSpan.end({
         status: "error",
         reason: "access_denied",
@@ -991,58 +1009,50 @@ async function setupCollaborationAsync(page, restContent, filetype, signal = nul
       return;
     }
 
-    if (syncResult.synced) {
-      // Determine which content to use
-      let contentSource = "server";
-      if (!syncResult.ytextHasContent && restContent) {
-        // Server is empty - insert REST content into ytext
-        collabSpan.addEvent("insert_rest_content", { length: restContent.length });
-        collabObjects.ytext.insert(0, restContent);
-        contentSource = "rest_api";
-      }
-
-      // Now upgrade the editor to collaborative mode
-      collabSpan.addEvent("editor_upgrade_start");
-      const upgradeSpan = metrics.startSpan("editor_upgrade", { pageId, contentSource });
-      upgradeEditorToCollaborative(collabObjects, filetype);
-      upgradeSpan.end({ status: "success" });
-      collabSpan.addEvent("editor_upgrade_complete");
-
-      // Yield after the blocking upgrade so queued clicks can abort us.
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      if (signal?.aborted || currentPage?.external_id !== pageId) {
-        console.log(`[Nav] superseded during collab upgrade: ${pageId}`);
-        collabSpan.end({ status: "aborted", reason: "superseded_during_collab_upgrade" });
-        return;
-      }
-
-      updateCollabStatus("connected");
-
-      // Setup presence UI now that we have awareness
-      if (collabObjects.awareness) {
-        cleanupPresenceUI = setupPresenceUI(collabObjects.awareness);
-      }
-
-      collabSpan.end({
-        status: "success",
-        contentSource,
-        finalYtextLength: collabObjects.ytext?.length || 0,
-      });
-
-      metrics.event("collab_connected", {
-        pageId,
-        contentSource,
-        ytextLength: collabObjects.ytext?.length || 0,
-      });
-    } else {
-      // Sync timed out - stay in REST-only mode, editor already has content
+    if (decision === "hold_rest_timeout") {
       collabSpan.end({
         status: "timeout",
         reason: "ws_sync_timeout",
       });
       metrics.event("collab_timeout", { pageId });
       updateCollabStatus("offline");
+      return;
     }
+
+    // decision === "upgrade_to_collab"
+    const contentSource = "server";
+    collabSpan.addEvent("editor_upgrade_start");
+    const upgradeSpan = metrics.startSpan("editor_upgrade", { pageId, contentSource });
+    upgradeEditorToCollaborative(collabObjects, filetype);
+    upgradeSpan.end({ status: "success" });
+    collabSpan.addEvent("editor_upgrade_complete");
+
+    // Yield after the blocking upgrade so queued clicks can abort us.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    if (signal?.aborted || currentPage?.external_id !== pageId) {
+      console.log(`[Nav] superseded during collab upgrade: ${pageId}`);
+      collabSpan.end({ status: "aborted", reason: "superseded_during_collab_upgrade" });
+      return;
+    }
+
+    updateCollabStatus("connected");
+
+    // Setup presence UI now that we have awareness
+    if (collabObjects.awareness) {
+      cleanupPresenceUI = setupPresenceUI(collabObjects.awareness);
+    }
+
+    collabSpan.end({
+      status: "success",
+      contentSource,
+      finalYtextLength: collabObjects.ytext?.length || 0,
+    });
+
+    metrics.event("collab_connected", {
+      pageId,
+      contentSource,
+      ytextLength: collabObjects.ytext?.length || 0,
+    });
   } catch (error) {
     collabSpan.end({
       status: "error",
