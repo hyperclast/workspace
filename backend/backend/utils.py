@@ -21,6 +21,8 @@ from contextvars import ContextVar
 from typing import Literal, Optional
 
 import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
+from sentry_sdk.integrations.rq import RqIntegration
 
 
 # Request ID prefixes for different protocols
@@ -171,7 +173,15 @@ def init_sentry_sdk(dsn: str, send_default_pii: Optional[bool] = True, **kwargs)
     """Initialize Sentry SDK if DSN is provided."""
     if not dsn:
         return
-    sentry_sdk.init(dsn=dsn, send_default_pii=send_default_pii, **kwargs)
+
+    integrations = list(kwargs.pop("integrations", [])) + [DjangoIntegration(), RqIntegration()]
+
+    sentry_sdk.init(
+        dsn=dsn,
+        send_default_pii=send_default_pii,
+        integrations=integrations,
+        **kwargs,
+    )
 
 
 def init_logging(
