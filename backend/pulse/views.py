@@ -10,7 +10,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db import models
-from django.db.models import Count, Exists, OuterRef, Sum
+from django.db.models import Count, Exists, OuterRef, Q, Sum
 from django.db.models.functions import TruncDate
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import render
@@ -96,8 +96,22 @@ def dashboard(request):
         User.objects.filter(date_joined__gte=seven_days_ago)
         .annotate(
             email_verified=Exists(verified_email_subquery),
-            num_projects=Count("project", distinct=True),
-            num_pages=Count("created_pages", distinct=True),
+            num_projects=Count("project", filter=Q(project__is_deleted=False), distinct=True),
+            num_projects_deleted=Count("project", filter=Q(project__is_deleted=True), distinct=True),
+            num_pages=Count(
+                "created_pages",
+                filter=Q(created_pages__is_deleted=False, created_pages__project__is_deleted=False),
+                distinct=True,
+            ),
+            num_pages_deleted=Count(
+                "created_pages",
+                filter=(
+                    Q(created_pages__is_deleted=True)
+                    | Q(created_pages__project__is_deleted=True)
+                    | Q(created_pages__project__isnull=True)
+                ),
+                distinct=True,
+            ),
         )
         .order_by("-date_joined")
         .values(
@@ -106,7 +120,9 @@ def dashboard(request):
             "username",
             "email_verified",
             "num_projects",
+            "num_projects_deleted",
             "num_pages",
+            "num_pages_deleted",
             "date_joined",
             "profile__demo_visits",
         )
@@ -126,8 +142,22 @@ def dashboard(request):
         )
         .annotate(
             email_verified=Exists(verified_email_subquery),
-            num_projects=Count("project", distinct=True),
-            num_pages=Count("created_pages", distinct=True),
+            num_projects=Count("project", filter=Q(project__is_deleted=False), distinct=True),
+            num_projects_deleted=Count("project", filter=Q(project__is_deleted=True), distinct=True),
+            num_pages=Count(
+                "created_pages",
+                filter=Q(created_pages__is_deleted=False, created_pages__project__is_deleted=False),
+                distinct=True,
+            ),
+            num_pages_deleted=Count(
+                "created_pages",
+                filter=(
+                    Q(created_pages__is_deleted=True)
+                    | Q(created_pages__project__is_deleted=True)
+                    | Q(created_pages__project__isnull=True)
+                ),
+                distinct=True,
+            ),
         )
         .order_by("-profile__last_active")
         .values(
@@ -138,7 +168,9 @@ def dashboard(request):
             "last_name",
             "email_verified",
             "num_projects",
+            "num_projects_deleted",
             "num_pages",
+            "num_pages_deleted",
             "profile__last_active",
         )
     )
@@ -155,8 +187,22 @@ def dashboard(request):
         )
         .annotate(
             email_verified=Exists(verified_email_subquery),
-            num_projects=Count("project", distinct=True),
-            num_pages=Count("created_pages", distinct=True),
+            num_projects=Count("project", filter=Q(project__is_deleted=False), distinct=True),
+            num_projects_deleted=Count("project", filter=Q(project__is_deleted=True), distinct=True),
+            num_pages=Count(
+                "created_pages",
+                filter=Q(created_pages__is_deleted=False, created_pages__project__is_deleted=False),
+                distinct=True,
+            ),
+            num_pages_deleted=Count(
+                "created_pages",
+                filter=(
+                    Q(created_pages__is_deleted=True)
+                    | Q(created_pages__project__is_deleted=True)
+                    | Q(created_pages__project__isnull=True)
+                ),
+                distinct=True,
+            ),
         )
         .order_by("-profile__last_active")
         .values(
@@ -167,7 +213,9 @@ def dashboard(request):
             "last_name",
             "email_verified",
             "num_projects",
+            "num_projects_deleted",
             "num_pages",
+            "num_pages_deleted",
             "profile__last_active",
         )
     )

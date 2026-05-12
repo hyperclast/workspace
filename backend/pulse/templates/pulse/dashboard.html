@@ -34,6 +34,7 @@
         --accent-color: #667eea;
         --success-color: #22c55e;
         --warning-color: #f59e0b;
+        --deleted-color: #a05858;
       }
 
       [data-theme="dark"] {
@@ -45,6 +46,12 @@
         --accent-color: #7c8ce8;
         --success-color: #4ade80;
         --warning-color: #fbbf24;
+        --deleted-color: #d49999;
+      }
+
+      .count-deleted {
+        cursor: default;
+        color: var(--deleted-color);
       }
 
       body {
@@ -435,9 +442,9 @@
           <a href="#dau">Daily Active Users</a>
           <a href="#signups">New Signups</a>
           <a href="#new-users">New Users</a>
-          <a href="#ai-keys">AI Keys</a>
           <a href="#weekly-active">Weekly Active</a>
           <a href="#inactive-users">Inactive Users</a>
+          <a href="#ai-keys">AI Keys</a>
           <a href="#embeddings-spend">Embeddings Spend</a>
         </div>
         <button type="button" class="btn-recompute" id="recompute-btn">
@@ -747,8 +754,8 @@
                           <span class="badge badge-warning">No</span>
                         {% endif %}
                       </td>
-                      <td>{{ user.num_projects }}</td>
-                      <td>{{ user.num_pages }}</td>
+                      <td>{{ user.num_projects }}{% if user.num_projects_deleted %} <small class="count-deleted" title="{{ user.num_projects_deleted }} deleted">+{{ user.num_projects_deleted }}</small>{% endif %}</td>
+                      <td>{{ user.num_pages }}{% if user.num_pages_deleted %} <small class="count-deleted" title="{{ user.num_pages_deleted }} deleted (or in deleted project)">+{{ user.num_pages_deleted }}</small>{% endif %}</td>
                       <td>{{ user.date_joined }}</td>
                     </tr>
                   {% endfor %}
@@ -758,6 +765,120 @@
           {% else %}
             <div class="empty-state">
               <p>No new users in the last 7 days.</p>
+            </div>
+          {% endif %}
+        </section>
+
+        <!-- Weekly Active Users Section -->
+        <section class="section" id="weekly-active">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Weekly Active Users <span class="count-badge">{{ weekly_active_users|length }}</span></h2>
+              <p class="section-meta">Active in last 7 days (excluding new signups)</p>
+            </div>
+            {% include 'pulse/partials/_badge_sync.html' %}
+          </div>
+          {% if weekly_active_users %}
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Username</th>
+                    <th>Name</th>
+                    <th>Verified</th>
+                    <th>Projects</th>
+                    <th>Pages</th>
+                    <th>Last Active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for user in weekly_active_users %}
+                    <tr>
+                      <td>{{ user.email }}</td>
+                      <td>
+                        <form class="hijack-form" method="POST" action="/hijack/acquire/">
+                          {% csrf_token %}
+                          <input type="hidden" name="user_pk" value="{{ user.pk }}">
+                          <button type="submit" class="hijack-btn" title="Impersonate {{ user.username }}">{{ user.username }}</button>
+                        </form>
+                      </td>
+                      <td>{{ user.first_name }} {{ user.last_name }}</td>
+                      <td>
+                        {% if user.email_verified %}
+                          <span class="badge badge-success">Yes</span>
+                        {% else %}
+                          <span class="badge badge-warning">No</span>
+                        {% endif %}
+                      </td>
+                      <td>{{ user.num_projects }}{% if user.num_projects_deleted %} <small class="count-deleted" title="{{ user.num_projects_deleted }} deleted">+{{ user.num_projects_deleted }}</small>{% endif %}</td>
+                      <td>{{ user.num_pages }}{% if user.num_pages_deleted %} <small class="count-deleted" title="{{ user.num_pages_deleted }} deleted (or in deleted project)">+{{ user.num_pages_deleted }}</small>{% endif %}</td>
+                      <td>{{ user.last_active }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="empty-state">
+              <p>No active users this week (besides new signups).</p>
+            </div>
+          {% endif %}
+        </section>
+
+        <!-- Inactive Users Section -->
+        <section class="section" id="inactive-users">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Inactive Users <span class="count-badge">{{ inactive_users|length }}</span></h2>
+              <p class="section-meta">Active in last 90 days, but not in last 7 days</p>
+            </div>
+            {% include 'pulse/partials/_badge_sync.html' %}
+          </div>
+          {% if inactive_users %}
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Username</th>
+                    <th>Name</th>
+                    <th>Verified</th>
+                    <th>Projects</th>
+                    <th>Pages</th>
+                    <th>Last Active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for user in inactive_users %}
+                    <tr>
+                      <td>{{ user.email }}</td>
+                      <td>
+                        <form class="hijack-form" method="POST" action="/hijack/acquire/">
+                          {% csrf_token %}
+                          <input type="hidden" name="user_pk" value="{{ user.pk }}">
+                          <button type="submit" class="hijack-btn" title="Impersonate {{ user.username }}">{{ user.username }}</button>
+                        </form>
+                      </td>
+                      <td>{{ user.first_name }} {{ user.last_name }}</td>
+                      <td>
+                        {% if user.email_verified %}
+                          <span class="badge badge-success">Yes</span>
+                        {% else %}
+                          <span class="badge badge-warning">No</span>
+                        {% endif %}
+                      </td>
+                      <td>{{ user.num_projects }}{% if user.num_projects_deleted %} <small class="count-deleted" title="{{ user.num_projects_deleted }} deleted">+{{ user.num_projects_deleted }}</small>{% endif %}</td>
+                      <td>{{ user.num_pages }}{% if user.num_pages_deleted %} <small class="count-deleted" title="{{ user.num_pages_deleted }} deleted (or in deleted project)">+{{ user.num_pages_deleted }}</small>{% endif %}</td>
+                      <td>{{ user.last_active }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="empty-state">
+              <p>No inactive users found.</p>
             </div>
           {% endif %}
         </section>
@@ -825,120 +946,6 @@
           {% else %}
             <div class="empty-state">
               <p>No users have AI keys configured yet.</p>
-            </div>
-          {% endif %}
-        </section>
-
-        <!-- Weekly Active Users Section -->
-        <section class="section" id="weekly-active">
-          <div class="section-header">
-            <div>
-              <h2 class="section-title">Weekly Active Users <span class="count-badge">{{ weekly_active_users|length }}</span></h2>
-              <p class="section-meta">Active in last 7 days (excluding new signups)</p>
-            </div>
-            {% include 'pulse/partials/_badge_sync.html' %}
-          </div>
-          {% if weekly_active_users %}
-            <div class="table-scroll">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Email</th>
-                    <th>Username</th>
-                    <th>Name</th>
-                    <th>Verified</th>
-                    <th>Projects</th>
-                    <th>Pages</th>
-                    <th>Last Active</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for user in weekly_active_users %}
-                    <tr>
-                      <td>{{ user.email }}</td>
-                      <td>
-                        <form class="hijack-form" method="POST" action="/hijack/acquire/">
-                          {% csrf_token %}
-                          <input type="hidden" name="user_pk" value="{{ user.pk }}">
-                          <button type="submit" class="hijack-btn" title="Impersonate {{ user.username }}">{{ user.username }}</button>
-                        </form>
-                      </td>
-                      <td>{{ user.first_name }} {{ user.last_name }}</td>
-                      <td>
-                        {% if user.email_verified %}
-                          <span class="badge badge-success">Yes</span>
-                        {% else %}
-                          <span class="badge badge-warning">No</span>
-                        {% endif %}
-                      </td>
-                      <td>{{ user.num_projects }}</td>
-                      <td>{{ user.num_pages }}</td>
-                      <td>{{ user.last_active }}</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          {% else %}
-            <div class="empty-state">
-              <p>No active users this week (besides new signups).</p>
-            </div>
-          {% endif %}
-        </section>
-
-        <!-- Inactive Users Section -->
-        <section class="section" id="inactive-users">
-          <div class="section-header">
-            <div>
-              <h2 class="section-title">Inactive Users <span class="count-badge">{{ inactive_users|length }}</span></h2>
-              <p class="section-meta">Active in last 90 days, but not in last 7 days</p>
-            </div>
-            {% include 'pulse/partials/_badge_sync.html' %}
-          </div>
-          {% if inactive_users %}
-            <div class="table-scroll">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Email</th>
-                    <th>Username</th>
-                    <th>Name</th>
-                    <th>Verified</th>
-                    <th>Projects</th>
-                    <th>Pages</th>
-                    <th>Last Active</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for user in inactive_users %}
-                    <tr>
-                      <td>{{ user.email }}</td>
-                      <td>
-                        <form class="hijack-form" method="POST" action="/hijack/acquire/">
-                          {% csrf_token %}
-                          <input type="hidden" name="user_pk" value="{{ user.pk }}">
-                          <button type="submit" class="hijack-btn" title="Impersonate {{ user.username }}">{{ user.username }}</button>
-                        </form>
-                      </td>
-                      <td>{{ user.first_name }} {{ user.last_name }}</td>
-                      <td>
-                        {% if user.email_verified %}
-                          <span class="badge badge-success">Yes</span>
-                        {% else %}
-                          <span class="badge badge-warning">No</span>
-                        {% endif %}
-                      </td>
-                      <td>{{ user.num_projects }}</td>
-                      <td>{{ user.num_pages }}</td>
-                      <td>{{ user.last_active }}</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          {% else %}
-            <div class="empty-state">
-              <p>No inactive users found.</p>
             </div>
           {% endif %}
         </section>
