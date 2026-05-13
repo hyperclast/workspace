@@ -9,9 +9,12 @@ channel-layer broadcast.
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from pycrdt import Doc, Text
 
+from collab.locks import SEED_LOCK_NAMESPACE, advisory_lock_key_for_room
 from collab.models import YSnapshot, YUpdate
 from collab.services.apply_text import ApplyResult, apply_text_to_room
 from collab.tasks import apply_text_update_to_page
@@ -466,6 +469,115 @@ class TestApplyTextToRoomConcurrency(TestCase):
             len("base") + len(" A") + len(" B"),
             f"Final length must match sum of all inserted text — corruption detected: {final!r}",
         )
+
+
+@patch("collab.services.apply_text.can_edit_page", new_callable=lambda: AsyncMock(return_value=True))
+@patch("collab.services.apply_text.get_channel_layer")
+class TestApplyTextToRoomLocking(TestCase):
+    """Regression: apply_text_to_room must serialize with the WS seed path.
+
+    Without the per-room advisory lock, a REST/MCP write racing a fresh
+    WebSocket connection on an empty room can each insert the same content
+    with different Yjs clientIDs, producing doubled text after CRDT merge.
+    The lock collapses the race to a clean winner/loser ordering.
+    """
+
+    def test_advisory_lock_sql_is_executed(self, mocked_channel_layer, _mocked_can_edit):
+        mocked_channel_layer.return_value = MagicMock()
+        room_id = "page_lock_sql"
+
+        with CaptureQueriesContext(connection) as ctx:
+            apply_text_to_room(room_id, "hello", TEST_USER_ID, mode="overwrite")
+
+        lock_queries = [q["sql"] for q in ctx.captured_queries if "pg_advisory_xact_lock" in q["sql"]]
+        self.assertEqual(
+            len(lock_queries),
+            1,
+            f"Expected exactly one pg_advisory_xact_lock call, got: {lock_queries}",
+        )
+
+    def test_lock_is_acquired_before_hydration_read(self, mocked_channel_layer, _mocked_can_edit):
+        """The lock must precede the y_updates read; otherwise the loser's
+        in-lock recheck would see stale state."""
+        mocked_channel_layer.return_value = MagicMock()
+        room_id = "page_lock_order"
+
+        with CaptureQueriesContext(connection) as ctx:
+            apply_text_to_room(room_id, "hello", TEST_USER_ID, mode="overwrite")
+
+        lock_index = next(
+            (i for i, q in enumerate(ctx.captured_queries) if "pg_advisory_xact_lock" in q["sql"]),
+            None,
+        )
+        y_updates_read_index = next(
+            (
+                i
+                for i, q in enumerate(ctx.captured_queries)
+                if "y_updates" in q["sql"] and q["sql"].lstrip().upper().startswith("SELECT")
+            ),
+            None,
+        )
+        self.assertIsNotNone(lock_index, "advisory lock query was not issued")
+        self.assertIsNotNone(y_updates_read_index, "no SELECT against y_updates was issued")
+        self.assertLess(
+            lock_index,
+            y_updates_read_index,
+            "Advisory lock must be acquired before reading y_updates",
+        )
+
+    @patch("collab.services.apply_text.advisory_lock_key_for_room")
+    def test_lock_key_is_derived_from_room_id(self, mocked_key_helper, mocked_channel_layer, _mocked_can_edit):
+        """The same room_id must produce the same lock key as the seed
+        path, otherwise the two writers would not actually serialize."""
+        mocked_channel_layer.return_value = MagicMock()
+        # Returning a stable int proves the helper output is the lock key.
+        mocked_key_helper.return_value = 123456789
+        room_id = "page_lock_key"
+
+        apply_text_to_room(room_id, "hello", TEST_USER_ID, mode="overwrite")
+
+        mocked_key_helper.assert_called_with(room_id)
+
+    def test_lock_key_matches_seed_path_for_same_room(self, mocked_channel_layer, _mocked_can_edit):
+        """End-to-end check: the SQL parameter passed to pg_advisory_xact_lock
+        equals advisory_lock_key_for_room(room_id) (and SEED_LOCK_NAMESPACE).
+        Drift here would re-open the race that this lock exists to close.
+        """
+        mocked_channel_layer.return_value = MagicMock()
+        room_id = "page_lock_match"
+        expected_key = advisory_lock_key_for_room(room_id)
+
+        with CaptureQueriesContext(connection) as ctx:
+            apply_text_to_room(room_id, "hello", TEST_USER_ID, mode="overwrite")
+
+        lock_queries = [q["sql"] for q in ctx.captured_queries if "pg_advisory_xact_lock" in q["sql"]]
+        self.assertEqual(len(lock_queries), 1)
+        sql = lock_queries[0]
+        # Django's CaptureQueriesContext substitutes parameters into the SQL
+        # string, so both values appear inline. We assert on substring presence
+        # rather than exact form to stay resilient to driver formatting.
+        self.assertIn(str(SEED_LOCK_NAMESPACE), sql)
+        self.assertIn(str(expected_key), sql)
+
+    def test_lock_acquired_and_released_on_noop(self, mocked_channel_layer, _mocked_can_edit):
+        """Even on the no-op path the lock must be acquired (otherwise the
+        in-lock recheck of current content is racy) and the surrounding
+        transaction must commit so the lock auto-releases.
+        """
+        mocked_channel_layer.return_value = MagicMock()
+        room_id = "page_lock_noop"
+        YSnapshot.objects.create(
+            room_id=room_id,
+            snapshot=_doc_with_text("same"),
+            last_update_id=0,
+        )
+
+        with CaptureQueriesContext(connection) as ctx:
+            result = apply_text_to_room(room_id, "same", TEST_USER_ID, mode="overwrite")
+
+        self.assertEqual(result, ApplyResult.NOOP)
+        lock_queries = [q["sql"] for q in ctx.captured_queries if "pg_advisory_xact_lock" in q["sql"]]
+        self.assertEqual(len(lock_queries), 1)
 
 
 class TestApplyTextUpdateToPageTask(TestCase):

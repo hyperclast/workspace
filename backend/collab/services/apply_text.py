@@ -31,9 +31,10 @@ from typing import Literal
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-from django.db import transaction
+from django.db import connection, transaction
 from pycrdt import Doc, Text
 
+from collab.locks import SEED_LOCK_NAMESPACE, advisory_lock_key_for_room
 from collab.models import YSnapshot, YUpdate
 from collab.permissions import can_edit_page
 
@@ -119,57 +120,72 @@ def apply_text_to_room(
         )
         return ApplyResult.DENIED
 
-    doc = _build_doc_from_store(room_id)
-    ytext = doc.get(YTEXT_KEY, type=Text)
+    # Serialize with the WS seed path (`_seed_ydoc_from_page` in
+    # collab.consumers). Without this, two writers racing on a freshly-
+    # empty room can each insert the same content with different Yjs
+    # clientIDs and the CRDT merges both inserts into doubled text. The
+    # lock is held for the duration of the surrounding transaction and
+    # auto-releases on commit/rollback. Hydrate, compute, persist all
+    # happen under the lock so a winning writer's row is visible to the
+    # loser's in-lock recheck.
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT pg_advisory_xact_lock(%s, %s)",
+                [SEED_LOCK_NAMESPACE, advisory_lock_key_for_room(room_id)],
+            )
 
-    captured: list[bytes] = []
+        doc = _build_doc_from_store(room_id)
+        ytext = doc.get(YTEXT_KEY, type=Text)
 
-    def _on_transaction(event) -> None:
-        update_bytes = getattr(event, "update", None)
-        if update_bytes:
-            captured.append(bytes(update_bytes))
+        captured: list[bytes] = []
 
-    # Subscribe AFTER hydration so replay updates are not re-captured.
-    doc.observe(_on_transaction)
+        def _on_transaction(event) -> None:
+            update_bytes = getattr(event, "update", None)
+            if update_bytes:
+                captured.append(bytes(update_bytes))
 
-    current = str(ytext) if ytext else ""
-    if mode == "overwrite":
-        if current == new_content:
-            return ApplyResult.NOOP
-        if current:
-            del ytext[0 : len(current)]
-        if new_content:
+        # Subscribe AFTER hydration so replay updates are not re-captured.
+        doc.observe(_on_transaction)
+
+        current = str(ytext) if ytext else ""
+        if mode == "overwrite":
+            if current == new_content:
+                return ApplyResult.NOOP
+            if current:
+                del ytext[0 : len(current)]
+            if new_content:
+                ytext.insert(0, new_content)
+        elif mode == "append":
+            if not new_content:
+                return ApplyResult.NOOP
+            ytext.insert(len(current), new_content)
+        elif mode == "prepend":
+            if not new_content:
+                return ApplyResult.NOOP
             ytext.insert(0, new_content)
-    elif mode == "append":
-        if not new_content:
+        else:
+            raise ValueError(f"Invalid mode: {mode!r}")
+
+        if not captured:
             return ApplyResult.NOOP
-        ytext.insert(len(current), new_content)
-    elif mode == "prepend":
-        if not new_content:
-            return ApplyResult.NOOP
-        ytext.insert(0, new_content)
-    else:
-        raise ValueError(f"Invalid mode: {mode!r}")
 
-    if not captured:
-        return ApplyResult.NOOP
+        # Persist first, then broadcast AFTER the DB commit so connected
+        # consumers don't observe an update that isn't yet queryable by
+        # reconnecting peers. `on_commit` fires when this atomic block
+        # exits successfully.
+        YUpdate.objects.bulk_create([YUpdate(room_id=room_id, yupdate=chunk) for chunk in captured])
+        transaction.on_commit(lambda: _broadcast_external_updates(room_id, captured))
 
-    # Persist first, then broadcast AFTER the DB commit so connected
-    # consumers don't observe an update that isn't yet queryable by
-    # reconnecting peers. `on_commit` runs immediately if we're not in an
-    # active transaction (e.g. RQ autocommit), so this is safe either way.
-    YUpdate.objects.bulk_create([YUpdate(room_id=room_id, yupdate=chunk) for chunk in captured])
-    transaction.on_commit(lambda: _broadcast_external_updates(room_id, captured))
-
-    logger.info(
-        "Applied text update to room=%s user=%s mode=%s update_count=%s bytes=%s",
-        room_id,
-        user_id,
-        mode,
-        len(captured),
-        sum(len(c) for c in captured),
-    )
-    return ApplyResult.APPLIED
+        logger.info(
+            "Applied text update to room=%s user=%s mode=%s update_count=%s bytes=%s",
+            room_id,
+            user_id,
+            mode,
+            len(captured),
+            sum(len(c) for c in captured),
+        )
+        return ApplyResult.APPLIED
 
 
 def _broadcast_external_updates(room_id: str, updates: list[bytes]) -> None:

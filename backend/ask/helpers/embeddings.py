@@ -52,7 +52,7 @@ def _resolve_credentials(user=None, api_key: Optional[str] = None) -> Tuple[Opti
         from users.models import AIProviderConfig
 
         config_obj = AIProviderConfig.objects.get_config_for_request(user, provider=AIProvider.OPENAI.value)
-        if config_obj and config_obj.api_key:
+        if config_obj and config_obj.api_key and config_obj.provider == AIProvider.OPENAI.value:
             return config_obj.api_key, (config_obj.api_base_url or None), KEY_SOURCE_USER
 
     return None, None, ""

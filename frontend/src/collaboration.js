@@ -65,6 +65,44 @@ export function decideAfterSync(syncResult) {
 }
 
 /**
+ * Pure planner for `setupCollaborationAsync`'s post-sync branch.
+ *
+ * Wraps `decideAfterSync` and translates the string decision into a
+ * plain `{kind, ...}` action object that the caller dispatches on.
+ * Pulled out of `setupCollaborationAsync` so the no-`ytext.insert`-
+ * after-sync invariant is testable in isolation: a vitest can pass a
+ * `collabObjects` whose `ytext.insert` is a spy and assert it is never
+ * called for any synced result.
+ *
+ * The `collabObjects` parameter is intentionally accepted but unused
+ * in the body. Closing over it in the signature is what lets a test
+ * spy on `ytext.insert` and prove no caller of this planner ever
+ * touches it. Removing the parameter would silently weaken that guard.
+ *
+ * Returns one of:
+ *   { kind: "deny" }
+ *   { kind: "hold" }
+ *   { kind: "upgrade", filetype }
+ *
+ * @param {{collabObjects: object, syncResult: object|null|undefined, filetype: string}} args
+ * @returns {{kind: "deny"} | {kind: "hold"} | {kind: "upgrade", filetype: string}}
+ */
+// eslint-disable-next-line no-unused-vars
+export function decideAndPlanCollabActions({ collabObjects, syncResult, filetype }) {
+  const decision = decideAfterSync(syncResult);
+  switch (decision) {
+    case "denied":
+      return { kind: "deny" };
+    case "hold_rest_timeout":
+      return { kind: "hold" };
+    case "upgrade_to_collab":
+      return { kind: "upgrade", filetype };
+    default:
+      return { kind: "hold" };
+  }
+}
+
+/**
  * Create collaboration objects for a page.
  * This should be called BEFORE creating the editor view.
  * @param {string} pageExternalId - The page's external_id (used as room identifier)

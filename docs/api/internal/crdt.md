@@ -197,14 +197,27 @@ Key exports:
 
 - `createCollaborationObjects()` - Creates Yjs doc, WebSocket provider, and CodeMirror extension
 - `destroyCollaboration()` - Cleanup function
-- `decideAfterSync()` - Pure function returning one of `"denied"`, `"hold_rest_timeout"`, `"hold_rest_seed_missing"`, `"upgrade_to_collab"`; the client never inserts REST content into ytext — the server owns hydration via `_seed_ydoc_from_page`
-- `isServerSeedMissing()` - Predicate for the synced-but-empty-ytext-with-rest-content case (used by `decideAfterSync` to hold the REST view when a server seed fail-opens)
+- `decideAfterSync()` - Pure function returning one of `"denied"`, `"hold_rest_timeout"`, `"upgrade_to_collab"` from the sync result alone. The client never inserts REST content into ytext — the server owns hydration via `_seed_ydoc_from_page`. Synced-with-empty-ytext is treated as authoritative; the consumer reconciles a stale `Page.details["content"]` to `""` on disconnect when the room actually nets to empty.
+- `decideAndPlanCollabActions({collabObjects, syncResult, filetype})` - Pure planner used by `setupCollaborationAsync`'s post-sync branch. Wraps `decideAfterSync` and returns one of `{kind: "deny"}`, `{kind: "hold"}`, `{kind: "upgrade", filetype}`. The `collabObjects` parameter is intentionally accepted-but-unused so unit tests can spy on `collabObjects.ytext.insert` and pin the no-`ytext.insert`-after-sync invariant against any future regression in or near the planner.
 
 Dependencies:
 
 - `yjs` - CRDT implementation
 - `y-websocket` - WebSocket sync provider
 - `y-codemirror.next` - CodeMirror 6 integration
+
+### Regression coverage for the seed race
+
+The original content-doubling bug — two browsers each independently inserting REST content into ytext when opening the same empty room — was closed by moving the seed to the server (advisory-locked write inside `_seed_ydoc_from_page`) and removing the inline frontend insert. The safety net is layered; each layer catches a different class of regression:
+
+| Layer                     | File                                                                         | What it catches                                                                                                                                                                                                                      |
+| ------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Server-side guarantee     | `backend/collab/tests/websocket/test_content_duplication.py`                 | `test_concurrent_passive_clients_get_server_seed_exactly_once` runs two `WebsocketCommunicator`s in parallel and asserts the server writes exactly one `y_updates` row across two concurrent connects.                               |
+| Frontend call-site canary | `frontend/src/tests/setup-collaboration-async.test.js`                       | `vi.spyOn(collabObjects.ytext, "insert")` against `decideAndPlanCollabActions` for every sync outcome. Catches a future contributor reintroducing an inline `ytext.insert(0, restContent)` inside or near `setupCollaborationAsync`. |
+| Pure-function pins        | `frontend/src/tests/collab-seed-race.test.js`, `collab-seed-missing.test.js` | Pin `decideAfterSync`'s branch table.                                                                                                                                                                                                |
+| Wider-window E2E guard    | `frontend/tests/e2e/content-duplication.spec.js`                             | Drives the rewind-restore trigger to put a room into the seeded-but-empty-Yjs state and opens it from two browser contexts in parallel.                                                                                              |
+
+The server-side test cannot catch a frontend regression on its own: passive frontend clients send no SYNC_UPDATE bytes by definition, so a re-introduced inline write would slip past the "exactly one row" assertion in any timing where the writes serialize. The frontend canary is the deterministic guard for that class.
 
 ## Related Documentation
 

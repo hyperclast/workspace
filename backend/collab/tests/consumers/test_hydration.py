@@ -30,6 +30,7 @@ from django.test import TransactionTestCase
 from pycrdt import Doc, Text
 
 from backend.asgi import application
+from collab.consumers import PageYjsConsumer
 from collab.models import YUpdate
 from collab.tests import (
     create_page_with_access,
@@ -91,6 +92,25 @@ def create_incremental_update(base_doc: Doc, additional_content: str) -> bytes:
     text.insert(len(str(text)), additional_content)
     # Get only the new update
     return base_doc.get_update(state_before)
+
+
+async def fake_seed_sets_apply_failed(consumer_self, doc):
+    """Stand-in for the real seed helper's apply-failure branch.
+
+    Mirrors the post-condition the real `_seed_ydoc_from_page` leaves
+    behind when its inner `doc.apply_update` raises after the seed row
+    has been committed (or read back as loser): the consumer's
+    `_seed_apply_failed` flag flips True and the helper returns False
+    so the consumer fail-opens with an empty local doc.
+
+    Defined at module scope so `patch.object(PageYjsConsumer, "_seed_ydoc_from_page", fake_seed_sets_apply_failed)`
+    installs a plain function on the class. Function descriptors bind
+    `self` on instance access, so the consumer's
+    `await self._seed_ydoc_from_page(doc)` call lands here as
+    `fake_seed_sets_apply_failed(consumer_self, doc)`.
+    """
+    consumer_self._seed_apply_failed = True
+    return False
 
 
 class FakeYStore:
@@ -830,4 +850,146 @@ class TestMakeYdocSeedFailureFailOpen(TransactionTestCase):
             rows,
             [],
             "Failed seed must not write a partial y_updates row — the next opener retries",
+        )
+
+
+class TestSeedApplyFailureReconcileGate(TransactionTestCase):
+    """When `_seed_apply_failed` flips True, the empty-doc reconcile must
+    be skipped at BOTH invocation sites — connect-time (in `make_ydoc`)
+    and disconnect-time (in `disconnect`). Otherwise a transient failure
+    decoding seed bytes would leave the local ydoc empty alongside a
+    real `y_updates` row, and the reconcile would erase
+    `Page.details["content"]` for everyone based on that misleading
+    local view.
+
+    Setup mirrors the production failure shape:
+
+    - The page row has non-empty `details["content"]` (the value we
+      MUST preserve).
+    - A real `y_updates` row exists for the room. Without this, the
+      reconcile's internal `YUpdate.objects.filter(...).exists()` gate
+      would return False on its own and the test would not actually
+      exercise the `_seed_apply_failed` gate. With it, a broken gate
+      lets the reconcile proceed and clear `details["content"]`, so
+      the DB-level assertion below catches the regression.
+    - `_seed_ydoc_from_page` is patched with an async function that
+      sets `_seed_apply_failed = True` and returns False — the same
+      end state the real helper produces when its inner `apply_update`
+      raises.
+
+    The two test methods use the same setup but assert on the
+    site-specific warning string emitted by `log_warning`, so each
+    pins one of the two protective gates independently.
+    """
+
+    SEED_CONTENT = "preserve me"
+
+    async def _yupdate_rows(self, room_id):
+        rows = await sync_to_async(list)(
+            YUpdate.objects.filter(room_id=room_id).order_by("id").values_list("yupdate", flat=True)
+        )
+        return [bytes(b) for b in rows]
+
+    async def _read_page_content(self, external_id):
+        from pages.models import Page
+
+        page = await sync_to_async(Page.objects.get)(external_id=external_id)
+        return (page.details or {}).get("content")
+
+    async def _prestage_yupdate_row(self, room_id):
+        await sync_to_async(YUpdate.objects.create)(
+            room_id=room_id,
+            yupdate=create_update_bytes("anything"),
+        )
+
+    @patch("collab.consumers.PostgresYStore")
+    async def test_connect_time_reconcile_skipped_when_seed_apply_failed(self, MockYStore):
+        """Connect-time gate: warning emitted, content untouched after connect."""
+        mock_ystore = FakeYStore(initial_updates=[], snapshot_data=None)
+        MockYStore.return_value = mock_ystore
+
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project, details={"content": self.SEED_CONTENT})
+        room_id = f"page_{page.external_id}"
+
+        await self._prestage_yupdate_row(room_id)
+
+        with patch.object(
+            PageYjsConsumer,
+            "_seed_ydoc_from_page",
+            fake_seed_sets_apply_failed,
+        ):
+            with self.assertLogs(level="WARNING") as captured:
+                comm = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
+                comm.scope["user"] = user
+
+                connected, _ = await comm.connect()
+                self.assertTrue(connected, "connection must succeed despite seed failure")
+
+                await asyncio.sleep(0.3)
+                await comm.disconnect()
+
+        log_blob = "\n".join(captured.output)
+        self.assertIn(
+            "Skipping connect-time empty-doc reconcile",
+            log_blob,
+            "connect-time gate must emit its warning when _seed_apply_failed is True",
+        )
+        self.assertIn(
+            room_id,
+            log_blob,
+            "warning must name the affected room so ops can scope the incident",
+        )
+
+        preserved = await self._read_page_content(page.external_id)
+        self.assertEqual(
+            preserved,
+            self.SEED_CONTENT,
+            "Page.details['content'] must NOT be erased when the seed apply failed",
+        )
+
+    @patch("collab.consumers.PostgresYStore")
+    async def test_disconnect_time_reconcile_skipped_when_seed_apply_failed(self, MockYStore):
+        """Disconnect-time gate: warning emitted, content untouched after disconnect."""
+        mock_ystore = FakeYStore(initial_updates=[], snapshot_data=None)
+        MockYStore.return_value = mock_ystore
+
+        user, org, project = await create_user_with_org_and_project()
+        page = await create_page_with_access(user, org, project, details={"content": self.SEED_CONTENT})
+        room_id = f"page_{page.external_id}"
+
+        await self._prestage_yupdate_row(room_id)
+
+        with patch.object(
+            PageYjsConsumer,
+            "_seed_ydoc_from_page",
+            fake_seed_sets_apply_failed,
+        ):
+            with self.assertLogs(level="WARNING") as captured:
+                comm = WebsocketCommunicator(application, f"/ws/pages/{page.external_id}/")
+                comm.scope["user"] = user
+
+                connected, _ = await comm.connect()
+                self.assertTrue(connected, "connection must succeed despite seed failure")
+
+                await asyncio.sleep(0.3)
+                await comm.disconnect()
+
+        log_blob = "\n".join(captured.output)
+        self.assertIn(
+            "Skipping disconnect-time empty-doc reconcile",
+            log_blob,
+            "disconnect-time gate must emit its warning when _seed_apply_failed is True",
+        )
+        self.assertIn(
+            room_id,
+            log_blob,
+            "warning must name the affected room so ops can scope the incident",
+        )
+
+        preserved = await self._read_page_content(page.external_id)
+        self.assertEqual(
+            preserved,
+            self.SEED_CONTENT,
+            "Page.details['content'] must NOT be erased when the seed apply failed",
         )

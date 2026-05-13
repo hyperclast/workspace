@@ -23,7 +23,7 @@ import { getSession, logout } from "./auth.js";
 import { clickToEndPlugin } from "./clickToEndPlugin.js";
 import {
   createCollaborationObjects,
-  decideAfterSync,
+  decideAndPlanCollabActions,
   destroyCollaboration,
   setupUnloadHandler,
 } from "./collaboration.js";
@@ -986,9 +986,10 @@ async function setupCollaborationAsync(page, restContent, filetype, signal = nul
     }
 
     // Decide what to do with the sync result. Extracted to a pure
-    // function in `collaboration.js` so the post-sync decision is
-    // unit-testable in isolation. The async wiring (telemetry spans,
-    // nav aborts, editor upgrade) stays here.
+    // planner in `collaboration.js` so the post-sync decision and the
+    // no-`ytext.insert`-after-sync invariant are unit-testable in
+    // isolation. The async wiring (telemetry spans, nav aborts,
+    // editor upgrade, presence UI) stays here.
     //
     // The server seeds the Yjs doc from Page.details["content"] under
     // a per-room advisory lock when hydration finds the room empty,
@@ -997,9 +998,9 @@ async function setupCollaborationAsync(page, restContent, filetype, signal = nul
     // any stale `details.content` to `""` on disconnect when the room
     // really is empty (see `_reconcile_empty_page_content` in
     // `backend/collab/consumers.py`).
-    const decision = decideAfterSync(syncResult);
+    const action = decideAndPlanCollabActions({ collabObjects, syncResult, filetype });
 
-    if (decision === "denied") {
+    if (action.kind === "deny") {
       collabSpan.end({
         status: "error",
         reason: "access_denied",
@@ -1009,7 +1010,7 @@ async function setupCollaborationAsync(page, restContent, filetype, signal = nul
       return;
     }
 
-    if (decision === "hold_rest_timeout") {
+    if (action.kind === "hold") {
       collabSpan.end({
         status: "timeout",
         reason: "ws_sync_timeout",
@@ -1019,11 +1020,11 @@ async function setupCollaborationAsync(page, restContent, filetype, signal = nul
       return;
     }
 
-    // decision === "upgrade_to_collab"
+    // action.kind === "upgrade"
     const contentSource = "server";
     collabSpan.addEvent("editor_upgrade_start");
     const upgradeSpan = metrics.startSpan("editor_upgrade", { pageId, contentSource });
-    upgradeEditorToCollaborative(collabObjects, filetype);
+    upgradeEditorToCollaborative(collabObjects, action.filetype);
     upgradeSpan.end({ status: "success" });
     collabSpan.addEvent("editor_upgrade_complete");
 

@@ -182,6 +182,8 @@ class TestComputeEmbedding(TestCase):
             model=settings.ASK_EMBEDDINGS_DEFAULT_MODEL,
             api_key="test-api-key",
             user=None,
+            page=None,
+            kind="query",
         )
 
     @patch("ask.helpers.embeddings.create_embedding")
@@ -213,6 +215,8 @@ class TestComputeEmbedding(TestCase):
             model="custom-model",
             api_key="custom-key",
             user=None,
+            page=None,
+            kind="query",
         )
 
     @patch("ask.helpers.embeddings.create_embedding")
@@ -266,6 +270,8 @@ class TestComputeEmbedding(TestCase):
             model=settings.ASK_EMBEDDINGS_DEFAULT_MODEL,
             api_key="test-key",
             user=None,
+            page=None,
+            kind="query",
         )
 
     @patch("ask.helpers.embeddings.create_embedding")
@@ -288,6 +294,8 @@ class TestComputeEmbedding(TestCase):
             model=settings.ASK_EMBEDDINGS_DEFAULT_MODEL,
             api_key="test-key",
             user=None,
+            page=None,
+            kind="query",
         )
         self.assertEqual(result, [0.1, 0.2, 0.3])
 

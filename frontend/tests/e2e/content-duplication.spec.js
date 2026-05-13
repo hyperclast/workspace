@@ -1,41 +1,52 @@
 /**
- * Regression guard for the content-doubling bug: page content doubles
- * when a client opens a seeded-but-empty-Yjs page and the frontend
- * gate at `main.js:994-1002` fires `ytext.insert(0, restContent)`
- * on top of state the server is about to deliver.
+ * Regression guard for the content-doubling bug: page content
+ * doubled when two clients opened a seeded-but-empty-Yjs page in
+ * parallel and the frontend gate inside `setupCollaborationAsync`
+ * fired `ytext.insert(0, restContent)` on top of state the server
+ * was about to deliver.
  *
  * Status on `master`:
- *   This spec PASSES today, but the bug is real and reproducible by
- *   hand (Chrome creates page with content → Firefox opens same page
- *   → content doubles to "content1234content1234"; refresh doubles
- *   again to four copies). The backend unit tests in
- *   `backend/collab/tests/websocket/test_content_duplication.py`
- *   and the frontend vitest in `frontend/src/tests/collab-seed-race.test.js`
- *   are the deterministic-fail tests for Step 0 of the plan. This
- *   E2E spec is kept as a regression guard against a wider race
- *   window — if a future change reintroduces the race on a timescale
- *   Playwright can observe, this will catch it.
+ *   The fix is in. The frontend no longer inserts REST content
+ *   into ytext at all; the server seeds `_seed_ydoc_from_page`
+ *   under a per-room Postgres advisory transaction lock and is the
+ *   single writer of the seed row. This spec exercises the
+ *   end-to-end shape (rewind-restore → two parallel browsers →
+ *   one row in `y_updates`) so a re-introduced race on a timescale
+ *   Playwright can observe is caught.
+ *
+ *   Layered coverage:
+ *   - `backend/collab/tests/websocket/test_content_duplication.py`
+ *     pins the server-side guarantee (one row across two
+ *     concurrent passive connects).
+ *   - `frontend/src/tests/setup-collaboration-async.test.js` is
+ *     the call-site canary against the original frontend
+ *     regression (an inline `ytext.insert(0, restContent)`
+ *     reappearing inside or near the post-sync branch).
+ *   - This spec is the wider-window regression guard.
  *
  * Why E2E reproduction is unreliable:
- *   The bug's real mechanism is that `setupCollaborationAsync` resolves
- *   with `ytextHasContent=false` before SYNC_STEP2 from the server
- *   has been applied to the local ytext. That timing window lives
- *   inside the JS provider, not on the wire — Playwright's
+ *   The bug's original mechanism was that `setupCollaborationAsync`
+ *   resolved with `ytextHasContent=false` before SYNC_STEP2 from the
+ *   server had been applied to the local ytext. That timing window
+ *   lived inside the JS provider, not on the wire — Playwright's
  *   `routeWebSocket` can delay frames but cannot get between the
- *   "sync resolved" callback and the ytext mutation that the gate
- *   checks. We use rewind-restore to put the room into the
- *   seeded-but-empty-Yjs state (since `pages/api/pages.py:195-204`
- *   auto-seeds Yjs after REST page creation, closing that path), and
- *   a small outbound-frame delay to widen the race, but neither is
- *   sufficient to fail this test deterministically.
+ *   "sync resolved" callback and a ytext mutation that a future
+ *   regression might reintroduce. We use rewind-restore to put the
+ *   room into the seeded-but-empty-Yjs state (since
+ *   `pages/api/pages.py` auto-seeds Yjs after REST page creation,
+ *   closing that path), and a small outbound-frame delay to widen
+ *   the race, but neither is sufficient to fail this test
+ *   deterministically against a re-introduced bug. The frontend
+ *   vitest is the deterministic guard; this spec is belt-and-braces.
  *
  * Why rewind is the trigger we picked:
- *   `backend/pages/api/rewind.py:241-242` deletes every `y_updates`
- *   / `y_snapshots` row for the room and rewrites
+ *   `backend/pages/api/rewind.py` (the restore path) deletes every
+ *   `y_updates` / `y_snapshots` row for the room and rewrites
  *   `Page.details["content"]`, with no follow-up seed task — the
- *   precondition the bug needs (Yjs storage empty, `details.content`
- *   non-empty). Creating a page via REST is closed by
- *   `_enqueue_yjs_sync_on_commit` in `pages/api/pages.py:195-204`.
+ *   precondition the bug needs (Yjs storage empty,
+ *   `details.content` non-empty). Creating a page via REST is
+ *   closed by `_enqueue_yjs_sync_on_commit` in
+ *   `pages/api/pages.py`.
  *
  * Run with:
  *   npm run test:e2e -- content-duplication.spec.js

@@ -32,6 +32,20 @@ These tests cover three layers of the contract:
   competing-insert branch does not fire post-fix (see the helper's
   docstring); they remain useful as a passive safety net against a
   future regression in `make_ydoc()`.
+
+Scope this file does NOT cover:
+
+- A frontend regression that reintroduces an inline
+  `ytext.insert(0, restContent)` inside or near
+  `setupCollaborationAsync`. The passive clients here send no
+  SYNC_UPDATE bytes by definition, so a re-introduced inline write
+  on the browser side would slip past the "exactly one row"
+  assertion in any timing where the writes serialize. That class of
+  regression is pinned by
+  `frontend/src/tests/setup-collaboration-async.test.js`
+  (call-site canary on the pure planner) and by
+  `frontend/tests/e2e/content-duplication.spec.js` (wider-window
+  Playwright regression guard).
 """
 
 import asyncio

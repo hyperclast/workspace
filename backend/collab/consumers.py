@@ -4,7 +4,6 @@ Subclasses pycrdt-websocket's YjsConsumer.
 """
 
 import asyncio
-import hashlib
 import json
 from typing import Optional, Tuple
 
@@ -26,6 +25,7 @@ from backend.utils import (
     set_request_id,
 )
 
+from .locks import SEED_LOCK_NAMESPACE, advisory_lock_key_for_room
 from .models import YUpdate
 from .permissions import can_access_page, can_edit_page
 from .ystore import PostgresYStore, get_db_config_from_django
@@ -39,25 +39,6 @@ WS_CLOSE_RATE_LIMITED = 4029  # Too Many Requests (custom code)
 # and `collab/services/apply_text.py` (`YTEXT_KEY`). Bumping it here without
 # updating those keeps the seed and the editor on different roots.
 YTEXT_KEY = "codemirror"
-
-# Reserved namespace for `pg_advisory_xact_lock(int4, int4)` keys taken
-# by the seeding path. The two-int form lets us partition the advisory
-# lock space by subsystem so unrelated callers cannot accidentally
-# collide with our lock.
-SEED_LOCK_NAMESPACE = 1
-
-
-def _advisory_lock_key_for_room(room_id: str) -> int:
-    """Hash `room_id` to a signed 32-bit int suitable for the second
-    argument of `pg_advisory_xact_lock(int4, int4)`.
-
-    Collisions in the 32-bit space cause spurious cross-room blocking
-    bounded by one seed transaction (a single-digit-ms wait); they
-    never cause correctness loss because the in-lock re-read of
-    `y_updates` is keyed by the real `room_id`, not the hash.
-    """
-    digest = hashlib.blake2s(room_id.encode("utf-8"), digest_size=4).digest()
-    return int.from_bytes(digest, byteorder="big", signed=True)
 
 
 class PageYjsConsumer(BaseYjsConsumer):
@@ -335,12 +316,14 @@ class PageYjsConsumer(BaseYjsConsumer):
             # `y_updates`-exists gate keeps a fail-opened seed from
             # erasing user content, and `_seed_apply_failed` keeps a
             # seed-bytes-decode failure from doing the same.
-            if (
-                getattr(self, "ystore", None)
-                and str(doc.get(YTEXT_KEY, type=Text)) == ""
-                and not self._seed_apply_failed
-            ):
-                await self._reconcile_empty_page_content()
+            if getattr(self, "ystore", None) and str(doc.get(YTEXT_KEY, type=Text)) == "":
+                if self._seed_apply_failed:
+                    log_warning(
+                        "Skipping connect-time empty-doc reconcile: seed apply failed for room=%s",
+                        room_name,
+                    )
+                else:
+                    await self._reconcile_empty_page_content()
 
         # --- 2) NOW subscribe to observer for FUTURE updates only
         # Callback receives a TransactionEvent. The update bytes are in event.update
@@ -459,7 +442,18 @@ class PageYjsConsumer(BaseYjsConsumer):
                 # `Page.details["content"]` keeps whatever non-empty
                 # value the previous snapshot wrote. Reconcile inline
                 # so the page row reflects the now-empty CRDT state.
-                await self._reconcile_empty_page_content()
+                # Skip when the seed apply failed at hydration: the
+                # ydoc looks empty only because we could not decode
+                # the bytes we (or another writer) persisted, not
+                # because the room is actually empty. See
+                # `_seed_apply_failed` in `__init__`.
+                if self._seed_apply_failed:
+                    log_warning(
+                        "Skipping snapshot-skip empty-doc reconcile: seed apply failed for room=%s",
+                        self.room_name,
+                    )
+                else:
+                    await self._reconcile_empty_page_content()
                 return False
 
             max_id = await self.ystore.get_max_update_id() or 0
@@ -637,7 +631,7 @@ class PageYjsConsumer(BaseYjsConsumer):
             if not content:
                 return None, None
 
-            lock_key = _advisory_lock_key_for_room(room_id)
+            lock_key = advisory_lock_key_for_room(room_id)
 
             with transaction.atomic():
                 with connection.cursor() as cursor:
@@ -841,8 +835,14 @@ class PageYjsConsumer(BaseYjsConsumer):
                     # could not decode the bytes we (or another writer)
                     # persisted, not because the room is actually empty.
                     # See `_seed_apply_failed` in `__init__`.
-                    if len(ytext_content) == 0 and not self._seed_apply_failed:
-                        await self._reconcile_empty_page_content()
+                    if len(ytext_content) == 0:
+                        if self._seed_apply_failed:
+                            log_warning(
+                                "Skipping disconnect-time empty-doc reconcile: seed apply failed for room=%s",
+                                getattr(self, "room_name", "unknown"),
+                            )
+                        else:
+                            await self._reconcile_empty_page_content()
 
             # Close the ystore pool
             if getattr(self, "ystore", None):
