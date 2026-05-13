@@ -38,6 +38,7 @@ export function setupPresenceUI(awareness) {
 
   function collectUsers() {
     const states = awareness.getStates();
+    const localId = awareness.clientID;
     const collected = [];
     states.forEach((state, clientId) => {
       if (state.user) {
@@ -45,9 +46,13 @@ export function setupPresenceUI(awareness) {
           clientId,
           name: state.user.name || "Anonymous",
           color: state.user.color || "#999",
+          picture: state.user.picture || null,
+          isCurrent: clientId === localId,
         });
       }
     });
+    // Put the current user first so they appear at the front of the avatar stack.
+    collected.sort((a, b) => (a.isCurrent ? -1 : b.isCurrent ? 1 : 0));
     return collected;
   }
 
@@ -135,5 +140,76 @@ export function setupPresenceUI(awareness) {
     // Don't unmount — leave the DOM as-is so existing content remains visible.
     // The component will be cleaned up on next setupPresenceUI call or page navigation.
     instance = null;
+  };
+}
+
+/**
+ * Seed the presence cluster with fake users for demo mode, so visitors
+ * see what live collaboration looks like even without a WebSocket session.
+ */
+export function setupDemoPresence() {
+  const target = document.getElementById("presence-indicator");
+  if (!target) return () => {};
+
+  if (instance) {
+    unmount(instance);
+    instance = null;
+  }
+
+  target.innerHTML = "";
+
+  // Use identicon-fallback gravatars so demo always shows a real picture
+  // (real users use d=404 so missing-gravatar falls back to initials).
+  const fakeGravatar = (seed) => `https://www.gravatar.com/avatar/${seed}?s=64&d=identicon&f=y`;
+  flushSync(() => {
+    setUsers([
+      {
+        clientId: 1,
+        name: "You",
+        color: "#2383e2",
+        picture: fakeGravatar("demo-you-0001"),
+        isCurrent: true,
+      },
+      {
+        clientId: 2,
+        name: "Alex Park",
+        color: "#10B981",
+        picture: fakeGravatar("demo-alex-0002"),
+        isCurrent: false,
+      },
+    ]);
+    setShowPopover(false);
+  });
+
+  instance = mount(PresenceIndicator, { target });
+
+  let hideTimeout;
+  function show() {
+    clearTimeout(hideTimeout);
+    flushSync(() => setShowPopover(true));
+  }
+  function scheduleHide() {
+    hideTimeout = setTimeout(() => {
+      flushSync(() => setShowPopover(false));
+    }, 300);
+  }
+  function handleClickOutside(e) {
+    if (!target.contains(e.target)) {
+      clearTimeout(hideTimeout);
+      flushSync(() => setShowPopover(false));
+    }
+  }
+
+  target.addEventListener("mouseenter", show);
+  target.addEventListener("mouseleave", scheduleHide);
+  target.addEventListener("click", show);
+  document.addEventListener("click", handleClickOutside);
+
+  return () => {
+    clearTimeout(hideTimeout);
+    target.removeEventListener("mouseenter", show);
+    target.removeEventListener("mouseleave", scheduleHide);
+    target.removeEventListener("click", show);
+    document.removeEventListener("click", handleClickOutside);
   };
 }

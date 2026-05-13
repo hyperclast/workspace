@@ -361,13 +361,13 @@
             stroke-linejoin="round"
           />
         </svg>
-        {brandName}
+        <span class="nav-brand-text">{brandName}</span>
       </a>
     </div>
     <div class="nav-main">
       <div class="nav-actions">
+        <a href="/" class="back-to-app-pill">← Back to App</a>
         <ThemeToggle />
-        <a href="/" class="nav-link">Home</a>
         <div class="user-menu">
           <button id="user-avatar" class="user-avatar" title="Account menu" onclick={toggleUserMenu}>
             <span id="user-initial"></span>
@@ -377,7 +377,6 @@
               <div class="user-dropdown-email">{data.user?.email || ""}</div>
             </div>
             <div class="user-dropdown-menu">
-              <span class="user-dropdown-item nav-current">Settings</span>
               <button class="user-dropdown-item" onclick={handleLogout}>Log out</button>
             </div>
           </div>
@@ -767,6 +766,24 @@
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+  }
+
+  .back-to-app-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    border-radius: 12px;
+    text-decoration: none;
+    transition: background 0.15s, transform 0.15s;
+  }
+
+  .back-to-app-pill:hover {
+    background: var(--bg-hover);
+    transform: translateY(-1px);
   }
 
   .settings-layout {

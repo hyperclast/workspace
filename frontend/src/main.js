@@ -87,7 +87,7 @@ import {
   formatTable,
   findTables,
 } from "./markdownTable.js";
-import { setupPresenceUI } from "./presence.js";
+import { setupPresenceUI, setupDemoPresence } from "./presence.js";
 import {
   setCurrentPageId,
   notifyPageChange,
@@ -115,7 +115,7 @@ import { setupToolbar, resetToolbar } from "./toolbar.js";
 import { getPageIdFromPath } from "./router.js";
 import { initTheme } from "./theme.js";
 import { mount, unmount } from "svelte";
-import ThemeToggle from "./lib/components/ThemeToggle.svelte";
+import ThemeMenu from "./lib/components/ThemeMenu.svelte";
 import PdfViewer from "./pdf/PdfViewer.svelte";
 import { isPdfPage } from "./pdf/isPdfPage.js";
 import { addRecentPage } from "./lib/recentPages.js";
@@ -156,20 +156,90 @@ function renderAppHTML() {
   const app = document.getElementById("app");
   app.innerHTML = `
     <nav>
+      <button id="nav-left-toggle" class="sidebar-toggle nav-edge-toggle" title="Toggle project list" aria-label="Toggle project list">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect class="panel-fill" x="3" y="3" width="6" height="18" rx="2" ry="2" stroke="none" />
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <line x1="9" y1="3" x2="9" y2="21" />
+        </svg>
+      </button>
       <div class="nav-brand">
         <a href="/" class="nav-title" style="text-decoration: none; color: inherit; display: flex; align-items: center; gap: 0.5rem;">
           <svg class="logo-icon" viewBox="0 0 90 90" width="24" height="24">
             <path d="M 10,80 L 10,70 L 20,70 L 20,80 L 30,80 L 40,80 L 40,70 L 30,70 L 30,60 L 40,60 L 40,50 L 30,50 L 20,50 L 20,60 L 10,60 L 10,50 L 10,40 L 20,40 L 20,30 L 10,30 L 10,20 L 10,10 L 20,10 L 20,20 L 30,20 L 30,10 L 40,10 L 40,20 L 40,30 L 30,30 L 30,40 L 40,40 L 50,40 L 60,40 L 60,30 L 50,30 L 50,20 L 50,10 L 60,10 L 60,20 L 70,20 L 70,10 L 80,10 L 80,20 L 80,30 L 70,30 L 70,40 L 80,40 L 80,50 L 80,60 L 70,60 L 70,50 L 60,50 L 50,50 L 50,60 L 60,60 L 60,70 L 50,70 L 50,80 L 60,80 L 70,80 L 70,70 L 80,70 L 80,80" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          ${brandName}
+          <span class="nav-brand-text">${brandName}</span>
         </a>
       </div>
-      <div class="nav-main">
-        <div class="nav-actions">
-          <a href="/pricing/" id="upgrade-pill" class="upgrade-pill" style="display: none;">Upgrade</a>
-          <div id="theme-toggle-root"></div>
-          <a href="/settings/" class="nav-link">Settings</a>
-          <div class="user-menu">
+      <div id="breadcrumb-row" class="nav-breadcrumb breadcrumb-row" style="display: none;">
+        <nav id="breadcrumb" class="breadcrumb">
+          <span id="breadcrumb-org" class="breadcrumb-item">
+            <span id="breadcrumb-org-name"></span>
+          </span>
+          <span class="breadcrumb-sep">/</span>
+          <span id="breadcrumb-project" class="breadcrumb-item"></span>
+          <span id="breadcrumb-folders" class="breadcrumb-folders"></span>
+          <span class="breadcrumb-sep">/</span>
+          <span id="breadcrumb-page" class="breadcrumb-item breadcrumb-page"></span><button id="breadcrumb-filetype" class="breadcrumb-filetype" title="Change page type"></button>
+        </nav>
+        <div id="presence-indicator" class="presence-indicator" title="Users currently editing"></div>
+        <div id="note-actions" class="note-actions">
+          <button id="actions-btn" class="page-menu-btn" title="Page options" aria-label="Page options">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="12" cy="5.5" r="1.6"></circle>
+              <circle cx="12" cy="12" r="1.6"></circle>
+              <circle cx="12" cy="18.5" r="1.6"></circle>
+            </svg>
+          </button>
+          <div id="actions-dropdown" class="actions-dropdown" style="display: none;">
+            <button id="share-project-btn" class="actions-dropdown-item">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" y1="8" x2="19" y2="14"></line><line x1="22" y1="11" x2="16" y2="11"></line></svg>
+              Share project
+            </button>
+            <div class="actions-dropdown-divider"></div>
+            <button id="rename-page-btn" class="actions-dropdown-item">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+              Rename page
+            </button>
+            <button id="download-page-btn" class="actions-dropdown-item">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Download page
+            </button>
+            <button id="readonly-link-btn" class="actions-dropdown-item">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+              Get view-only link
+            </button>
+            <button id="change-type-btn" class="actions-dropdown-item">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M9 15l2 2 4-4"></path></svg>
+              Change type
+            </button>
+            <div class="actions-dropdown-divider"></div>
+            <div class="actions-dropdown-label">Tasks</div>
+            <button id="clear-completed-btn" class="actions-dropdown-item">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="m9 11 3 3L22 4"></path></svg>
+              Clear done
+            </button>
+            <div class="actions-dropdown-divider"></div>
+            <button id="delete-note-btn" class="actions-dropdown-item danger">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+              Delete page
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="page-controls" class="nav-page-controls breadcrumb-actions" style="display: none;">
+        <div id="readonly-indicator" class="readonly-indicator" style="display: none;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+          <div class="indicator-popover readonly-popover">
+            <div class="indicator-popover-header">View-Only Link</div>
+            <div class="indicator-popover-text">Anyone with the link can view this page without signing in.</div>
+            <button class="indicator-popover-btn" id="readonly-popover-btn">Manage</button>
+          </div>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <a href="/pricing/" id="upgrade-pill" class="upgrade-pill" style="display: none;">Upgrade</a>
+        <div class="user-menu">
             <button id="user-avatar" class="user-avatar" title="Account menu">
               <span id="user-initial"></span>
             </button>
@@ -178,13 +248,33 @@ function renderAppHTML() {
                 <div id="user-email" class="user-dropdown-email"></div>
               </div>
               <div class="user-dropdown-menu">
-                <a href="/settings/" class="user-dropdown-item">Settings</a>
-                <button id="logout-btn" class="user-dropdown-item">Log out</button>
+                <a href="/settings/" class="user-dropdown-item" style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary);">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                  </svg>
+                  <span>Settings</span>
+                </a>
+                <div id="theme-toggle-root"></div>
+                <button id="logout-btn" class="user-dropdown-item" style="display: flex; align-items: center; gap: 0.5rem;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                  </svg>
+                  <span>Log out</span>
+                </button>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      <button id="nav-right-toggle" class="sidebar-toggle nav-edge-toggle" title="Toggle sidebar" aria-label="Toggle sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect class="panel-fill" x="15" y="3" width="6" height="18" rx="2" ry="2" stroke="none" />
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <line x1="15" y1="3" x2="15" y2="21" />
+        </svg>
+      </button>
     </nav>
 
     <div id="note-layout" class="note-layout">
@@ -216,73 +306,6 @@ function renderAppHTML() {
       </aside>
 
       <div id="note-page" class="note-page">
-        <div id="note-header">
-          <div class="note-header-container">
-            <div class="breadcrumb-row" id="breadcrumb-row" style="display: none;">
-              <nav id="breadcrumb" class="breadcrumb">
-                <span id="breadcrumb-org" class="breadcrumb-item">
-                  <span id="breadcrumb-org-name"></span>
-                </span>
-                <span class="breadcrumb-sep">/</span>
-                <span id="breadcrumb-project" class="breadcrumb-item"></span>
-                <span id="breadcrumb-folders" class="breadcrumb-folders"></span>
-                <span class="breadcrumb-sep">/</span>
-                <span id="breadcrumb-page" class="breadcrumb-item breadcrumb-page"></span><button id="breadcrumb-filetype" class="breadcrumb-filetype" title="Change page type"></button>
-              </nav>
-              <div class="breadcrumb-actions">
-                <div id="readonly-indicator" class="readonly-indicator" style="display: none;">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-                  <div class="indicator-popover readonly-popover">
-                    <div class="indicator-popover-header">View-Only Link</div>
-                    <div class="indicator-popover-text">Anyone with the link can view this page without signing in.</div>
-                    <button class="indicator-popover-btn" id="readonly-popover-btn">Manage</button>
-                  </div>
-                </div>
-                <div id="presence-indicator" class="presence-indicator" title="Users currently editing"></div>
-                <div id="note-actions" class="note-actions">
-                  <button id="actions-btn" class="actions-btn" title="Page options">
-                    Options <span class="btn-chevron">▾</span>
-                  </button>
-                  <div id="actions-dropdown" class="actions-dropdown" style="display: none;">
-                    <button id="share-project-btn" class="actions-dropdown-item">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" y1="8" x2="19" y2="14"></line><line x1="22" y1="11" x2="16" y2="11"></line></svg>
-                      Share project
-                    </button>
-                    <div class="actions-dropdown-divider"></div>
-                    <button id="rename-page-btn" class="actions-dropdown-item">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                      Rename page
-                    </button>
-                    <button id="download-page-btn" class="actions-dropdown-item">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                      Download page
-                    </button>
-                    <button id="readonly-link-btn" class="actions-dropdown-item">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-                      Get view-only link
-                    </button>
-                    <button id="change-type-btn" class="actions-dropdown-item">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M9 15l2 2 4-4"></path></svg>
-                      Change type
-                    </button>
-                    <div class="actions-dropdown-divider"></div>
-                    <div class="actions-dropdown-label">Tasks</div>
-                    <button id="clear-completed-btn" class="actions-dropdown-item">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="m9 11 3 3L22 4"></path></svg>
-                      Clear done
-                    </button>
-                    <div class="actions-dropdown-divider"></div>
-                    <button id="delete-note-btn" class="actions-dropdown-item danger">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                      Delete page
-                    </button>
-                  </div>
-                </div>
-                </div>
-            </div>
-            <div class="note-header-actions"></div>
-          </div>
-        </div>
 
         <!-- Toolbar container - mounted by Svelte -->
         <div id="toolbar-wrapper" style="height: 44px; box-sizing: border-box;"></div>
@@ -475,21 +498,31 @@ function updateReadonlyIndicator(accessCode) {
 }
 
 /**
+ * Show or hide the page-scoped navbar context (breadcrumb + page controls).
+ */
+function setPageContextVisible(visible) {
+  const breadcrumbRow = document.getElementById("breadcrumb-row");
+  const pageControls = document.getElementById("page-controls");
+  const display = visible ? "flex" : "none";
+  if (breadcrumbRow) breadcrumbRow.style.display = display;
+  if (pageControls) pageControls.style.display = display;
+}
+
+/**
  * Update the breadcrumb with org and project names.
  */
 function updateBreadcrumb(projectId) {
-  const breadcrumbRow = document.getElementById("breadcrumb-row");
   const orgNameEl = document.getElementById("breadcrumb-org-name");
   const projectEl = document.getElementById("breadcrumb-project");
   const foldersEl = document.getElementById("breadcrumb-folders");
   const pageEl = document.getElementById("breadcrumb-page");
 
-  if (!breadcrumbRow || !orgNameEl || !projectEl) return;
+  if (!orgNameEl || !projectEl) return;
 
   const project = cachedProjects.find((p) => p.external_id === projectId);
 
   if (!project) {
-    breadcrumbRow.style.display = "none";
+    setPageContextVisible(false);
     return;
   }
 
@@ -522,7 +555,7 @@ function updateBreadcrumb(projectId) {
     }
   }
 
-  breadcrumbRow.style.display = "flex";
+  setPageContextVisible(true);
 }
 
 function findPageFolderId(pageExternalId, project) {
@@ -760,7 +793,8 @@ async function loadPage(page, signal = null) {
     if (!isDemoMode()) {
       const userInfo = getUserInfo();
       const displayName = userInfo.user?.username || currentUser?.email || "Anonymous";
-      const csvCollabObjects = createCollaborationObjects(pageId, displayName);
+      const email = currentUser?.email || userInfo.user?.email || null;
+      const csvCollabObjects = createCollaborationObjects(pageId, displayName, email);
 
       pageLoadSpan.addEvent("csv_yjs_sync_start");
       const syncResult = await csvCollabObjects.syncPromise;
@@ -803,7 +837,8 @@ async function loadPage(page, signal = null) {
     if (!isDemoMode()) {
       const userInfo = getUserInfo();
       const displayName = userInfo.user?.username || currentUser?.email || "Anonymous";
-      const logCollabObjects = createCollaborationObjects(pageId, displayName);
+      const email = currentUser?.email || userInfo.user?.email || null;
+      const logCollabObjects = createCollaborationObjects(pageId, displayName, email);
 
       pageLoadSpan.addEvent("log_yjs_sync_start");
       const syncResult = await logCollabObjects.syncPromise;
@@ -921,9 +956,10 @@ async function setupCollaborationAsync(page, restContent, filetype, signal = nul
   // Create collaboration objects
   const userInfo = getUserInfo();
   const displayName = userInfo.user?.username || currentUser?.email || "Anonymous";
+  const email = currentUser?.email || userInfo.user?.email || null;
 
   collabSpan.addEvent("create_collab_objects_start");
-  collabObjects = createCollaborationObjects(pageId, displayName);
+  collabObjects = createCollaborationObjects(pageId, displayName, email);
   window.undoManager = collabObjects.undoManager;
   window.ydoc = collabObjects.ydoc;
   window.ytext = collabObjects.ytext;
@@ -1199,9 +1235,8 @@ function cleanupCurrentPage() {
 
   document.getElementById("editor").innerHTML = "";
 
-  // Hide breadcrumb row and clear title
-  const breadcrumbRow = document.getElementById("breadcrumb-row");
-  if (breadcrumbRow) breadcrumbRow.style.display = "none";
+  // Hide page-scoped navbar context and clear title
+  setPageContextVisible(false);
   const titleInput = document.getElementById("note-title-input");
   if (titleInput) titleInput.value = "";
 
@@ -1445,9 +1480,8 @@ function showEditorLoading() {
     titleInput.disabled = true;
   }
 
-  // Show the breadcrumb row
-  const breadcrumbRow = document.getElementById("breadcrumb-row");
-  if (breadcrumbRow) breadcrumbRow.style.display = "flex";
+  // Show the page-scoped navbar context (breadcrumb + page controls)
+  setPageContextVisible(true);
 }
 
 /**
@@ -2001,6 +2035,64 @@ function setupFileDragDrop(editorContainer, getProjectId, getCanUpload, showFile
  * Setup note actions dropdown (delete, etc.)
  */
 /**
+ * Wire navbar edge toggles (visible at <=1024px overlay mode) to delegate
+ * to the existing in-sidebar toggle buttons. The inner toggles live
+ * inside the sidebars themselves; when the sidebars are translated
+ * off-screen in overlay mode, those toggles go with them — leaving no
+ * way to summon the panels back. These edge toggles solve that.
+ *
+ * Also mirrors each sidebar's open state to the corresponding edge
+ * toggle's .active class so all three toggles (inline + both edges)
+ * stay visually in sync.
+ */
+function setupNavEdgeToggles() {
+  const leftEdge = document.getElementById("nav-left-toggle");
+  const rightEdge = document.getElementById("nav-right-toggle");
+
+  // Click delegation: look up the inner button at click time since Svelte
+  // may not have mounted yet during setup.
+  leftEdge?.addEventListener("click", () => {
+    document.getElementById("sidebar-toggle")?.click();
+  });
+  rightEdge?.addEventListener("click", () => {
+    document.getElementById("sidebar-panel-toggle")?.click();
+  });
+
+  // Mirror open state from the sidebar element onto the edge toggle.
+  // Overlay mode (<=1024): sidebar visible iff it has .open
+  // Inline mode (>1024):   sidebar visible iff it does NOT have .collapsed
+  const isOverlay = () => window.innerWidth <= SIDEBAR_OVERLAY_BREAKPOINT;
+
+  function syncEdge(edge, sidebar) {
+    if (!edge || !sidebar) return;
+    const isOpen = isOverlay()
+      ? sidebar.classList.contains("open")
+      : !sidebar.classList.contains("collapsed");
+    edge.classList.toggle("active", isOpen);
+  }
+
+  function bindSync(edge, sidebarId) {
+    const sidebar = document.getElementById(sidebarId);
+    if (!edge || !sidebar) return;
+    new MutationObserver(() => syncEdge(edge, sidebar)).observe(sidebar, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    syncEdge(edge, sidebar);
+  }
+
+  bindSync(leftEdge, "note-sidebar");
+  bindSync(rightEdge, "chat-sidebar");
+
+  // Breakpoint transitions: the active-state semantics change between
+  // overlay and inline modes, so re-evaluate on resize.
+  window.addEventListener("resize", () => {
+    syncEdge(leftEdge, document.getElementById("note-sidebar"));
+    syncEdge(rightEdge, document.getElementById("chat-sidebar"));
+  });
+}
+
+/**
  * Setup right sidebar panel toggle button in breadcrumb actions.
  */
 function setupSidebarPanelToggle() {
@@ -2531,10 +2623,10 @@ async function startApp() {
   renderAppHTML();
   appSpan.addEvent("html_rendered");
 
-  // Mount theme toggle
+  // Mount theme menu (in user dropdown)
   const themeToggleRoot = document.getElementById("theme-toggle-root");
   if (themeToggleRoot) {
-    mount(ThemeToggle, { target: themeToggleRoot });
+    mount(ThemeMenu, { target: themeToggleRoot });
   }
 
   // Mount PDF viewer (global modal, triggers from link clicks)
@@ -2589,6 +2681,8 @@ async function startApp() {
     setupTitleEditing();
     setupSidebar();
     setupSidebarPanelToggle();
+    setupNavEdgeToggles();
+    setupDemoPresence();
 
     const sidenavNavigate = (externalId) => {
       if (externalId !== currentPage?.external_id) {
@@ -2695,6 +2789,7 @@ async function startApp() {
   // Setup right sidebar (AI chat, links)
   setupSidebar();
   setupSidebarPanelToggle();
+  setupNavEdgeToggles();
 
   // Setup rewind feature (timeline tab + viewer)
   if (getFeatureFlags().rewind) {

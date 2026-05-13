@@ -8,6 +8,7 @@ import * as Y from "yjs";
 import { keymap } from "@codemirror/view";
 import { Prec } from "@codemirror/state";
 import { WS_HOST } from "./config.js";
+import { getGravatarUrl } from "./gravatar.js";
 
 // WebSocket close code 4029 is sent by the consumer for rate-limited connections
 // (mirrors WS_CLOSE_RATE_LIMITED in backend/collab/consumers.py).
@@ -107,9 +108,15 @@ export function decideAndPlanCollabActions({ collabObjects, syncResult, filetype
  * This should be called BEFORE creating the editor view.
  * @param {string} pageExternalId - The page's external_id (used as room identifier)
  * @param {string} displayName - Display name for the user (username or email)
+ * @param {string} [email] - User email, used to derive a gravatar URL for the
+ *   presence cluster. Optional — falls back to initials when absent.
  * @returns {Object} - { ydoc, provider, ytext, awareness, extension, syncPromise } for use in editor
  */
-export function createCollaborationObjects(pageExternalId, displayName = "Anonymous") {
+export function createCollaborationObjects(
+  pageExternalId,
+  displayName = "Anonymous",
+  email = null
+) {
   // Check if we've previously been denied access to this page
   if (accessDeniedPages.has(pageExternalId)) {
     console.warn(
@@ -155,10 +162,12 @@ export function createCollaborationObjects(pageExternalId, displayName = "Anonym
   // Setup awareness (for showing who's online, cursors, etc.)
   const awareness = provider.awareness;
 
-  // Set local user info
+  // Set local user info. Picture URL is broadcast so peers can render the
+  // current user's gravatar in their own presence clusters.
   awareness.setLocalStateField("user", {
     name: displayName,
     color: getRandomColor(),
+    picture: email ? getGravatarUrl(email, 64) : null,
   });
 
   // Track connection attempts for detecting repeated failures

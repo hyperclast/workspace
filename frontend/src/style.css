@@ -32,6 +32,13 @@
   background: var(--bg-tertiary);
 }
 
+/* Dropdown bg in dark mode is --bg-tertiary, so the header needs a
+   different shade to stand out. --bg-secondary is one step darker. */
+:root.dark .user-dropdown-header,
+[data-theme="dark"] .user-dropdown-header {
+  background: var(--bg-secondary);
+}
+
 :root.dark .user-dropdown-item:hover,
 [data-theme="dark"] .user-dropdown-item:hover {
   background: rgba(255, 255, 255, 0.08);
@@ -125,6 +132,18 @@ body {
   min-height: 100vh;
   background: var(--bg-secondary);
   color: var(--text-primary);
+  /* SPA chrome (#app) is bounded to 100vh with internal scrolling. Prevent
+     body from scrolling so an internal scroll hitting its boundary doesn't
+     chain out and scroll the whole window. Auth/marketing pages opt back
+     in via their own container, see body:has(.auth-container) below. */
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* Auth/marketing pages need body-level scroll when their content exceeds
+   the viewport (e.g. long signup form). Opt out of the SPA-style clip. */
+body:has(.auth-container) {
+  overflow: auto;
 }
 
 #app {
@@ -139,6 +158,7 @@ nav {
   background: var(--bg-primary);
   border-bottom: 1px solid var(--border-light);
   display: flex;
+  align-items: center;
 }
 
 .nav-brand {
@@ -174,12 +194,89 @@ nav {
   padding: 0.75rem 1.5rem;
 }
 
+/* Breadcrumb area in navbar — takes remaining space, truncates.
+   ID selector overrides .breadcrumb-row margin/gap (defined later in file)
+   without needing !important. No overflow:hidden here — the inner
+   .breadcrumb has its own clip+ellipsis, and we need the page-menu
+   dropdown to escape the navbar's vertical bounds. */
+.nav-breadcrumb {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 0.75rem 0 0;
+  container-type: inline-size;
+}
+
+#breadcrumb-row.nav-breadcrumb {
+  margin-bottom: 0;
+  gap: 0;
+  /* .breadcrumb-row (legacy class kept for test selectors) sets
+     justify-content: space-between, which pushes the kebab to the
+     far right when the breadcrumb has zero intrinsic width. Force
+     flex-start so items pack left, leaving the slack after the kebab. */
+  justify-content: flex-start;
+}
+
+/* Keep breadcrumb sized to content so the page-menu kebab sits flush
+   beside the page title rather than floating at the navbar's right edge.
+   `flex: 1` (set elsewhere) is shorthand for `1 1 0` — i.e. flex-basis 0
+   which collapses the breadcrumb to zero unless flex-grow expands it.
+   Override all three to let it size to content with a shrink fallback. */
+.nav-breadcrumb > .breadcrumb {
+  flex: 0 1 auto;
+}
+
+/* Page-options kebab — adjacent to breadcrumb, slightly prominent. */
+.page-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin-left: 0.375rem;
+  background: var(--bg-tertiary);
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.page-menu-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.nav-breadcrumb::before {
+  content: "";
+  width: 1px;
+  height: 18px;
+  background: var(--border-light);
+  margin-right: 0.75rem;
+  flex-shrink: 0;
+}
+
+/* Page-scoped controls grouped together with a gap before nav-actions */
+.nav-page-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-right: 1.75rem;
+  flex-shrink: 0;
+}
+
 .nav-actions {
   display: flex;
   align-items: center;
   gap: 1rem;
   font-size: 14px;
   color: var(--text-secondary);
+  padding: 0 1.5rem;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .nav-actions a {
@@ -590,13 +687,16 @@ nav {
 
 .user-dropdown-header {
   padding: 0.75rem 1rem;
+  background: var(--bg-tertiary);
+  border-radius: 8px 8px 0 0;
   border-bottom: 1px solid var(--border-light);
 }
 
 .user-dropdown-email {
   font-size: 0.85rem;
   color: var(--text-primary);
-  font-weight: 500;
+  font-weight: 600;
+  text-align: center;
 }
 
 .user-dropdown-menu {
@@ -622,6 +722,53 @@ nav {
 
 .user-dropdown-item:hover {
   background: rgba(55, 53, 47, 0.04);
+}
+
+/* Navbar edge toggles for left/right sidebars. Hidden on desktop where
+   the sidebars host their own toggles inline. Shown at <=1024px (overlay
+   mode) where the in-sidebar toggles get translated off-screen with the
+   panels. Use ID selectors so display rules definitively win over the
+   `.sidebar-toggle { display: flex }` base rule no matter cascade order. */
+#nav-left-toggle,
+#nav-right-toggle {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  #nav-left-toggle,
+  #nav-right-toggle {
+    display: flex;
+  }
+  #nav-left-toggle {
+    margin-left: 0.75rem;
+  }
+  #nav-right-toggle {
+    margin-right: 0.75rem;
+  }
+}
+
+/* Tablet/narrow laptop: hide brand text, tighten navbar paddings so the
+   breadcrumb has more room. Logo stays as a home link. */
+@media (max-width: 768px) {
+  .nav-brand-text {
+    display: none;
+  }
+  .nav-brand {
+    padding: 0.75rem;
+  }
+  .nav-main {
+    padding: 0.75rem;
+  }
+  .nav-actions {
+    padding: 0 0.75rem;
+    gap: 0.5rem;
+  }
+  .nav-page-controls {
+    padding-right: 0.75rem;
+  }
+  .nav-breadcrumb::before {
+    margin-right: 0.5rem;
+  }
 }
 
 @media (max-width: 640px) {
@@ -680,7 +827,13 @@ nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 0.75rem 0.5rem;
+  /* Match the middle column's toolbar height (44px) so the three column
+     headers form a single horizontal baseline below the navbar. */
+  height: 44px;
+  box-sizing: border-box;
+  padding: 0 0.75rem;
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
 }
 
 .sidebar-header h2 {
@@ -1685,7 +1838,11 @@ body.sidebar-resizing .chat-sidebar {
 }
 
 .chat-sidebar-header {
-  padding: 0.5rem 1rem;
+  /* Match the middle column's toolbar height (44px) so the three column
+     headers form a single horizontal baseline below the navbar. */
+  height: 44px;
+  box-sizing: border-box;
+  padding: 0 1rem;
   border-bottom: 1px solid var(--border-light);
   display: flex;
   align-items: center;
@@ -2613,21 +2770,78 @@ body.sidebar-resizing .chat-sidebar {
   padding-top: 0.5rem;
 }
 
+/* Transparent mount container — the avatar cluster handles its own visuals.
+   Hidden when the Svelte component renders nothing (no users / pre-connect). */
 .presence-indicator {
   position: relative;
-  padding: 0.35rem 0.6rem;
-  background: rgba(35, 131, 226, 0.07);
-  border: none;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  color: #2383e2;
-  cursor: pointer;
-  transition: background 0.15s;
-  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
 }
 
-.presence-indicator:hover {
-  background: rgba(35, 131, 226, 0.14);
+.presence-indicator:empty {
+  display: none;
+}
+
+/* Stacked avatars showing who's editing. Whole cluster is the hover target. */
+.presence-cluster {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.presence-cluster:hover {
+  background: var(--bg-hover-subtle);
+}
+
+.presence-avatar {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: white;
+  /* White outline separates overlapping avatars from each other and from the
+     navbar background. Uses navbar bg so it blends seamlessly in both themes. */
+  box-shadow: 0 0 0 2px var(--bg-primary);
+  flex-shrink: 0;
+  user-select: none;
+  overflow: hidden;
+}
+
+/* Gravatar overlay — sits on top of the initial. If the image 404s, the
+   onerror handler hides it and the initial behind shows through. */
+.presence-avatar-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.presence-avatar + .presence-avatar {
+  margin-left: -8px;
+}
+
+.presence-overflow {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+/* Mark the current user with a subtle inner ring so users can tell themselves
+   apart from collaborators at a glance. */
+.presence-avatar.is-current {
+  outline: 1.5px solid var(--accent-color, #2383e2);
+  outline-offset: -1.5px;
 }
 
 .presence-popover {
@@ -2671,6 +2885,31 @@ body.sidebar-resizing .chat-sidebar {
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+/* Mini avatar in popover list — matches the cluster style but smaller. */
+.presence-user-avatar {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: white;
+  flex-shrink: 0;
+  user-select: none;
+  overflow: hidden;
+}
+
+.presence-user-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Breadcrumb responsive — container queries react to actual available width */
@@ -3110,7 +3349,7 @@ body.sidebar-resizing .chat-sidebar {
 
 .actions-dropdown-divider {
   height: 1px;
-  background: #e5e7eb;
+  background: var(--border-light);
   margin: 0.375rem 0;
 }
 
