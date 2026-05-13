@@ -59,6 +59,7 @@ import { largeFileModeExtension } from "./largeFileMode.js";
 import { LARGE_FILE_BYTES } from "./config/performance.js";
 import { sectionFoldHover } from "./sectionFoldHover.js";
 import { pasteCodeDetection } from "./pasteCodeDetection.js";
+import { smartHomeKeymap } from "./smartHomeKeymap.js";
 import { foldChangeListener, setCurrentPageIdForFolds } from "./foldChangeListener.js";
 import { restoreFoldedRanges } from "./foldPersistence.js";
 import { setupUserAvatar } from "./gravatar.js";
@@ -1698,6 +1699,7 @@ function initializeEditor(pageContent = "", additionalExtensions = [], filetype 
           sectionFoldHover,
           foldChangeListener,
         ]),
+    smartHomeKeymap,
     keymap.of(defaultKeymap),
     keymap.of([indentWithTab]),
     clickToEndPlugin,
