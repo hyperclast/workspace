@@ -785,6 +785,9 @@
           {#if showOrgNames && project.org?.name}
             <span class="project-org">{project.org.name}</span>
           {/if}
+          {#if project.pages?.length}
+            <span class="project-page-count">{project.pages.length}</span>
+          {/if}
           <div class="project-menu">
             <button
               class="project-menu-btn"

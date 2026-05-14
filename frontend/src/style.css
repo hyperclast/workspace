@@ -724,25 +724,24 @@ nav {
   background: rgba(55, 53, 47, 0.04);
 }
 
-/* Navbar edge toggles for left/right sidebars. Hidden on desktop where
-   the sidebars host their own toggles inline. Shown at <=1024px (overlay
-   mode) where the in-sidebar toggles get translated off-screen with the
-   panels. Use ID selectors so display rules definitively win over the
-   `.sidebar-toggle { display: flex }` base rule no matter cascade order. */
-#nav-left-toggle,
+/* Left edge toggle is always visible — the new sidebar design no longer
+   carries an inline toggle inside the sidenav header. Right edge toggle
+   stays narrow-width-only because the chat sidebar still has its own
+   inline toggle. Use ID selectors so display rules definitively win over
+   the `.sidebar-toggle { display: flex }` base rule no matter cascade
+   order. */
+#nav-left-toggle {
+  display: flex;
+  margin-left: 0.75rem;
+}
+
 #nav-right-toggle {
   display: none;
 }
 
 @media (max-width: 1024px) {
-  #nav-left-toggle,
   #nav-right-toggle {
     display: flex;
-  }
-  #nav-left-toggle {
-    margin-left: 0.75rem;
-  }
-  #nav-right-toggle {
     margin-right: 0.75rem;
   }
 }
@@ -806,110 +805,143 @@ nav {
   border-right: 1px solid var(--border-light);
 }
 
-.note-sidebar.collapsed .sidebar-header h2,
-.note-sidebar.collapsed .sidebar-jump-btn,
-.note-sidebar.collapsed .sidebar-icon-btn,
+.note-sidebar.collapsed .sidebar-top,
 .note-sidebar.collapsed .sidebar-list,
 .note-sidebar.collapsed .sidebar-new-btn {
   display: none;
-}
-
-.note-sidebar.collapsed .sidebar-header {
-  padding: 0.75rem 0.5rem 0.5rem;
-  justify-content: center;
 }
 
 .note-sidebar.collapsed .sidebar-resize-handle {
   display: none;
 }
 
-.sidebar-header {
+/* ============================================
+   Sidenav top section (Workspace label + Today)
+   ============================================ */
+
+.sidebar-top {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  /* Match the middle column's toolbar height (44px) so the three column
-     headers form a single horizontal baseline below the navbar. */
-  height: 44px;
-  box-sizing: border-box;
-  padding: 0 0.75rem;
-  border-bottom: 1px solid var(--border-light);
+  flex-direction: column;
+  padding: 12px 10px 8px;
   flex-shrink: 0;
 }
 
-.sidebar-header h2 {
-  font-size: 0.7rem;
-  font-weight: 500;
-  color: var(--text-tertiary, rgba(55, 53, 47, 0.5));
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0;
+.workspace-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 22px;
+  padding: 0 4px;
+  margin-bottom: 8px;
 }
 
-/* Small icon-only button in sidenav header (e.g., daily note) */
-.sidebar-icon-btn {
+.workspace-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  user-select: none;
+}
+
+.kbd-trigger {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+.kbd-trigger:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+.kbd-trigger kbd {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.25rem;
-  margin-left: auto;
-  margin-right: 0.25rem;
-  border: 1px solid transparent;
+  height: 20px;
+  padding: 0 7px;
+  font: 600 10.5px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-medium);
+  border-radius: 5px;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.1s ease, border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.kbd-trigger:hover kbd {
+  border-color: var(--accent-color);
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  transform: translateY(-1px);
+}
+
+.sidebar-today {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: none;
   background: transparent;
-  color: var(--text-secondary, rgba(55, 53, 47, 0.65));
   cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.15s;
+  border-radius: 6px;
+  font-size: 13.5px;
+  color: var(--text-primary);
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.sidebar-icon-btn:hover {
-  background: var(--bg-hover, rgba(55, 53, 47, 0.08));
-  border-color: var(--border-color, rgba(55, 53, 47, 0.16));
-  color: var(--text-primary, #37352f);
+.sidebar-today:hover {
+  background: var(--bg-hover-subtle);
 }
 
-:root.dark .sidebar-icon-btn,
-[data-theme="dark"] .sidebar-icon-btn {
-  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
+.sidebar-today:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
 }
 
-:root.dark .sidebar-icon-btn:hover,
-[data-theme="dark"] .sidebar-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.13);
-  color: var(--text-primary, #fff);
+.sidebar-today.active {
+  background: color-mix(in srgb, var(--accent-warm) 11%, transparent);
+  color: var(--accent-warm);
 }
 
-/* Jump button in sidenav header */
-.sidebar-jump-btn {
-  padding: 0.25rem 0.5rem;
-  border: 1px solid var(--border-color, rgba(55, 53, 47, 0.16));
-  background: var(--bg-hover, rgba(55, 53, 47, 0.04));
-  color: var(--text-secondary, rgba(55, 53, 47, 0.65));
-  font-size: 0.6875rem;
+.today-marker {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sidebar-today.active .today-marker {
+  background: var(--accent-warm);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-warm) 18%, transparent);
+}
+
+.today-label {
   font-weight: 500;
-  cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.15s;
+  flex-shrink: 0;
 }
 
-.sidebar-jump-btn:hover {
-  background: var(--bg-hover, rgba(55, 53, 47, 0.1));
-  border-color: var(--border-color, rgba(55, 53, 47, 0.3));
-  color: var(--text-primary, #37352f);
+.today-date {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
 }
 
-:root.dark .sidebar-jump-btn,
-[data-theme="dark"] .sidebar-jump-btn {
-  border-color: var(--border-color, rgba(255, 255, 255, 0.13));
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
-}
-
-:root.dark .sidebar-jump-btn:hover,
-[data-theme="dark"] .sidebar-jump-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: var(--text-primary, #fff);
+.sidebar-today.active .today-date {
+  color: color-mix(in srgb, var(--accent-warm) 75%, var(--text-tertiary));
 }
 
 .sidebar-list {
@@ -920,9 +952,9 @@ nav {
 
 .sidebar-item {
   padding: 0.5rem 0.75rem;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, color 0.15s;
   margin-bottom: 2px;
 }
 
@@ -936,7 +968,8 @@ nav {
 }
 
 .sidebar-item.active {
-  background: var(--bg-hover);
+  background: color-mix(in srgb, var(--accent-color) 8%, transparent);
+  color: var(--accent-color);
 }
 
 .sidebar-item-title {
@@ -988,25 +1021,28 @@ nav {
    ============================================ */
 
 .sidebar-project {
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
 }
 
 .sidebar-project-header {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.5rem 0.75rem;
-  background: rgba(55, 53, 47, 0.04);
-  border-radius: 4px;
-  font-weight: 500;
-  font-size: 0.875rem;
-  margin-bottom: 0.25rem;
+  gap: 6px;
+  padding: 5px 12px 5px 8px;
+  background: transparent;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: 2px;
   cursor: pointer;
   transition: background 0.15s;
+  position: relative;
+  min-height: 26px;
 }
 
 .sidebar-project-header:hover {
-  background: rgba(55, 53, 47, 0.08);
+  background: var(--bg-hover-subtle);
 }
 
 .sidebar-project-header:focus-visible {
@@ -1016,8 +1052,23 @@ nav {
 
 .project-chevron {
   flex-shrink: 0;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   transition: transform 0.2s;
+}
+
+.project-page-count {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  padding: 0;
+  transition: opacity 0.15s;
+}
+
+.sidebar-project-header:hover .project-page-count {
+  opacity: 0;
 }
 
 .sidebar-project.expanded .project-chevron {
@@ -1034,8 +1085,12 @@ nav {
 }
 
 .project-menu {
-  position: relative;
-  margin-left: auto;
+  position: absolute;
+  right: 12px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
 }
 
@@ -1133,44 +1188,73 @@ nav {
 }
 
 .project-name {
-  flex: 1;
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .project-org {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  margin-left: 0.5rem;
-  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  flex-shrink: 1;
+  min-width: 0;
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-org::before {
+  content: "·";
+  color: var(--text-tertiary);
+  margin-right: 6px;
+  font-weight: 600;
 }
 
 .sidebar-project-pages {
-  margin-left: 0.5rem;
-  padding-left: 0.75rem;
+  margin-left: 4px;
+  padding-left: 10px;
   border-left: 1px solid var(--border-light);
 }
 
 /* Page items within project */
 .sidebar-project-pages .sidebar-item {
-  padding: 0.375rem 0.75rem;
-  margin: 2px 0;
-  font-size: 0.875rem;
+  padding: 4px 10px;
+  margin: 1px 0;
+  font-size: 13.5px;
   display: flex;
   align-items: center;
   gap: 0;
   position: relative;
+  color: var(--text-secondary);
 }
 
 .sidebar-project-pages .sidebar-item .page-title {
-  color: var(--text-primary);
+  color: inherit;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+  font-weight: 400;
+}
+
+.sidebar-project-pages .sidebar-item.active .page-title {
+  color: inherit;
+  font-weight: 500;
+}
+
+.sidebar-project-pages .sidebar-item.active::before {
+  content: "";
+  position: absolute;
+  left: -11px;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: var(--accent-color);
+  border-radius: 2px;
 }
 
 .sidebar-project-pages .sidebar-item .page-filetype {
@@ -1178,9 +1262,7 @@ nav {
   color: var(--text-tertiary, #999);
   opacity: 0.5;
   flex-shrink: 0;
-  margin-left: 3px;
-  align-self: flex-end;
-  margin-bottom: 1px;
+  margin-left: 4px;
 }
 
 .sidebar-project-pages .sidebar-item .page-shared-indicator {
@@ -1446,12 +1528,12 @@ nav {
   display: flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0.375rem 0.75rem;
+  padding: 4px 12px 4px 10px;
   margin-top: 0.5rem;
   cursor: pointer;
   color: var(--text-secondary);
-  font-size: 0.75rem;
-  border-radius: 4px;
+  font-size: 13.5px;
+  border-radius: 6px;
   transition: background 0.15s;
 }
 
@@ -1480,14 +1562,14 @@ nav {
 
 .sidebar-files-header .files-label {
   flex-grow: 1;
+  font-weight: 400;
 }
 
 .sidebar-files-header .files-count {
-  font-size: 0.65rem;
-  background: var(--bg-tertiary);
+  font-size: 11px;
+  font-weight: 500;
   color: var(--text-muted);
-  padding: 0.125rem 0.375rem;
-  border-radius: 10px;
+  font-variant-numeric: tabular-nums;
 }
 
 .sidebar-files-list {
@@ -2448,16 +2530,14 @@ body.sidebar-resizing .chat-sidebar {
     overflow: visible;
   }
 
-  .note-sidebar.collapsed .sidebar-header h2,
-  .note-sidebar.collapsed .sidebar-jump-btn,
+  .note-sidebar.collapsed .sidebar-top,
   .note-sidebar.collapsed .sidebar-list,
   .note-sidebar.collapsed .sidebar-new-btn {
     display: revert;
   }
 
-  .note-sidebar.collapsed .sidebar-header {
-    padding: 0.75rem 0.75rem 0.5rem;
-    justify-content: space-between;
+  .note-sidebar.collapsed .sidebar-top {
+    display: flex;
   }
 
   .note-sidebar.open {

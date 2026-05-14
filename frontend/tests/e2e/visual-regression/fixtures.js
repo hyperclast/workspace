@@ -253,7 +253,7 @@ export async function setupTestPage(page, content, pageName = "Visual Test") {
   // At narrow viewports (≤1024px), the sidebar is hidden — open it first
   const viewport = page.viewportSize();
   if (viewport && viewport.width <= 1024) {
-    const sidebarToggle = page.locator("#sidebar-toggle");
+    const sidebarToggle = page.locator("#nav-left-toggle");
     await sidebarToggle.click();
     await page.waitForTimeout(300);
   }
@@ -277,7 +277,7 @@ export async function setupTestPage(page, content, pageName = "Visual Test") {
   await page.waitForTimeout(500);
 
   // At narrow viewports, close the sidebar overlay so it doesn't block the editor.
-  // Click the backdrop (#sidebar-overlay) instead of #sidebar-toggle, because
+  // Click the backdrop (#sidebar-overlay) instead of #nav-left-toggle, because
   // the open sidebar (z-index: 1000) covers the toggle button at this width.
   if (viewport && viewport.width <= 1024) {
     const overlay = page.locator("#sidebar-overlay.visible");

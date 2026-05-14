@@ -29,7 +29,7 @@ async function loginAndWaitForPageShell(page, baseUrl) {
   await page.fill("#login-password", password);
   await page.click('button[type="submit"]');
   // Wait for the page shell — sidebar toggle is always visible now
-  await page.waitForSelector("#sidebar-toggle", {
+  await page.waitForSelector("#nav-left-toggle", {
     state: "visible",
     timeout: 20000,
   });
@@ -186,7 +186,7 @@ test.describe("Sidebar Responsive Collapse", () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.waitForTimeout(300);
 
-    const toggle = page.locator("#sidebar-toggle");
+    const toggle = page.locator("#nav-left-toggle");
     const sidebar = page.locator("#note-sidebar");
 
     // Toggle should be visible at desktop
@@ -226,7 +226,7 @@ test.describe("Sidebar Responsive Collapse", () => {
     await page.setViewportSize({ width: 1024, height: 800 });
     await page.waitForTimeout(300);
 
-    const toggle = page.locator("#sidebar-toggle");
+    const toggle = page.locator("#nav-left-toggle");
     const sidebar = page.locator("#note-sidebar");
     const overlay = page.locator("#sidebar-overlay");
 
@@ -248,7 +248,7 @@ test.describe("Sidebar Responsive Collapse", () => {
     await page.setViewportSize({ width: 844, height: 800 });
     await page.waitForTimeout(300);
 
-    const toggle = page.locator("#sidebar-toggle");
+    const toggle = page.locator("#nav-left-toggle");
     const sidebar = page.locator("#note-sidebar");
 
     // Content area should be full-width when sidebar is closed

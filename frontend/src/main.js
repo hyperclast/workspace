@@ -105,7 +105,7 @@ import {
   setProjectDeletedHandler,
   setProjectRenamedHandler,
   setupSidenav,
-  updateSidenavActive,
+  updateSidenavActive as _setSidenavActive,
   setShowFilesSection,
   addFileToProject,
 } from "./lib/sidenav.js";
@@ -281,25 +281,20 @@ function renderAppHTML() {
     <div id="note-layout" class="note-layout">
       <div id="sidebar-overlay" class="sidebar-overlay"></div>
       <aside id="note-sidebar" class="note-sidebar">
-        <div class="sidebar-header">
-          <button id="sidebar-toggle" class="sidebar-toggle" title="Toggle project list">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect class="panel-fill" x="3" y="3" width="6" height="18" rx="2" ry="2" stroke="none" />
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <line x1="9" y1="3" x2="9" y2="21" />
-            </svg>
+        <header class="sidebar-top">
+          <div class="workspace-row">
+            <span class="workspace-label">Workspace</span>
+            <button id="sidebar-jump-btn" class="kbd-trigger" type="button" aria-label="Open command palette" title="Open command palette">
+              <kbd>${navigator.platform.toUpperCase().indexOf("MAC") >= 0 ? "⌘ K" : "Ctrl K"}</kbd>
+            </button>
+          </div>
+          <button id="sidebar-daily-note-btn" class="sidebar-today" type="button" title="Open today's note">
+            <span class="today-marker" aria-hidden="true"></span>
+            <span class="today-label">Today</span>
+            <span class="today-date" id="sidebar-today-date"></span>
           </button>
-          <h2>Projects &rsaquo; Pages</h2>
-          <button id="sidebar-daily-note-btn" class="sidebar-icon-btn" title="Open today's note">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="16" y1="2" x2="16" y2="6"></line>
-              <line x1="8" y1="2" x2="8" y2="6"></line>
-              <line x1="3" y1="10" x2="21" y2="10"></line>
-            </svg>
-          </button>
-          <button id="sidebar-jump-btn" class="sidebar-jump-btn">Jump</button>
-        </div>
+          <button id="sidebar-toggle" class="sidebar-toggle" hidden aria-hidden="true" tabindex="-1"></button>
+        </header>
         <div id="sidebar-list" class="sidebar-list">
           <!-- Populated dynamically -->
         </div>
@@ -2457,6 +2452,43 @@ function handleCommandPaletteAction(actionId) {
 window.openJumpPalette = openJumpPalette;
 
 /**
+ * Today's date as YYYY-MM-DD in the user's local timezone.
+ * Matches the daily-note title format so a string equality check tells us
+ * whether the current page IS today's daily note.
+ */
+function todayIsoDate() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+}
+
+/**
+ * Refresh the "Today" sidebar item: stamp today's date and toggle the
+ * active treatment when the current page is today's daily note.
+ */
+function refreshTodayUI() {
+  const dateEl = document.getElementById("sidebar-today-date");
+  const today = todayIsoDate();
+  if (dateEl) dateEl.textContent = today;
+  const btn = document.getElementById("sidebar-daily-note-btn");
+  if (!btn) return;
+  const isActive = currentPage?.title === today;
+  btn.classList.toggle("active", isActive);
+  if (isActive) btn.setAttribute("aria-current", "page");
+  else btn.removeAttribute("aria-current");
+}
+
+/**
+ * Wrap the sidenav active-page setter so the "Today" highlight stays in
+ * sync with the page tree's active state.
+ */
+function updateSidenavActive(pageId) {
+  _setSidenavActive(pageId);
+  refreshTodayUI();
+}
+
+/**
  * Setup the Jump button click handler.
  */
 function setupJumpButton() {
@@ -2465,6 +2497,8 @@ function setupJumpButton() {
 
   const dailyNoteBtn = document.getElementById("sidebar-daily-note-btn");
   dailyNoteBtn?.addEventListener("click", () => openDailyNote());
+
+  refreshTodayUI();
 }
 
 /**
