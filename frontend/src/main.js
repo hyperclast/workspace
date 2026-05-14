@@ -285,7 +285,7 @@ function renderAppHTML() {
           <div class="workspace-row">
             <span class="workspace-label">Workspace</span>
             <button id="sidebar-jump-btn" class="kbd-trigger" type="button" aria-label="Open command palette" title="Open command palette">
-              <kbd>${navigator.platform.toUpperCase().indexOf("MAC") >= 0 ? "⌘ K" : "Ctrl K"}</kbd>
+              <kbd>${navigator.platform.toUpperCase().indexOf("MAC") >= 0 ? "⌘K" : "^K"}</kbd>
             </button>
           </div>
           <button id="sidebar-daily-note-btn" class="sidebar-today" type="button" title="Open today's note">

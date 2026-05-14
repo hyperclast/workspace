@@ -1635,6 +1635,31 @@ nav {
   opacity: 1;
 }
 
+/* Touch devices (no hover capability) — make the per-row 3-dot menus
+   permanently visible so iPad / mobile users can reach project, page,
+   folder, and file actions without needing a hover trigger. */
+@media (hover: none) {
+  .project-menu-btn,
+  .sidebar-project-pages .sidebar-item .page-menu,
+  .sidebar-folder-header .folder-menu,
+  .sidebar-file-item .file-menu {
+    opacity: 1;
+  }
+
+  /* The project menu sits absolutely at the right edge. Shift the page
+     count left so they don't stack on top of each other. */
+  .project-page-count {
+    margin-right: 28px;
+  }
+
+  /* Don't fade the count on press/focus when there's no hover — it
+     lives next to, not under, the always-visible menu. */
+  .sidebar-project-header:hover .project-page-count,
+  .sidebar-project-header:focus-within .project-page-count {
+    opacity: 1;
+  }
+}
+
 .sidebar-file-item .file-menu-btn {
   background: none;
   border: none;
