@@ -2,8 +2,8 @@ from typing import List
 
 from django.conf import settings
 
-from ask.helpers.embeddings import has_embedding_credentials
-from ask.models import PageEmbedding
+from ask.helpers.embeddings import collect_embedding_usage, has_embedding_credentials
+from ask.models import EmbeddingUsage, PageEmbedding
 from backend.utils import log_error, log_info
 from core.helpers import task
 from pages.models import Page
@@ -71,15 +71,30 @@ def index_user_pages(user_id: int, page_external_ids: List[str]):
     indexed = 0
     failed = 0
 
-    for page_id in page_external_ids:
-        try:
-            page = Page.objects.get(external_id=page_id)
-            _, action = PageEmbedding.objects.update_or_create_page_embedding(page, user=user)
-            log_info("Bulk index: %s embedding for %s", action, page_id)
-            indexed += 1
-        except Exception as e:
-            log_error("Bulk index: error for page %s: %s", page_id, e)
-            failed += 1
+    # Defer audit-row INSERTs to one bulk_create at the end. Each page's
+    # PageEmbedding still saves synchronously; only the EmbeddingUsage rows
+    # are batched so a many-page run pays one INSERT round-trip instead of N.
+    with collect_embedding_usage() as usage_buffer:
+        for page_id in page_external_ids:
+            try:
+                page = Page.objects.get(external_id=page_id)
+                _, action = PageEmbedding.objects.update_or_create_page_embedding(page, user=user)
+                log_info("Bulk index: %s embedding for %s", action, page_id)
+                indexed += 1
+            except Exception as e:
+                log_error("Bulk index: error for page %s: %s", page_id, e)
+                failed += 1
+
+        if usage_buffer:
+            try:
+                EmbeddingUsage.objects.bulk_create(usage_buffer)
+            except Exception as exc:
+                log_error(
+                    "Bulk EmbeddingUsage flush failed (%s, %d rows): %s",
+                    type(exc).__name__,
+                    len(usage_buffer),
+                    exc,
+                )
 
     log_info(
         "Bulk indexing complete for user %s: %d indexed, %d failed",

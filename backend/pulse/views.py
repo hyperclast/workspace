@@ -394,6 +394,20 @@ def dashboard(request):
         .order_by("-total_cost")[:20]
     )
 
+    # Top orgs by lifetime embedding spend paid via their shared AIProviderConfig.
+    # Captures self-hosters who attach an org-scoped key — distinct from the
+    # server-keyed Hyperclast-paid spend rolled up above.
+    emb_top_orgs = list(
+        EmbeddingUsage.objects.filter(org__isnull=False)
+        .values("org_id", "org__external_id", "org__name")
+        .annotate(
+            total_cost=Sum("cost_usd"),
+            total_tokens=Sum("total_tokens"),
+            total_calls=Count("id"),
+        )
+        .order_by("-total_cost")[:20]
+    )
+
     context = {
         "dau_data_json": json.dumps(dau_data),
         "signups_data_json": json.dumps(signups_data),
@@ -418,6 +432,7 @@ def dashboard(request):
         "emb_user_keyed_calls_30d": emb_user_keyed_calls_30d,
         "emb_daily_data_json": json.dumps(emb_daily_data),
         "emb_top_users": emb_top_users,
+        "emb_top_orgs": emb_top_orgs,
         "emb_server_key_configured": bool(getattr(settings, "EMBEDDINGS_SERVER_API_KEY", "")),
     }
     return render(request, "pulse/dashboard.html", context)

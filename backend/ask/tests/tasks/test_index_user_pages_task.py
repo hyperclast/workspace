@@ -201,3 +201,76 @@ class TestIndexUserPagesUsageRecordingEndToEnd(TestCase):
         for row in rows:
             self.assertEqual(row.user, user)
             self.assertEqual(row.key_source, "server")
+
+
+@override_settings(ASK_FEATURE_ENABLED=True, EMBEDDINGS_SERVER_API_KEY="sk-server")
+class TestIndexUserPagesBulkCreatesAuditRows(TestCase):
+    """Per-call audit-row INSERTs are deferred to one `bulk_create` per task
+    run so a many-page run pays one INSERT round-trip instead of N."""
+
+    @staticmethod
+    def _litellm_resp(*_args, **_kwargs):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            data=[{"embedding": [0.0] * 1536}],
+            usage=SimpleNamespace(prompt_tokens=10, total_tokens=10),
+            model="text-embedding-3-small",
+        )
+
+    @patch("ask.helpers.embeddings.embedding")
+    def test_uses_bulk_create_for_audit_rows(self, mock_litellm):
+        from ask.models import EmbeddingUsage
+
+        mock_litellm.side_effect = self._litellm_resp
+        user = UserFactory()
+        pages = [PageFactory(creator=user, title=f"Doc {i}", details={"content": f"Body {i}"}) for i in range(3)]
+
+        with patch(
+            "ask.tasks.EmbeddingUsage.objects.bulk_create",
+            wraps=EmbeddingUsage.objects.bulk_create,
+        ) as mock_bulk:
+            index_user_pages(user_id=user.id, page_external_ids=[p.external_id for p in pages])
+
+        mock_bulk.assert_called_once()
+        flushed = mock_bulk.call_args.args[0]
+        self.assertEqual(len(flushed), 3)
+        self.assertEqual(EmbeddingUsage.objects.filter(kind="index").count(), 3)
+
+    @patch("ask.helpers.embeddings.embedding")
+    def test_partial_failures_still_flush_successful_rows(self, mock_litellm):
+        """One page failing must not lose the audit rows for the others."""
+        from ask.models import EmbeddingUsage
+
+        call_count = {"n": 0}
+
+        def _flaky(*_args, **_kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 2:
+                raise RuntimeError("transient API failure")
+            return self._litellm_resp()
+
+        mock_litellm.side_effect = _flaky
+        user = UserFactory()
+        pages = [PageFactory(creator=user, title=f"Doc {i}", details={"content": f"Body {i}"}) for i in range(3)]
+
+        index_user_pages(user_id=user.id, page_external_ids=[p.external_id for p in pages])
+
+        # Two pages succeeded, one failed before reaching the recorder.
+        self.assertEqual(EmbeddingUsage.objects.filter(kind="index").count(), 2)
+
+    @patch("ask.helpers.embeddings.embedding")
+    def test_no_flush_when_nothing_indexed(self, mock_litellm):
+        """An all-failed run shouldn't call bulk_create with an empty list —
+        guards against a spurious empty INSERT statement in the logs."""
+        from ask.models import EmbeddingUsage
+
+        mock_litellm.side_effect = RuntimeError("API down")
+        user = UserFactory()
+        page = PageFactory(creator=user, title="Doc", details={"content": "Body"})
+
+        with patch("ask.tasks.EmbeddingUsage.objects.bulk_create") as mock_bulk:
+            index_user_pages(user_id=user.id, page_external_ids=[page.external_id])
+
+        mock_bulk.assert_not_called()
+        self.assertEqual(EmbeddingUsage.objects.count(), 0)

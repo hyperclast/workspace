@@ -24,6 +24,17 @@ class EmbeddingUsage(TimeStampedModel):
         null=True,
         blank=True,
     )
+    # The org whose shared AIProviderConfig paid for this call — NOT the
+    # requesting user's primary org. NULL for server-keyed, explicit, and
+    # personal-config rows. Populated only when the resolved AIProviderConfig
+    # was org-scoped.
+    org = models.ForeignKey(
+        "users.Org",
+        on_delete=models.SET_NULL,
+        related_name="embedding_usages",
+        null=True,
+        blank=True,
+    )
     page = models.ForeignKey(
         "pages.Page",
         on_delete=models.SET_NULL,
@@ -43,6 +54,7 @@ class EmbeddingUsage(TimeStampedModel):
             models.Index(fields=["created"]),
             models.Index(fields=["user", "created"]),
             models.Index(fields=["key_source", "created"]),
+            models.Index(fields=["org", "created"]),
         ]
 
     def __str__(self):

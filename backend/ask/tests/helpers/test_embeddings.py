@@ -44,6 +44,30 @@ class TestCreateEmbedding(TestCase):
 
         self.assertIn("api_key is required", str(context.exception))
 
+    def test_create_embedding_rejects_invalid_kind(self):
+        """A typo'd kind (e.g. "quary") used to be filtered out silently by the
+        audit-row write, so the row was dropped without a signal. Now it must
+        fail loudly at the entry point so the typo is fixable."""
+        with self.assertRaises(ValueError) as context:
+            create_embedding("test input", api_key="test-key", kind="quary")
+
+        self.assertIn("Invalid kind", str(context.exception))
+
+    @patch("ask.helpers.embeddings.embedding")
+    def test_create_embedding_accepts_kind_enum_member(self, mock_embedding):
+        """Callers should be able to pass the `EmbeddingUsageKind` enum directly
+        instead of its string value. TextChoices inherits from `str`, so this
+        is the same DB-stored value but type-checks cleanly at the call site."""
+        from ask.models import EmbeddingUsageKind
+
+        mock_response = Mock()
+        mock_response.data = [{"embedding": [0.0] * 1536}]
+        mock_embedding.return_value = mock_response
+
+        # Both forms succeed. The enum form is the preferred typed call.
+        create_embedding("test input", api_key="test-key", kind=EmbeddingUsageKind.INDEX)
+        create_embedding("test input", api_key="test-key", kind="query")
+
     @patch("ask.helpers.embeddings.embedding")
     def test_create_embedding_with_custom_model(self, mock_embedding):
         """Test creating an embedding with a custom model."""

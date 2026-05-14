@@ -990,7 +990,8 @@
             <canvas id="embeddings-spend-chart"></canvas>
           </div>
           {% if emb_top_users %}
-            <div class="table-scroll" style="margin-top: 1rem;">
+            <h3 style="margin-top: 1rem;">Top users by server-key spend</h3>
+            <div class="table-scroll">
               <table class="data-table">
                 <thead>
                   <tr>
@@ -1027,6 +1028,33 @@
           {% else %}
             <div class="empty-state">
               <p>No server-side embedding calls recorded yet.</p>
+            </div>
+          {% endif %}
+          {% if emb_top_orgs %}
+            <h3 style="margin-top: 1.5rem;">Top orgs by self-hosted spend</h3>
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Org</th>
+                    <th>External ID</th>
+                    <th>Calls</th>
+                    <th>Tokens</th>
+                    <th>Lifetime cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in emb_top_orgs %}
+                    <tr>
+                      <td>{{ row.org__name|default:"—" }}</td>
+                      <td>{{ row.org__external_id|default:"—" }}</td>
+                      <td>{{ row.total_calls }}</td>
+                      <td>{{ row.total_tokens }}</td>
+                      <td>${{ row.total_cost|floatformat:4 }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
             </div>
           {% endif %}
         </section>

@@ -11,6 +11,7 @@ from ask.helpers.embeddings import (
     EMBEDDING_COST_PER_MILLION_TOKENS,
     _compute_embedding_cost,
     _extract_usage_tokens,
+    collect_embedding_usage,
     create_embedding,
 )
 from ask.models import EmbeddingUsage
@@ -85,6 +86,58 @@ class TestRecordsUserSourceWhenFallback(TestCase):
 
         row = EmbeddingUsage.objects.get()
         self.assertEqual(row.key_source, "user")
+        self.assertIsNone(row.org)
+
+    @patch("ask.helpers.embeddings.embedding")
+    def test_org_keyed_call_records_paying_org(self, mock_embedding):
+        """When the resolver picks an org's shared AIProviderConfig, the audit
+        row must point at that org so spend rolls up to the paying entity."""
+        from ask.constants import AIProvider
+        from users.models import AIProviderConfig
+        from users.tests.factories import OrgFactory, OrgMemberFactory
+
+        mock_embedding.return_value = _build_litellm_response()
+        org = OrgFactory()
+        user = UserFactory()
+        OrgMemberFactory(org=org, user=user, role="member")
+        AIProviderConfig.objects.create(
+            org=org,
+            provider=AIProvider.OPENAI.value,
+            api_key="sk-org-openai",
+            is_enabled=True,
+            is_validated=True,
+        )
+        create_embedding("data", user=user, kind="index")
+
+        row = EmbeddingUsage.objects.get()
+        self.assertEqual(row.key_source, "user")
+        self.assertEqual(row.org, org)
+
+    @override_settings(EMBEDDINGS_SERVER_API_KEY="sk-server")
+    @patch("ask.helpers.embeddings.embedding")
+    def test_server_keyed_call_records_no_org_for_org_member(self, mock_embedding):
+        """Regression guard: a member of an org that has a shared config must
+        still record `org=None` when the server key wins precedence."""
+        from ask.constants import AIProvider
+        from users.models import AIProviderConfig
+        from users.tests.factories import OrgFactory, OrgMemberFactory
+
+        mock_embedding.return_value = _build_litellm_response()
+        org = OrgFactory()
+        user = UserFactory()
+        OrgMemberFactory(org=org, user=user, role="member")
+        AIProviderConfig.objects.create(
+            org=org,
+            provider=AIProvider.OPENAI.value,
+            api_key="sk-org-openai",
+            is_enabled=True,
+            is_validated=True,
+        )
+        create_embedding("data", user=user, kind="index")
+
+        row = EmbeddingUsage.objects.get()
+        self.assertEqual(row.key_source, "server")
+        self.assertIsNone(row.org)
 
 
 class TestRecordingRobustness(TestCase):
@@ -106,11 +159,28 @@ class TestRecordingRobustness(TestCase):
         """If the audit table is unreachable, the embedding pipeline must still
         return a usable vector — observability shouldn't take down the feature."""
         mock_embedding.return_value = _build_litellm_response()
-        mock_usage_cls.objects.create.side_effect = RuntimeError("DB unreachable")
+        mock_usage_cls.return_value.save.side_effect = RuntimeError("DB unreachable")
 
         result = create_embedding("data", api_key="sk-test")
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 1536)
+
+    @patch("ask.helpers.embeddings.log_error")
+    @patch("ask.models.EmbeddingUsage")
+    @patch("ask.helpers.embeddings.embedding")
+    def test_recording_failure_logs_exception_type(self, mock_embedding, mock_usage_cls, mock_log_error):
+        """Triage in production is much faster when the log line names the
+        exception class — `RuntimeError` vs `IntegrityError` vs `OperationalError`
+        all need different responses. The bare message alone doesn't tell you
+        which one tripped."""
+        mock_embedding.return_value = _build_litellm_response()
+        mock_usage_cls.return_value.save.side_effect = RuntimeError("DB unreachable")
+
+        create_embedding("data", api_key="sk-test")
+
+        mock_log_error.assert_called_once()
+        args, _ = mock_log_error.call_args
+        self.assertIn("RuntimeError", args)
 
 
 @override_settings(EMBEDDINGS_SERVER_API_KEY="sk-server")
@@ -247,3 +317,63 @@ class TestExtractUsageTokensDirect(TestCase):
         strings, or Mocks shouldn't produce a row with garbage values."""
         response = SimpleNamespace(usage={"prompt_tokens": None, "total_tokens": "10"})
         self.assertEqual(_extract_usage_tokens(response), (None, None))
+
+
+@override_settings(EMBEDDINGS_SERVER_API_KEY="sk-server")
+class TestCollectEmbeddingUsageBuffer(TestCase):
+    """The buffering context manager defers per-call INSERTs so a bulk caller
+    can amortize them into a single `bulk_create`."""
+
+    @patch("ask.helpers.embeddings.embedding")
+    def test_calls_inside_context_do_not_insert(self, mock_embedding):
+        mock_embedding.return_value = _build_litellm_response()
+
+        with collect_embedding_usage() as buffer:
+            create_embedding("a", api_key="sk-test")
+            create_embedding("b", api_key="sk-test")
+            self.assertEqual(EmbeddingUsage.objects.count(), 0)
+            self.assertEqual(len(buffer), 2)
+            for row in buffer:
+                self.assertIsNone(row.pk)
+
+    @patch("ask.helpers.embeddings.embedding")
+    def test_buffer_resets_after_context(self, mock_embedding):
+        """Default per-call insertion must resume after the context exits."""
+        mock_embedding.return_value = _build_litellm_response()
+
+        with collect_embedding_usage():
+            create_embedding("inside", api_key="sk-test")
+            self.assertEqual(EmbeddingUsage.objects.count(), 0)
+
+        create_embedding("outside", api_key="sk-test")
+        self.assertEqual(EmbeddingUsage.objects.count(), 1)
+
+    @patch("ask.helpers.embeddings.embedding")
+    def test_buffer_resets_on_exception(self, mock_embedding):
+        """The contextvar must be reset even when the block raises, otherwise
+        a stray exception would silently disable per-call inserts for the
+        rest of the worker process."""
+        mock_embedding.return_value = _build_litellm_response()
+
+        with self.assertRaises(RuntimeError):
+            with collect_embedding_usage():
+                create_embedding("inside", api_key="sk-test")
+                raise RuntimeError("boom")
+
+        create_embedding("outside", api_key="sk-test")
+        self.assertEqual(EmbeddingUsage.objects.count(), 1)
+
+    @patch("ask.helpers.embeddings.embedding")
+    def test_buffer_flushable_via_bulk_create(self, mock_embedding):
+        mock_embedding.return_value = _build_litellm_response(prompt_tokens=5, total_tokens=5)
+
+        with collect_embedding_usage() as buffer:
+            for _ in range(3):
+                create_embedding("data", api_key="sk-test")
+            EmbeddingUsage.objects.bulk_create(buffer)
+
+        rows = list(EmbeddingUsage.objects.all())
+        self.assertEqual(len(rows), 3)
+        for row in rows:
+            self.assertEqual(row.total_tokens, 5)
+            self.assertIsNotNone(row.created)

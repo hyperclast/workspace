@@ -9,6 +9,7 @@ class EmbeddingUsageAdmin(admin.ModelAdmin):
     list_display = (
         "created",
         "user",
+        "org",
         "page",
         "model",
         "kind",
@@ -16,10 +17,11 @@ class EmbeddingUsageAdmin(admin.ModelAdmin):
         "total_tokens",
         "cost_usd",
     )
-    list_filter = ("kind", "key_source", "model")
+    list_filter = ("kind", "key_source", "model", "org")
     search_fields = (
         "user__email",
         "user__username",
+        "org__name",
         "page__external_id",
         "page__title",
         "model",
@@ -27,7 +29,7 @@ class EmbeddingUsageAdmin(admin.ModelAdmin):
     readonly_fields = ("created", "modified")
     date_hierarchy = "created"
     ordering = ("-created",)
-    list_select_related = ("user", "page")
+    list_select_related = ("user", "org", "page")
 
     def changelist_view(self, request, extra_context=None):
         response = super().changelist_view(request, extra_context=extra_context)

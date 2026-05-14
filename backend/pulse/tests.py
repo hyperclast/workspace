@@ -7,10 +7,10 @@ from django.urls import reverse
 from django.utils import timezone
 
 from ask.models import EmbeddingUsage
-from users.tests.factories import TEST_USER_PASSWORD, UserFactory
+from users.tests.factories import TEST_USER_PASSWORD, OrgFactory, UserFactory
 
 
-def _make_usage(*, user=None, created=None, key_source="server", cost="0.001", tokens=100, kind="index"):
+def _make_usage(*, user=None, org=None, created=None, key_source="server", cost="0.001", tokens=100, kind="index"):
     """Create an EmbeddingUsage row with the given timestamp.
 
     `created` is auto-managed by Django (auto_now_add=True), so we override
@@ -18,6 +18,7 @@ def _make_usage(*, user=None, created=None, key_source="server", cost="0.001", t
     """
     row = EmbeddingUsage.objects.create(
         user=user,
+        org=org,
         model="text-embedding-3-small",
         prompt_tokens=tokens,
         total_tokens=tokens,
@@ -138,6 +139,18 @@ class TestPulseDashboardEmbeddingSpend(TestCase):
         chart_rows = json.loads(ctx["emb_daily_data_json"])
         self.assertEqual(sum(r["cost"] for r in chart_rows), 0.10)
 
+    def test_user_keyed_counter_excludes_explicit_source_rows(self):
+        """Mirrors the server-spend guard for the user-keyed counter:
+        `explicit` rows (scripts/tests) must not inflate the
+        'user-keyed calls (30d)' display."""
+        user = UserFactory()
+        now = timezone.now()
+        _make_usage(user=user, created=now - timedelta(days=1), key_source="user", cost="0.10")
+        _make_usage(user=user, created=now - timedelta(days=1), key_source="explicit", cost="50.00")
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.context["emb_user_keyed_calls_30d"], 1)
+
     def test_user_cost_aggregates_multiple_calls(self):
         """A heavy user with many small calls should appear with the sum across
         all of them — not just the latest. Regression guard for grouping."""
@@ -185,3 +198,38 @@ class TestPulseDashboardEmbeddingSpend(TestCase):
         with override_settings(EMBEDDINGS_SERVER_API_KEY="sk-server"):
             response = self.client.get(self.url)
             self.assertTrue(response.context["emb_server_key_configured"])
+
+    def test_top_orgs_empty_when_no_org_keyed_usage(self):
+        response = self.client.get(self.url)
+        self.assertEqual(list(response.context["emb_top_orgs"]), [])
+
+    def test_top_orgs_populated_when_org_keyed_usage_exists(self):
+        """Embedding spend paid via an org's shared AIProviderConfig rolls up
+        to that org so admins can spot heavy self-hosting tenants."""
+        org_heavy = OrgFactory()
+        org_light = OrgFactory()
+        now = timezone.now()
+        _make_usage(org=org_heavy, created=now - timedelta(days=1), key_source="user", cost="0.50")
+        _make_usage(org=org_heavy, created=now - timedelta(days=2), key_source="user", cost="0.30")
+        _make_usage(org=org_light, created=now - timedelta(days=1), key_source="user", cost="0.05")
+
+        response = self.client.get(self.url)
+        top = list(response.context["emb_top_orgs"])
+
+        self.assertEqual(len(top), 2)
+        self.assertEqual(top[0]["org_id"], org_heavy.id)
+        self.assertEqual(top[0]["total_cost"], Decimal("0.80"))
+        self.assertEqual(top[0]["total_calls"], 2)
+        self.assertEqual(top[1]["org_id"], org_light.id)
+        self.assertEqual(top[1]["total_cost"], Decimal("0.05"))
+
+    def test_top_orgs_excludes_rows_without_org(self):
+        """Server-keyed and user-personal rows have no org and must not pollute
+        the per-org table."""
+        user = UserFactory()
+        now = timezone.now()
+        _make_usage(user=user, created=now - timedelta(days=1), key_source="server", cost="0.50")
+        _make_usage(user=user, created=now - timedelta(days=1), key_source="user", cost="0.25")
+
+        response = self.client.get(self.url)
+        self.assertEqual(list(response.context["emb_top_orgs"]), [])
