@@ -436,6 +436,12 @@ let currentPage = null;
 // Store collaboration objects (ydoc, provider, etc.)
 let collabObjects = null;
 
+// True once `upgradeEditorToCollaborative` has rebuilt the editor with the
+// yCollab extension attached. Tests use this to wait for the upgrade before
+// dispatching content, so their inserts aren't wiped by the destroy/recreate
+// inside the upgrade. Reset on every page navigation in `cleanupCurrentPage`.
+let editorUpgradedToCollab = false;
+
 // Store current user globally
 let currentUser = null;
 
@@ -1143,6 +1149,8 @@ function upgradeEditorToCollaborative(collabObjects, filetype) {
     restoreFoldedRanges(window.editorView, currentPage.external_id);
   }
 
+  editorUpgradedToCollab = true;
+
   console.log("[Collab] Editor upgraded to collaborative mode");
 }
 
@@ -1172,6 +1180,14 @@ window.getCurrentPage = () => currentPage;
 window.isCollabSynced = () => {
   return collabObjects?.provider?.synced === true;
 };
+
+/**
+ * Check if the editor has finished upgrading to collaborative mode (for testing).
+ * The upgrade destroys the REST-only editor and re-mounts with the yCollab
+ * extension; dispatches before this returns true are lost when the rebuild
+ * happens.
+ */
+window.isCollabUpgraded = () => editorUpgradedToCollab;
 
 /**
  * Cleanup page state without navigating (used when switching pages).
@@ -1204,6 +1220,7 @@ function cleanupCurrentPage() {
     window.ydoc = null;
     window.ytext = null;
   }
+  editorUpgradedToCollab = false;
 
   if (window.editorView) {
     window.editorView.destroy();
@@ -1339,6 +1356,7 @@ async function openPage(external_id, skipPushState = false) {
     window.ydoc = null;
     window.ytext = null;
   }
+  editorUpgradedToCollab = false;
 
   const navSpan = metrics.startSpan("page_navigation", {
     pageId: external_id,

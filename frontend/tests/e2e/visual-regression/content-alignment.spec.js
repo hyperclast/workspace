@@ -1,8 +1,11 @@
 /**
  * Content Left-Alignment Regression Test
  *
- * Verifies that the breadcrumb, toolbar, page title, and editor content
- * all start at the same left pixel position — flush alignment like Obsidian.
+ * Verifies that the toolbar, page title, and editor content all start at
+ * the same left pixel position inside `.note-page` — flush alignment like
+ * Obsidian. The breadcrumb lives in the navbar and has its own stacking
+ * context, so it is covered by a separate placement assertion instead of
+ * being folded into the alignment chain.
  *
  * Measures the actual text-start X position of each element using
  * getBoundingClientRect().left + computedStyle.paddingLeft, so padding
@@ -23,7 +26,7 @@ test.describe("Content Left-Alignment", () => {
     await login(page);
   });
 
-  test("breadcrumb, toolbar, title, and editor content are left-aligned", async ({ page }) => {
+  test("toolbar, title, and editor content are left-aligned", async ({ page }) => {
     await setupTestPage(page, FIXTURES.mixedContent, "Alignment Flush Test");
 
     // Wait for all elements to render
@@ -56,15 +59,11 @@ test.describe("Content Left-Alignment", () => {
         return rect.left + parseFloat(style.paddingLeft);
       }
 
-      // 1. Breadcrumb — first text in the breadcrumb row
-      const breadcrumb = document.querySelector(".breadcrumb-row");
-      const breadcrumbX = breadcrumb ? getTextStartX(breadcrumb) : null;
-
-      // 2. Toolbar — first visible button's left edge
+      // 1. Toolbar — first visible button's left edge
       const toolbarBtn = document.querySelector(".toolbar-container .toolbar-btn");
       const toolbarX = toolbarBtn ? toolbarBtn.getBoundingClientRect().left : null;
 
-      // 3. Page title — text start inside the input
+      // 2. Page title — text start inside the input
       const titleInput = document.querySelector(".note-title-input");
       let titleX = null;
       if (titleInput) {
@@ -74,7 +73,7 @@ test.describe("Content Left-Alignment", () => {
         titleX = rect.left + parseFloat(style.paddingLeft);
       }
 
-      // 4. Editor content — first non-empty .cm-line text start
+      // 3. Editor content — first non-empty .cm-line text start
       const cmLines = document.querySelectorAll(".cm-line");
       let contentX = null;
       for (const line of cmLines) {
@@ -85,7 +84,6 @@ test.describe("Content Left-Alignment", () => {
       }
 
       return {
-        breadcrumbX: breadcrumbX ? Math.round(breadcrumbX * 10) / 10 : null,
         toolbarX: toolbarX ? Math.round(toolbarX * 10) / 10 : null,
         titleX: titleX ? Math.round(titleX * 10) / 10 : null,
         contentX: contentX ? Math.round(contentX * 10) / 10 : null,
@@ -93,34 +91,48 @@ test.describe("Content Left-Alignment", () => {
     });
 
     console.log("Left-alignment positions (px from viewport left):");
-    console.log(`  Breadcrumb: ${positions.breadcrumbX}px`);
     console.log(`  Toolbar:    ${positions.toolbarX}px`);
     console.log(`  Title:      ${positions.titleX}px`);
     console.log(`  Content:    ${positions.contentX}px`);
 
-    // All must be present
-    expect(positions.breadcrumbX, "Breadcrumb not found").not.toBeNull();
     expect(positions.toolbarX, "Toolbar not found").not.toBeNull();
     expect(positions.titleX, "Title not found").not.toBeNull();
     expect(positions.contentX, "Content not found").not.toBeNull();
 
-    // Use breadcrumb as the reference point
-    const reference = positions.breadcrumbX;
+    // Content is the canonical reference — toolbar and title align to it.
+    const reference = positions.contentX;
 
     expect(
       Math.abs(positions.toolbarX - reference),
-      `Toolbar (${positions.toolbarX}px) misaligned with breadcrumb (${reference}px)`
+      `Toolbar (${positions.toolbarX}px) misaligned with content (${reference}px)`
     ).toBeLessThanOrEqual(ALIGNMENT_TOLERANCE);
 
     expect(
       Math.abs(positions.titleX - reference),
-      `Title (${positions.titleX}px) misaligned with breadcrumb (${reference}px)`
+      `Title (${positions.titleX}px) misaligned with content (${reference}px)`
     ).toBeLessThanOrEqual(ALIGNMENT_TOLERANCE);
+  });
 
-    expect(
-      Math.abs(positions.contentX - reference),
-      `Content (${positions.contentX}px) misaligned with breadcrumb (${reference}px)`
-    ).toBeLessThanOrEqual(ALIGNMENT_TOLERANCE);
+  test("breadcrumb is in the navbar, outside the page content stacking context", async ({
+    page,
+  }) => {
+    await setupTestPage(page, FIXTURES.mixedContent, "Breadcrumb Placement Test");
+    await page.waitForSelector(".cm-line", { timeout: 10000 });
+    await page.waitForTimeout(500);
+
+    const placement = await page.evaluate(() => {
+      const breadcrumb = document.querySelector(".breadcrumb-row");
+      if (!breadcrumb) return { found: false };
+      return {
+        found: true,
+        inNav: breadcrumb.closest("nav") !== null,
+        inNotePage: breadcrumb.closest(".note-page") !== null,
+      };
+    });
+
+    expect(placement.found, "Breadcrumb row should exist in the DOM").toBe(true);
+    expect(placement.inNav, "Breadcrumb should live in the navbar").toBe(true);
+    expect(placement.inNotePage, "Breadcrumb should NOT be inside .note-page").toBe(false);
   });
 
   test("ordered list text aligns with paragraph text", async ({ page }) => {
@@ -278,9 +290,6 @@ test.describe("Content Left-Alignment", () => {
           return rect.left + parseFloat(style.paddingLeft);
         }
 
-        const breadcrumb = document.querySelector(".breadcrumb-row");
-        const breadcrumbX = breadcrumb ? getTextStartX(breadcrumb) : null;
-
         const toolbarBtn = document.querySelector(".toolbar-container .toolbar-btn");
         const toolbarX = toolbarBtn ? toolbarBtn.getBoundingClientRect().left : null;
 
@@ -302,7 +311,6 @@ test.describe("Content Left-Alignment", () => {
         }
 
         return {
-          breadcrumbX: breadcrumbX ? Math.round(breadcrumbX * 10) / 10 : null,
           toolbarX: toolbarX ? Math.round(toolbarX * 10) / 10 : null,
           titleX: titleX ? Math.round(titleX * 10) / 10 : null,
           contentX: contentX ? Math.round(contentX * 10) / 10 : null,
@@ -310,34 +318,27 @@ test.describe("Content Left-Alignment", () => {
       });
 
       console.log(`Alignment at ${width}px:`);
-      console.log(`  Breadcrumb: ${positions.breadcrumbX}px`);
       console.log(`  Toolbar:    ${positions.toolbarX}px`);
       console.log(`  Title:      ${positions.titleX}px`);
       console.log(`  Content:    ${positions.contentX}px`);
 
-      expect(positions.breadcrumbX, "Breadcrumb not found").not.toBeNull();
       expect(positions.contentX, "Content not found").not.toBeNull();
 
-      const reference = positions.breadcrumbX;
+      const reference = positions.contentX;
 
       if (positions.toolbarX !== null) {
         expect(
           Math.abs(positions.toolbarX - reference),
-          `@${width}px: Toolbar (${positions.toolbarX}px) misaligned with breadcrumb (${reference}px)`
+          `@${width}px: Toolbar (${positions.toolbarX}px) misaligned with content (${reference}px)`
         ).toBeLessThanOrEqual(ALIGNMENT_TOLERANCE);
       }
 
       if (positions.titleX !== null) {
         expect(
           Math.abs(positions.titleX - reference),
-          `@${width}px: Title (${positions.titleX}px) misaligned with breadcrumb (${reference}px)`
+          `@${width}px: Title (${positions.titleX}px) misaligned with content (${reference}px)`
         ).toBeLessThanOrEqual(ALIGNMENT_TOLERANCE);
       }
-
-      expect(
-        Math.abs(positions.contentX - reference),
-        `@${width}px: Content (${positions.contentX}px) misaligned with breadcrumb (${reference}px)`
-      ).toBeLessThanOrEqual(ALIGNMENT_TOLERANCE);
     });
   }
 });

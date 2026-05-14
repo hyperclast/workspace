@@ -148,10 +148,11 @@ describe("presence UI", () => {
       const awareness = createMockAwareness([{ name: "User", color: maliciousColor }]);
       cleanup = setupPresenceUI(awareness);
 
-      // The color div should not have an onclick handler
-      const colorDivs = dom.presenceList.querySelectorAll(".presence-user-color");
-      colorDivs.forEach((div) => {
-        expect(div.getAttribute("onclick")).toBeNull();
+      // The avatar elements that take the color value should not have an onclick handler
+      const avatars = dom.presenceList.querySelectorAll(".presence-user-avatar");
+      expect(avatars.length).toBeGreaterThan(0);
+      avatars.forEach((el) => {
+        expect(el.getAttribute("onclick")).toBeNull();
       });
     });
   });
@@ -161,7 +162,8 @@ describe("presence UI", () => {
       const awareness = createMockAwareness([{ name: "Alice", color: "#f00" }]);
       cleanup = setupPresenceUI(awareness);
 
-      expect(dom.userCount.textContent).toBe("1 user editing");
+      const header = document.querySelector(".presence-popover-header");
+      expect(header.textContent.trim()).toBe("1 user editing");
     });
 
     test("renders correct user count for multiple users", () => {
@@ -171,7 +173,8 @@ describe("presence UI", () => {
       ]);
       cleanup = setupPresenceUI(awareness);
 
-      expect(dom.userCount.textContent).toBe("2 users editing");
+      const header = document.querySelector(".presence-popover-header");
+      expect(header.textContent.trim()).toBe("2 users editing");
     });
 
     test("renders user names in presence list", () => {
@@ -200,10 +203,10 @@ describe("presence UI", () => {
       const awareness = createMockAwareness([{ name: "Alice", color: "#ff0000" }]);
       cleanup = setupPresenceUI(awareness);
 
-      const colorDiv = dom.presenceList.querySelector(".presence-user-color");
-      expect(colorDiv).not.toBeNull();
+      const avatar = dom.presenceList.querySelector(".presence-user-avatar");
+      expect(avatar).not.toBeNull();
       // jsdom may return the value as-is or normalized; check it was set
-      expect(colorDiv.style.backgroundColor).toBe("#ff0000");
+      expect(avatar.style.backgroundColor).toBe("#ff0000");
     });
 
     test("renders correct DOM structure for each user entry", () => {
@@ -212,9 +215,10 @@ describe("presence UI", () => {
 
       const userDiv = dom.presenceList.querySelector(".presence-user");
       expect(userDiv).not.toBeNull();
-      expect(userDiv.querySelector(".presence-user-color")).not.toBeNull();
-      expect(userDiv.querySelector("span")).not.toBeNull();
-      expect(userDiv.querySelector("span").textContent).toBe("Alice");
+      expect(userDiv.querySelector(".presence-user-avatar")).not.toBeNull();
+      const nameEl = userDiv.querySelector(".presence-user-name");
+      expect(nameEl).not.toBeNull();
+      expect(nameEl.textContent.trim()).toBe("Alice");
     });
   });
 
@@ -230,8 +234,8 @@ describe("presence UI", () => {
       const awareness = createMockAwareness([{ name: "Alice" }]);
       cleanup = setupPresenceUI(awareness);
 
-      const colorDiv = dom.presenceList.querySelector(".presence-user-color");
-      expect(colorDiv.style.backgroundColor).toBe("#999");
+      const avatar = dom.presenceList.querySelector(".presence-user-avatar");
+      expect(avatar.style.backgroundColor).toBe("#999");
     });
 
     test("skips awareness states without a user property", () => {
@@ -240,8 +244,9 @@ describe("presence UI", () => {
       awareness.getStates().set(99, { cursor: { line: 5 } });
       cleanup = setupPresenceUI(awareness);
 
-      expect(dom.userCount.textContent).toBe("0 users editing");
-      expect(dom.presenceList.children.length).toBe(0);
+      // With no users, the component renders nothing
+      expect(dom.userCount).toBeNull();
+      expect(dom.presenceList).toBeNull();
     });
 
     test("awareness update replaces previous list (does not append)", () => {
@@ -263,8 +268,9 @@ describe("presence UI", () => {
       const awareness = createMockAwareness([]);
       cleanup = setupPresenceUI(awareness);
 
-      expect(dom.userCount.textContent).toBe("0 users editing");
-      expect(dom.presenceList.children.length).toBe(0);
+      // With no users, the component renders nothing
+      expect(dom.userCount).toBeNull();
+      expect(dom.presenceList).toBeNull();
     });
   });
 

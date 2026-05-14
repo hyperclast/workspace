@@ -797,12 +797,12 @@ nav {
   transition: width 0.2s ease, min-width 0.2s ease;
 }
 
-/* Desktop inline collapse — show thin strip with toggle */
+/* Desktop inline collapse — hide entirely; toggle lives in the navbar */
 .note-sidebar.collapsed {
-  width: 40px;
-  min-width: 40px;
+  width: 0;
+  min-width: 0;
   overflow: hidden;
-  border-right: 1px solid var(--border-light);
+  border-right: none;
 }
 
 .note-sidebar.collapsed .sidebar-top,

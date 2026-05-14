@@ -3,6 +3,12 @@
  *
  * Tests that the editor remains responsive and functional with large documents.
  *
+ * Each test runs against a freshly-created markdown page so the suite is
+ * deterministic regardless of which page the dev user happens to have most
+ * recently opened — without that, login auto-opens the MRU page, and if
+ * that page is a PDF (or anything non-markdown) `.cm-content` never
+ * appears and every test in this file fails at `beforeEach`.
+ *
  * Run with:
  *   npx playwright test tests/e2e/large-document.spec.js
  */
@@ -51,15 +57,69 @@ function generateLargeContent(lines) {
   return result.join("\n");
 }
 
+async function loginAndOpenFreshMarkdownPage(page) {
+  await page.goto(`${BASE_URL}/login`);
+  await page.waitForSelector("#login-email", { timeout: 10000 });
+  await page.fill("#login-email", TEST_EMAIL);
+  await page.fill("#login-password", TEST_PASSWORD);
+  await page.click('button[type="submit"]');
+
+  // Wait for #editor (present for every page type) and for the sidenav's
+  // first project so a project_id is available for page creation. Do NOT
+  // wait for .cm-content here — the auto-opened MRU page may be a PDF,
+  // which never renders CodeMirror.
+  await page.waitForSelector("#editor", { timeout: 15000 });
+  await page.waitForSelector(".sidebar-project[data-project-id]", { timeout: 15000 });
+
+  const newPage = await page.evaluate(async () => {
+    const csrf = document.cookie
+      .split("; ")
+      .find((c) => c.startsWith("csrftoken="))
+      ?.split("=")[1];
+    const projectsRes = await fetch("/api/v1/projects/", { credentials: "same-origin" });
+    const projects = await projectsRes.json();
+    if (!Array.isArray(projects) || projects.length === 0) {
+      throw new Error("No projects available for the test user");
+    }
+    const res = await fetch("/api/v1/pages/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrf || "" },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        project_id: projects[0].external_id,
+        title: `large-doc-test-${Date.now()}`,
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to create test page: ${res.status} ${await res.text()}`);
+    }
+    return res.json();
+  });
+
+  await page.goto(`${BASE_URL}/pages/${newPage.external_id}/`);
+  await page.waitForSelector(".cm-content", { timeout: 10000 });
+  await page.waitForFunction(() => !!window.editorView, { timeout: 5000 });
+
+  // Wait for the yCollab upgrade to finish before returning. The upgrade
+  // destroys the REST-only editor and re-mounts it with the yCollab
+  // extension; any `view.dispatch(...)` done before the upgrade is wiped
+  // when the rebuild reinitializes the doc from the (empty) ytext.
+  // Without this gate, the first test action races the upgrade and the
+  // inserted content — along with its decorations — disappears.
+  await page
+    .waitForFunction(() => window.isCollabUpgraded && window.isCollabUpgraded() === true, {
+      timeout: 10000,
+    })
+    .catch(() => {
+      // If the WS handshake never completes (offline dev stack, denied
+      // access), continue without the upgrade gate — the test will
+      // surface the real failure on its own assertion.
+    });
+}
+
 test.describe("Large Document Handling", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`${BASE_URL}/login`);
-    await page.waitForSelector("#login-email", { timeout: 10000 });
-    await page.fill("#login-email", TEST_EMAIL);
-    await page.fill("#login-password", TEST_PASSWORD);
-    await page.click('button[type="submit"]');
-    await page.waitForSelector("#editor", { timeout: 15000 });
-    await page.waitForSelector(".cm-content", { timeout: 10000 });
+    await loginAndOpenFreshMarkdownPage(page);
   });
 
   test("editor renders 5000-line document within acceptable time", async ({ page }) => {
