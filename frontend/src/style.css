@@ -806,6 +806,7 @@ nav {
 }
 
 .note-sidebar.collapsed .sidebar-top,
+.note-sidebar.collapsed .sidebar-projects-row,
 .note-sidebar.collapsed .sidebar-list,
 .note-sidebar.collapsed .sidebar-new-btn {
   display: none;
@@ -942,6 +943,33 @@ nav {
 
 .sidebar-today.active .today-date {
   color: color-mix(in srgb, var(--accent-warm) 75%, var(--text-tertiary));
+}
+
+.sidebar-projects-row {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px 6px;
+  margin: 4px 10px 0;
+  border-top: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+.sidebar-projects-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  user-select: none;
+}
+
+.sidebar-projects-sep {
+  margin: 0 0.55em;
+  color: var(--text-muted);
+  font-size: 0.6em;
+  font-weight: 400;
+  letter-spacing: 0;
+  vertical-align: 1px;
 }
 
 .sidebar-list {
@@ -2556,6 +2584,7 @@ body.sidebar-resizing .chat-sidebar {
   }
 
   .note-sidebar.collapsed .sidebar-top,
+  .note-sidebar.collapsed .sidebar-projects-row,
   .note-sidebar.collapsed .sidebar-list,
   .note-sidebar.collapsed .sidebar-new-btn {
     display: revert;

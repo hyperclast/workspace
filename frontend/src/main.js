@@ -295,6 +295,11 @@ function renderAppHTML() {
           </button>
           <button id="sidebar-toggle" class="sidebar-toggle" hidden aria-hidden="true" tabindex="-1"></button>
         </header>
+        <div class="sidebar-projects-row">
+          <span class="sidebar-projects-label">
+            Projects<span class="sidebar-projects-sep" aria-hidden="true">▶</span>Pages
+          </span>
+        </div>
         <div id="sidebar-list" class="sidebar-list">
           <!-- Populated dynamically -->
         </div>
