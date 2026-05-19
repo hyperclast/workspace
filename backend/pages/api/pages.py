@@ -218,7 +218,7 @@ def get_page(request: HttpRequest, external_id: str):
     return page
 
 
-@pages_router.put("/{external_id}/", response={200: PageOut, 403: dict, 404: dict, 413: dict})
+@pages_router.put("/{external_id}/", response={200: PageOut, 400: dict, 403: dict, 404: dict, 413: dict})
 def update_page(
     request: HttpRequest,
     external_id: str,
@@ -232,6 +232,15 @@ def update_page(
     # Return 404 to prevent information disclosure about page existence
     if not user_can_access_page(request.user, page):
         return 404, {"message": "Page not found"}
+
+    # PDF pages have no editable markdown content. A `details` shallow-merge
+    # would (1) inject a `content` key alongside `pdf_file_id` / `extracted_text`
+    # / `page_text_offsets` and schedule a Yjs sync + embedding re-index for a
+    # page type that has no CRDT doc, and (2) let a caller null out the PDF
+    # metadata via e.g. `{"details": {"pdf_file_id": null}}`. Title and
+    # folder_id remain mutable.
+    if page.is_pdf and payload.details is not None:
+        return 400, {"message": "PDF pages do not support details updates."}
 
     # Per-field permission split. `update_page` mixes ownership-flavored
     # fields (title, folder_id) with editor-flavored fields (details.content).

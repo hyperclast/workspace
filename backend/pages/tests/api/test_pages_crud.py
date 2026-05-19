@@ -596,6 +596,98 @@ class TestPagesUpdateAPI(BaseAuthenticatedViewTestCase):
         self.assertIn("yjs_sync_enqueue failed", first_call_msg)
 
 
+class TestUpdatePagePdfGuard(BaseAuthenticatedViewTestCase):
+    """PUT /api/pages/{id}/ must reject details writes against PDF-type pages.
+
+    PDF pages have no editable markdown body and their details object holds
+    PDF-specific keys (pdf_file_id, extracted_text, page_text_offsets). A
+    shallow-merge of arbitrary client `details` would either inject a
+    spurious `content` key (triggering a bogus Yjs sync + embedding re-index)
+    or let a caller null out the PDF metadata. Title/folder_id stay mutable.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.org = OrgFactory()
+        OrgMemberFactory(org=self.org, user=self.user, role=OrgMemberRole.MEMBER.value)
+        self.project = ProjectFactory(org=self.org, creator=self.user)
+        self.pdf_page = PageFactory(
+            project=self.project,
+            creator=self.user,
+            title="Doc.pdf",
+            details={
+                "content": "",
+                "extracted_text": "Body",
+                "pdf_file_id": "f-1",
+                "filetype": "pdf",
+                "schema_version": 2,
+                "page_text_offsets": [[0, 4]],
+            },
+        )
+
+    def _put(self, **data):
+        return self.send_api_request(
+            url=f"/api/pages/{self.pdf_page.external_id}/",
+            method="put",
+            data=data,
+        )
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    @patch("pages.api.pages.apply_text_update_to_page")
+    def test_pdf_content_write_returns_400(self, mock_apply_text):
+        """A PDF page must not accept body-content writes."""
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self._put(
+                title=self.pdf_page.title,
+                details={"content": "trying to overwrite"},
+                mode="overwrite",
+            )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        self.assertIn("PDF pages", response.json()["message"])
+        mock_apply_text.enqueue.assert_not_called()
+
+        # Page details must be untouched.
+        self.pdf_page.refresh_from_db()
+        self.assertEqual(self.pdf_page.details["content"], "")
+        self.assertEqual(self.pdf_page.details["pdf_file_id"], "f-1")
+        self.assertEqual(self.pdf_page.details["extracted_text"], "Body")
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    @patch("pages.api.pages.apply_text_update_to_page")
+    def test_pdf_details_overwrite_cannot_null_pdf_file_id(self, mock_apply_text):
+        """Without the guard, this would brick the PDF page's display path."""
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self._put(
+                title=self.pdf_page.title,
+                details={"filetype": "md", "pdf_file_id": None},
+                mode="overwrite",
+            )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        mock_apply_text.enqueue.assert_not_called()
+
+        # PDF metadata must be intact.
+        self.pdf_page.refresh_from_db()
+        self.assertEqual(self.pdf_page.details["filetype"], "pdf")
+        self.assertEqual(self.pdf_page.details["pdf_file_id"], "f-1")
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    def test_pdf_title_rename_still_works(self):
+        """Title is creator-scoped and unrelated to PDF body; must remain allowed."""
+        response = self._put(title="Renamed.pdf")
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.pdf_page.refresh_from_db()
+        self.assertEqual(self.pdf_page.title, "Renamed.pdf")
+
+    @override_settings(ASK_FEATURE_ENABLED=False)
+    def test_pdf_folder_move_still_works(self):
+        """Moving a PDF between folders must remain allowed."""
+        folder = FolderFactory(project=self.project, parent=None, name="Archive")
+        response = self._put(title=self.pdf_page.title, folder_id=str(folder.external_id))
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.pdf_page.refresh_from_db()
+        self.assertEqual(self.pdf_page.folder_id, folder.id)
+
+
 class TestPagesCreateYjsSync(BaseAuthenticatedViewTestCase):
     """POST /api/pages/ must seed the Yjs doc when content is provided."""
 
