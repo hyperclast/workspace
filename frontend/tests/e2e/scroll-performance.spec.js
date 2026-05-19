@@ -14,6 +14,7 @@
  */
 
 import { test, expect } from "@playwright/test";
+import { waitForLoggedIn } from "./helpers.js";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:9800";
 const TEST_EMAIL = process.env.TEST_EMAIL || "dev@localhost";
@@ -65,8 +66,7 @@ test.describe("Scroll Performance", () => {
     await page.fill("#login-email", TEST_EMAIL);
     await page.fill("#login-password", TEST_PASSWORD);
     await page.click('button[type="submit"]');
-    await page.waitForSelector("#editor", { timeout: 15000 });
-    await page.waitForSelector(".cm-content", { timeout: 10000 });
+    await waitForLoggedIn(page, { editorTimeout: 15000 });
   });
 
   test("content injection is fast for 2000 lines", async ({ page }) => {

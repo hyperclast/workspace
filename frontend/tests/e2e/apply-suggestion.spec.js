@@ -11,7 +11,7 @@
 
 import { test, expect } from "@playwright/test";
 import { execSync } from "child_process";
-import { dismissSocratesPanel, waitForEditorContent } from "./helpers.js";
+import { dismissSocratesPanel, waitForEditorContent, waitForLoggedIn } from "./helpers.js";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:9800";
 const TEST_EMAIL = process.env.TEST_EMAIL || "dev@localhost";
@@ -25,9 +25,7 @@ async function login(page) {
   await page.fill("#login-email", TEST_EMAIL);
   await page.fill("#login-password", TEST_PASSWORD);
   await page.click('button[type="submit"]');
-  await page.waitForSelector("#editor", { timeout: 20000 });
-  await page.waitForSelector(".cm-content", { timeout: 10000 });
-  await dismissSocratesPanel(page);
+  await waitForLoggedIn(page);
 }
 
 async function createPageWithContent(page, title, content) {
@@ -46,8 +44,17 @@ async function createPageWithContent(page, title, content) {
   await page.waitForURL(/\/pages\/[A-Za-z0-9]+\//, { timeout: 10000 });
   const pageId = page.url().match(/\/pages\/([A-Za-z0-9]+)\//)?.[1] || "";
 
-  await page.click(".cm-content");
-  await page.keyboard.type(content);
+  // Insert content via ytext, the CRDT source of truth (exposed on window in
+  // main.js as soon as setupCollaborationAsync runs). The collab upgrade
+  // destroys the REST EditorView and re-mounts a ytext-bound one; per-keystroke
+  // typing races that swap. Inserting into ytext is atomic and lands in the
+  // final view whether the insert happens before or after the swap: the
+  // upgrade seeds view2 from ytext.toString(), and yCollab propagates any
+  // subsequent ytext edits into the live view.
+  await page.waitForFunction(() => !!window.ytext, { timeout: 15000 });
+  await page.evaluate((text) => {
+    window.ytext.insert(0, text);
+  }, content);
 
   await waitForEditorContent(page, content.substring(0, 30));
 

@@ -13,7 +13,7 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { dismissSocratesPanel } from "./helpers.js";
+import { dismissSocratesPanel, waitForLoggedIn } from "./helpers.js";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:9800";
 const TEST_EMAIL = process.env.TEST_EMAIL || "dev@localhost";
@@ -45,7 +45,7 @@ test.describe("Rewind Scroll to First Diff", () => {
     await page.fill("#login-email", TEST_EMAIL);
     await page.fill("#login-password", TEST_PASSWORD);
     await page.click('button[type="submit"]');
-    await waitForEditorReady(page);
+    await waitForLoggedIn(page);
 
     // ---- Create a fresh page ----
     const pageTitle = `Scroll Test ${Date.now()}`;

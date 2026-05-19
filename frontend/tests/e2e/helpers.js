@@ -23,6 +23,30 @@ export async function dismissSocratesPanel(page) {
 }
 
 /**
+ * Wait for the SPA to finish mounting the post-login landing page.
+ *
+ * The backend redirects authenticated users to their most-recently-modified
+ * page, which can be either a markdown page (CodeMirror, `.cm-content`) or a
+ * PDF page (PdfPageView, `.pdf-page-view`). Waiting on `.cm-content` alone
+ * times out whenever the landing page happens to be a PDF, since PDF pages
+ * never mount CodeMirror.
+ *
+ * This helper waits for `#editor`, then for either readiness marker, then
+ * dismisses the Socrates panel so subsequent UI interactions aren't blocked.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {object} [opts]
+ * @param {number} [opts.editorTimeout=20000] - Timeout for `#editor` to mount
+ * @param {number} [opts.readyTimeout=10000] - Timeout for the readiness marker
+ */
+export async function waitForLoggedIn(page, opts = {}) {
+  const { editorTimeout = 20000, readyTimeout = 10000 } = opts;
+  await page.waitForSelector("#editor", { timeout: editorTimeout });
+  await page.waitForSelector(".cm-content, .pdf-page-view", { timeout: readyTimeout });
+  await dismissSocratesPanel(page);
+}
+
+/**
  * Wait for the CodeMirror editor to contain expected text.
  * Works regardless of whether collab sync has completed — the app loads
  * content via REST first and upgrades to collaboration later.

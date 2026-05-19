@@ -4,6 +4,8 @@
  * These markdown content strings cover all visual elements that need testing.
  */
 
+import { waitForLoggedIn } from "../helpers.js";
+
 export const FIXTURES = {
   /**
    * Mixed content covering all major formatting types.
@@ -242,8 +244,7 @@ export async function login(page, baseUrl) {
   await page.fill("#login-email", email);
   await page.fill("#login-password", password);
   await page.click('button[type="submit"]');
-  await page.waitForSelector("#editor", { timeout: 20000 });
-  await page.waitForSelector(".cm-content", { timeout: 10000 });
+  await waitForLoggedIn(page);
 }
 
 /**

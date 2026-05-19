@@ -1,18 +1,22 @@
 /**
  * End-to-end tests for PDF import.
  *
- * Tests:
- * 1. Import PDF via API creates a page with extracted text and a PDF link
- * 2. The extracted text is discussable (comments anchor correctly)
- * 3. Non-PDF files are rejected with 400
- * 4. The page title is derived from the filename
+ * Imported PDFs land as PDF-native pages (filetype="pdf", schema_version=2):
+ * the original PDF renders inline via PdfPageView and there is no CodeMirror
+ * editor on the page. Extracted text is stored on `page.details.extracted_text`
+ * (used for search and AI context) and is verified here via the page-details
+ * API rather than via editor doc contents.
+ *
+ * Selection-driven comment flow on PDF pages is covered by pdf-pages.spec.js,
+ * which intentionally skips scripted text selection (PDF.js text layer spans
+ * don't selection-emulate cleanly in headless mode).
  *
  * Run with:
  *   npx playwright test pdf-import.spec.js --headed
  */
 
 import { test, expect } from "@playwright/test";
-import { dismissSocratesPanel, waitForEditorContent } from "./helpers.js";
+import { waitForLoggedIn } from "./helpers.js";
 import path from "path";
 import fs from "fs";
 
@@ -50,9 +54,7 @@ async function login(page) {
   await page.fill("#login-email", TEST_EMAIL);
   await page.fill("#login-password", TEST_PASSWORD);
   await page.click('button[type="submit"]');
-  await page.waitForSelector("#editor", { timeout: 20000 });
-  await page.waitForSelector(".cm-content", { timeout: 10000 });
-  await dismissSocratesPanel(page);
+  await waitForLoggedIn(page);
 }
 
 async function getFirstProjectId(page) {
@@ -95,7 +97,9 @@ async function importPdfViaApi(page, projectId, opts = {}) {
 test.describe("PDF Import", () => {
   test.setTimeout(120000);
 
-  test("import PDF creates page with extracted text and PDF link", async ({ page }) => {
+  test("import PDF creates a PDF-native page with extracted text stored server-side", async ({
+    page,
+  }) => {
     await login(page);
 
     const projectId = await getFirstProjectId(page);
@@ -109,84 +113,36 @@ test.describe("PDF Import", () => {
     expect(data.file_external_id).toBeTruthy();
     expect(data.file_download_url).toContain("/files/");
 
-    // Navigate to the created page
+    // Navigate to the created page — PDF-native pages mount PdfPageView, not
+    // CodeMirror, so we wait for `.pdf-page-view` and then for the first
+    // rasterized page wrapper.
     await page.goto(`${BASE_URL}/pages/${data.page_external_id}/`);
-    await page.waitForSelector(".cm-content", { timeout: 15000 });
+    await page.waitForSelector(".pdf-page-view", { timeout: 20000 });
+    await page.waitForSelector('[data-pdf-page="1"]', { timeout: 15000 });
 
-    await page.waitForFunction(
-      () => (window.editorView?.state?.doc?.toString() || "").length > 50,
-      { timeout: 15000 }
-    );
+    // Sanity: a PDF-native page must NOT mount CodeMirror.
+    await expect(page.locator(".cm-content")).toHaveCount(0);
 
-    const editorContent = await page.evaluate(
-      () => window.editorView?.state?.doc?.toString() || ""
-    );
+    // Verify the page is wired up as a PDF-native page and the extracted text
+    // landed in `details.extracted_text` (used by search and AI context).
+    const pageResp = await page
+      .context()
+      .request.get(`${BASE_URL}/api/v1/pages/${data.page_external_id}/`);
+    expect(pageResp.status()).toBe(200);
+    const pageData = await pageResp.json();
 
-    // Verify extracted text
-    expect(editorContent).toContain("Machine learning");
-    expect(editorContent).toContain("Supervised Learning");
-    expect(editorContent).toContain("Unsupervised Learning");
+    expect(pageData.details.filetype).toBe("pdf");
+    expect(pageData.details.schema_version).toBe(2);
+    expect(pageData.details.pdf_file_id).toBe(data.file_external_id);
 
-    // Verify PDF link at top
-    expect(editorContent).toContain("sample.pdf");
-    expect(editorContent).toContain("/files/");
+    const extracted = pageData.details.extracted_text || "";
+    expect(extracted).toContain("Machine learning");
+    expect(extracted).toContain("Supervised Learning");
+    expect(extracted).toContain("Unsupervised Learning");
+    expect(extracted).toContain("# Page 1");
+    expect(extracted).toContain("# Page 2");
 
-    // Verify page separators
-    expect(editorContent).toContain("# Page 1");
-    expect(editorContent).toContain("# Page 2");
-
-    console.log("PASSED: PDF import creates page with extracted text");
-  });
-
-  test("imported PDF page supports comments and discuss", async ({ page }) => {
-    await login(page);
-
-    const projectId = await getFirstProjectId(page);
-    const { status, data } = await importPdfViaApi(page, projectId);
-    expect(status).toBe(201);
-
-    await page.goto(`${BASE_URL}/pages/${data.page_external_id}/`);
-    await page.waitForSelector(".cm-content", { timeout: 15000 });
-
-    // Wait for editor content to load (don't block on collab sync — the app
-    // renders REST content first and upgrades to collaboration later)
-    await waitForEditorContent(page, "Machine learning", 20000);
-
-    // Select text and add a comment
-    await page.evaluate(() => {
-      const view = window.editorView;
-      const content = view.state.doc.toString();
-      const idx = content.indexOf("Machine learning");
-      if (idx === -1) throw new Error("Text not found");
-      view.dispatch({
-        selection: { anchor: idx, head: idx + "Machine learning".length },
-        scrollIntoView: true,
-      });
-      view.focus();
-    });
-
-    const popoverBtn = page.locator(".cm-comment-popover-button button");
-    await expect(popoverBtn).toBeVisible({ timeout: 5000 });
-    await popoverBtn.click();
-
-    const textarea = page.locator(".cm-comment-popover-textarea");
-    await expect(textarea).toBeVisible({ timeout: 5000 });
-    await textarea.fill("What types of ML are discussed here?");
-    await page.locator(".cm-comment-popover-submit").click();
-
-    await page.waitForTimeout(1000);
-
-    await page.locator('button.sidebar-tab[data-tab="comments"]').click();
-
-    const commentBody = page.locator(".comment-body");
-    await expect(commentBody.first()).toContainText("What types of ML", {
-      timeout: 10000,
-    });
-
-    const commentBar = page.locator(".cm-comment-bar");
-    await expect(commentBar.first()).toBeVisible({ timeout: 5000 });
-
-    console.log("PASSED: comments work on imported PDF page");
+    console.log("PASSED: PDF import creates PDF-native page with extracted text");
   });
 
   test("importing non-PDF file returns 400", async ({ page }) => {
@@ -251,22 +207,23 @@ test.describe("PDF Import", () => {
 
     // Wait for navigation to the new page (the handler does window.location.href = ...)
     await page.waitForURL(/\/pages\/[A-Za-z0-9]+/, { timeout: 30000 });
-    await page.waitForSelector(".cm-content", { timeout: 15000 });
 
-    // Wait for content to load
-    await page.waitForFunction(
-      () => (window.editorView?.state?.doc?.toString() || "").length > 50,
-      { timeout: 15000 }
-    );
+    // PDF-native pages mount PdfPageView, not CodeMirror.
+    await page.waitForSelector(".pdf-page-view", { timeout: 20000 });
+    await page.waitForSelector('[data-pdf-page="1"]', { timeout: 15000 });
 
-    const editorContent = await page.evaluate(
-      () => window.editorView?.state?.doc?.toString() || ""
-    );
+    const pageId = page.url().match(/\/pages\/([A-Za-z0-9]+)/)?.[1];
+    expect(pageId).toBeTruthy();
 
-    // Verify extracted text from the PDF made it into the page
-    expect(editorContent).toContain("Machine learning");
-    expect(editorContent).toContain("/files/");
+    // Verify the extracted text landed server-side via the page-details API.
+    const pageResp = await page.context().request.get(`${BASE_URL}/api/v1/pages/${pageId}/`);
+    expect(pageResp.status()).toBe(200);
+    const pageData = await pageResp.json();
 
-    console.log("PASSED: sidenav PDF import creates page and navigates");
+    expect(pageData.details.filetype).toBe("pdf");
+    expect(pageData.details.pdf_file_id).toBeTruthy();
+    expect(pageData.details.extracted_text || "").toContain("Machine learning");
+
+    console.log("PASSED: sidenav PDF import creates PDF-native page and navigates");
   });
 });

@@ -227,12 +227,19 @@ test.describe("Large document main-thread blocking", () => {
       }
     });
 
-    // Expand all projects to make pages visible
+    // Ensure all projects are expanded so their pages are visible. The
+    // project header is a toggle, so blind-clicking would collapse any
+    // project that's already expanded (e.g. the one auto-expanded by the
+    // post-login redirect).
     const projectHeaders = page.locator(".sidebar-project-header");
     const headerCount = await projectHeaders.count();
     for (let i = 0; i < headerCount; i++) {
-      await projectHeaders.nth(i).click();
-      await page.waitForTimeout(200);
+      const header = projectHeaders.nth(i);
+      const isExpanded = (await header.getAttribute("aria-expanded")) === "true";
+      if (!isExpanded) {
+        await header.click();
+        await page.waitForTimeout(200);
+      }
     }
 
     // Click the large page

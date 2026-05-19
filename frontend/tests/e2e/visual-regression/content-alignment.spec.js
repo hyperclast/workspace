@@ -1,9 +1,11 @@
 /**
  * Content Left-Alignment Regression Test
  *
- * Verifies that the toolbar, page title, and editor content all start at
- * the same left pixel position inside `.note-page` — flush alignment like
- * Obsidian. The breadcrumb lives in the navbar and has its own stacking
+ * Verifies the layout invariant between the toolbar, page title, and editor
+ * content inside `.note-page`. Toolbar and title share the same left edge
+ * (`.note-page` padding); editor content text sits one fold-gutter-width to
+ * the right because `.cm-foldGutter` lives between `.note-page` padding and
+ * `.cm-content`. The breadcrumb lives in the navbar and has its own stacking
  * context, so it is covered by a separate placement assertion instead of
  * being folded into the alignment chain.
  *
@@ -19,6 +21,13 @@ import { FIXTURES, login, setupTestPage } from "./fixtures.js";
 
 const ALIGNMENT_TOLERANCE = 2; // 2px tolerance for subpixel rendering
 
+// Content text starts ~12px to the right of the toolbar/title left edge:
+// the `.cm-foldGutter` (28px wide; see frontend/src/editor.css) sits between
+// the `.note-page` padding (which toolbar and title align to) and `.cm-content`,
+// minus the prior -8px margin that used to pull `.cm-gutters` back under the
+// page padding. Toolbar and title remain flush with each other.
+const CONTENT_GUTTER_OFFSET_PX = 12;
+
 test.describe("Content Left-Alignment", () => {
   test.setTimeout(90000);
 
@@ -26,7 +35,9 @@ test.describe("Content Left-Alignment", () => {
     await login(page);
   });
 
-  test("toolbar, title, and editor content are left-aligned", async ({ page }) => {
+  test("toolbar and title share an edge; content sits one gutter to the right", async ({
+    page,
+  }) => {
     await setupTestPage(page, FIXTURES.mixedContent, "Alignment Flush Test");
 
     // Wait for all elements to render
@@ -99,17 +110,19 @@ test.describe("Content Left-Alignment", () => {
     expect(positions.titleX, "Title not found").not.toBeNull();
     expect(positions.contentX, "Content not found").not.toBeNull();
 
-    // Content is the canonical reference — toolbar and title align to it.
-    const reference = positions.contentX;
+    // Toolbar and title share the page-padding edge; content sits one
+    // fold-gutter-width further right.
+    const expectedContentX = positions.toolbarX + CONTENT_GUTTER_OFFSET_PX;
 
     expect(
-      Math.abs(positions.toolbarX - reference),
-      `Toolbar (${positions.toolbarX}px) misaligned with content (${reference}px)`
+      Math.abs(positions.titleX - positions.toolbarX),
+      `Title (${positions.titleX}px) misaligned with toolbar (${positions.toolbarX}px)`
     ).toBeLessThanOrEqual(ALIGNMENT_TOLERANCE);
 
     expect(
-      Math.abs(positions.titleX - reference),
-      `Title (${positions.titleX}px) misaligned with content (${reference}px)`
+      Math.abs(positions.contentX - expectedContentX),
+      `Content (${positions.contentX}px) not at expected gutter offset from toolbar — ` +
+        `expected ${expectedContentX}px ± ${ALIGNMENT_TOLERANCE}px`
     ).toBeLessThanOrEqual(ALIGNMENT_TOLERANCE);
   });
 
@@ -323,22 +336,22 @@ test.describe("Content Left-Alignment", () => {
       console.log(`  Content:    ${positions.contentX}px`);
 
       expect(positions.contentX, "Content not found").not.toBeNull();
+      expect(positions.toolbarX, "Toolbar not found").not.toBeNull();
 
-      const reference = positions.contentX;
-
-      if (positions.toolbarX !== null) {
-        expect(
-          Math.abs(positions.toolbarX - reference),
-          `@${width}px: Toolbar (${positions.toolbarX}px) misaligned with content (${reference}px)`
-        ).toBeLessThanOrEqual(ALIGNMENT_TOLERANCE);
-      }
+      const expectedContentX = positions.toolbarX + CONTENT_GUTTER_OFFSET_PX;
 
       if (positions.titleX !== null) {
         expect(
-          Math.abs(positions.titleX - reference),
-          `@${width}px: Title (${positions.titleX}px) misaligned with content (${reference}px)`
+          Math.abs(positions.titleX - positions.toolbarX),
+          `@${width}px: Title (${positions.titleX}px) misaligned with toolbar (${positions.toolbarX}px)`
         ).toBeLessThanOrEqual(ALIGNMENT_TOLERANCE);
       }
+
+      expect(
+        Math.abs(positions.contentX - expectedContentX),
+        `@${width}px: Content (${positions.contentX}px) not at expected gutter offset from toolbar — ` +
+          `expected ${expectedContentX}px ± ${ALIGNMENT_TOLERANCE}px`
+      ).toBeLessThanOrEqual(ALIGNMENT_TOLERANCE);
     });
   }
 });

@@ -396,18 +396,32 @@ test.describe("Collaboration Sync", () => {
         { timeout: 10000 }
       );
 
-      // Wait for presence indicator to render (depends on collab + awareness setup)
+      // Wait for the presence cluster to register at least one editor.
+      // `#user-count` is the always-visible avatar cluster; it carries
+      // `data-count="N"` where N is the number of connected editors. The
+      // "N user editing" text lives inside the hover-revealed popover
+      // (`#presence-popover`), which stays `display: none` until the
+      // cluster is hovered/clicked — so polling its textContent would
+      // never succeed in a headless run.
       await page.waitForFunction(
-        () => document.getElementById("user-count")?.textContent?.includes("user editing"),
+        () => {
+          const el = document.getElementById("user-count");
+          return el !== null && Number(el.dataset.count || "0") >= 1;
+        },
         { timeout: THRESHOLDS.COLLAB_CONNECTED_MS }
       );
 
-      const userCountText = await page.evaluate(() => {
-        return document.getElementById("user-count")?.textContent || null;
+      const presence = await page.evaluate(() => {
+        const cluster = document.getElementById("user-count");
+        return {
+          count: cluster ? Number(cluster.dataset.count || "0") : null,
+          avatars: cluster ? cluster.querySelectorAll(".presence-avatar").length : 0,
+        };
       });
 
-      expect(userCountText).toBe("1 user editing");
-      console.log("✅ Presence indicator rendered correctly");
+      expect(presence.count).toBe(1);
+      expect(presence.avatars).toBeGreaterThanOrEqual(1);
+      console.log("Presence indicator rendered correctly");
     } finally {
       await deletePage(page, pageId);
     }

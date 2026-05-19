@@ -14,7 +14,7 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { dismissSocratesPanel } from "./helpers.js";
+import { waitForLoggedIn } from "./helpers.js";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:9800";
 const TEST_EMAIL = process.env.TEST_EMAIL || "dev@localhost";
@@ -33,9 +33,7 @@ test.describe("Sidebar Links Navigation", () => {
     await page.fill("#login-password", TEST_PASSWORD);
     await page.click('button[type="submit"]');
 
-    await page.waitForSelector("#editor", { timeout: 20000 });
-    await page.waitForSelector(".cm-content", { timeout: 10000 });
-    await dismissSocratesPanel(page);
+    await waitForLoggedIn(page);
     console.log("✅ Logged in");
 
     // Step 1: Create target page
