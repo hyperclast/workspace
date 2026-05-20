@@ -298,13 +298,18 @@ function renderAppHTML() {
             <button id="sidebar-jump-btn" class="kbd-trigger" type="button" aria-label="Open command palette" title="Open command palette">
               <kbd>${navigator.platform.toUpperCase().indexOf("MAC") >= 0 ? "⌘K" : "^K"}</kbd>
             </button>
+            <button id="sidebar-toggle" class="sidebar-toggle" type="button" title="Toggle project list" aria-label="Toggle project list">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect class="panel-fill" x="3" y="3" width="6" height="18" rx="2" ry="2" stroke="none" />
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <line x1="9" y1="3" x2="9" y2="21" />
+              </svg>
+            </button>
           </div>
           <button id="sidebar-daily-note-btn" class="sidebar-today" type="button" title="Open today's note">
             <span class="today-marker" aria-hidden="true"></span>
-            <span class="today-label">Today</span>
-            <span class="today-date" id="sidebar-today-date"></span>
+            <span class="today-label">Daily Note</span>
           </button>
-          <button id="sidebar-toggle" class="sidebar-toggle" hidden aria-hidden="true" tabindex="-1"></button>
         </header>
         <div class="sidebar-projects-row">
           <span class="sidebar-projects-label">
@@ -2573,16 +2578,13 @@ function todayIsoDate() {
 }
 
 /**
- * Refresh the "Today" sidebar item: stamp today's date and toggle the
- * active treatment when the current page is today's daily note.
+ * Refresh the "Daily Note" sidebar item: toggle the active treatment when
+ * the current page is today's daily note.
  */
 function refreshTodayUI() {
-  const dateEl = document.getElementById("sidebar-today-date");
-  const today = todayIsoDate();
-  if (dateEl) dateEl.textContent = today;
   const btn = document.getElementById("sidebar-daily-note-btn");
   if (!btn) return;
-  const isActive = currentPage?.title === today;
+  const isActive = currentPage?.title === todayIsoDate();
   btn.classList.toggle("active", isActive);
   if (isActive) btn.setAttribute("aria-current", "page");
   else btn.removeAttribute("aria-current");

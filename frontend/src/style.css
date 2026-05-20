@@ -724,24 +724,25 @@ nav {
   background: rgba(55, 53, 47, 0.04);
 }
 
-/* Left edge toggle is always visible — the new sidebar design no longer
-   carries an inline toggle inside the sidenav header. Right edge toggle
-   stays narrow-width-only because the chat sidebar still has its own
-   inline toggle. Use ID selectors so display rules definitively win over
-   the `.sidebar-toggle { display: flex }` base rule no matter cascade
-   order. */
-#nav-left-toggle {
-  display: flex;
-  margin-left: 0.75rem;
-}
-
+/* Navbar edge toggles for left/right sidebars. Hidden on desktop where
+   the sidebars host their own toggles inline. Shown at <=1024px (overlay
+   mode) where the in-sidebar toggles get translated off-screen with the
+   panels. Use ID selectors so display rules definitively win over the
+   `.sidebar-toggle { display: flex }` base rule no matter cascade order. */
+#nav-left-toggle,
 #nav-right-toggle {
   display: none;
 }
 
 @media (max-width: 1024px) {
+  #nav-left-toggle,
   #nav-right-toggle {
     display: flex;
+  }
+  #nav-left-toggle {
+    margin-left: 0.75rem;
+  }
+  #nav-right-toggle {
     margin-right: 0.75rem;
   }
 }
@@ -797,19 +798,34 @@ nav {
   transition: width 0.2s ease, min-width 0.2s ease;
 }
 
-/* Desktop inline collapse — hide entirely; toggle lives in the navbar */
+/* Desktop inline collapse — show thin strip with the inline toggle so the
+   user can re-expand from inside the sidebar (mirrors the right sidebar). */
 .note-sidebar.collapsed {
-  width: 0;
-  min-width: 0;
+  width: 40px;
+  min-width: 40px;
   overflow: hidden;
-  border-right: none;
+  border-right: 1px solid var(--border-light);
 }
 
-.note-sidebar.collapsed .sidebar-top,
+.note-sidebar.collapsed .sidebar-today,
 .note-sidebar.collapsed .sidebar-projects-row,
 .note-sidebar.collapsed .sidebar-list,
 .note-sidebar.collapsed .sidebar-new-btn {
   display: none;
+}
+
+.note-sidebar.collapsed .workspace-row > :not(.sidebar-toggle) {
+  display: none;
+}
+
+.note-sidebar.collapsed .sidebar-top {
+  padding: 12px 4px 8px;
+}
+
+.note-sidebar.collapsed .workspace-row {
+  justify-content: center;
+  padding: 0;
+  margin-bottom: 0;
 }
 
 .note-sidebar.collapsed .sidebar-resize-handle {
@@ -932,18 +948,6 @@ nav {
 .today-label {
   font-weight: 500;
   flex-shrink: 0;
-}
-
-.today-date {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--text-tertiary);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
-}
-
-.sidebar-today.active .today-date {
-  color: color-mix(in srgb, var(--accent-warm) 75%, var(--text-tertiary));
 }
 
 .sidebar-projects-row {
@@ -2576,7 +2580,8 @@ body.sidebar-resizing .chat-sidebar {
     box-shadow: 2px 0 12px rgba(0, 0, 0, 0.1);
   }
 
-  /* Override desktop collapsed state in overlay mode */
+  /* Override desktop collapsed state in overlay mode — the strip width
+     and child hiding don't apply here; transform handles visibility. */
   .note-sidebar.collapsed {
     width: 260px;
     min-width: 260px;
@@ -2584,15 +2589,22 @@ body.sidebar-resizing .chat-sidebar {
     overflow: visible;
   }
 
-  .note-sidebar.collapsed .sidebar-top,
+  .note-sidebar.collapsed .sidebar-today,
   .note-sidebar.collapsed .sidebar-projects-row,
   .note-sidebar.collapsed .sidebar-list,
-  .note-sidebar.collapsed .sidebar-new-btn {
+  .note-sidebar.collapsed .sidebar-new-btn,
+  .note-sidebar.collapsed .workspace-row > :not(.sidebar-toggle) {
     display: revert;
   }
 
   .note-sidebar.collapsed .sidebar-top {
-    display: flex;
+    padding: 12px 10px 8px;
+  }
+
+  .note-sidebar.collapsed .workspace-row {
+    justify-content: space-between;
+    padding: 0 4px;
+    margin-bottom: 8px;
   }
 
   .note-sidebar.open {
@@ -2641,15 +2653,9 @@ body.sidebar-resizing .chat-sidebar {
     transform: translateX(0);
   }
 
-  /* Hide resize handles and standalone toggles in overlay mode */
+  /* Hide resize handles in overlay mode */
   .sidebar-resize-handle {
     display: none;
-  }
-
-  /* In overlay mode, toggles stay in note-header breadcrumb isn't used —
-     the toggle buttons still work via their IDs at their new positions */
-  .note-sidebar.collapsed .sidebar-toggle {
-    display: flex;
   }
 }
 

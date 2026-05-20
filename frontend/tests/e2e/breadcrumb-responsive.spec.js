@@ -28,8 +28,8 @@ async function loginAndWaitForPageShell(page, baseUrl) {
   await page.fill("#login-email", email);
   await page.fill("#login-password", password);
   await page.click('button[type="submit"]');
-  // Wait for the page shell — sidebar toggle is always visible now
-  await page.waitForSelector("#nav-left-toggle", {
+  // Wait for the page shell — inline sidebar toggle lives inside the sidenav header
+  await page.waitForSelector("#sidebar-toggle", {
     state: "visible",
     timeout: 20000,
   });
@@ -186,26 +186,29 @@ test.describe("Sidebar Responsive Collapse", () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.waitForTimeout(300);
 
-    const toggle = page.locator("#nav-left-toggle");
+    const toggle = page.locator("#sidebar-toggle");
+    const navEdgeToggle = page.locator("#nav-left-toggle");
     const sidebar = page.locator("#note-sidebar");
 
-    // Toggle should be visible at desktop
+    // Inline toggle should be visible at desktop; navbar edge toggle hidden
     await expect(toggle).toBeVisible();
+    await expect(navEdgeToggle).toBeHidden();
 
     // Sidebar should be visible and not collapsed
     await expect(sidebar).toBeVisible();
     await expect(sidebar).not.toHaveClass(/collapsed/);
 
-    // Click toggle — should collapse inline (not overlay)
+    // Click toggle — should collapse inline to a 40px strip (not overlay)
     await toggle.click();
     await expect(sidebar).toHaveClass(/collapsed/);
 
     // Wait for CSS transition (width 0.2s ease) to finish
     await page.waitForTimeout(300);
 
-    // Verify sidebar actually has zero width (not just the class)
+    // Verify sidebar collapses to a 40px strip — toggle stays accessible inside
     const collapsedWidth = await sidebar.evaluate((el) => el.getBoundingClientRect().width);
-    expect(collapsedWidth).toBe(0);
+    expect(collapsedWidth).toBe(40);
+    await expect(toggle).toBeVisible();
 
     const overlay = page.locator("#sidebar-overlay");
     await expect(overlay).not.toHaveClass(/visible/);
