@@ -61,6 +61,12 @@ function runShell(script) {
  * projects (plus their pages/folders) so the test starts from a clean slate.
  * Then create a fresh "Daily Notes" project with the given flat dated pages.
  *
+ * Daily-note config is stored per-org in `Profile.org_state`, a JSON column
+ * keyed by org `external_id` with buckets shaped roughly:
+ *   { last_page_id, daily_note_project_id, daily_note_template_id }
+ * All writes go through `users.org_state.write_bucket(user, org, **fields)`
+ * which row-locks the Profile and only touches the named keys.
+ *
  * Returns { projectId } — the external_id of the created project.
  */
 function seedFlatDailyNotes(dates) {
@@ -70,25 +76,40 @@ import json
 from django.contrib.auth import get_user_model
 from pages.models import Page, Project, Folder
 from users.models import OrgMember
+from users.org_state import write_bucket
 
 User = get_user_model()
 user = User.objects.get(email="${TEST_EMAIL}")
 
-# Reset profile config
+membership = OrgMember.objects.filter(user=user).order_by("created").first()
+if not membership:
+    raise RuntimeError("Test user has no org membership")
+
+# Clear the daily-note keys on the membership org's bucket so the welcome
+# modal triggers on the next calendar-icon click.
+write_bucket(
+    user,
+    membership.org,
+    daily_note_project_id=None,
+    daily_note_template_id=None,
+)
+
+# Pin the SPA's current org to the one we're about to seed into. Without
+# this, the post-login root redirect uses Profile.current_org (which may
+# point at a different org from a prior session), the SPA scopes to that
+# org, and the welcome-modal detector can't see our seeded "Daily Notes"
+# project — it would render the first-run "create" copy instead of the
+# "organize N existing notes" copy.
 profile = user.profile
-profile.daily_note_project = None
-profile.daily_note_template = None
-profile.save(update_fields=["daily_note_project", "daily_note_template", "modified"])
+if profile.current_org_id != membership.org_id:
+    profile.current_org = membership.org
+    profile.save(update_fields=["current_org", "modified"])
 
 # Hard-delete prior "Daily Notes" project(s) for this user so the test is idempotent
 for p in Project.objects.filter(creator=user, name="Daily Notes"):
     Page.objects.filter(project=p).delete()
     Folder.objects.filter(project=p).delete()
     p.delete()
-
-membership = OrgMember.objects.filter(user=user).order_by("created").first()
-if not membership:
-    raise RuntimeError("Test user has no org membership")
 
 project = Project.objects.create(
     org=membership.org,
@@ -122,20 +143,41 @@ print("RESULT:" + json.dumps({"project_id": project.external_id}))
 }
 
 /**
- * Clean up seeded state — reset profile config and delete the Daily Notes project.
+ * Clean up seeded state — clear daily-note keys from every per-org bucket on
+ * the user's profile and hard-delete the Daily Notes project(s).
  */
 function cleanup() {
   const script = `
 from django.contrib.auth import get_user_model
 from pages.models import Page, Project, Folder
+from users.models import Org
+from users.org_state import write_bucket
 
 User = get_user_model()
 user = User.objects.get(email="${TEST_EMAIL}")
 
+# Drop the SPA's current-org pin so the next test run starts from a
+# fresh state and doesn't inherit our seed's org selection.
 profile = user.profile
-profile.daily_note_project = None
-profile.daily_note_template = None
-profile.save(update_fields=["daily_note_project", "daily_note_template", "modified"])
+if profile.current_org_id is not None:
+    profile.current_org = None
+    profile.save(update_fields=["current_org", "modified"])
+
+# Clear the daily-note keys across every org bucket the profile knows about.
+# An org that's no longer reachable (hard-deleted) is skipped — its stale
+# bucket entry is harmless because reads re-resolve through accessible-org
+# querysets.
+bucket_keys = list((user.profile.org_state or {}).keys())
+for org_ext_id in bucket_keys:
+    org = Org.objects.filter(external_id=org_ext_id).first()
+    if org is None:
+        continue
+    write_bucket(
+        user,
+        org,
+        daily_note_project_id=None,
+        daily_note_template_id=None,
+    )
 
 for p in Project.objects.filter(creator=user, name="Daily Notes"):
     Page.objects.filter(project=p).delete()

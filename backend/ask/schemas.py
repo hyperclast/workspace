@@ -26,6 +26,9 @@ class AskIn(Schema):
     provider: Optional[str] = None
     config_id: Optional[str] = None
     model: Optional[str] = None
+    # When set, retrieval is restricted to pages in this org. Enforces the
+    # cross-org boundary so a page in Org A can never cite Org B content.
+    org_id: Optional[str] = None
 
 
 class AskOut(Schema):

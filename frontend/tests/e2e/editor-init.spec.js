@@ -18,6 +18,7 @@
  */
 
 import { test, expect } from "@playwright/test";
+import { ensureNonEmptyHomepageTarget } from "./helpers.js";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:9800";
 const TEST_EMAIL = process.env.TEST_EMAIL || "dev@localhost";
@@ -30,12 +31,24 @@ test.describe("Editor initialization after login", () => {
     const pageErrors = [];
     page.on("pageerror", (err) => pageErrors.push(err.message));
 
+    // Plain post-login redirect lands on whichever page
+    // `_pick_homepage_target` picks — often a stale `Untitled` page
+    // from an earlier test's `+ New Page` click, whose `details.content`
+    // is empty by construction. That makes the `doc.length > 0`
+    // assertion below never resolve. Seed a page with non-empty content
+    // in the current org and point the user's `last_page_id` at it, so
+    // the next `/` visit lands on a hydratable target. The measurement
+    // happens on that second visit — same SPA bootstrap as a fresh
+    // login.
     await page.goto(`${BASE_URL}/login`);
     await page.waitForSelector("#login-email", { timeout: 10000 });
     await page.fill("#login-email", TEST_EMAIL);
     await page.fill("#login-password", TEST_PASSWORD);
     await page.click('button[type="submit"]');
+    await page.waitForSelector("#editor", { timeout: 20000 });
+    await ensureNonEmptyHomepageTarget(page);
 
+    await page.goto(`${BASE_URL}/`);
     await page.waitForSelector("#editor", { timeout: 20000 });
     const editorAppearedAt = Date.now();
 

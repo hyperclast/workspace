@@ -1,6 +1,7 @@
 <script>
   import Modal from './Modal.svelte';
   import { csrfFetch } from '../../csrf.js';
+  import { getCurrentOrgId } from '../orgContext.js';
 
   let {
     open = $bindable(false),
@@ -60,7 +61,15 @@
       return;
     }
     try {
-      const response = await csrfFetch(`/api/pages/autocomplete/?q=${encodeURIComponent(query)}`);
+      // Scope the lookup to the current org so the modal's suggestions can't
+      // surface pages from another workspace. The backend keeps the
+      // unscoped path for token-based scripts; UI callers must pass org_id.
+      const params = new URLSearchParams({ q: query });
+      const orgId = getCurrentOrgId();
+      if (orgId) {
+        params.set('org_id', orgId);
+      }
+      const response = await csrfFetch(`/api/pages/autocomplete/?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
         suggestions = data.pages || [];

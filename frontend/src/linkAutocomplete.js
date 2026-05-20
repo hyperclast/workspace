@@ -1,15 +1,20 @@
 import { autocompletion } from "@codemirror/autocomplete";
 import { csrfFetch } from "./csrf.js";
 import { createDebouncedFetcher } from "./debouncedFetch.js";
+import { getCurrentOrgId } from "./lib/orgContext.js";
 
 const API_BASE = "/api";
 
 const fetcher = createDebouncedFetcher(150);
 
-async function fetchAutocompletePages(query) {
-  const response = await csrfFetch(
-    `${API_BASE}/pages/autocomplete/?q=${encodeURIComponent(query)}`
-  );
+async function fetchAutocompletePages(query, orgId) {
+  const params = new URLSearchParams({ q: query });
+  if (orgId) {
+    // Enforce the cross-org boundary at the request layer: link autocomplete
+    // in a page in Org A must never surface pages from Org B.
+    params.set("org_id", orgId);
+  }
+  const response = await csrfFetch(`${API_BASE}/pages/autocomplete/?${params.toString()}`);
   if (!response.ok) {
     throw new Error("Failed to fetch pages for autocomplete");
   }
@@ -71,9 +76,16 @@ async function linkCompletionSource(context) {
 
   const query = linkContext.type === "url" ? linkContext.linkText : linkContext.currentText;
 
+  // Re-read the org on every keystroke so the boundary stays accurate even
+  // if the user just switched orgs mid-typing. The debounced fetcher keys
+  // on `query` only, so we include the org in the cache key to invalidate
+  // stale results after a switch.
+  const orgId = getCurrentOrgId();
+  const cacheKey = `${orgId || ""}::${query}`;
+
   let pages;
   try {
-    pages = await fetcher.fetch(query, () => fetchAutocompletePages(query));
+    pages = await fetcher.fetch(cacheKey, () => fetchAutocompletePages(query, orgId));
   } catch (e) {
     console.error("Error fetching autocomplete pages:", e);
     return null;

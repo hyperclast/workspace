@@ -6,6 +6,7 @@ import { mount } from "svelte";
 import { setupCommandPalette } from "./commandPaletteSetup.js";
 import { fetchProjectsWithPages } from "../api.js";
 import { initTheme } from "../theme.js";
+import { getCurrentOrgId } from "./orgContext.js";
 
 let mounted = false;
 let cachedProjects = [];
@@ -50,10 +51,10 @@ export default async function initSettingsPage() {
     mounted = true;
     console.log("[Settings] Successfully initialized");
 
-    // Setup command palette (Cmd+K / Ctrl+K)
-    // Fetch projects for navigation
+    // Setup command palette (Cmd+K / Ctrl+K). Scope to current org so the
+    // palette on Settings shows the same project list as the main app.
     try {
-      cachedProjects = await fetchProjectsWithPages();
+      cachedProjects = await fetchProjectsWithPages(getCurrentOrgId());
     } catch (e) {
       console.warn("[Settings] Could not fetch projects for command palette:", e);
       cachedProjects = [];

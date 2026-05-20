@@ -23,6 +23,7 @@ import {
   openDailyNoteWelcome as _openDailyNoteWelcome,
   openDailyNoteWizard as _openDailyNoteWizard,
 } from "./stores/modal.svelte.js";
+import { getCurrentOrgId } from "./orgContext.js";
 import { showToast } from "./toast.js";
 
 const DAILY_NOTE_TITLE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -111,7 +112,8 @@ async function detectWelcomeContext() {
   let projects = cachedProjectsGetter?.();
   if (!projects || projects.length === 0) {
     try {
-      projects = await fetchProjectsWithPages();
+      // Daily-note config is per-org; only look at projects in the active org.
+      projects = await fetchProjectsWithPages(getCurrentOrgId());
     } catch {
       return { projectName: "Daily Notes", projectExists: false, unorganizedCount: 0 };
     }

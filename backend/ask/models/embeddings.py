@@ -53,8 +53,14 @@ class PageEmbeddingManager(models.Manager):
         input_embedding: List[float],
         exclude_pages: Optional[List[str]] = None,
         limit: Optional[int] = 5,
+        org_id: Optional[str] = None,
     ) -> QuerySet:
-        accessible_page_ids = Page.objects.get_user_accessible_pages(user).values_list("id", flat=True)
+        accessible_pages = Page.objects.get_user_accessible_pages(user)
+        if org_id:
+            # Enforce the cross-org boundary at the retrieval layer so a page
+            # in Org A can never citation-leak Org B content via Ask.
+            accessible_pages = accessible_pages.filter(project__org__external_id=org_id)
+        accessible_page_ids = accessible_pages.values_list("id", flat=True)
         qs = (
             self.get_queryset()
             .filter(page_id__in=accessible_page_ids)

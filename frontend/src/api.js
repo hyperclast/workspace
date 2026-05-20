@@ -5,6 +5,7 @@
 
 import { csrfFetch } from "./csrf.js";
 import { getAppConfig } from "./config.js";
+import { getCurrentOrgId } from "./lib/orgContext.js";
 
 const API_BASE = "/api/v1";
 
@@ -12,10 +13,17 @@ const API_BASE = "/api/v1";
 
 /**
  * Fetch all projects with their pages.
+ * @param {string} [orgId] - Optional org external_id. When set, only projects
+ *   in that org are returned. When omitted, projects across all of the
+ *   user's orgs are returned (backwards-compatible).
  * @returns {Promise<Array>} Array of projects with nested pages
  */
-export async function fetchProjectsWithPages() {
-  const response = await csrfFetch(`${API_BASE}/projects/?details=full`);
+export async function fetchProjectsWithPages(orgId = null) {
+  const params = new URLSearchParams({ details: "full" });
+  if (orgId) {
+    params.set("org_id", orgId);
+  }
+  const response = await csrfFetch(`${API_BASE}/projects/?${params.toString()}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch projects: ${response.statusText}`);
   }
@@ -59,6 +67,82 @@ export async function fetchOrgs() {
   const response = await csrfFetch(`${API_BASE}/orgs/`);
   if (!response.ok) {
     throw new Error(`Failed to fetch organizations: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Persist the user's selected current org to Profile.current_org.
+ * Fire-and-forget at the call site — the UI has already updated the local
+ * store, this just syncs the source-of-truth across devices.
+ *
+ * Pass `null` to clear the selection.
+ *
+ * @param {string|null} orgId
+ * @returns {Promise<Response>} The raw fetch response; the caller doesn't
+ *   normally consume the body. Errors are logged, not thrown.
+ */
+export async function patchCurrentOrg(orgId) {
+  try {
+    return await csrfFetch(`${API_BASE}/users/me/`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_org_id: orgId || "" }),
+    });
+  } catch (e) {
+    console.warn("patchCurrentOrg failed:", e);
+    return null;
+  }
+}
+
+/**
+ * Persist the user's last-viewed page for a given org to UserOrgState.
+ * Fire-and-forget; the local store is the source of truth during the
+ * session, the server copy is for cross-device persistence.
+ *
+ * @param {string} orgId - The org's external_id.
+ * @param {string|null} pageId - The page's external_id, or null to clear.
+ */
+export async function patchOrgLastPage(orgId, pageId) {
+  if (!orgId) return null;
+  try {
+    return await csrfFetch(`${API_BASE}/users/me/org-state/${orgId}/`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ last_page_id: pageId || null }),
+    });
+  } catch (e) {
+    console.warn("patchOrgLastPage failed:", e);
+    return null;
+  }
+}
+
+/**
+ * Create a new organization (workspace).
+ * @param {string} name - Name of the new org
+ * @returns {Promise<Object>} The created org object (includes external_id)
+ */
+export async function createOrg(name) {
+  const response = await csrfFetch(`${API_BASE}/orgs/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!response.ok) {
+    // Prefer a structured `message` from a JSON error body. Falling
+    // back to `response.text()` here would surface raw HTML (e.g., a
+    // proxy 502 page) or raw `{"message": "..."}` JSON in the modal —
+    // Svelte escapes for XSS safety but the user still sees gibberish.
+    let message = "";
+    try {
+      const body = await response.json();
+      if (body && typeof body.message === "string") {
+        message = body.message;
+      }
+    } catch {
+      // Body wasn't JSON. Ignore and use the generic fallback.
+    }
+    throw new Error(message || `Failed to create organization: ${response.statusText}`);
   }
   return response.json();
 }
@@ -958,12 +1042,24 @@ export async function importPdf(projectId, file) {
 
 // Daily Note API
 
+// Daily-note config is per-org. Every endpoint accepts an optional
+// `?org_id=` that takes precedence over the user's `Profile.current_org`.
+// We always pass the org id from the sidenav store so the frontend's
+// active workspace — not whatever was last persisted to Profile — is
+// the source of truth for these requests.
+function _dailyNoteOrgQuery() {
+  const orgId = getCurrentOrgId();
+  return orgId ? `?org_id=${encodeURIComponent(orgId)}` : "";
+}
+
 /**
- * Fetch the user's daily-note configuration.
+ * Fetch the user's daily-note configuration for the active org.
  * @returns {Promise<{project: object|null, template: object|null, unorganized_count: number}>}
  */
 export async function getDailyNoteConfig() {
-  const response = await csrfFetch(`${API_BASE}/users/me/daily-note/config/`);
+  const response = await csrfFetch(
+    `${API_BASE}/users/me/daily-note/config/${_dailyNoteOrgQuery()}`
+  );
   if (!response.ok) {
     throw new Error(`Failed to fetch daily-note config: ${response.statusText}`);
   }
@@ -971,16 +1067,19 @@ export async function getDailyNoteConfig() {
 }
 
 /**
- * Update the user's daily-note configuration.
+ * Update the user's daily-note configuration for the active org.
  * @param {object} payload - Either {auto: true} or {project_external_id, template_external_id?}
  * @returns {Promise<object>} Updated config
  */
 export async function updateDailyNoteConfig(payload) {
-  const response = await csrfFetch(`${API_BASE}/users/me/daily-note/config/`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  const response = await csrfFetch(
+    `${API_BASE}/users/me/daily-note/config/${_dailyNoteOrgQuery()}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     const err = new Error(
@@ -993,7 +1092,7 @@ export async function updateDailyNoteConfig(payload) {
 }
 
 /**
- * Open (or create) today's daily note.
+ * Open (or create) today's daily note in the active org.
  * @returns {Promise<{external_id, title, project_external_id} | {needsConfig: true}>}
  */
 export async function openDailyNoteToday() {
@@ -1004,11 +1103,14 @@ export async function openDailyNoteToday() {
   const m = String(now.getMonth() + 1).padStart(2, "0");
   const d = String(now.getDate()).padStart(2, "0");
   const date = `${y}-${m}-${d}`;
-  const response = await csrfFetch(`${API_BASE}/users/me/daily-note/today/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ date }),
-  });
+  const response = await csrfFetch(
+    `${API_BASE}/users/me/daily-note/today/${_dailyNoteOrgQuery()}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date }),
+    }
+  );
   if (response.status === 409) {
     return { needsConfig: true };
   }
@@ -1019,16 +1121,19 @@ export async function openDailyNoteToday() {
 }
 
 /**
- * Organize existing YYYY-MM-DD pages in the daily-note project into YYYY/MM folders.
+ * Organize existing YYYY-MM-DD pages in the active org's daily-note project.
  * @param {boolean} dryRun - Preview only
  * @returns {Promise<{moved_count, skipped_count, total_matched}>}
  */
 export async function organizeDailyNotes(dryRun = false) {
-  const response = await csrfFetch(`${API_BASE}/users/me/daily-note/organize/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ dry_run: dryRun }),
-  });
+  const response = await csrfFetch(
+    `${API_BASE}/users/me/daily-note/organize/${_dailyNoteOrgQuery()}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dry_run: dryRun }),
+    }
+  );
   if (!response.ok) {
     throw new Error(`Failed to organize daily notes: ${response.statusText}`);
   }

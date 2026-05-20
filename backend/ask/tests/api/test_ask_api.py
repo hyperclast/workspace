@@ -46,7 +46,7 @@ class TestAskAPI(BaseAuthenticatedViewTestCase):
 
         # Verify process_query was called correctly
         mock_process_query.assert_called_once_with(
-            query=query, user=ANY, page_ids=[], provider=None, config_id=None, model=None
+            query=query, user=ANY, page_ids=[], provider=None, config_id=None, model=None, org_id=None
         )
 
     @patch("ask.models.AskRequest.objects.process_query")
@@ -237,7 +237,7 @@ class TestAskAPI(BaseAuthenticatedViewTestCase):
 
         # Verify process_query was called with page_ids
         mock_process_query.assert_called_once_with(
-            query=query, user=ANY, page_ids=page_ids, provider=None, config_id=None, model=None
+            query=query, user=ANY, page_ids=page_ids, provider=None, config_id=None, model=None, org_id=None
         )
 
     @patch("ask.models.AskRequest.objects.process_query")
@@ -261,8 +261,95 @@ class TestAskAPI(BaseAuthenticatedViewTestCase):
 
         # Verify process_query was called with empty page_ids
         mock_process_query.assert_called_once_with(
-            query=query, user=ANY, page_ids=[], provider=None, config_id=None, model=None
+            query=query, user=ANY, page_ids=[], provider=None, config_id=None, model=None, org_id=None
         )
+
+
+@override_settings(ASK_FEATURE_ENABLED=True)
+class TestAskOrgScopeBoundary(BaseAuthenticatedViewTestCase):
+    """`AskIn.org_id` scopes retrieval to a single workspace. The three-
+    tier access filter still applies on top: passing an `org_id` for a
+    workspace the user can't access must surface as
+    `NO_MATCHING_PAGES`, not a 403 (no existence leak) and not a 200
+    citing cross-org pages (no data exfiltration).
+
+    Test goes through `process_query` end-to-end so the filter chain
+    (`get_user_accessible_pages(user).filter(project__org__external_id=<bad>)`)
+    is exercised rather than mocked. `page_ids` is passed to bypass the
+    embedding similarity branch, which would otherwise need an LLM call.
+    """
+
+    def send_ask_request(self, query, *, page_ids=None, org_id=None):
+        url = "/api/ask/"
+        data = {"query": query}
+        if page_ids is not None:
+            data["page_ids"] = page_ids
+        if org_id is not None:
+            data["org_id"] = org_id
+        return self.send_api_request(url=url, method="post", data=data)
+
+    def test_crafted_foreign_org_id_returns_no_matching_pages(self):
+        """Send a real `org_id` for a workspace the user isn't part of,
+        along with a `page_ids` pointing at a page they *do* have access
+        to in their own org. The org filter drops the accessible page
+        and the response is `NO_MATCHING_PAGES` — same shape as "no
+        results in your own org," so the API can't be used to probe
+        whether a foreign org exists.
+        """
+        from pages.tests.factories import PageFactory, ProjectFactory
+        from users.constants import OrgMemberRole
+        from users.models import OrgMember
+        from users.tests.factories import OrgFactory, UserFactory
+
+        own_org = OrgFactory()
+        OrgMember.objects.create(org=own_org, user=self.user, role=OrgMemberRole.ADMIN.value)
+        own_project = ProjectFactory(org=own_org, creator=self.user)
+        own_page = PageFactory(project=own_project, creator=self.user, title="Mine")
+
+        # An org the user has zero relationship with.
+        foreign_org = OrgFactory()
+        OrgMember.objects.create(org=foreign_org, user=UserFactory(), role=OrgMemberRole.ADMIN.value)
+
+        response = self.send_ask_request(
+            "what is this about",
+            page_ids=[str(own_page.external_id)],
+            org_id=str(foreign_org.external_id),
+        )
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        self.assertEqual(payload["error"], AskRequestError.NO_MATCHING_PAGES.value)
+
+    def test_matching_org_id_keeps_accessible_pages(self):
+        """Control: with `org_id` set to the user's own workspace, the
+        same `page_ids` request finds the page and the pipeline proceeds
+        past retrieval. The downstream LLM call is mocked since this
+        test doesn't care about answer generation — only that the org
+        filter doesn't drop in-org pages."""
+        from unittest.mock import patch
+
+        from pages.tests.factories import PageFactory, ProjectFactory
+        from users.constants import OrgMemberRole
+        from users.models import OrgMember
+        from users.tests.factories import OrgFactory
+
+        own_org = OrgFactory()
+        OrgMember.objects.create(org=own_org, user=self.user, role=OrgMemberRole.ADMIN.value)
+        own_project = ProjectFactory(org=own_org, creator=self.user)
+        own_page = PageFactory(project=own_project, creator=self.user, title="Mine")
+
+        with patch("ask.models.ask.create_chat_completion") as mock_completion:
+            mock_completion.return_value = {"choices": [{"message": {"content": "ok"}}]}
+            response = self.send_ask_request(
+                "what is this about",
+                page_ids=[str(own_page.external_id)],
+                org_id=str(own_org.external_id),
+            )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        payload = response.json()
+        returned_ids = {p["external_id"] for p in payload["pages"]}
+        self.assertIn(str(own_page.external_id), returned_ids)
 
 
 @override_settings(ASK_FEATURE_ENABLED=False)

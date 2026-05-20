@@ -8,7 +8,7 @@ from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.http import content_disposition_header
-from ninja import Router
+from ninja import Query, Router, Schema
 from ninja.pagination import paginate
 from ninja.responses import Response
 
@@ -117,23 +117,49 @@ pages_router = Router(auth=[token_auth, session_auth])
 @paginate
 def list_pages(request: HttpRequest):
     """Return all pages accessible by the authenticated user with pagination."""
-    # select_related("folder") avoids an N+1 in PageOut.resolve_folder_id, which
-    # accesses obj.folder.external_id for each page in the response.
-    return Page.objects.get_user_accessible_pages(request.user).select_related("folder").order_by("-updated")
+    # select_related on folder + project + project.org keeps the
+    # PageOut serialization at a single query per page. Without
+    # project__org pre-joined, the org_external_id resolver would
+    # trigger an extra SELECT per row.
+    return (
+        Page.objects.get_user_accessible_pages(request.user)
+        .select_related("folder", "project__org")
+        .order_by("-updated")
+    )
+
+
+class PagesAutocompleteQuery(Schema):
+    """Query params for the page autocomplete endpoint.
+
+    Wrapped in a schema (rather than passing two individual `str` params)
+    because Django Ninja rejects multiple optional positional query params
+    with 422 — see CLAUDE.md "Django Ninja Query Parameters".
+    """
+
+    q: str = ""
+    org_id: str = ""
 
 
 @pages_router.get("/autocomplete/", response=PagesAutocompleteOut)
-def autocomplete_pages(request: HttpRequest, q: str = ""):
+def autocomplete_pages(request: HttpRequest, query: PagesAutocompleteQuery = Query(...)):
     """Return pages matching the query for autocomplete.
 
     Searches page titles (case-insensitive) for pages the user can access.
+    When `org_id` is supplied, results are restricted to that org so a page
+    in Org A never sees pages from Org B in its link autocomplete — orgs are
+    the product's top-level boundary. Membership is implicit: if the user is
+    not a member of the supplied org, `get_user_accessible_pages` returns an
+    empty queryset for that filter and we leak nothing.
     Returns up to 10 results ordered by most recently updated.
     """
     queryset = Page.objects.get_user_accessible_pages(request.user)
 
-    if q:
+    if query.org_id:
+        queryset = queryset.filter(project__org__external_id=query.org_id)
+
+    if query.q:
         # Case-insensitive search on title
-        queryset = queryset.filter(title__icontains=q)
+        queryset = queryset.filter(title__icontains=query.q)
 
     # Limit to 10 results and order by most recently updated
     pages = queryset.order_by("-updated")[:10]
@@ -210,8 +236,11 @@ def create_page(request: HttpRequest, payload: PageIn):
 def get_page(request: HttpRequest, external_id: str):
     """Get a specific page by external ID."""
     page = get_object_or_404(
-        # select_related("folder") avoids an extra query in PageOut.resolve_folder_id.
-        Page.objects.get_user_accessible_pages(request.user).select_related("folder"),
+        # select_related on folder + project + project.org keeps the
+        # PageOut serialization at a single query — folder for folder_id,
+        # project+org for the project_external_id / org_external_id
+        # resolvers that drive frontend org-context derivation.
+        Page.objects.get_user_accessible_pages(request.user).select_related("folder", "project__org"),
         external_id=external_id,
     )
     page.role = get_page_access_level(request.user, page).value

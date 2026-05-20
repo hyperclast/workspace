@@ -831,18 +831,19 @@ nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 22px;
+  gap: 8px;
+  min-height: 22px;
   padding: 0 4px;
   margin-bottom: 8px;
+  /* Position context so the OrgSwitcher popover anchors to this row. */
+  position: relative;
 }
 
-.workspace-label {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-  user-select: none;
+#org-switcher-root {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .kbd-trigger {

@@ -485,3 +485,56 @@ class TestSimilaritySearchMultiTierAccess(TestCase):
 
         result_page_ids = [emb.page.id for emb in results]
         self.assertNotIn(page.id, result_page_ids)
+
+    def test_similarity_search_org_filter_excludes_other_org_pages(self):
+        """When org_id is supplied, pages in other orgs the user belongs to are filtered out.
+
+        Enforces the cross-org boundary at the retrieval layer: a page in Org
+        A must never get a citation from Org B even when the user has access
+        to both.
+        """
+        org_a = OrgFactory()
+        OrgMemberFactory(org=org_a, user=self.user, role="admin")
+        project_a = ProjectFactory(org=org_a, creator=self.user)
+        page_a = PageFactory(project=project_a, creator=self.user, title="Org A Page")
+        PageEmbeddingFactory(page=page_a, embedding=[0.1] + [0.0] * 1535)
+
+        org_b = OrgFactory()
+        OrgMemberFactory(org=org_b, user=self.user, role="admin")
+        project_b = ProjectFactory(org=org_b, creator=self.user)
+        page_b = PageFactory(project=project_b, creator=self.user, title="Org B Page")
+        # Closer distance — without the boundary, Org B would beat Org A.
+        PageEmbeddingFactory(page=page_b, embedding=[0.05] + [0.0] * 1535)
+
+        results = PageEmbedding.objects.similarity_search(
+            user=self.user,
+            input_embedding=self.query_embedding,
+            limit=5,
+            org_id=str(org_a.external_id),
+        )
+
+        result_page_ids = [emb.page.id for emb in results]
+        self.assertIn(page_a.id, result_page_ids)
+        self.assertNotIn(page_b.id, result_page_ids)
+
+    def test_similarity_search_org_filter_for_non_member_returns_empty(self):
+        """Passing an org_id the user is not a member of yields zero results.
+
+        Membership is enforced by get_user_accessible_pages, so combining
+        with org_id never widens access — it can only narrow it.
+        """
+        outsider = UserFactory()
+        outsider_org = OrgFactory()
+        OrgMemberFactory(org=outsider_org, user=outsider, role="admin")
+        outsider_project = ProjectFactory(org=outsider_org, creator=outsider)
+        outsider_page = PageFactory(project=outsider_project, creator=outsider, title="Secret")
+        PageEmbeddingFactory(page=outsider_page, embedding=[0.05] + [0.0] * 1535)
+
+        results = PageEmbedding.objects.similarity_search(
+            user=self.user,
+            input_embedding=self.query_embedding,
+            limit=5,
+            org_id=str(outsider_org.external_id),
+        )
+
+        self.assertEqual(results.count(), 0)

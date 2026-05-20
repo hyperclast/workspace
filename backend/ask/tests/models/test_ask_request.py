@@ -595,3 +595,116 @@ class TestAskRequestProcessQuery(TestCase):
 
         # Verify compute_embedding was NOT called (since we have page_ids)
         mock_compute_embedding.assert_not_called()
+
+
+class TestAskRequestProcessQueryOrgBoundary(TestCase):
+    """Test that process_query respects the org_id boundary on both retrieval paths.
+
+    The boundary applies whether retrieval goes through the priority page_ids
+    path (caller-supplied page references / @mentions) or the similarity
+    search path. Both must drop cross-org pages even when the user has access
+    to both orgs.
+    """
+
+    def setUp(self):
+        self.user = UserFactory()
+
+        self.org_a = OrgFactory()
+        OrgMemberFactory(org=self.org_a, user=self.user, role="admin")
+        self.project_a = ProjectFactory(org=self.org_a, creator=self.user)
+
+        self.org_b = OrgFactory()
+        OrgMemberFactory(org=self.org_b, user=self.user, role="admin")
+        self.project_b = ProjectFactory(org=self.org_b, creator=self.user)
+
+        self.mock_response = {
+            "choices": [{"message": {"content": "ok"}}],
+            "model": "gpt-4",
+            "usage": {"total_tokens": 1},
+        }
+
+    @patch("ask.models.ask.create_chat_completion")
+    @patch("ask.models.ask.build_ask_request_messages")
+    @patch("ask.models.ask.parse_mentions")
+    def test_priority_page_ids_path_drops_cross_org_pages(
+        self, mock_parse_mentions, mock_build_messages, mock_create_completion
+    ):
+        """page_ids referencing an Org B page get filtered when org_id=A."""
+        page_a = PageFactory(project=self.project_a, creator=self.user, title="A", details={"content": "x"})
+        page_b = PageFactory(project=self.project_b, creator=self.user, title="B", details={"content": "y"})
+
+        mock_parse_mentions.return_value = ("question", [])
+        mock_build_messages.return_value = [{"role": "user", "content": "test"}]
+        mock_create_completion.return_value = self.mock_response
+
+        ask_request = AskRequest.objects.process_query(
+            query="question",
+            user=self.user,
+            page_ids=[str(page_a.external_id), str(page_b.external_id)],
+            org_id=str(self.org_a.external_id),
+        )
+
+        self.assertTrue(ask_request.is_ok)
+        pages_arg = mock_build_messages.call_args[0][1]
+        page_external_ids = {p.external_id for p in pages_arg}
+        self.assertIn(page_a.external_id, page_external_ids)
+        self.assertNotIn(page_b.external_id, page_external_ids)
+
+    @patch("ask.models.ask.create_chat_completion")
+    @patch("ask.models.ask.build_ask_request_messages")
+    @patch("ask.models.ask.compute_embedding")
+    @patch("ask.models.ask.parse_mentions")
+    def test_similarity_search_path_drops_cross_org_pages(
+        self, mock_parse_mentions, mock_compute_embedding, mock_build_messages, mock_create_completion
+    ):
+        """A nearer Org B embedding is filtered out when org_id=A is supplied."""
+        page_a = PageFactory(project=self.project_a, creator=self.user, title="A", details={"content": "x"})
+        page_b = PageFactory(project=self.project_b, creator=self.user, title="B", details={"content": "y"})
+
+        # Org B embedding is closer (would normally win).
+        PageEmbeddingFactory(page=page_a, embedding=[0.3] + [0.0] * 1535)
+        PageEmbeddingFactory(page=page_b, embedding=[0.05] + [0.0] * 1535)
+
+        mock_parse_mentions.return_value = ("question", [])
+        mock_compute_embedding.return_value = [0.0] * 1536
+        mock_build_messages.return_value = [{"role": "user", "content": "test"}]
+        mock_create_completion.return_value = self.mock_response
+
+        ask_request = AskRequest.objects.process_query(
+            query="question",
+            user=self.user,
+            page_ids=None,
+            org_id=str(self.org_a.external_id),
+        )
+
+        self.assertTrue(ask_request.is_ok)
+        pages_arg = mock_build_messages.call_args[0][1]
+        page_external_ids = {p.external_id for p in pages_arg}
+        self.assertIn(page_a.external_id, page_external_ids)
+        self.assertNotIn(page_b.external_id, page_external_ids)
+
+    @patch("ask.models.ask.create_chat_completion")
+    @patch("ask.models.ask.build_ask_request_messages")
+    @patch("ask.models.ask.parse_mentions")
+    def test_omitting_org_id_preserves_cross_org_behavior(
+        self, mock_parse_mentions, mock_build_messages, mock_create_completion
+    ):
+        """Backwards compat: callers that don't pass org_id still see both orgs."""
+        page_a = PageFactory(project=self.project_a, creator=self.user, title="A", details={"content": "x"})
+        page_b = PageFactory(project=self.project_b, creator=self.user, title="B", details={"content": "y"})
+
+        mock_parse_mentions.return_value = ("question", [])
+        mock_build_messages.return_value = [{"role": "user", "content": "test"}]
+        mock_create_completion.return_value = self.mock_response
+
+        ask_request = AskRequest.objects.process_query(
+            query="question",
+            user=self.user,
+            page_ids=[str(page_a.external_id), str(page_b.external_id)],
+        )
+
+        self.assertTrue(ask_request.is_ok)
+        pages_arg = mock_build_messages.call_args[0][1]
+        page_external_ids = {p.external_id for p in pages_arg}
+        self.assertIn(page_a.external_id, page_external_ids)
+        self.assertIn(page_b.external_id, page_external_ids)

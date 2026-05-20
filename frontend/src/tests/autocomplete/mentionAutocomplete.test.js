@@ -16,25 +16,16 @@ vi.mock("../../csrf.js", () => ({
 }));
 
 import { csrfFetch } from "../../csrf.js";
-import { mentionCompletionSource } from "../../mentionAutocomplete.js";
+import {
+  mentionCompletionSource,
+  __resetForTests as resetMentionAutocomplete,
+} from "../../mentionAutocomplete.js";
+import { setCurrentOrgId } from "../../lib/orgContext.js";
 
 describe("mentionAutocomplete", () => {
   let view, parent;
 
   beforeEach(() => {
-    // Set up mock projects on window
-    window._cachedProjects = [
-      {
-        external_id: "proj1",
-        name: "Test Project",
-        org: {
-          external_id: "org123",
-          name: "Test Org",
-        },
-        pages: [],
-      },
-    ];
-
     // Default mock for fetch
     csrfFetch.mockImplementation(async (url) => {
       if (url.includes("/members/autocomplete/")) {
@@ -51,6 +42,12 @@ describe("mentionAutocomplete", () => {
       }
       return { ok: false };
     });
+
+    // The source reads the current org via `getCurrentOrgId()` from the
+    // shared module-level state in `lib/orgContext.js`. Seed it here so the
+    // happy-path assertions exercise the post-`@` completion flow instead
+    // of bailing out at the null-org early return.
+    setCurrentOrgId("org123");
   });
 
   afterEach(() => {
@@ -59,7 +56,11 @@ describe("mentionAutocomplete", () => {
     view = null;
     parent = null;
     vi.clearAllMocks();
-    delete window._cachedProjects;
+    // `orgContext` and `mentionAutocomplete` both hold module-level state
+    // that survives across tests in the same vitest worker. Reset both so
+    // ordering can't skew the caching / org-change assertions.
+    setCurrentOrgId(null);
+    resetMentionAutocomplete();
   });
 
   function createEditor(content) {
@@ -192,8 +193,12 @@ describe("mentionAutocomplete", () => {
       expect(csrfFetch).toHaveBeenCalledWith(expect.stringContaining("q=bob"));
     });
 
-    test("returns null when no projects available", async () => {
-      window._cachedProjects = [];
+    test("returns null when no current org is set", async () => {
+      // Page-canonical invariant: when there is no current org (e.g. the
+      // SPA is on a non-page route and the user has no persisted
+      // `current_org`), the completion source must short-circuit before
+      // hitting the org-scoped autocomplete API.
+      setCurrentOrgId(null);
 
       createEditor("@");
       view.dispatch({ selection: { anchor: 1 } });
@@ -206,22 +211,7 @@ describe("mentionAutocomplete", () => {
 
       const result = await mentionCompletionSource(context);
       expect(result).toBeNull();
-    });
-
-    test("returns null when project has no org", async () => {
-      window._cachedProjects = [{ external_id: "proj1", org: null }];
-
-      createEditor("@");
-      view.dispatch({ selection: { anchor: 1 } });
-
-      const context = {
-        state: view.state,
-        pos: view.state.selection.main.head,
-        explicit: false,
-      };
-
-      const result = await mentionCompletionSource(context);
-      expect(result).toBeNull();
+      expect(csrfFetch).not.toHaveBeenCalled();
     });
 
     test("handles API error gracefully", async () => {

@@ -280,6 +280,109 @@ class PageMentionsAPITests(BaseAuthenticatedViewTestCase):
         self.assertEqual(data["mentions"][0]["page_title"], "Untitled")
 
 
+class PageMentionsOrgScopeAPITests(BaseAuthenticatedViewTestCase):
+    """`GET /api/mentions/?org_id=…` restricts the result to mentions
+    whose source page lives in the named org. The command palette uses
+    this to keep its mention list consistent with the current org —
+    cross-org mentions would otherwise leak in from other workspaces."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = UserFactory(username="testuser", email="testuser@example.com")
+        cls.author = UserFactory(username="author", email="author@example.com")
+
+        cls.org_a = OrgFactory()
+        OrgMemberFactory(org=cls.org_a, user=cls.user)
+        OrgMemberFactory(org=cls.org_a, user=cls.author)
+        cls.project_a = ProjectFactory(org=cls.org_a, creator=cls.author)
+
+        cls.org_b = OrgFactory()
+        OrgMemberFactory(org=cls.org_b, user=cls.user)
+        OrgMemberFactory(org=cls.org_b, user=cls.author)
+        cls.project_b = ProjectFactory(org=cls.org_b, creator=cls.author)
+
+    def setUp(self):
+        super().setUp()
+        self.page_a = PageFactory(project=self.project_a, creator=self.author, title="A")
+        self.page_b = PageFactory(project=self.project_b, creator=self.author, title="B")
+        PageMention.objects.create(source_page=self.page_a, mentioned_user=self.user)
+        PageMention.objects.create(source_page=self.page_b, mentioned_user=self.user)
+
+    def test_omitted_org_id_returns_cross_org(self):
+        response = self.send_api_request(url="/api/mentions/", method="get")
+        titles = {m["page_title"] for m in response.json()["mentions"]}
+        self.assertEqual(titles, {"A", "B"})
+
+    def test_org_id_filters_to_that_org(self):
+        response = self.send_api_request(url=f"/api/mentions/?org_id={self.org_a.external_id}", method="get")
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        titles = [m["page_title"] for m in response.json()["mentions"]]
+        self.assertEqual(titles, ["A"])
+
+    def test_outsider_org_id_returns_empty(self):
+        """A user with no access to the requested org (no membership, no
+        project-editor role, no page-editor role) gets an empty result
+        by construction — the inner `accessible_page_ids` join filters
+        the queryset to nothing. No membership-existence side channel."""
+        outsider_org = OrgFactory()
+        # Seed a page + mention inside outsider_org. The test user has
+        # no access, so the join should drop them.
+        outsider_author = UserFactory()
+        OrgMemberFactory(org=outsider_org, user=outsider_author, role=OrgMemberRole.ADMIN.value)
+        outsider_project = ProjectFactory(org=outsider_org, creator=outsider_author)
+        outsider_page = PageFactory(project=outsider_project, creator=outsider_author, title="hidden")
+        PageMention.objects.create(source_page=outsider_page, mentioned_user=self.user)
+
+        response = self.send_api_request(url=f"/api/mentions/?org_id={outsider_org.external_id}", method="get")
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.json()["mentions"], [])
+
+
+class PageMentionsExternalCollaboratorAPITests(BaseAuthenticatedViewTestCase):
+    """`/api/mentions/?org_id=…` must honour the three-tier access model.
+    Users with project-editor or page-editor access to a workspace they
+    aren't `OrgMember`s of should still see their mentions in that org
+    — same boundary as Ask and link autocomplete. The endpoint used to
+    have an explicit `OrgMember` gate that broke this case."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = UserFactory(username="external", email="external@example.com")
+        cls.owner = UserFactory(username="owner", email="owner@example.com")
+
+        # An org the user is NOT a member of. They get scoped access
+        # via project- and page-level sharing instead.
+        cls.org = OrgFactory()
+        OrgMemberFactory(org=cls.org, user=cls.owner, role=OrgMemberRole.ADMIN.value)
+
+    def test_project_editor_non_member_sees_mentions_in_that_org(self):
+        from pages.constants import ProjectEditorRole
+        from pages.tests.factories import ProjectEditorFactory
+
+        project = ProjectFactory(org=self.org, creator=self.owner, org_members_can_access=False)
+        ProjectEditorFactory(user=self.user, project=project, role=ProjectEditorRole.EDITOR.value)
+        page = PageFactory(project=project, creator=self.owner, title="shared via project")
+        PageMention.objects.create(source_page=page, mentioned_user=self.user)
+
+        response = self.send_api_request(url=f"/api/mentions/?org_id={self.org.external_id}", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        titles = [m["page_title"] for m in response.json()["mentions"]]
+        self.assertEqual(titles, ["shared via project"])
+
+    def test_page_editor_non_member_sees_mentions_in_that_org(self):
+        project = ProjectFactory(org=self.org, creator=self.owner, org_members_can_access=False)
+        page = PageFactory(project=project, creator=self.owner, title="shared via page")
+        page.editors.add(self.user)
+        PageMention.objects.create(source_page=page, mentioned_user=self.user)
+
+        response = self.send_api_request(url=f"/api/mentions/?org_id={self.org.external_id}", method="get")
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        titles = [m["page_title"] for m in response.json()["mentions"]]
+        self.assertEqual(titles, ["shared via page"])
+
+
 class OrgMembersAutocompleteAPITests(BaseAuthenticatedViewTestCase):
     """Tests for GET /api/orgs/{id}/members/autocomplete/ endpoint."""
 

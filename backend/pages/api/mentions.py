@@ -29,6 +29,12 @@ class MentionsOut(Schema):
 class MentionsQueryParams(Schema):
     limit: int = 50
     offset: int = 0
+    # When set, restrict the mentions list to pages in this org. The
+    # frontend passes the current sidenav org so the command palette
+    # only surfaces mentions for the workspace the user is currently in
+    # — matching how recent-pages and link autocomplete already behave.
+    # Omitted = legacy cross-org behaviour.
+    org_id: Optional[str] = None
 
 
 @mentions_router.get("/", response=MentionsOut)
@@ -36,6 +42,12 @@ def get_my_mentions(request: HttpRequest, query: MentionsQueryParams = Query(...
     """Get pages where current user is @mentioned.
 
     Only returns mentions from pages the user currently has access to.
+    When `org_id` is set, results are further restricted to pages whose
+    project lives in that org — keeps the command-palette mention list
+    consistent with the rest of the per-org reference surfaces. An
+    `org_id` the user isn't a member of yields an empty list (no
+    membership-existence leak).
+
     Results are paginated and ordered by page modified date (most recent first).
     """
     # Get IDs of pages user can access
@@ -52,6 +64,18 @@ def get_my_mentions(request: HttpRequest, query: MentionsQueryParams = Query(...
         .select_related("source_page", "source_page__project")
         .order_by("-source_page__modified")
     )
+
+    if query.org_id:
+        # Align with the three-tier access model used by Ask and link
+        # autocomplete: filter by the page's org alone, with no separate
+        # OrgMember gate. The boundary is already enforced by
+        # `accessible_page_ids` above — a project-editor or page-editor
+        # who isn't an OrgMember has accessible page rows in this org
+        # and should see their mentions on those pages. A true outsider
+        # has no accessible pages there and gets an empty result by
+        # construction (the inner join filters the queryset to nothing),
+        # so we don't need a separate membership-existence check.
+        mentions_qs = mentions_qs.filter(source_page__project__org__external_id=query.org_id)
 
     # Get total count before pagination
     total = mentions_qs.count()

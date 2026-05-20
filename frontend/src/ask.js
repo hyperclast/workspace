@@ -6,6 +6,7 @@
 
 import { API_BASE_URL } from "./config.js";
 import { csrfFetch } from "./csrf.js";
+import { getCurrentOrgId } from "./lib/orgContext.js";
 
 /**
  * Custom error class for Ask API errors
@@ -45,6 +46,14 @@ export async function askQuestion(query, pageIds = [], options = {}) {
   }
   if (options.model) {
     body.model = options.model;
+  }
+
+  // Scope retrieval to the current org so Ask citations can't cross the
+  // workspace boundary. Caller can override via options.orgId; otherwise
+  // we read it from the store (single source of truth).
+  const orgId = options.orgId ?? getCurrentOrgId();
+  if (orgId) {
+    body.org_id = orgId;
   }
 
   const response = await csrfFetch(`${API_BASE_URL}/api/ask/`, {
@@ -110,6 +119,13 @@ export async function autocompletePages(searchQuery) {
   const params = new URLSearchParams();
   if (searchQuery) {
     params.append("q", searchQuery);
+  }
+
+  // Scope to the current org — the Ask UI shouldn't surface pages the user
+  // can't link to from this org's pages.
+  const orgId = getCurrentOrgId();
+  if (orgId) {
+    params.append("org_id", orgId);
   }
 
   const response = await csrfFetch(`${API_BASE_URL}/api/pages/autocomplete/?${params.toString()}`, {

@@ -1,28 +1,13 @@
 import { csrfFetch } from "./csrf.js";
 import { createDebouncedFetcher } from "./debouncedFetch.js";
+import { getCurrentOrgId } from "./lib/orgContext.js";
 
 const API_BASE = "/api";
 
-/**
- * Get the current org ID from the current page's project context.
- * Falls back to first project's org if current project not available.
- */
-function getCurrentOrgId() {
-  const projects = window._cachedProjects;
-  if (!projects || projects.length === 0) return null;
-
-  // Prefer current project's org (correct for multi-org users)
-  const currentProjectId = window._currentProjectId;
-  if (currentProjectId) {
-    const currentProject = projects.find((p) => p.external_id === currentProjectId);
-    if (currentProject?.org?.external_id) {
-      return currentProject.org.external_id;
-    }
-  }
-
-  // Fallback to first project's org
-  return projects[0]?.org?.external_id || null;
-}
+// `getCurrentOrgId` is imported from `lib/orgContext.js` (the plain-JS
+// org-context module). Under the page-canonical invariant the page's
+// org and the autocomplete-scope org are always the same — no need to
+// derive the org from `cachedProjects` here.
 
 /**
  * Find mention context when user is typing @...
@@ -125,3 +110,10 @@ async function mentionCompletionSource(context) {
 
 // Export the completion source for combining with other sources
 export { mentionCompletionSource };
+
+// Test-only: clear module-level state so successive tests don't share the
+// fetcher's debounce cache or the orgId-change tripwire.
+export function __resetForTests() {
+  fetcher.reset();
+  lastOrgId = null;
+}

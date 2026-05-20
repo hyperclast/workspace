@@ -35,6 +35,7 @@ def ask(request, payload: AskIn):
         provider=payload.provider,
         config_id=payload.config_id,
         model=payload.model,
+        org_id=payload.org_id,
     )
 
     if not ask_request.is_ok:

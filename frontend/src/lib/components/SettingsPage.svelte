@@ -37,6 +37,7 @@
   let expandedOrgMembers = $state(new Set());
   let storageBytes = $state(null);
   let storageFileCount = $state(null);
+  let storagePerOrg = $state([]);
   let storageLoading = $state(true);
 
   let referralTab = $state(null);
@@ -96,10 +97,12 @@
       const result = await fetchStorageSummary();
       storageBytes = result.total_bytes;
       storageFileCount = result.file_count;
+      storagePerOrg = Array.isArray(result.per_org) ? result.per_org : [];
     } catch (error) {
       console.error("Failed to load storage summary:", error);
       storageBytes = null;
       storageFileCount = null;
+      storagePerOrg = [];
     } finally {
       storageLoading = false;
     }
@@ -498,6 +501,19 @@
                 <span class="storage-label">Total size</span>
               </div>
             </div>
+            {#if !storageLoading && storagePerOrg.length > 0}
+              <ul class="storage-per-org">
+                {#each storagePerOrg as row (row.org_external_id)}
+                  <li class="storage-per-org-row">
+                    <span class="storage-per-org-name">{row.org_name}</span>
+                    <span class="storage-per-org-meta">
+                      <span class="storage-per-org-count">{row.file_count} file{row.file_count === 1 ? "" : "s"}</span>
+                      <span class="storage-per-org-size">{formatFileSize(row.total_bytes)}</span>
+                    </span>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
           </section>
 
           <section class="settings-section settings-logout-section">
@@ -936,6 +952,50 @@
   .storage-label {
     font-size: 0.875rem;
     color: var(--text-secondary);
+  }
+
+  .storage-per-org {
+    list-style: none;
+    margin: 1.25rem 0 0;
+    padding: 0;
+    border-top: 1px solid var(--border-light);
+  }
+
+  .storage-per-org-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .storage-per-org-row:last-child {
+    border-bottom: none;
+  }
+
+  .storage-per-org-name {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .storage-per-org-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.875rem;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+
+  .storage-per-org-size {
+    color: var(--text-primary);
+    font-weight: 500;
   }
 
 </style>

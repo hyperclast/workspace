@@ -30,20 +30,28 @@ class Profile(TimeStampedModel):
     receive_product_updates = models.BooleanField(default=True)
     demo_visits = models.JSONField(default=list, blank=True)
     keyboard_shortcuts = models.JSONField(default=dict, blank=True)
-    daily_note_project = models.ForeignKey(
-        "pages.Project",
+    # The user's currently-selected org. Persists across devices so a fresh
+    # browser opens in the same workspace. Under the "open page is the
+    # current org" invariant this is only a fallback for non-page routes
+    # (settings, home redirect, etc.).
+    current_org = models.ForeignKey(
+        "users.Org",
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
         related_name="+",
     )
-    daily_note_template = models.ForeignKey(
-        "pages.Page",
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="+",
-    )
+    # Per-org user state. Keyed by org `external_id` (string) so a soft-
+    # deleted project/page leaves a harmless stale id in the JSON rather
+    # than requiring database-level cleanup. Shape per org:
+    #   {
+    #     "last_page_id":          "<page external_id>" | None,
+    #     "daily_note_project_id": "<project external_id>" | None,
+    #     "daily_note_template_id":"<page external_id>" | None,
+    #   }
+    # API readers resolve each id against `is_deleted=False` queries at
+    # access time and silently treat stale values as "not set."
+    org_state = models.JSONField(default=dict, blank=True)
 
     @property
     def access_token(self):

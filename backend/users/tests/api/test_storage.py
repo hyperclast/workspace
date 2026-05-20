@@ -203,3 +203,73 @@ class TestStorageAPIUnauthenticated(BaseViewTestCase):
         response = self.send_api_request(url="/api/users/storage/", method="get")
 
         self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+
+
+class TestStoragePerOrgBreakdown(BaseAuthenticatedViewTestCase):
+    """The storage summary now includes a per_org breakdown so the
+    Settings UI can show where each workspace's footprint sits."""
+
+    def setUp(self):
+        super().setUp()
+        self.org_a = OrgFactory(name="Alpha Org")
+        OrgMemberFactory(org=self.org_a, user=self.user)
+        self.project_a = ProjectFactory(org=self.org_a, creator=self.user)
+
+        self.org_b = OrgFactory(name="Beta Org")
+        OrgMemberFactory(org=self.org_b, user=self.user)
+        self.project_b = ProjectFactory(org=self.org_b, creator=self.user)
+
+    def _file(self, project, size, *, status=FileUploadStatus.AVAILABLE):
+        return FileUpload.objects.create(
+            uploaded_by=self.user,
+            project=project,
+            filename="f.txt",
+            content_type="text/plain",
+            expected_size=size,
+            actual_size=size,
+            status=status,
+        )
+
+    def test_per_org_breakdown_groups_files_by_org(self):
+        self._file(self.project_a, 100)
+        self._file(self.project_a, 200)
+        self._file(self.project_b, 50)
+
+        response = self.send_api_request(url="/api/users/storage/", method="get")
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(payload["total_bytes"], 350)
+        self.assertEqual(payload["file_count"], 3)
+
+        # per_org contains both orgs with their sums.
+        by_id = {row["org_external_id"]: row for row in payload["per_org"]}
+        self.assertEqual(by_id[self.org_a.external_id]["total_bytes"], 300)
+        self.assertEqual(by_id[self.org_a.external_id]["file_count"], 2)
+        self.assertEqual(by_id[self.org_a.external_id]["org_name"], "Alpha Org")
+        self.assertEqual(by_id[self.org_b.external_id]["total_bytes"], 50)
+        self.assertEqual(by_id[self.org_b.external_id]["file_count"], 1)
+
+    def test_per_org_breakdown_omits_orgs_with_no_files(self):
+        """An org with zero files doesn't get a per_org row."""
+        self._file(self.project_a, 100)
+
+        response = self.send_api_request(url="/api/users/storage/", method="get")
+        payload = response.json()
+
+        org_ids = {row["org_external_id"] for row in payload["per_org"]}
+        self.assertIn(self.org_a.external_id, org_ids)
+        self.assertNotIn(self.org_b.external_id, org_ids)
+
+    def test_per_org_excludes_non_available_files(self):
+        """Files mid-upload or failed don't contribute to either total."""
+        self._file(self.project_a, 100, status=FileUploadStatus.AVAILABLE)
+        self._file(self.project_a, 999, status=FileUploadStatus.PENDING_URL)
+        self._file(self.project_a, 555, status=FileUploadStatus.FAILED)
+
+        response = self.send_api_request(url="/api/users/storage/", method="get")
+        payload = response.json()
+
+        self.assertEqual(payload["total_bytes"], 100)
+        by_id = {row["org_external_id"]: row for row in payload["per_org"]}
+        self.assertEqual(by_id[self.org_a.external_id]["total_bytes"], 100)

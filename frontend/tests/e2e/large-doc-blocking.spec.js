@@ -6,6 +6,7 @@
  */
 
 import { test, expect } from "@playwright/test";
+import { fetchProjectsInCurrentOrg } from "./helpers.js";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:9800";
 const TEST_EMAIL = process.env.TEST_EMAIL || "dev@localhost";
@@ -26,11 +27,10 @@ test.describe("Large document main-thread blocking", () => {
     test.setTimeout(300_000);
     await login(page);
 
-    // First, find all pages and their sizes by fetching projects with details
-    const projectsData = await page.evaluate(async () => {
-      const resp = await fetch("/api/v1/projects/?details=full", { credentials: "same-origin" });
-      return resp.json();
-    });
+    // First, find all pages and their sizes by fetching projects with details.
+    // Scope to the SPA's current org so the resulting page is reachable via
+    // the org-scoped sidenav we click into below.
+    const projectsData = await fetchProjectsInCurrentOrg(page);
 
     // Find the largest page
     let largestPage = null;
@@ -169,13 +169,9 @@ test.describe("Large document main-thread blocking", () => {
     test.setTimeout(300_000);
     await login(page);
 
-    // Find the largest page
-    const projectsData = await page.evaluate(async () => {
-      const resp = await fetch("/api/v1/projects/?details=full", {
-        credentials: "same-origin",
-      });
-      return resp.json();
-    });
+    // Find the largest page. Scope to the SPA's current org so both the
+    // large and small pages we pick are reachable via the org-scoped sidenav.
+    const projectsData = await fetchProjectsInCurrentOrg(page);
 
     let largestPage = null;
     let largestSize = 0;

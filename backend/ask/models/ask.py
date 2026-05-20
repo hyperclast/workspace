@@ -31,6 +31,7 @@ class AskRequestManager(models.Manager):
         provider: Optional[str] = None,
         config_id: Optional[str] = None,
         model: Optional[str] = None,
+        org_id: Optional[str] = None,
     ):
         ask_request = self.create(
             user=user,
@@ -68,18 +69,26 @@ class AskRequestManager(models.Manager):
             # Apply limit to the merged list
             priority_page_ids = priority_page_ids[:limit]
 
+            # Base queryset, optionally scoped to a single org. The boundary
+            # is enforced here (not just on the frontend) so the API itself
+            # can't cite cross-org content even if a buggy or malicious
+            # caller skips the frontend filter.
+            base_pages = Page.objects.get_user_accessible_pages(user)
+            if org_id:
+                base_pages = base_pages.filter(project__org__external_id=org_id)
+
             # If we have priority pages, retrieve them directly
             if priority_page_ids:
-                pages = list(Page.objects.get_user_accessible_pages(user).filter(external_id__in=priority_page_ids))
+                pages = list(base_pages.filter(external_id__in=priority_page_ids))
             # Otherwise, use similarity search
             else:
                 input_embedding = compute_embedding(question, user=user)
                 search_page_ids = list(
                     PageEmbedding.objects.similarity_search(
-                        user=user, input_embedding=input_embedding, limit=limit
+                        user=user, input_embedding=input_embedding, limit=limit, org_id=org_id
                     ).values_list("page__external_id", flat=True)
                 )
-                pages = list(Page.objects.get_user_accessible_pages(user).filter(external_id__in=search_page_ids))
+                pages = list(base_pages.filter(external_id__in=search_page_ids))
 
             if not pages:
                 ask_request.mark_as_failed(AskRequestError.NO_MATCHING_PAGES.value)

@@ -1794,3 +1794,29 @@ def _count_queries(test_case, url, method="get", data=None):
         f"{method.upper()} {url} returned {response.status_code}; cannot measure N+1 on a failed response.",
     )
     return len(ctx.captured_queries)
+
+
+class TestPageOutOrgFields(BaseAuthenticatedViewTestCase):
+    """PageOut includes `project_external_id` and `org_external_id` so
+    the frontend can resolve a page's workspace from the page response
+    alone — not from a previously-populated `cachedProjects` cache.
+    This unblocks deep-linking to pages whose project hasn't been
+    fetched yet, and removes a silent-skip path in `loadPage` that
+    used to leave `Profile.org_state` un-updated when the cache
+    didn't yet contain the project."""
+
+    def test_get_page_response_includes_project_and_org_external_ids(self):
+        from pages.tests.factories import PageFactory, ProjectFactory
+        from users.tests.factories import OrgFactory, OrgMemberFactory
+
+        org = OrgFactory()
+        OrgMemberFactory(org=org, user=self.user, role="admin")
+        project = ProjectFactory(org=org, creator=self.user)
+        page = PageFactory(project=project, creator=self.user, title="hi")
+
+        response = self.send_api_request(url=f"/api/pages/{page.external_id}/", method="get")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["project_external_id"], project.external_id)
+        self.assertEqual(payload["org_external_id"], org.external_id)

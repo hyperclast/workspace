@@ -216,3 +216,68 @@ class TestPagesAutocompleteAPI(BaseAuthenticatedViewTestCase):
         returned_ids = {page["external_id"] for page in payload["pages"]}
         self.assertNotIn(str(page_in_deleted.external_id), returned_ids)
         self.assertIn(str(active_page.external_id), returned_ids)
+
+    def test_autocomplete_org_filter_restricts_to_named_org(self):
+        """When org_id is supplied, only pages in that org come back."""
+        org_a_page = PageFactory(project=self.project, creator=self.user, title="Alpha")
+
+        org_b = OrgFactory()
+        OrgMemberFactory(org=org_b, user=self.user)
+        org_b_project = ProjectFactory(org=org_b, creator=self.user)
+        org_b_page = PageFactory(project=org_b_project, creator=self.user, title="Alpha")
+
+        url = f"/api/pages/autocomplete/?q=Alpha&org_id={self.org.external_id}"
+        response = self.send_api_request(url=url, method="get")
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        returned_ids = {page["external_id"] for page in payload["pages"]}
+        self.assertIn(str(org_a_page.external_id), returned_ids)
+        self.assertNotIn(str(org_b_page.external_id), returned_ids)
+
+    def test_autocomplete_org_filter_for_non_member_returns_empty(self):
+        """Passing an org_id the user isn't a member of yields no results.
+
+        The boundary check is implicit via get_user_accessible_pages — a non-
+        member sees zero pages from that org, so combining with org_id is
+        always safe and never leaks page metadata.
+        """
+        PageFactory(project=self.project, creator=self.user, title="Visible")
+
+        # An org the user doesn't belong to, with a page they shouldn't see.
+        outsider = UserFactory()
+        outsider_org = OrgFactory()
+        OrgMemberFactory(org=outsider_org, user=outsider)
+        outsider_project = ProjectFactory(org=outsider_org, creator=outsider)
+        outsider_page = PageFactory(project=outsider_project, creator=outsider, title="Secret")
+
+        url = f"/api/pages/autocomplete/?q=&org_id={outsider_org.external_id}"
+        response = self.send_api_request(url=url, method="get")
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(payload["pages"], [])
+        returned_ids = {page["external_id"] for page in payload["pages"]}
+        self.assertNotIn(str(outsider_page.external_id), returned_ids)
+
+    def test_autocomplete_without_org_id_still_returns_cross_org(self):
+        """Backwards compatibility: omitting org_id keeps the old behavior.
+
+        Callers that haven't been upgraded yet must keep working. The
+        boundary is enforced by callers passing org_id, not by the endpoint
+        flipping its default.
+        """
+        org_a_page = PageFactory(project=self.project, creator=self.user, title="Alpha")
+
+        org_b = OrgFactory()
+        OrgMemberFactory(org=org_b, user=self.user)
+        org_b_project = ProjectFactory(org=org_b, creator=self.user)
+        org_b_page = PageFactory(project=org_b_project, creator=self.user, title="Alpha")
+
+        response = self.send_autocomplete_request("Alpha")
+        payload = response.json()
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        returned_ids = {page["external_id"] for page in payload["pages"]}
+        self.assertIn(str(org_a_page.external_id), returned_ids)
+        self.assertIn(str(org_b_page.external_id), returned_ids)

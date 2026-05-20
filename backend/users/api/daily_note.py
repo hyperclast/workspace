@@ -1,16 +1,18 @@
 import re
 from datetime import date, datetime, timezone
+from typing import Optional
 
 from django.db import transaction
 from django.http import HttpRequest
-from django.shortcuts import get_object_or_404
-from ninja import Router
-from ninja.responses import Response
+from ninja import Query, Router, Schema
 
 from core.authentication import session_auth, token_auth
 from pages.models import Folder, Page, Project
 from pages.permissions import user_can_edit_in_project
-from users.models import OrgMember
+from users.access import user_has_org_access
+from users.models import Org, OrgMember
+from users.org_state import read_bucket as _read_org_state_bucket
+from users.org_state import write_bucket as _write_org_state_bucket
 from users.schemas import (
     DailyNoteConfigIn,
     DailyNoteConfigOut,
@@ -25,13 +27,94 @@ DAILY_NOTE_TITLE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 DEFAULT_DAILY_NOTES_PROJECT_NAME = "Daily Notes"
 
 
-def _count_unorganized(project):
-    """Count pages in the project with YYYY-MM-DD titles not already filed under YYYY/MM."""
+class DailyNoteOrgQuery(Schema):
+    """Optional ?org_id=… for daily-note endpoints.
+
+    When omitted, the user's `Profile.current_org` is used (and we fall
+    back to their first joined org if that's also unset).
+    """
+
+    org_id: Optional[str] = None
+
+
+def _resolve_org(user, org_external_id: Optional[str]):
+    """Pick the org to operate on for daily-note endpoints.
+
+    Priority:
+      1. Explicit ?org_id= — three-tier access verified (membership OR
+         project/page-editor) via the shared `user_has_org_access`
+         helper. Unauthorized users get `None` and never learn whether
+         the org exists.
+      2. `Profile.current_org` — same three-tier check, kept in lock-
+         step with the read/write paths for `current_org` so an external
+         collaborator's persisted selection actually works here too.
+      3. Fallback to the user's first joined org. Membership-only by
+         design: external collaborators have no canonical "default"
+         workspace, so they must either select one via `current_org` or
+         pass `?org_id=` explicitly — falling back to an arbitrary
+         workspace they happen to have a page in would be surprising.
+
+    Returns the Org instance, or `None` if no usable org resolves.
+    """
+    if org_external_id:
+        org = Org.objects.filter(external_id=org_external_id).first()
+        return org if org and user_has_org_access(user, org) else None
+    profile = user.profile
+    if profile.current_org_id and user_has_org_access(user, profile.current_org):
+        return profile.current_org
+    membership = OrgMember.objects.filter(user=user).order_by("created").first()
+    return membership.org if membership else None
+
+
+def _get_org_state_bucket(user, org):
+    """Return the `org_state[org.external_id]` dict, or {} if unset.
+
+    Thin alias over `users.org_state.read_bucket` so call sites in this
+    module read consistently without sprinkling the import everywhere.
+    """
+    return _read_org_state_bucket(user, org)
+
+
+def _resolve_daily_note_project(user, org, bucket):
+    """Resolve the bucket's `daily_note_project_id` to a live Project the
+    user can still access, or None if missing / soft-deleted / cross-org /
+    no longer accessible.
+
+    Reads go through `get_user_accessible_projects` so the same access
+    boundary applies to read paths as to writes: a user who lost access
+    (org demotion, project lockdown, editor revoked) gets `None`, not a
+    leaked project name / template name / page count.
+    """
+    project_id = bucket.get("daily_note_project_id")
+    if not project_id:
+        return None
+    return Project.objects.get_user_accessible_projects(user).filter(external_id=project_id, org=org).first()
+
+
+def _resolve_daily_note_template(user, project, bucket):
+    """Resolve the bucket's `daily_note_template_id` to a live, accessible
+    Page within `project`, or None.
+
+    Same access-boundary rule as `_resolve_daily_note_project`: route
+    through `get_user_accessible_pages` so a template the user has lost
+    access to surfaces as None rather than leaking its title."""
+    template_id = bucket.get("daily_note_template_id")
+    if not template_id or project is None:
+        return None
+    return Page.objects.get_user_accessible_pages(user).filter(external_id=template_id, project=project).first()
+
+
+def _count_unorganized(user, project):
+    """Count YYYY-MM-DD pages not yet filed under YYYY/MM, restricted to
+    pages the user can access. An accurate-but-untrusted count would
+    otherwise reveal the existence of locked-down pages in the project."""
     if project is None:
         return 0
 
-    pages = Page.objects.filter(project=project, is_deleted=False, title__regex=r"^\d{4}-\d{2}-\d{2}$").select_related(
-        "folder", "folder__parent"
+    pages = (
+        Page.objects.get_user_accessible_pages(user)
+        .filter(project=project, title__regex=r"^\d{4}-\d{2}-\d{2}$")
+        .select_related("folder", "folder__parent")
     )
     count = 0
     for page in pages:
@@ -45,12 +128,13 @@ def _count_unorganized(project):
     return count
 
 
-def _build_config_response(profile, unorganized_count=None):
-    project = profile.daily_note_project
-    template = profile.daily_note_template
+def _build_config_response(user, project, template, unorganized_count=None):
+    """Render the response from a resolved (project, template) pair.
 
+    Both resolutions are expected to be access-checked by the caller —
+    see `_resolve_daily_note_project` / `_resolve_daily_note_template`."""
     if unorganized_count is None:
-        unorganized_count = _count_unorganized(project)
+        unorganized_count = _count_unorganized(user, project)
 
     return {
         "project": ({"external_id": project.external_id, "name": project.name} if project else None),
@@ -59,21 +143,20 @@ def _build_config_response(profile, unorganized_count=None):
     }
 
 
-def _pick_or_create_daily_notes_project(user):
-    """Find an existing writable project named 'Daily Notes', else create one in user's primary org."""
-    # Exact-name match among writable projects
-    writable = Project.objects.get_user_accessible_projects(user)
+def _pick_or_create_daily_notes_project(user, org):
+    """Find an existing writable project named 'Daily Notes' inside `org`, else
+    create one in `org`.
+
+    Org-scoped so a user with multiple workspaces gets a separate Daily
+    Notes project per workspace.
+    """
+    writable = Project.objects.get_user_accessible_projects(user).filter(org=org)
     existing = writable.filter(name__iexact=DEFAULT_DAILY_NOTES_PROJECT_NAME).order_by("created").first()
     if existing and user_can_edit_in_project(user, existing):
         return existing
 
-    # Otherwise pick the user's primary org (first joined) and create a new project there
-    membership = OrgMember.objects.filter(user=user).order_by("created").first()
-    if not membership:
-        return None
-
     project = Project.objects.create(
-        org=membership.org,
+        org=org,
         name=DEFAULT_DAILY_NOTES_PROJECT_NAME,
         description="Your daily notes, filed by year and month.",
         creator=user,
@@ -82,34 +165,51 @@ def _pick_or_create_daily_notes_project(user):
 
 
 @daily_note_router.get("/config/", response=DailyNoteConfigOut)
-def get_daily_note_config(request: HttpRequest):
-    """Return the current user's daily-note configuration."""
-    profile = request.user.profile
-    return _build_config_response(profile)
+def get_daily_note_config(request: HttpRequest, query: DailyNoteOrgQuery = Query(...)):
+    """Return the current user's daily-note configuration for the active org."""
+    user = request.user
+    org = _resolve_org(user, query.org_id)
+    if org is None:
+        return _build_config_response(request.user, None, None, unorganized_count=0)
+    bucket = _get_org_state_bucket(user, org)
+    project = _resolve_daily_note_project(user, org, bucket)
+    template = _resolve_daily_note_template(user, project, bucket)
+    return _build_config_response(request.user, project, template)
 
 
 @daily_note_router.patch("/config/", response={200: DailyNoteConfigOut, 400: dict, 403: dict, 404: dict})
-def update_daily_note_config(request: HttpRequest, payload: DailyNoteConfigIn):
-    """Update the user's daily-note configuration.
+def update_daily_note_config(request: HttpRequest, payload: DailyNoteConfigIn, query: DailyNoteOrgQuery = Query(...)):
+    """Update the user's daily-note configuration for an org.
 
-    Two modes:
-    - `auto=True`: backend picks an existing "Daily Notes" project or creates one.
-    - Explicit: `project_external_id` (required) and optional `template_external_id`.
+    Two modes (same as before, but scoped to one org):
+    - `auto=True`: backend picks an existing "Daily Notes" project in the
+      org or creates one there.
+    - Explicit: `project_external_id` (required) and optional
+      `template_external_id`. The project must belong to the active org —
+      no cross-org references.
     """
     user = request.user
-    profile = user.profile
+    org = _resolve_org(user, query.org_id)
+    if org is None:
+        return 400, {"message": "No organization available."}
 
     if payload.auto:
-        project = _pick_or_create_daily_notes_project(user)
-        if not project:
-            return 400, {"message": "No organization available to create a project in."}
-        with transaction.atomic():
-            profile.daily_note_project = project
-            # Clear stale template if it's not in the new project
-            if profile.daily_note_template_id and profile.daily_note_template.project_id != project.id:
-                profile.daily_note_template = None
-            profile.save(update_fields=["daily_note_project", "daily_note_template", "modified"])
-        return 200, _build_config_response(profile)
+        project = _pick_or_create_daily_notes_project(user, org)
+        prev = _get_org_state_bucket(user, org)
+        prev_template_external = prev.get("daily_note_template_id")
+        # Clear the template if it doesn't live in the auto-picked project.
+        template = None
+        if prev_template_external:
+            template = Page.objects.filter(
+                external_id=prev_template_external, is_deleted=False, project=project
+            ).first()
+        _write_org_state_bucket(
+            user,
+            org,
+            daily_note_project_id=project.external_id,
+            daily_note_template_id=template.external_id if template else None,
+        )
+        return 200, _build_config_response(request.user, project, template)
 
     # Explicit mode
     if not payload.project_external_id:
@@ -118,6 +218,8 @@ def update_daily_note_config(request: HttpRequest, payload: DailyNoteConfigIn):
     project = Project.objects.filter(external_id=payload.project_external_id, is_deleted=False).first()
     if not project:
         return 404, {"message": "Project not found."}
+    if project.org_id != org.id:
+        return 400, {"message": "Project must belong to the active organization."}
     if not user_can_edit_in_project(user, project):
         return 403, {"message": "You don't have permission to write to this project."}
 
@@ -132,17 +234,32 @@ def update_daily_note_config(request: HttpRequest, payload: DailyNoteConfigIn):
         if template.project_id != project.id:
             return 400, {"message": "Template must belong to the selected project."}
 
-    with transaction.atomic():
-        project_changed = profile.daily_note_project_id != project.id
-        profile.daily_note_project = project
-        if template is not None:
-            profile.daily_note_template = template
-        elif project_changed:
-            # Clear stale template when project changes and no new template provided
-            profile.daily_note_template = None
-        profile.save(update_fields=["daily_note_project", "daily_note_template", "modified"])
+    prev = _get_org_state_bucket(user, org)
+    prev_project_id = prev.get("daily_note_project_id")
+    if template is not None:
+        new_template_external_id = template.external_id
+    elif prev_project_id == project.external_id:
+        # Same project, no explicit template change → keep the existing one
+        # (if it's still valid).
+        new_template_external_id = prev.get("daily_note_template_id")
+    else:
+        # Project changed and no new template → clear it.
+        new_template_external_id = None
 
-    return 200, _build_config_response(profile)
+    _write_org_state_bucket(
+        user,
+        org,
+        daily_note_project_id=project.external_id,
+        daily_note_template_id=new_template_external_id,
+    )
+
+    resolved_template = None
+    if new_template_external_id:
+        resolved_template = Page.objects.filter(
+            external_id=new_template_external_id, is_deleted=False, project=project
+        ).first()
+
+    return 200, _build_config_response(request.user, project, resolved_template)
 
 
 def _get_or_create_year_month_folders(project, year: int, month: int):
@@ -153,21 +270,26 @@ def _get_or_create_year_month_folders(project, year: int, month: int):
 
 
 @daily_note_router.post("/today/", response={200: dict, 400: dict, 403: dict, 409: dict})
-def open_today_daily_note(request: HttpRequest, payload: DailyNoteTodayIn = None):
-    """Return today's daily note, creating it (and YYYY/MM folders) if missing.
+def open_today_daily_note(
+    request: HttpRequest, payload: DailyNoteTodayIn = None, query: DailyNoteOrgQuery = Query(...)
+):
+    """Return today's daily note for the active org, creating it (and YYYY/MM
+    folders) if missing.
 
-    Returns 409 with `daily_note_not_configured` if the user has no project set.
-
-    The client passes `date` (YYYY-MM-DD) computed in its local timezone. If
-    omitted, the server falls back to UTC today.
+    Returns 409 with `daily_note_not_configured` if no daily-note project
+    has been picked for the active org — or if the configured project has
+    been soft-deleted since.
     """
     user = request.user
-    profile = user.profile
+    org = _resolve_org(user, query.org_id)
+    not_configured = 409, {"message": "Daily note not configured", "code": "daily_note_not_configured"}
+    if org is None:
+        return not_configured
 
-    if profile.daily_note_project_id is None:
-        return 409, {"message": "Daily note not configured", "code": "daily_note_not_configured"}
-
-    project = profile.daily_note_project
+    bucket = _get_org_state_bucket(user, org)
+    project = _resolve_daily_note_project(user, org, bucket)
+    if project is None:
+        return not_configured
     if not user_can_edit_in_project(user, project):
         return 403, {"message": "You no longer have write access to this project."}
 
@@ -183,6 +305,8 @@ def open_today_daily_note(request: HttpRequest, payload: DailyNoteTodayIn = None
         today = datetime.now(timezone.utc).date()
     title = today.isoformat()
 
+    template = _resolve_daily_note_template(user, project, bucket)
+
     # Atomic find-or-create with select_for_update to prevent duplicate daily
     # notes from concurrent requests (double-click, multiple tabs/devices).
     with transaction.atomic():
@@ -196,11 +320,9 @@ def open_today_daily_note(request: HttpRequest, payload: DailyNoteTodayIn = None
 
         if page is None:
             details = {"content": "", "filetype": "md", "schema_version": 1}
-            if profile.daily_note_template_id and profile.daily_note_template.project_id == project.id:
-                source = profile.daily_note_template
-                if source.details:
-                    details["content"] = source.details.get("content", "")
-                    details["filetype"] = source.details.get("filetype", "md")
+            if template and template.details:
+                details["content"] = template.details.get("content", "")
+                details["filetype"] = template.details.get("filetype", "md")
             page = Page.objects.create_with_owner(
                 user=user,
                 project=project,
@@ -217,15 +339,20 @@ def open_today_daily_note(request: HttpRequest, payload: DailyNoteTodayIn = None
 
 
 @daily_note_router.post("/organize/", response={200: DailyNoteOrganizeOut, 403: dict, 409: dict})
-def organize_daily_notes(request: HttpRequest, payload: DailyNoteOrganizeIn):
-    """Move YYYY-MM-DD-titled pages in the daily-note project into YYYY/MM folders."""
+def organize_daily_notes(request: HttpRequest, payload: DailyNoteOrganizeIn, query: DailyNoteOrgQuery = Query(...)):
+    """Move YYYY-MM-DD-titled pages in the active org's daily-note project
+    into YYYY/MM folders. Same `daily_note_not_configured` fallback as
+    /today/ when the configured project has been soft-deleted."""
     user = request.user
-    profile = user.profile
+    org = _resolve_org(user, query.org_id)
+    not_configured = 409, {"message": "Daily note not configured", "code": "daily_note_not_configured"}
+    if org is None:
+        return not_configured
 
-    if profile.daily_note_project_id is None:
-        return 409, {"message": "Daily note not configured", "code": "daily_note_not_configured"}
-
-    project = profile.daily_note_project
+    bucket = _get_org_state_bucket(user, org)
+    project = _resolve_daily_note_project(user, org, bucket)
+    if project is None:
+        return not_configured
     if not user_can_edit_in_project(user, project):
         return 403, {"message": "You don't have permission to write to this project."}
 

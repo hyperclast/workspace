@@ -35,6 +35,7 @@
     {{ feature_flags|json_script:"feature-flags" }}
     {{ previewable_image_types|json_script:"previewable-image-types" }}
     {{ app_config|json_script:"app-config" }}
+    {{ user_state|json_script:"user-state" }}
     {% csrf_token %}
 
     <script>
@@ -70,6 +71,14 @@
       // App config (limits, sizes) from Django settings
       const appConfigEl = document.getElementById('app-config');
       window._appConfig = appConfigEl ? JSON.parse(appConfigEl.textContent) : {};
+
+      // Persisted per-user state (current org, last page per org) — embedded
+      // here so the sidenav stores can hydrate without an extra HTTP round
+      // trip on every page load. See core/views/home.py:get_user_state.
+      const userStateEl = document.getElementById('user-state');
+      window._userState = userStateEl
+      ? JSON.parse(userStateEl.textContent)
+      : { currentOrgId: null, lastPagePerOrg: {} };
 
       // Demo mode flag (set by /demo/ route)
       window._isDemoMode = {{ is_demo_mode|yesno:"true,false" }};

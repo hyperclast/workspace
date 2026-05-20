@@ -102,6 +102,24 @@ class UpdateUserSchema(Schema):
     )
     first_name: Optional[str] = Field(None, max_length=150)
     last_name: Optional[str] = Field(None, max_length=150)
+    # The user's selected org. Setting this here makes the choice persist
+    # across devices — localStorage["current-org-id"] still acts as the
+    # per-tab cache but is seeded from this value on load. Pass an empty
+    # string to clear. Membership is enforced; passing an org_id the user
+    # isn't a member of returns 400.
+    current_org_id: Optional[str] = None
+
+
+class UpdateOrgStateSchema(Schema):
+    """Request body for writing per-(user, org) state on
+    PATCH /api/v1/users/me/org-state/{org_id}/.
+
+    Only `last_page_id` is settable here today. Daily-note fields live on
+    the dedicated /daily-note/config/ endpoint so its richer validation
+    (template-in-project, etc.) stays where it already is.
+    """
+
+    last_page_id: Optional[str] = None
 
 
 class AccessTokenResponse(Schema):
@@ -257,11 +275,27 @@ class UsageQueryParams(Schema):
     tz_offset: int = 0
 
 
+class StorageOrgBreakdown(Schema):
+    """Per-org storage breakdown row."""
+
+    org_external_id: str
+    org_name: str
+    total_bytes: int
+    file_count: int
+
+
 class StorageSummaryOut(Schema):
-    """Response for storage summary endpoint."""
+    """Response for storage summary endpoint.
+
+    `total_bytes` and `file_count` are the user's grand total. `per_org`
+    breaks the same data down by org so the Settings UI can show where
+    storage is concentrated and (with the org boundary now enforced)
+    surface each workspace's footprint separately.
+    """
 
     total_bytes: int
     file_count: int
+    per_org: List[StorageOrgBreakdown] = []
 
 
 class AccessTokenOut(Schema):

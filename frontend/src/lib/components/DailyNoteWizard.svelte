@@ -3,6 +3,7 @@
   import { fetchProjectsWithPages, updateDailyNoteConfig, organizeDailyNotes } from '../../api.js';
   import { countUnorganizedDailyNotes } from '../dailyNote.js';
   import { showToast } from '../toast.js';
+  import { getCurrentOrgId } from '../orgContext.js';
 
   let {
     open = $bindable(false),
@@ -60,7 +61,10 @@
   async function loadProjects() {
     loadingProjects = true;
     try {
-      projects = await fetchProjectsWithPages();
+      // Scope to the current org — daily-note config is per-org, so picking
+      // a project from another workspace would just be rejected by the
+      // backend (400, "Project must belong to the active organization").
+      projects = await fetchProjectsWithPages(getCurrentOrgId());
       // Prefer a "Daily Notes" project if present
       const daily = projects.find((p) => (p.name || '').toLowerCase() === 'daily notes');
       if (daily) {
@@ -122,9 +126,7 @@
       <div class="select-wrapper">
         <select id="dn-project" bind:value={selectedProjectId} disabled={loading}>
           {#each projects as project (project.external_id)}
-            <option value={project.external_id}>
-              {project.name}{project.org?.name ? ` (${project.org.name})` : ''}
-            </option>
+            <option value={project.external_id}>{project.name}</option>
           {/each}
         </select>
         <svg class="select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

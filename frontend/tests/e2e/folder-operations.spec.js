@@ -21,7 +21,7 @@
 
 import { test, expect } from "@playwright/test";
 import { login } from "./visual-regression/fixtures.js";
-import { dismissSocratesPanel } from "./helpers.js";
+import { dismissSocratesPanel, pickProjectIdInCurrentOrg } from "./helpers.js";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:9800";
 
@@ -160,18 +160,6 @@ async function deletePageViaApi(page, pageId) {
 }
 
 /**
- * Get the first project external_id from the API.
- */
-async function getFirstProjectIdViaApi(page) {
-  return page.evaluate(async () => {
-    const res = await fetch("/api/v1/projects/");
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.items?.[0]?.external_id || data[0]?.external_id || null;
-  });
-}
-
-/**
  * Reload the sidenav by navigating to the app root and waiting for it to render.
  */
 async function reloadAndWaitForSidenav(page) {
@@ -194,7 +182,7 @@ test.describe("Folder Operations", () => {
   });
 
   test("folder appears in sidenav after creation via API + reload", async ({ page }) => {
-    const projectId = await getFirstProjectIdViaApi(page);
+    const projectId = await pickProjectIdInCurrentOrg(page);
     expect(projectId).toBeTruthy();
 
     const folderName = `E2E Folder ${Date.now()}`;
@@ -215,7 +203,7 @@ test.describe("Folder Operations", () => {
   });
 
   test("navigating to a page in a folder auto-expands the folder", async ({ page }) => {
-    const projectId = await getFirstProjectIdViaApi(page);
+    const projectId = await pickProjectIdInCurrentOrg(page);
     const folderName = `E2E Toggle ${Date.now()}`;
     const folder = await createFolderViaApi(page, projectId, folderName);
     const testPage = await createPageViaApi(
@@ -247,7 +235,7 @@ test.describe("Folder Operations", () => {
   });
 
   test("page moved into folder appears under that folder after reload", async ({ page }) => {
-    const projectId = await getFirstProjectIdViaApi(page);
+    const projectId = await pickProjectIdInCurrentOrg(page);
     const folderName = `E2E Move ${Date.now()}`;
     const folder = await createFolderViaApi(page, projectId, folderName);
     const testPage = await createPageViaApi(page, projectId, `Move Target ${Date.now()}`);
@@ -272,7 +260,7 @@ test.describe("Folder Operations", () => {
   });
 
   test("page moved to root no longer appears under the folder", async ({ page }) => {
-    const projectId = await getFirstProjectIdViaApi(page);
+    const projectId = await pickProjectIdInCurrentOrg(page);
     const folderName = `E2E Root ${Date.now()}`;
     const folder = await createFolderViaApi(page, projectId, folderName);
     const testPage = await createPageViaApi(
@@ -313,7 +301,7 @@ test.describe("Folder Operations", () => {
   });
 
   test("breadcrumbs show folder path when navigating to a page in a folder", async ({ page }) => {
-    const projectId = await getFirstProjectIdViaApi(page);
+    const projectId = await pickProjectIdInCurrentOrg(page);
     const folderName = `E2E Crumbs ${Date.now()}`;
     const folder = await createFolderViaApi(page, projectId, folderName);
     const testPage = await createPageViaApi(
@@ -343,7 +331,7 @@ test.describe("Folder Operations", () => {
   });
 
   test("folder expand state persists after page reload", async ({ page }) => {
-    const projectId = await getFirstProjectIdViaApi(page);
+    const projectId = await pickProjectIdInCurrentOrg(page);
     const folderName = `E2E Persist ${Date.now()}`;
     const folder = await createFolderViaApi(page, projectId, folderName);
     const testPage = await createPageViaApi(
@@ -383,7 +371,7 @@ test.describe("Folder Operations", () => {
   });
 
   test("empty folder can be deleted via the folder menu", async ({ page }) => {
-    const projectId = await getFirstProjectIdViaApi(page);
+    const projectId = await pickProjectIdInCurrentOrg(page);
     const folderName = `E2E Delete ${Date.now()}`;
     const folder = await createFolderViaApi(page, projectId, folderName);
 

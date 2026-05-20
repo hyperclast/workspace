@@ -46,7 +46,16 @@ class PageUpdateIn(Schema):
 
 
 class PageOut(Schema):
-    """Single page returned by GET/POST/PUT."""
+    """Single page returned by GET/POST/PUT.
+
+    `project_external_id` and `org_external_id` are included so the
+    frontend can resolve "which workspace does this page belong to?"
+    from the page response alone, without depending on a previously-
+    populated projects cache. The previous flow derived org from
+    `cachedProjects` and silently skipped last-page / current-org
+    writes if the project wasn't yet cached (deep-links, cross-org
+    races) — now those writes can run unconditionally.
+    """
 
     external_id: str
     title: str
@@ -58,11 +67,26 @@ class PageOut(Schema):
     role: Optional[str] = None
     access_code: Optional[str] = None
     folder_id: Optional[str] = None
+    project_external_id: Optional[str] = None
+    org_external_id: Optional[str] = None
 
     @staticmethod
     def resolve_folder_id(obj):
         if obj.folder_id:
             return obj.folder.external_id
+        return None
+
+    @staticmethod
+    def resolve_project_external_id(obj):
+        # The project FK is always set on a Page row (it's NOT NULL),
+        # but be defensive in case of a partially-constructed mock in
+        # tests.
+        return obj.project.external_id if obj.project_id else None
+
+    @staticmethod
+    def resolve_org_external_id(obj):
+        if obj.project_id and obj.project.org_id:
+            return obj.project.org.external_id
         return None
 
     class Config:

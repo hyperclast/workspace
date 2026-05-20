@@ -7,6 +7,7 @@
 import { initModals } from "./lib/modal.js";
 import { setupCommandPalette } from "./lib/commandPaletteSetup.js";
 import { fetchProjectsWithPages } from "./api.js";
+import { getCurrentOrgId } from "./lib/orgContext.js";
 
 let initialized = false;
 let cachedProjects = [];
@@ -21,9 +22,11 @@ export async function initCommandPalette() {
   // Initialize the modal system (mounts GlobalConfirm which includes CommandPalette)
   initModals();
 
-  // Fetch projects for navigation
+  // Fetch projects for navigation, scoped to the user's current org.
+  // Orgs are the product's top-level boundary; the command palette is
+  // a navigation tool, so it should stay inside the active workspace.
   try {
-    cachedProjects = await fetchProjectsWithPages();
+    cachedProjects = await fetchProjectsWithPages(getCurrentOrgId());
   } catch (e) {
     console.warn("[CommandPalette] Could not fetch projects:", e);
     cachedProjects = [];

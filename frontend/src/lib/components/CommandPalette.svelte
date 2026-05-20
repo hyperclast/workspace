@@ -2,7 +2,8 @@
   import { closeCommandPalette } from '../stores/modal.svelte.js';
   import { csrfFetch } from '../../csrf.js';
   import { API_BASE_URL } from '../../config.js';
-  import { getRecentPages } from '../recentPages.js';
+  import { getRecentPagesForOrg } from '../recentPages.js';
+  import { getCurrentOrgId } from '../orgContext.js';
   import { isDemoMode } from '../../demo/index.js';
 
   let {
@@ -31,12 +32,20 @@
   let storedRecentPages = $state([]);
   const MAX_RECENT = 5;
 
-  // Fetch mentions from API
+  // Fetch mentions from API, scoped to the current org so the palette
+  // matches the rest of the per-org surfaces (recent pages, link
+  // autocomplete). Cross-org mentions for other workspaces would
+  // otherwise leak in here regardless of which workspace the user is
+  // currently working in.
   async function fetchMentions() {
     if (isDemoMode()) return;
     mentionsLoading = true;
     try {
-      const res = await csrfFetch(`${API_BASE_URL}/api/mentions/`);
+      const orgId = getCurrentOrgId();
+      const url = orgId
+        ? `${API_BASE_URL}/api/mentions/?org_id=${encodeURIComponent(orgId)}`
+        : `${API_BASE_URL}/api/mentions/`;
+      const res = await csrfFetch(url);
       if (res.ok) {
         const data = await res.json();
         mentions = data.mentions || [];
@@ -235,8 +244,9 @@
       query = '';
       selectedIndex = 0;
       mentionsExpanded = false;
-      // Load recent pages from localStorage
-      storedRecentPages = getRecentPages();
+      // Load recent pages from localStorage, filtered to the current org so
+      // the recent list never crosses the workspace boundary.
+      storedRecentPages = getRecentPagesForOrg(getCurrentOrgId());
       // Fetch mentions
       fetchMentions();
       setTimeout(() => inputEl?.focus(), 10);

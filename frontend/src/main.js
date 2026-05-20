@@ -6,10 +6,13 @@ import { EditorView, keymap } from "@codemirror/view";
 
 import {
   createPage as createPageApi,
+  createProject as createProjectApi,
   deletePage as deletePageApi,
   fetchPage as fetchPageApi,
   fetchProjectsWithPages,
   generateAccessCode,
+  patchCurrentOrg,
+  patchOrgLastPage,
   uploadFile,
 } from "./api.js";
 import { isDemoMode, showDemoPrompt } from "./demo/index.js";
@@ -109,7 +112,12 @@ import {
   setShowFilesSection,
   addFileToProject,
 } from "./lib/sidenav.js";
-import { updatePageAccessCode } from "./lib/stores/sidenav.svelte.js";
+import {
+  updatePageAccessCode,
+  getCurrentOrgId,
+  setCurrentOrgId,
+  setLastPageForOrg,
+} from "./lib/stores/sidenav.svelte.js";
 import { initSidenavBroadcast, broadcastSidenavChanged } from "./lib/sidenavBroadcast.js";
 import { buildTree, getFolderBreadcrumbs } from "./lib/utils/buildTree.js";
 import { setupToolbar, resetToolbar } from "./toolbar.js";
@@ -117,12 +125,15 @@ import { getPageIdFromPath } from "./router.js";
 import { initTheme } from "./theme.js";
 import { mount, unmount } from "svelte";
 import ThemeMenu from "./lib/components/ThemeMenu.svelte";
+import OrgSwitcher from "./lib/components/OrgSwitcher.svelte";
 import PdfViewer from "./pdf/PdfViewer.svelte";
 import { isPdfPage } from "./pdf/isPdfPage.js";
 import { addRecentPage } from "./lib/recentPages.js";
 import { commandPalette } from "./lib/modal.js";
 import { setupRewind, exitRewindMode } from "./rewind/index.js";
 import RewindViewer from "./rewind/RewindViewer.svelte";
+import { createOrgSwitchController } from "./lib/orgSwitch.js";
+import { askQuestion } from "./ask.js";
 
 /**
  * Check if focus is currently in an input element where ? should be typed.
@@ -283,7 +294,7 @@ function renderAppHTML() {
       <aside id="note-sidebar" class="note-sidebar">
         <header class="sidebar-top">
           <div class="workspace-row">
-            <span class="workspace-label">Workspace</span>
+            <div id="org-switcher-root"></div>
             <button id="sidebar-jump-btn" class="kbd-trigger" type="button" aria-label="Open command palette" title="Open command palette">
               <kbd>${navigator.platform.toUpperCase().indexOf("MAC") >= 0 ? "⌘K" : "^K"}</kbd>
             </button>
@@ -379,13 +390,34 @@ async function fetchProjects() {
     if (isDemoMode()) {
       return await fetchDemoProjects();
     }
-    const projects = await fetchProjectsWithPages();
+    const projects = await fetchProjectsWithPages(getCurrentOrgId());
     return projects || [];
   } catch (error) {
     console.error("Error fetching projects:", error);
     return [];
   }
 }
+
+// Org-switch pipeline (hydrateOrgs, bootstrapEmptyOrg, navigateToOrgEntryPage,
+// and the rapid-switch race-guard) lives in lib/orgSwitch.js. The
+// controller closes over the mutable host state via getter/setter
+// arrows; assignment to `cachedProjects` flows through `setCachedProjects`
+// so the controller can rebind the host's cache after a bootstrap.
+const orgSwitchController = createOrgSwitchController({
+  isDemoMode,
+  getCachedProjects: () => cachedProjects,
+  setCachedProjects: (v) => {
+    cachedProjects = v;
+  },
+  getCurrentPage: () => currentPage,
+  fetchProjects: () => fetchProjects(),
+  renderSidenav: (projects, activeId) => renderSidenav(projects, activeId),
+  openPage: (pageId) => openPage(pageId),
+  createProjectApi,
+  createPageApi,
+  showToast,
+  patchCurrentOrg,
+});
 
 /**
  * Fetch a specific page by external_id.
@@ -473,6 +505,24 @@ Object.defineProperty(window, "_cachedProjects", {
 // Expose currentProjectId for the Dev tab
 Object.defineProperty(window, "_currentProjectId", {
   get: () => currentProjectId,
+});
+
+// Expose the live current-org id for the Dev tab and e2e tests. The
+// canonical source is the module-scoped state in `lib/orgContext.js` —
+// the window global is a read-only view into it. `window._userState`
+// only carries the SPA's initial server-injected value; this getter
+// stays current as the user navigates.
+Object.defineProperty(window, "_currentOrgId", {
+  get: () => getCurrentOrgId(),
+});
+
+// Expose `askQuestion` for E2E coverage so the org-scoping test can
+// exercise the real `ask.js` code path (including the implicit
+// getCurrentOrgId() lookup), not just hand-roll a fetch with the
+// expected wire shape. Read-only window hook; safe in prod.
+Object.defineProperty(window, "_askQuestion", {
+  value: askQuestion,
+  writable: false,
 });
 
 /**
@@ -737,8 +787,39 @@ async function loadPage(page, signal = null) {
   // Update the view-only link indicator
   updateReadonlyIndicator(page.access_code);
 
-  // Store the project ID for this page
-  currentProjectId = page.project_id || findProjectIdForPage(page.external_id);
+  // Store the project ID for this page. Prefer the server-serialized
+  // `project_external_id` from PageOut — it's reliable regardless of
+  // whether `cachedProjects` contains the project yet (deep-link, race,
+  // cross-org switch in progress). `findProjectIdForPage` over the
+  // cache remains a legacy fallback.
+  currentProjectId =
+    page.project_external_id || page.project_id || findProjectIdForPage(page.external_id);
+
+  // Derive the page's org. Prefer the server-serialized
+  // `org_external_id` on PageOut so deep-linking to a page whose
+  // project isn't in `cachedProjects` still drives last-page writes
+  // and current-org realignment. Fall back to the cache for any
+  // legacy code path that pre-dates the schema change.
+  const ownerProject = cachedProjects.find((p) => p.external_id === currentProjectId);
+  const pageOrgId = page.org_external_id || ownerProject?.org?.external_id || null;
+
+  if (pageOrgId) {
+    // Remember this page as the last-viewed in its org so the next org
+    // switch resumes here. Write through to Profile.org_state for
+    // cross-device sync.
+    setLastPageForOrg(pageOrgId, page.external_id);
+    patchOrgLastPage(pageOrgId, page.external_id);
+
+    // The open page IS the current org. If the page's org diverges from
+    // the current sidenav org (e.g., user clicked a legacy cross-org link),
+    // align the org-context module to the page's org. This triggers the
+    // org-changed handler which re-fetches projects + re-renders the
+    // sidenav. We do this AFTER setLastPageForOrg so navigateToOrgEntryPage
+    // sees this page as the resume target and skips re-loading it.
+    if (pageOrgId !== getCurrentOrgId()) {
+      setCurrentOrgId(pageOrgId);
+    }
+  }
 
   localStorage.setItem("ws-last-page", page.external_id);
 
@@ -747,9 +828,14 @@ async function loadPage(page, signal = null) {
   setCurrentPageId(page.external_id);
   notifyPageChange(page.external_id);
 
-  // Track this page in recent pages for Jump modal
+  // Track this page in recent pages for Jump modal. We pass the org id so
+  // the command palette can filter the recent list when the user is on a
+  // different org's workspace.
   const currentProject = cachedProjects.find((p) => p.external_id === currentProjectId);
-  addRecentPage(page.external_id, page.title, currentProject?.name || "");
+  const recentOrgId = currentProject?.org?.external_id || getCurrentOrgId();
+  if (recentOrgId) {
+    addRecentPage(page.external_id, page.title, currentProject?.name || "", recentOrgId);
+  }
 
   // Disable delete button for non-owners with explanation
   const deleteNoteBtn = document.getElementById("delete-note-btn");
@@ -2687,6 +2773,38 @@ async function startApp() {
   if (themeToggleRoot) {
     mount(ThemeMenu, { target: themeToggleRoot });
   }
+
+  // Mount the workspace switcher in the sidenav top row. We mount before the
+  // first project fetch because the store already has currentOrgId hydrated
+  // from localStorage synchronously; the org list (for the dropdown) is
+  // filled in asynchronously by hydrateOrgs() below.
+  const orgSwitcherRoot = document.getElementById("org-switcher-root");
+  if (orgSwitcherRoot) {
+    mount(OrgSwitcher, { target: orgSwitcherRoot });
+  }
+
+  // Switching org is a context switch: sidenav re-scopes AND the editor
+  // navigates to the right page in the new org. After this handler runs,
+  // the org of the currently-open page always matches the sidenav org, so
+  // every reference surface (link autocomplete, mentions, Ask, recent
+  // pages) can just read the one currentOrgId.
+  //
+  // Destination resolution (in order):
+  //   1. Last-viewed page in the new org (from `last-page-per-org` map)
+  //      if it's still present in the org's projects.
+  //   2. First page of the first project in the org.
+  //   3. Org has projects but every project is empty → auto-create an
+  //      Untitled page in the first project.
+  //   4. Org has no projects → auto-create an Untitled project AND page.
+  //
+  // We also fire-and-forget a PATCH to Profile.current_org so the choice
+  // syncs across devices. Other tabs are intentionally NOT notified —
+  // each tab can choose its own workspace.
+  orgSwitchController.installHandler();
+
+  // Kick off the org list fetch (don't await — projects fetch is independent
+  // because the store hydrates currentOrgId from localStorage synchronously).
+  orgSwitchController.hydrateOrgs();
 
   // Mount PDF viewer (global modal, triggers from link clicks)
   mount(PdfViewer, { target: document.body });
