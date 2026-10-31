@@ -3,7 +3,7 @@
 Hyperclast MCP server lets AI assistants read and write your pages directly. It
 implements the <a href="https://modelcontextprotocol.io/" target="_blank"
 rel="noopener noreferrer">Model Context Protocol</a> and works with any
-MCP-compatible client, including Claude Code and Claude Desktop.
+MCP-compatible client, including Claude Code, Claude Desktop, and Opencode.
 
 ## Setup
 
@@ -11,6 +11,8 @@ MCP-compatible client, including Claude Code and Claude Desktop.
   <div class="client-tab-bar">
     <button class="client-tab active" data-tab="claude-code">Claude Code</button>
     <button class="client-tab" data-tab="claude-desktop">Claude Desktop</button>
+    <button class="client-tab" data-tab="opencode-cli">Opencode CLI</button>
+    <button class="client-tab" data-tab="opencode-config">Opencode Config</button>
   </div>
   <div class="client-tab-panel active" data-tab="claude-code">
 
@@ -39,6 +41,41 @@ Add to `claude_desktop_config.json`:
 }
 ```
 
+  </div>
+  <div class="client-tab-panel" data-tab="opencode-cli">
+
+```bash
+opencode mcp add \
+  --env HYPERCLAST_TOKEN=<ACCESS_TOKEN> \
+  --global \
+  hyperclast \
+  uvx hyperclast-mcp
+```
+
+  </div>
+  <div class="client-tab-panel" data-tab="opencode-config">
+
+Add to `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "hyperclast": {
+        "type": "local",
+        "command": [
+          "uvx",
+          "hyperclast-mcp"
+        ],
+        "environment": {
+          "HYPERCLAST_TOKEN": "<ACCESS_TOKEN>"
+        }
+      }
+    }
+  }
+}
+```
   </div>
 </div>
 
